@@ -1,14 +1,14 @@
 
-LDFLAGS=-framework OpenGL `sdl-config --static-libs` -lpthread
+LDFLAGS=-framework OpenGL `sdl2-config --static-libs` -lpthread
 
-CFLAGS=`sdl-config --cflags` -I.. -Iglew-1.9.0/include -DGLEW_STATIC -Wno-c++11-extensions
+CFLAGS=`sdl2-config --cflags` -I.. -Iglew -DGLEW_STATIC -Wno-c++11-extensions
 CFLAGS+=-g -O0 -Wno-invalid-offsetof
 
 CPPFLAGS=$(CFLAGS)
 CPPFLAGS+=-Wno-lambda-extensions -stdlib=libc++ -std=c++11
 
 CPP_SOURCES = demo.cpp microprofile.cpp
-C_SOURCES = glew-1.9.0/src/glew.c
+C_SOURCES = glew/glew.c
 
 TARGET=demo
 CC=clang

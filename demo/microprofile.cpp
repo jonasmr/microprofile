@@ -33,10 +33,14 @@ struct MicroProfileVertex
 	float fV;
 };
 
+
 #define MICROPROFILE_MAX_VERTICES (64<<10)
 #define MICROPROFILE_NUM_QUERIES (8<<10)
 #define MAX_FONT_CHARS 256
-#define CHECKGL() MP_ASSERT(glGetError() == GL_NO_ERROR)
+#define Q0(d, member, v) d[0].member = v
+#define Q1(d, member, v) d[1].member = v; d[3].member = v
+#define Q2(d, member, v) d[4].member = v
+#define Q3(d, member, v) d[2].member = v; d[5].member = v
 
 namespace
 {
@@ -55,7 +59,15 @@ namespace
 	int32_t nNumDrawCommands;
 	uint32_t g_nW;
 	uint32_t g_nH;
-	uint32_t g_VBO;
+	uint32_t g_VAO;
+	uint32_t g_VertexBuffer;
+	int 	g_LocVertexIn;
+	int 	g_LocColorIn;
+	int 	g_LocTC0In;
+	int 	g_LocTex;
+	int 	g_LocProjectionMatrix;
+
+	float g_Projection[16];
 
 
 	GLuint g_VertexShader;
@@ -78,33 +90,46 @@ namespace
 
 
 	const char* g_PixelShaderCode = "\
+#version 150 \n \
 uniform sampler2D tex; \
-\
-void main(void)  \
-{\
-	vec4 color = texture2D(tex, gl_TexCoord[0].xy);\
-	if(gl_TexCoord[0].x > 1.0 )\
-	{\
-		gl_FragColor.xyz = gl_Color.xyz;\
-		gl_FragColor.w = 1.0;\
-	}\
-	else\
-	{\
-		gl_FragColor.xyz = color.xyz * gl_Color.xyz;\
-		gl_FragColor.w = color.w;\
-	}\
-}\
+in vec2 TC0; \
+in vec4 Color; \
+out vec4 Out0; \
+ \
+void main(void)   \
+{   \
+	vec4 color = texture(tex, TC0.xy); \
+	if(TC0.x > 1.0 ) \
+	{ \
+		Out0.xyz = Color.xyz; \
+		Out0.w = 1.0;	 \
+	} \
+	else \
+	{ \
+		Out0.xyz = color.xyz * Color.xyz; \
+		Out0.w = color.w; \
+	} \
+	if(Out0.w<0.5) \
+		discard; \
+} \
 ";
 
-	const char* g_VertexShaderCode = "\
-void main(void)\
-{\
-	gl_FrontColor = gl_Color;\
-	gl_TexCoord[0] = gl_MultiTexCoord0;\
-	gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * gl_Vertex;\
-}\
+	const char* g_VertexShaderCode = " \
+#version 150 \n \
+uniform mat4 ProjectionMatrix; \
+in vec3 VertexIn; \
+in vec4 ColorIn; \
+in vec2 TC0In; \
+out vec2 TC0; \
+out vec4 Color; \
+ \
+void main(void)   \
+{ \
+	Color = ColorIn; \
+	TC0 = TC0In; \
+	gl_Position = ProjectionMatrix * vec4(VertexIn, 1.0); \
+} \
 ";
-
 
 
 
@@ -128,27 +153,58 @@ void main(void)\
 		}
 		return &nDrawBuffer[nOut];
 	}
+	void DumpGlLog(GLuint handle)
+	{
+		int nLogLen = 0;
+		glGetObjectParameterivARB(handle, GL_OBJECT_INFO_LOG_LENGTH_ARB, &nLogLen);
+		if(nLogLen > 0)
+		{
+			char* pChars = (char*)malloc(nLogLen);
+			int nLen = 0;
+			glGetInfoLogARB(handle, nLogLen, &nLen, pChars);
+
+			printf("COMPILE MESSAGE\n%s\n\n", pChars);
+
+			free(pChars);
+			MP_BREAK();
+		}
+	}
+
 	GLuint CreateProgram(int nType, const char* pShader)
 	{
 		GLuint handle = glCreateShaderObjectARB(nType);
-		CHECKGL();
 		glShaderSource(handle, 1, (const char**)&pShader, 0);
-		CHECKGL();
 		glCompileShader(handle);
-		CHECKGL();
+		DumpGlLog(handle);
 		MP_ASSERT(handle);	
 		return handle;
 	}
 }
+
+
+
 void MicroProfileDrawInit()
 {
-	glGenBuffers(1, &g_VBO);
+	glGenBuffers(1, &g_VertexBuffer);
+	glGenVertexArrays(1, &g_VAO);
 	g_PixelShader = CreateProgram(GL_FRAGMENT_SHADER_ARB, g_PixelShaderCode);
 	g_VertexShader = CreateProgram(GL_VERTEX_SHADER_ARB, g_VertexShaderCode);
 	g_Program = glCreateProgramObjectARB();
 	glAttachObjectARB(g_Program, g_PixelShader);
 	glAttachObjectARB(g_Program, g_VertexShader);
+
+	g_LocVertexIn = 1;
+	g_LocColorIn = 2;
+	g_LocTC0In = 3;
+
+	glBindAttribLocation(g_Program, g_LocColorIn, "ColorIn");
+	glBindAttribLocation(g_Program, g_LocVertexIn, "VertexIn");
+	glBindAttribLocation(g_Program, g_LocTC0In, "TC0In");
 	glLinkProgramARB(g_Program);
+	DumpGlLog(g_Program);
+
+	g_LocTex = glGetUniformLocation(g_Program, "tex");
+	g_LocProjectionMatrix = glGetUniformLocation(g_Program, "ProjectionMatrix");
 
 	for(uint32_t i = 0; i < MAX_FONT_CHARS; ++i)
 	{
@@ -205,14 +261,14 @@ void MicroProfileDrawInit()
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);     
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_FALSE);
     }
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, FONT_TEX_X, FONT_TEX_Y, 0, GL_RGBA, GL_UNSIGNED_BYTE, &p4[0]);
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void MicroProfileBeginDraw(uint32_t nWidth, uint32_t nHeight)
+void MicroProfileBeginDraw(uint32_t nWidth, uint32_t nHeight, float* prj)
 {
+	memcpy(g_Projection, prj, sizeof(float)*16);
 	g_nW = nWidth;
 	g_nH = nHeight;
 	nVertexPos = 0;
@@ -222,34 +278,33 @@ void MicroProfileEndDraw()
 {
 	if(0 == nVertexPos)
 		return;
-	MICROPROFILE_SCOPEI("MicroProfile", "DrawFlush", 0x003456);
+	MICROPROFILE_SCOPEI("MicroProfile", "EndDraw", 0x003456);
+	MICROPROFILE_SCOPEGPUI("GPU", "EndDraw", 0xff4444);
 
-	glEnable(GL_ALPHA_TEST);
-	glAlphaFunc(GL_GREATER, 0.5f);
+
 
 	glUseProgramObjectARB(g_Program);
 
-	int32_t loc = glGetUniformLocation(g_Program, "tex");
 
-	MP_ASSERT(-1 != loc);
-	glUniform1i(loc, 0);
+	glUniform1i(g_LocTex, 0);
+	glUniformMatrix4fv(g_LocProjectionMatrix, 1, 0, g_Projection);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, g_FontTexture);
 
-	glBindBuffer(GL_ARRAY_BUFFER, g_VBO);
+
+	glBindVertexArray(g_VAO);
+
+
+	glBindBuffer(GL_ARRAY_BUFFER, g_VertexBuffer);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(nDrawBuffer), &nDrawBuffer[0], GL_STREAM_DRAW);
 	int nStride = sizeof(MicroProfileVertex);
-	
-	glVertexPointer(2, GL_FLOAT, nStride, 0);
-	glColorPointer(4, GL_UNSIGNED_BYTE, nStride, (void*)(offsetof(MicroProfileVertex, nColor)));
-	glClientActiveTexture(GL_TEXTURE0);
-	glTexCoordPointer(2, GL_FLOAT, nStride, (void*)(offsetof(MicroProfileVertex, fU)));
-
-
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glEnableClientState(GL_COLOR_ARRAY);
-	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	glVertexAttribPointer(g_LocVertexIn, 2, GL_FLOAT, 0 , nStride, 0);
+	glVertexAttribPointer(g_LocColorIn, 4, GL_UNSIGNED_BYTE, GL_TRUE, nStride, (void*)(offsetof(MicroProfileVertex, nColor)));
+	glVertexAttribPointer(g_LocTC0In, 2, GL_FLOAT, 0, nStride, (void*)(offsetof(MicroProfileVertex, fU)));
+	glEnableVertexAttribArray(g_LocVertexIn);
+	glEnableVertexAttribArray(g_LocColorIn);
+	glEnableVertexAttribArray(g_LocTC0In);
 
 	int nOffset = 0;
 	for(int i = 0; i < nNumDrawCommands; ++i)
@@ -258,14 +313,13 @@ void MicroProfileEndDraw()
 		glDrawArrays(DrawCommands[i].nCommand, nOffset, nCount);
 		nOffset += nCount;
 	}
+	glDisableVertexAttribArray(g_LocVertexIn);
+	glDisableVertexAttribArray(g_LocColorIn);
+	glDisableVertexAttribArray(g_LocTC0In);
 
-	glDisableClientState(GL_VERTEX_ARRAY);
-	glDisableClientState(GL_COLOR_ARRAY);
-	glDisableClientState(GL_TEXTURE_COORD_ARRAY);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
-
 	glUseProgramObjectARB(0);
-	glDisable(GL_ALPHA_TEST);
+	glBindVertexArray(0);
 	nVertexPos = 0;
 	nNumDrawCommands = 0;
 }
@@ -282,7 +336,7 @@ void MicroProfileDrawText(int nX, int nY, uint32_t nColor, const char* pText)
 	float fY = nY;
 	float fY2 = fY + (MICROPROFILE_TEXT_HEIGHT+1);
 
-	MicroProfileVertex* pVertex = PushVertices(GL_QUADS, 4 * nLen);
+	MicroProfileVertex* pVertex = PushVertices(GL_TRIANGLES, 6 * nLen);
 	const char* pStr = pText;
 	nColor = 0xff000000|((nColor&0xff)<<16)|(nColor&0xff00)|((nColor>>16)&0xff);
 
@@ -290,33 +344,33 @@ void MicroProfileDrawText(int nX, int nY, uint32_t nColor, const char* pText)
 	{
 		int16_t nOffset = g_FontDescription.nCharOffsets[*pStr++];
 		float fOffset = nOffset / 1024.f;
-		pVertex[0].nX = fX;
-		pVertex[0].nY = fY;
-		pVertex[0].nColor = nColor;
-		pVertex[0].fU = fOffset;
-		pVertex[0].fV = 0.f;
+		Q0(pVertex,nX, fX);
+		Q0(pVertex,nY, fY);
+		Q0(pVertex,nColor, nColor);
+		Q0(pVertex,fU, fOffset);
+		Q0(pVertex,fV, 0.f);
 		
-		pVertex[1].nX = fX+MICROPROFILE_TEXT_WIDTH;
-		pVertex[1].nY = fY;
-		pVertex[1].nColor = nColor;
-		pVertex[1].fU = fOffset+fOffsetU;
-		pVertex[1].fV = 0.f;
+		Q1(pVertex, nX, fX+MICROPROFILE_TEXT_WIDTH);
+		Q1(pVertex, nY, fY);
+		Q1(pVertex, nColor, nColor);
+		Q1(pVertex, fU, fOffset+fOffsetU);
+		Q1(pVertex, fV, 0.f);
 
-		pVertex[2].nX = fX+MICROPROFILE_TEXT_WIDTH;
-		pVertex[2].nY = fY2;
-		pVertex[2].nColor = nColor;
-		pVertex[2].fU = fOffset+fOffsetU;
-		pVertex[2].fV = 1.f;
+		Q2(pVertex, nX, fX+MICROPROFILE_TEXT_WIDTH);
+		Q2(pVertex, nY, fY2);
+		Q2(pVertex, nColor, nColor);
+		Q2(pVertex, fU, fOffset+fOffsetU);
+		Q2(pVertex, fV, 1.f);
 
 
-		pVertex[3].nX = fX;
-		pVertex[3].nY = fY2;
-		pVertex[3].nColor = nColor;
-		pVertex[3].fU = fOffset;
-		pVertex[3].fV = 1.f;
+		Q3(pVertex, nX, fX);
+		Q3(pVertex, nY, fY2);
+		Q3(pVertex, nColor, nColor);
+		Q3(pVertex, fU, fOffset);
+		Q3(pVertex, fV, 1.f);
 
 		fX += MICROPROFILE_TEXT_WIDTH+1;
-		pVertex += 4;
+		pVertex += 6;
 	}
 }
 void MicroProfileDrawBox(int nX0, int nY0, int nX1, int nY1, uint32_t nColor, MicroProfileBoxType Type)
@@ -326,27 +380,27 @@ void MicroProfileDrawBox(int nX0, int nY0, int nX1, int nY1, uint32_t nColor, Mi
 		MP_ASSERT(nX0 <= nX1);
 		MP_ASSERT(nY0 <= nY1);
 		nColor = 0xff000000|((nColor&0xff)<<16)|(nColor&0xff00)|((nColor>>16)&0xff);
-		MicroProfileVertex* pVertex = PushVertices(GL_QUADS, 4);
-		pVertex[0].nX = nX0;
-		pVertex[0].nY = nY0;
-		pVertex[0].nColor = nColor;
-		pVertex[0].fU = 2.f;
-		pVertex[0].fV = 2.f;
-		pVertex[1].nX = nX1;
-		pVertex[1].nY = nY0;
-		pVertex[1].nColor = nColor;
-		pVertex[1].fU = 2.f;
-		pVertex[1].fV = 2.f;
-		pVertex[2].nX = nX1;
-		pVertex[2].nY = nY1;
-		pVertex[2].nColor = nColor;
-		pVertex[2].fU = 2.f;
-		pVertex[2].fV = 2.f;
-		pVertex[3].nX = nX0;
-		pVertex[3].nY = nY1;
-		pVertex[3].nColor = nColor;
-		pVertex[3].fU = 2.f;
-		pVertex[3].fV = 2.f;
+		MicroProfileVertex* pVertex = PushVertices(GL_TRIANGLES, 6);
+		Q0(pVertex, nX, nX0);
+		Q0(pVertex, nY, nY0);
+		Q0(pVertex, nColor, nColor);
+		Q0(pVertex, fU, 2.f);
+		Q0(pVertex, fV, 2.f);
+		Q1(pVertex, nX, nX1);
+		Q1(pVertex, nY, nY0);
+		Q1(pVertex, nColor, nColor);
+		Q1(pVertex, fU, 2.f);
+		Q1(pVertex, fV, 2.f);
+		Q2(pVertex, nX, nX1);
+		Q2(pVertex, nY, nY1);
+		Q2(pVertex, nColor, nColor);
+		Q2(pVertex, fU, 2.f);
+		Q2(pVertex, fV, 2.f);
+		Q3(pVertex, nX, nX0);
+		Q3(pVertex, nY, nY1);
+		Q3(pVertex, nColor, nColor);
+		Q3(pVertex, fU, 2.f);
+		Q3(pVertex, fV, 2.f);
 	}
 	else
 	{
@@ -365,27 +419,27 @@ void MicroProfileDrawBox(int nX0, int nY0, int nX1, int nY1, uint32_t nColor, Mi
 		uint32_t b1 = 0xff & ((b+nMin)/2);
 		uint32_t nColor0 = (r0<<0)|(g0<<8)|(b0<<16)|0xff000000;
 		uint32_t nColor1 = (r1<<0)|(g1<<8)|(b1<<16)|0xff000000;
-		MicroProfileVertex* pVertex = PushVertices(GL_QUADS, 4);
-		pVertex[0].nX = nX0;
-		pVertex[0].nY = nY0;
-		pVertex[0].nColor = nColor0;
-		pVertex[0].fU = 2.f;
-		pVertex[0].fV = 2.f;
-		pVertex[1].nX = nX1;
-		pVertex[1].nY = nY0;
-		pVertex[1].nColor = nColor0;
-		pVertex[1].fU = 3.f;
-		pVertex[1].fV = 2.f;
-		pVertex[2].nX = nX1;
-		pVertex[2].nY = nY1;
-		pVertex[2].nColor = nColor1;
-		pVertex[2].fU = 3.f;
-		pVertex[2].fV = 3.f;
-		pVertex[3].nX = nX0;
-		pVertex[3].nY = nY1;
-		pVertex[3].nColor = nColor1;
-		pVertex[3].fU = 2.f;
-		pVertex[3].fV = 3.f;
+		MicroProfileVertex* pVertex = PushVertices(GL_TRIANGLES, 6);
+		Q0(pVertex, nX, nX0);
+		Q0(pVertex, nY, nY0);
+		Q0(pVertex, nColor, nColor0);
+		Q0(pVertex, fU, 2.f);
+		Q0(pVertex, fV, 2.f);
+		Q1(pVertex, nX, nX1);
+		Q1(pVertex, nY, nY0);
+		Q1(pVertex, nColor, nColor0);
+		Q1(pVertex, fU, 3.f);
+		Q1(pVertex, fV, 2.f);
+		Q2(pVertex, nX, nX1);
+		Q2(pVertex, nY, nY1);
+		Q2(pVertex, nColor, nColor1);
+		Q2(pVertex, fU, 3.f);
+		Q2(pVertex, fV, 3.f);
+		Q3(pVertex, nX, nX0);
+		Q3(pVertex, nY, nY1);
+		Q3(pVertex, nColor, nColor1);
+		Q3(pVertex, fU, 2.f);
+		Q3(pVertex, fV, 3.f);
 	}
 }
 
@@ -417,30 +471,24 @@ void MicroProfileQueryInitGL()
 {
 	g_GlTimerPos = 0;
 	glGenQueries(MICROPROFILE_NUM_QUERIES, &g_GlTimers[0]);		
-	CHECKGL();
 }
 
 uint32_t MicroProfileGpuInsertTimeStamp()
 {
 	uint32_t nIndex = (g_GlTimerPos+1)%MICROPROFILE_NUM_QUERIES;
-	CHECKGL();
-#ifndef __APPLE__
 	glQueryCounter(g_GlTimers[nIndex], GL_TIMESTAMP);
-#endif
 	g_GlTimerPos = nIndex;
-	CHECKGL();
 	return nIndex;
 }
 uint64_t MicroProfileGpuGetTimeStamp(uint32_t nKey)
 {
-#ifndef __APPLE__
 	uint64_t result;
+	#ifdef __APPLE__
+	//for some reason, on osx, this gets truncated to 32bit if only called once ?!?
 	glGetQueryObjectui64v(g_GlTimers[nKey], GL_QUERY_RESULT, &result);
-	CHECKGL();
+	#endif
+	glGetQueryObjectui64v(g_GlTimers[nKey], GL_QUERY_RESULT, &result);
 	return result;
-#else
-	return 1;
-#endif
 }
 
 uint64_t MicroProfileTicksPerSecondGpu()

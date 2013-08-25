@@ -29,6 +29,7 @@
 #include "microprofile.h"
 #include "glinc.h"
 
+
 #ifdef _WIN32
 #include <windows.h>
 void usleep(__int64 usec) 
@@ -184,7 +185,7 @@ void HandleEvent(SDL_Event* pEvt)
 		g_nQuit = true;
 		break;
 	case SDL_KEYUP:
-		if(pEvt->key.keysym.sym == SDLK_ESCAPE)
+		if(pEvt->key.keysym.scancode == SDL_SCANCODE_ESCAPE)
 		{
 			g_nQuit = 1;
 		}
@@ -192,7 +193,7 @@ void HandleEvent(SDL_Event* pEvt)
 		{
 			MicroProfileToggleDisplayMode();
 		}
-		if(pEvt->key.keysym.sym == SDLK_RSHIFT)
+		if(pEvt->key.keysym.scancode == SDL_SCANCODE_RSHIFT)
 		{
 			MicroProfileTogglePause();
 		}
@@ -216,45 +217,50 @@ void HandleEvent(SDL_Event* pEvt)
 		{
 			g_MouseDown1 = 0;
 		}
-		else if(pEvt->button.button == SDL_BUTTON_WHEELUP)
-		{
-			g_MouseDelta--;
-		}
-		else if(pEvt->button.button == SDL_BUTTON_WHEELDOWN)
-		{
-			g_MouseDelta++;
-		}
+		break;
+	case SDL_MOUSEWHEEL:
+			g_MouseDelta -= pEvt->wheel.y;
+		break;
 	}
+
+
+
 }
 
 void MicroProfileQueryInitGL();
 void MicroProfileDrawInit();
-void MicroProfileBeginDraw(uint32_t nWidth, uint32_t nHeight);
+void MicroProfileBeginDraw(uint32_t nWidth, uint32_t nHeight, float* prj);
 void MicroProfileEndDraw();
 
-extern "C" 
-int SDL_main(int argc, char* argv[])
+int main(int argc, char* argv[])
 {
 	printf("press 'z' to toggle microprofile drawing\n");
 	printf("press 'right shift' to pause microprofile update\n");
 	MicroProfileOnThreadCreate("Main");
 
-	if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER) < 0) 
-	{
+	if(SDL_Init(SDL_INIT_VIDEO) < 0) {
 		return 1;
 	}
+
+
 	SDL_GL_SetAttribute(SDL_GL_RED_SIZE,    	    8);
 	SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE,  	    8);
 	SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE,   	    8);
 	SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE,  	    8);
 	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE,  	    24);
 	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE,  	    8);	
-	SDL_GL_SetAttribute(SDL_GL_BUFFER_SIZE,		    32);
-	SDL_Surface* Surface;
-	if((Surface = SDL_SetVideoMode(WIDTH, HEIGHT, 32, SDL_HWSURFACE | SDL_GL_DOUBLEBUFFER | SDL_OPENGL  )) == NULL) 
-	{
+	SDL_GL_SetAttribute(SDL_GL_BUFFER_SIZE,		    32);	
+	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER,	    1);	
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+	SDL_GL_SetSwapInterval(1);
+
+	SDL_Window * pWindow = SDL_CreateWindow("microprofiledemo", 10, 10, WIDTH, HEIGHT, SDL_WINDOW_OPENGL);
+	if(!pWindow)
 		return 1;
-	}
+
+	SDL_GLContext glcontext = SDL_GL_CreateContext(pWindow);
 
 	glewExperimental=1;
 	GLenum err=glewInit();
@@ -262,6 +268,9 @@ int SDL_main(int argc, char* argv[])
 	{
 		MP_BREAK();
 	}
+	glGetError(); //glew generates an error
+		
+
 
 #if MICROPROFILE_ENABLED
 	MicroProfileQueryInitGL();
@@ -301,21 +310,31 @@ int SDL_main(int argc, char* argv[])
 		MicroProfileFlip();
 		{
 			MICROPROFILE_SCOPEGPUI("GPU", "MicroProfileDraw", 0x88dd44);
-			glMatrixMode(GL_PROJECTION);
-			glLoadIdentity();
-			glOrtho(0.0, WIDTH, HEIGHT, 0, -1.0, 1.0);
-			glMatrixMode(GL_MODELVIEW);
-			glLoadIdentity();
-			glDisable(GL_DEPTH_TEST);
-			glDisable(GL_CULL_FACE);
+			float projection[16];
+			float left = 0.f;
+			float right = WIDTH;
+			float bottom = HEIGHT;
+			float top = 0.f;
+			float near = -1.f;
+			float far = 1.f;
+			memset(&projection[0], 0, sizeof(projection));
 
-			MicroProfileBeginDraw(WIDTH, HEIGHT);
+			projection[0] = 2.0 / (right - left);
+			projection[5] = 2.0 / (top - bottom);
+			projection[10] = -2.0 / (far - near);
+			projection[12] = - (right + left) / (right - left);
+			projection[13] = - (top + bottom) / (top - bottom);
+			projection[14] = - (far + near) / (far - near);
+			projection[15] = 1.f; 
+ 
+
+			MicroProfileBeginDraw(WIDTH, HEIGHT, &projection[0]);
 			MicroProfileDraw(WIDTH, HEIGHT);
 			MicroProfileEndDraw();
 		}
 
 		MICROPROFILE_SCOPEI("MAIN", "Flip", 0xffee00);
-		SDL_GL_SwapBuffers();
+		SDL_GL_SwapWindow(pWindow);
 	}
 
 	t0.join();
@@ -326,5 +345,11 @@ int SDL_main(int argc, char* argv[])
 	t43.join();
 	t44.join();
 	t45.join();
+
+  	SDL_GL_DeleteContext(glcontext);  
+ 	SDL_DestroyWindow(pWindow);
+ 	SDL_Quit();
+
+
 	return 0;
 }
