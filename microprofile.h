@@ -122,6 +122,7 @@ inline int64_t MicroProfileTicksPerSecondCpu()
 
 #define MP_BREAK() __builtin_trap()
 #define MP_THREAD_LOCAL __thread
+#define MP_STRCASECMP strcasecmp
 #elif defined(_WIN32)
 #include <windows.h>
 inline int64_t MicroProfileTicksPerSecondCpu()
@@ -143,6 +144,7 @@ inline int64_t MicroProfileGetTick()
 #define MP_TICK() MicroProfileGetTick()
 #define MP_BREAK() __debugbreak()
 #define MP_THREAD_LOCAL __declspec(thread)
+#define MP_STRCASECMP stricmp
 #endif
 
 #define MP_ASSERT(a) do{if(!(a)){MP_BREAK();} }while(0)
@@ -544,6 +546,7 @@ void MicroProfileInit()
 		S.nActiveMenu = (uint32_t)-1;
 		S.fReferenceTime = 33.33f;
 		S.fRcpReferenceTime = 1.f / S.fReferenceTime;
+		S.nFrameStartCpu = MP_TICK();
 
 		memset(S.nFrameStartGpu, 0xff, sizeof(S.nFrameStartGpu));
 
@@ -586,10 +589,17 @@ MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, ui
 {
 	MicroProfileInit();
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
+	{
+		if(!MP_STRCASECMP(pName, S.TimerInfo[i].pName) && !MP_STRCASECMP(pGroup, S.GroupInfo[S.TimerInfo[i].nGroupIndex].pName))
+		{
+			return S.TimerInfo[i].nToken;
+		}
+	}
 	uint16_t nGroupIndex = 0xffff;
 	for(uint32_t i = 0; i < S.nGroupCount; ++i)
 	{
-		if(!strcmp(pGroup, S.GroupInfo[i].pName))
+		if(!MP_STRCASECMP(pGroup, S.GroupInfo[i].pName))
 		{
 			nGroupIndex = i;
 			break;
@@ -1935,7 +1945,8 @@ bool MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 				memset(S.MaxTimers, 0, sizeof(S.MaxTimers));
 				memset(S.AggregateTimersExclusive, 0, sizeof(S.AggregateTimersExclusive));
 				memset(S.MaxTimersExclusive, 0, sizeof(S.MaxTimersExclusive));
-
+				S.nFlipAggregate = 0;
+				S.nFlipMax = 0;
 				S.nAggregateFlipCount = 0;
 			}
 		},
@@ -2358,7 +2369,7 @@ void MicroProfileLoadPreset(const char* pSuffix)
 			const char* pGroupName = pBuffer + Header.nGroups[i];	
 			for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
 			{
-				if(S.GroupInfo[j].pName && 0 == strcmp(pGroupName, S.GroupInfo[j].pName))
+				if(S.GroupInfo[j].pName && 0 == MP_STRCASECMP(pGroupName, S.GroupInfo[j].pName))
 				{
 					S.nMenuActiveGroup |= (1ll << j);
 				}
@@ -2373,7 +2384,7 @@ void MicroProfileLoadPreset(const char* pSuffix)
 			for(uint32_t j = 0; j < MICROPROFILE_MAX_THREADS; ++j)
 			{
 				MicroProfileThreadLog* pLog = S.Pool[j];
-				if(pLog && 0 == strcmp(pThreadName, &pLog->ThreadName[0]))
+				if(pLog && 0 == MP_STRCASECMP(pThreadName, &pLog->ThreadName[0]))
 				{
 					S.nThreadActive[j] = 1;
 				}
@@ -2391,7 +2402,7 @@ void MicroProfileLoadPreset(const char* pSuffix)
 			for(uint32_t j = 0; j < S.nTotalTimers; ++j)
 			{
 				uint64_t nGroupIndex = S.TimerInfo[j].nGroupIndex;
-				if(0 == strcmp(pGraphName, S.TimerInfo[j].pName) && 0 == strcmp(pGraphGroupName, S.GroupInfo[nGroupIndex].pName))
+				if(0 == MP_STRCASECMP(pGraphName, S.TimerInfo[j].pName) && 0 == MP_STRCASECMP(pGraphGroupName, S.GroupInfo[nGroupIndex].pName))
 				{
 					MicroProfileToken nToken = MicroProfileMakeToken(1ll << nGroupIndex, j);
 					S.Graph[i].nToken = nToken;
