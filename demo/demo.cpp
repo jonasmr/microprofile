@@ -129,7 +129,7 @@ void WorkerThread(int threadId)
 			break;
 		case 3:
 			{
-				MICROPROFILE_SCOPEI("ThreadWork 3", "MAIN", c0);
+				MICROPROFILE_SCOPEI("ThreadWork", "MAIN", c0);
 				usleep(1000);;
 				for(uint32_t i = 0; i < 10; ++i)
 				{
