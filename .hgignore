@@ -1,0 +1,8 @@
+syntax: glob
+demo/build/
+demo\SDL2.dll
+demo\microprofile.exe
+demo\microprofile.idb
+demo\microprofile.pdb
+demo\premake4.exe
+demo/sdl2/

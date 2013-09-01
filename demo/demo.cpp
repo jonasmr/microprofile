@@ -29,8 +29,13 @@
 #include "microprofile.h"
 #include "glinc.h"
 
+#ifdef main
+#undef main
+#endif
 
 #ifdef _WIN32
+#undef near
+#undef far
 #include <windows.h>
 void usleep(__int64 usec) 
 { 
@@ -85,7 +90,7 @@ MICROPROFILE_DEFINE(MAIN, "MAIN", "Main", 0xff0000);
 void WorkerThread(int threadId)
 {
 	char name[100];
-	snprintf(name, 99, "Worker%d", threadId);
+	_snprintf(name, 99, "Worker%d", threadId);
 	MicroProfileOnThreadCreate(&name[0]);
 	uint32_t c0 = 0xff3399ff;
 	uint32_t c1 = 0xffff99ff;
@@ -299,6 +304,16 @@ int main(int argc, char* argv[])
 		glClearColor(0.3,0.4,0.6,0);
 		glViewport(0, 0, WIDTH, HEIGHT);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		{
+			MICROPROFILE_SCOPEI("Main", "Dummy", 0xff3399ff);
+			for(uint32_t i = 0; i < 14; ++i)
+			{
+				MICROPROFILE_SCOPEI("Main", "1ms", 0xff3399ff);
+				usleep(1000);
+			}
+		}
+
 
 
 

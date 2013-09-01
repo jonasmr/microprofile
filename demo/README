@@ -1,0 +1,6 @@
+
+The sample depends on sdl2 (www.libsdl.org). 
+
+Windows: use premake4 to generate a vs2012 solution. sdl2 is assumed to be present in the sdl2 subfolder. 
+
+OSX: sdl2 should be compiled & installed, so that sdl2-config is available. 
