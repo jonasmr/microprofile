@@ -185,7 +185,7 @@ int64_t MicroProfileGetTick();
 #define MICROPROFILE_USE_THREAD_NAME_CALLBACK 0
 #endif
 #ifndef MICROPROFILE_GPU_FRAME_DELAY
-#define MICROPROFILE_GPU_FRAME_DELAY 4 //must be > 0
+#define MICROPROFILE_GPU_FRAME_DELAY 3 //must be > 0
 #endif
 
 
