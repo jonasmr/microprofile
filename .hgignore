@@ -6,3 +6,7 @@ demo\microprofile.idb
 demo\microprofile.pdb
 demo\premake4.exe
 demo/sdl2/
+demo\microprofile.vcxproj
+demo\microprofile.vcxproj.filters
+*.tlog
+*.lastbuildstate
