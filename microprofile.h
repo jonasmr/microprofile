@@ -89,6 +89,12 @@
 #define MICROPROFILE_SCOPEI(group, name, color) do{}while(0)
 #define MICROPROFILE_SCOPEGPU(var) do{}while(0)
 #define MICROPROFILE_SCOPEGPUI(group, name, color) do{}while(0)
+#define MICROPROFILE_FORCEENABLECPUGROUP(s) do{} while(0)
+#define MICROPROFILE_FORCEDISABLECPUGROUP(s) do{} while(0)
+#define MICROPROFILE_FORCEENABLEGPUGROUP(s) do{} while(0)
+#define MICROPROFILE_FORCEDISABLEGPUGROUP(s) do{} while(0)
+
+#define MicroProfileGetTime(group, name) 0.f
 #define MicroProfileOnThreadCreate(foo) do{}while(0)
 #define MicroProfileMouseButton(foo, bar) do{}while(0)
 #define MicroProfileMousePosition(foo, bar) do{}while(0)
@@ -170,13 +176,20 @@ inline int64_t MicroProfileGetTick()
 #define MICROPROFILE_PIX3_MODE 1
 #define MICROPROFILE_PIX3_HEIGHT (MICROPROFILE_DETAILED_BAR_HEIGHT-4)
 
+
+#define MICROPROFILE_FORCEENABLECPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeCpu)
+#define MICROPROFILE_FORCEDISABLECPUGROUP(s) MicroProfileForceDisableGroup(s, MicroProfileTokenTypeCpu)
+#define MICROPROFILE_FORCEENABLEGPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeGpu)
+#define MICROPROFILE_FORCEDISABLEGPUGROUP(s) MicroProfileForceDisableGroup(s, MicroProfileTokenTypeGpu)
+
+
 #define MICROPROFILE_GROUP_MASK_ALL 0xffffffffffff
 
 
 typedef uint64_t MicroProfileToken;
 typedef uint16_t MicroProfileGroupId;
 
-#define MICROPROFILE_INVALID_TOKEN (uint32_t)-1
+#define MICROPROFILE_INVALID_TOKEN (uint64_t)-1
 
 enum MicroProfileTokenType
 {
@@ -190,6 +203,7 @@ enum MicroProfileBoxType
 };
 
 void MicroProfileInit();
+MicroProfileToken MicroProfileFindToken(const char* sGroup, const char* sName);
 MicroProfileToken MicroProfileGetToken(const char* sGroup, const char* sName, uint32_t nColor, MicroProfileTokenType Token = MicroProfileTokenTypeCpu);
 uint64_t MicroProfileEnter(MicroProfileToken nToken);
 void MicroProfileLeave(MicroProfileToken nToken, uint64_t nTick);
@@ -199,6 +213,7 @@ inline uint16_t MicroProfileGetTimerIndex(MicroProfileToken t){ return (t&0xffff
 inline uint64_t MicroProfileGetGroupMask(MicroProfileToken t){ return ((t>>16)&MICROPROFILE_GROUP_MASK_ALL);}
 inline MicroProfileToken MicroProfileMakeToken(uint64_t nGroupMask, uint16_t nTimer){ return (nGroupMask<<16) | nTimer;}
 
+
 void MicroProfileFlip(); //! called once per frame.
 void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight); //! call if drawing microprofilers
 void MicroProfileToggleGraph(MicroProfileToken nToken);
@@ -207,11 +222,16 @@ void MicroProfileSetAggregateCount(uint32_t nCount); //!Set no. of frames to agg
 void MicroProfileToggleDisplayMode(); //switch between off, bars, detailed
 void MicroProfileClearGraph();
 void MicroProfileTogglePause();
+void MicroProfileForceEnableGroup(const char* pGroup, MicroProfileTokenType Type);
+void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Type);
+float MicroProfileGetTime(const char* pGroup, const char* pName);
 void MicroProfileMousePosition(uint32_t nX, uint32_t nY, int nWheelDelta);
 void MicroProfileMouseButton(uint32_t nLeft, uint32_t nRight);
 void MicroProfileOnThreadCreate(const char* pThreadName); //should be called from newly created threads
 void MicroProfileDrawLineVertical(int nX, int nTop, int nBottom, uint32_t nColor);
 void MicroProfileDrawLineHorizontal(int nLeft, int nRight, int nY, uint32_t nColor);
+
+
 
 //UNDEFINED: MUST BE IMPLEMENTED ELSEWHERE
 void MicroProfileDrawText(int nX, int nY, uint32_t nColor, const char* pText);
@@ -389,11 +409,13 @@ struct
 	uint32_t nBars;
 	uint64_t nActiveGroup;
 
+	uint64_t nForceGroup;
+
 	//menu/mouse over stuff
 	uint64_t nMenuActiveGroup;
 	uint32_t nMenuAllGroups;
 	uint32_t nMenuAllThreads;
-	uint32_t nHoverToken;
+	uint64_t nHoverToken;
 	uint32_t nHoverTime;
 	uint32_t nOverflow;
 
@@ -539,9 +561,10 @@ void MicroProfileInit()
 		S.nGroupCount = 0;
 		S.nBarWidth = 100;
 		S.nBarHeight = MICROPROFILE_TEXT_HEIGHT;
-		S.nActiveGroup = 1;
-		S.nMenuAllGroups = 1;
-		S.nMenuActiveGroup = 1;
+		S.nActiveGroup = 0;
+		S.nForceGroup = 0;
+		S.nMenuAllGroups = 0;
+		S.nMenuActiveGroup = 0;
 		S.nMenuAllThreads = 1;
 		S.nAggregateFlip = 30;
 		S.nTotalTimers = 0;
@@ -595,8 +618,7 @@ void MicroProfileOnThreadCreate(const char* pThreadName)
 }
 
 
-
-MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, uint32_t nColor, MicroProfileTokenType Type)
+MicroProfileToken MicroProfileFindToken(const char* pGroup, const char* pName)
 {
 	MicroProfileInit();
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
@@ -607,26 +629,38 @@ MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, ui
 			return S.TimerInfo[i].nToken;
 		}
 	}
-	uint16_t nGroupIndex = 0xffff;
+	return MICROPROFILE_INVALID_TOKEN;
+}
+
+uint16_t MicroProfileGetGroup(const char* pGroup, MicroProfileTokenType Type)
+{
 	for(uint32_t i = 0; i < S.nGroupCount; ++i)
 	{
 		if(!MP_STRCASECMP(pGroup, S.GroupInfo[i].pName))
 		{
-			nGroupIndex = i;
-			break;
+			return i;
 		}
 	}
-	if(0xffff == nGroupIndex)
-	{
-		S.GroupInfo[S.nGroupCount].pName = pGroup;
-		S.GroupInfo[S.nGroupCount].nGroupIndex = S.nGroupCount;
-		S.GroupInfo[S.nGroupCount].nNumTimers = 0;
-		S.GroupInfo[S.nGroupCount].Type = Type;
-		S.GroupInfo[S.nGroupCount].nMaxTimerNameLen = 0;
-		nGroupIndex = S.nGroupCount++;
-		S.nGroupMask = (S.nGroupMask<<1)|1;
-		MP_ASSERT(nGroupIndex < 48 );//limit is 48 groups
-	}
+	uint16_t nGroupIndex = 0xffff;
+	S.GroupInfo[S.nGroupCount].pName = pGroup;
+	S.GroupInfo[S.nGroupCount].nGroupIndex = S.nGroupCount;
+	S.GroupInfo[S.nGroupCount].nNumTimers = 0;
+	S.GroupInfo[S.nGroupCount].Type = Type;
+	S.GroupInfo[S.nGroupCount].nMaxTimerNameLen = 0;
+	nGroupIndex = S.nGroupCount++;
+	S.nGroupMask = (S.nGroupMask<<1)|1;
+	MP_ASSERT(nGroupIndex < 48 );//limit is 48 groups
+	return nGroupIndex;
+}
+
+MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, uint32_t nColor, MicroProfileTokenType Type)
+{
+	MicroProfileInit();
+	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+	MicroProfileToken ret = MicroProfileFindToken(pGroup, pName);
+	if(ret != MICROPROFILE_INVALID_TOKEN)
+		return ret;
+	uint16_t nGroupIndex = MicroProfileGetGroup(pGroup, Type);
 	uint16_t nTimerIndex = S.nTotalTimers++;
 	uint64_t nGroupMask = 1ll << nGroupIndex;
 	MicroProfileToken nToken = MicroProfileMakeToken(nGroupMask, nTimerIndex);
@@ -643,7 +677,7 @@ MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, ui
 
 inline void MicroProfileLogPut(MicroProfileToken nToken_, uint64_t nTick, MicroProfileLogEntry::EType eEntry, MicroProfileThreadLog* pLog)
 {
-	if(S.nDisplay)
+///	if(S.nDisplay)
 	{
 		MP_ASSERT(pLog != 0); //this assert is hit if MicroProfileOnCreateThread is not called
 		uint32_t nPos = pLog->nPut.load(std::memory_order_relaxed);
@@ -1095,6 +1129,14 @@ void MicroProfileFlip()
 			}
 		}
 	}
+	S.nActiveGroup = 0;
+	if(S.nDisplay)
+	{
+		S.nActiveGroup = S.nMenuAllGroups ? (S.nGroupMask & (uint64_t)-1) : S.nMenuActiveGroup;
+	}
+	S.nActiveGroup |= S.nForceGroup;
+
+
 }
 
 
@@ -1338,7 +1380,7 @@ void MicroProfileDrawDetailedView(uint32_t nWidth, uint32_t nHeight)
 
 	float fMouseX = S.nMouseX;
 	float fMouseY = S.nMouseY;
-	uint32_t nHoverToken = -1;
+	uint64_t nHoverToken = MICROPROFILE_INVALID_TOKEN;
 	uint64_t nHoverTime = 0;
 	float fHoverDist = 0.5f;
 	float fBestDist = 100000.f;
@@ -1446,7 +1488,7 @@ void MicroProfileDrawDetailedView(uint32_t nWidth, uint32_t nHeight)
 		}
 		f = fNext;
 	}
-	if(nHoverToken != (uint32_t)-1 && nHoverTime)
+	if(nHoverToken != MICROPROFILE_INVALID_TOKEN && nHoverTime)
 	{
 		S.nHoverToken = nHoverToken;
 		S.nHoverTime = nHoverTime;
@@ -2232,7 +2274,6 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 					MicroProfileToggleGraph(S.nHoverToken);
 			}
 		}
-		S.nActiveGroup = S.nMenuAllGroups ? (S.nGroupMask & (uint64_t)-1) : S.nMenuActiveGroup;
 	}
 	S.nMouseLeft = S.nMouseRight = 0;
 	S.nMouseWheelDelta = 0;
@@ -2506,6 +2547,35 @@ void MicroProfileDrawLineHorizontal(int nLeft, int nRight, int nY, uint32_t nCol
 {
 	MicroProfileDrawBox(nLeft, nY, nRight, nY + 1, nColor);
 }
+
+float MicroProfileGetTime(const char* pGroup, const char* pName)
+{
+	MicroProfileToken nToken = MicroProfileFindToken(pGroup, pName);
+	if(nToken == MICROPROFILE_INVALID_TOKEN)
+	{
+		return 0.f;
+	}
+	uint32_t nTimerIndex = MicroProfileGetTimerIndex(nToken);
+	uint32_t nGroupIndex = MicroProfileGetGroupIndex(nToken);
+	float fToMs = MicroProfileTickToMsMultiplier(S.GroupInfo[nGroupIndex].Type == MicroProfileTokenTypeGpu ? MicroProfileTicksPerSecondGpu() : MicroProfileTicksPerSecondCpu());
+	return S.Frame[nTimerIndex].nTicks * fToMs;
+}
+void MicroProfileForceEnableGroup(const char* pGroup, MicroProfileTokenType Type)
+{
+	MicroProfileInit();
+	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+	uint16_t nGroup = MicroProfileGetGroup(pGroup, Type);
+	S.nForceGroup |= (1ll << nGroup);
+}
+
+void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Type)
+{
+	MicroProfileInit();
+	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+	uint16_t nGroup = MicroProfileGetGroup(pGroup, Type);
+	S.nForceGroup &= ~(1ll << nGroup);
+}
+
 
 #endif
 #endif
