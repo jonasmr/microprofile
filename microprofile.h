@@ -190,9 +190,14 @@ int64_t MicroProfileGetTick();
 #ifndef MICROPROFILE_USE_THREAD_NAME_CALLBACK
 #define MICROPROFILE_USE_THREAD_NAME_CALLBACK 0
 #endif
+#ifndef MICROPROFILE_DRAWCURSOR
+#define MICROPROFILE_DRAWCURSOR 0
+#endif
+
 #ifndef MICROPROFILE_GPU_FRAME_DELAY
 #define MICROPROFILE_GPU_FRAME_DELAY 3 //must be > 0
 #endif
+
 
 
 #define MICROPROFILE_FORCEENABLECPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeCpu)
@@ -2366,6 +2371,19 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 					MicroProfileToggleGraph(S.nHoverToken);
 			}
 		}
+#if MICROPROFILE_DRAWCURSOR
+		float fCursor[8] = 
+		{
+			MicroProfileMax(0, (int)S.nMouseX-3), S.nMouseY,
+			MicroProfileMin(nWidth, S.nMouseX+3), S.nMouseY,
+			S.nMouseX, MicroProfileMax((int)S.nMouseY-3, 0),
+			S.nMouseX, MicroProfileMin(nHeight, S.nMouseY+3),
+
+		};
+		MicroProfileDrawLine2D(2, &fCursor[0], 0xff00ff00);
+		MicroProfileDrawLine2D(2, &fCursor[4], 0xff00ff00);
+#endif
+
 	}
 	S.nMouseLeft = S.nMouseRight = 0;
 	S.nMouseWheelDelta = 0;
