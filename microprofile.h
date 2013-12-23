@@ -38,8 +38,11 @@
 // pausing
 // frame display
 // frame tooltip
-// panning
-//
+// multi frame panning
+// make frames contain start / stop
+// tooltip on timeline
+// click on timeline
+// multiview stuff
 //
 // Howto:
 // Call these functions from your code:
@@ -977,10 +980,6 @@ void MicroProfileFlip()
 			}
 		}
 
-
-
-
-
 		if(S.nRunning)
 		{
 			{
@@ -1349,12 +1348,11 @@ void MicroProfileDrawFloatTooltip(uint32_t nX, uint32_t nY, uint32_t nToken, uin
 	}
 }
 
+#define MICROPROFILE_FRAME_HISTORY_HEIGHT 50
+#define MICROPROFILE_FRAME_HISTORY_WIDTH 7
 
-
-void MicroProfileDrawDetailedView(uint32_t nWidth, uint32_t nHeight)
+void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY)
 {
-	MICROPROFILE_SCOPEI("MicroProfile", "Detailed View", 0x8888000);
-
 	uint32_t nFrameNext = (S.nFrameCurrent+1) % MICROPROFILE_MAX_FRAME_HISTORY;
 	MicroProfileFrameState* pFrameCurrent = &S.Frames[S.nFrameCurrent];
 	MicroProfileFrameState* pFrameNext = &S.Frames[nFrameNext];
@@ -1366,7 +1364,6 @@ void MicroProfileDrawDetailedView(uint32_t nWidth, uint32_t nHeight)
 
 
 	int nX = 0;
-	int nBaseY = S.nBarHeight + 1;
 	int nY = nBaseY - S.nOffsetY;
 
 	float fMsBase = S.fGraphBaseTimePos;
@@ -1542,7 +1539,50 @@ void MicroProfileDrawDetailedView(uint32_t nWidth, uint32_t nHeight)
 	{
 		S.nHoverToken = nHoverToken;
 		S.nHoverTime = nHoverTime;
+	}	
+}
+
+#define MICROPROFILE_FRAME_HISTORY_COLOR_CPU 0xffff7f27 //255 127 39
+#define MICROPROFILE_FRAME_HISTORY_COLOR_GPU 0xff37a0ee //55 160 238
+
+void MicroProfileDrawDetailedFrameHistory(uint32_t nWidth, uint32_t nHeight, uint32_t nBaseY)
+{
+	const uint32_t nBarWidth = MICROPROFILE_FRAME_HISTORY_WIDTH;
+	const uint32_t nBarHeight = MICROPROFILE_FRAME_HISTORY_HEIGHT;
+	uint32_t nBaseX = nWidth - nBarWidth;
+	uint32_t nLastIndex =  (S.nFrameCurrent+1) % MICROPROFILE_MAX_FRAME_HISTORY;
+
+	MicroProfileDrawBox(0, nBaseY, nWidth, nBaseY+MICROPROFILE_FRAME_HISTORY_HEIGHT, g_nMicroProfileBackColors[0], MicroProfileBoxTypeFlat);
+
+
+	float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu()) * S.fRcpReferenceTime;
+	float fToMsGpu = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondGpu()) * S.fRcpReferenceTime;
+
+	
+	for(uint32_t i = 0; i < MICROPROFILE_MAX_FRAME_HISTORY - (MICROPROFILE_GPU_FRAME_DELAY+1); ++i)
+	{
+		uint32_t nIndex = (nLastIndex + MICROPROFILE_MAX_FRAME_HISTORY - 1) % MICROPROFILE_MAX_FRAME_HISTORY;
+		MicroProfileFrameState* pCurrent = &S.Frames[nIndex];
+		MicroProfileFrameState* pNext = &S.Frames[nLastIndex];
+		
+		int64_t nTicks = pNext->nFrameStartCpu - pCurrent->nFrameStartCpu;
+		int64_t nTicksGpu = pNext->nFrameStartGpu - pCurrent->nFrameStartGpu;
+		float fScale = fToMs * nTicks;
+		float fScaleGpu = fToMsGpu * nTicksGpu;
+		fScale = fScale > 1.f ? 0.f : 1.f - fScale;
+		fScaleGpu = fScaleGpu > 1.f ? 0.f : 1.f - fScaleGpu;
+		MicroProfileDrawBox(nBaseX, nBaseY + fScale * nBarHeight, nBaseX + nBarWidth, nBaseY+MICROPROFILE_FRAME_HISTORY_HEIGHT, MICROPROFILE_FRAME_HISTORY_COLOR_GPU, MicroProfileBoxTypeBar);
+
+		nBaseX -= nBarWidth;
+		nLastIndex = nIndex;
 	}
+}
+void MicroProfileDrawDetailedView(uint32_t nWidth, uint32_t nHeight)
+{
+	MICROPROFILE_SCOPEI("MicroProfile", "Detailed View", 0x8888000);
+	int nBaseY = S.nBarHeight + 1;
+	MicroProfileDrawDetailedBars(nWidth, nHeight, nBaseY + MICROPROFILE_FRAME_HISTORY_HEIGHT);
+	MicroProfileDrawDetailedFrameHistory(nWidth, nHeight, nBaseY);
 }
 
 
