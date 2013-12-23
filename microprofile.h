@@ -926,377 +926,212 @@ void MicroProfileFlip()
 	////////////////////// KILLBLOCK
 	////////////////////// KILLBLOCK
 	////////////////////// KILLBLOCK
-
-	S.nFramePut = (S.nFramePut+1) % MICROPROFILE_MAX_FRAME_HISTORY;
-	S.nFrameCurrent = (S.nFramePut + MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY - 1) % MICROPROFILE_MAX_FRAME_HISTORY;
-	uint32_t nFrameNext = (S.nFrameCurrent+1) % MICROPROFILE_MAX_FRAME_HISTORY;
-
-	MicroProfileFrameState* pFramePut = &S.Frames[S.nFramePut];
-	MicroProfileFrameState* pFrameCurrent = &S.Frames[S.nFrameCurrent];
-	MicroProfileFrameState* pFrameNext = &S.Frames[nFrameNext];
-	
-	pFramePut->nFrameStartCpu = MP_TICK();
-	pFramePut->nFrameStartGpu = (uint32_t)MicroProfileGpuInsertTimeStamp();
-	if(pFrameNext->nFrameStartGpu != (uint64_t)-1)
-		pFrameNext->nFrameStartGpu = MicroProfileGpuGetTimeStamp(pFrameNext->nFrameStartGpu);
-
-	if(pFrameCurrent->nFrameStartGpu == (uint64_t)-1)
-		pFrameCurrent->nFrameStartGpu = pFrameNext->nFrameStartGpu + 1; 
-
-	uint64_t nFrameStartCpu = pFrameCurrent->nFrameStartCpu;
-	uint64_t nFrameEndCpu = pFrameNext->nFrameStartCpu;
-	uint64_t nFrameStartGpu = pFrameCurrent->nFrameStartGpu;
-	uint64_t nFrameEndGpu = pFrameNext->nFrameStartGpu;
-
-	{
-		uint64_t nTick = nFrameEndCpu - nFrameStartCpu;
-		S.nFlipTicks = nTick;
-		S.nFlipAggregate += nTick;
-		S.nFlipMax = MicroProfileMax(S.nFlipMax, nTick);
-	}
-
-
-
-
-
-	for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
-	{
-		MicroProfileThreadLog* pLog = S.Pool[i];
-		if(!pLog)
-		{
-			pFramePut->nLogStart[i] = 0;
-		}
-		else
-		{
-			pFramePut->nLogStart[i] = pLog->nPut.load(std::memory_order_acquire);
-			//need to keep last frame around to close timers. timers more than 1 frame old is ditched.
-			pLog->nGet.store(pFrameCurrent->nLogStart[i], std::memory_order_relaxed);
-		}
-	}
-
-
-
-
+	S.nActiveGroup = 0;
 
 	if(S.nRunning)
 	{
+		S.nFramePut = (S.nFramePut+1) % MICROPROFILE_MAX_FRAME_HISTORY;
+		S.nFrameCurrent = (S.nFramePut + MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY - 1) % MICROPROFILE_MAX_FRAME_HISTORY;
+		uint32_t nFrameNext = (S.nFrameCurrent+1) % MICROPROFILE_MAX_FRAME_HISTORY;
+
+		MicroProfileFrameState* pFramePut = &S.Frames[S.nFramePut];
+		MicroProfileFrameState* pFrameCurrent = &S.Frames[S.nFrameCurrent];
+		MicroProfileFrameState* pFrameNext = &S.Frames[nFrameNext];
+		
+		pFramePut->nFrameStartCpu = MP_TICK();
+		pFramePut->nFrameStartGpu = (uint32_t)MicroProfileGpuInsertTimeStamp();
+		if(pFrameNext->nFrameStartGpu != (uint64_t)-1)
+			pFrameNext->nFrameStartGpu = MicroProfileGpuGetTimeStamp(pFrameNext->nFrameStartGpu);
+
+		if(pFrameCurrent->nFrameStartGpu == (uint64_t)-1)
+			pFrameCurrent->nFrameStartGpu = pFrameNext->nFrameStartGpu + 1; 
+
+		uint64_t nFrameStartCpu = pFrameCurrent->nFrameStartCpu;
+		uint64_t nFrameEndCpu = pFrameNext->nFrameStartCpu;
+		uint64_t nFrameStartGpu = pFrameCurrent->nFrameStartGpu;
+		uint64_t nFrameEndGpu = pFrameNext->nFrameStartGpu;
+
 		{
-			MICROPROFILE_SCOPEI("MicroProfile", "Clear", 0x3355ee);
-			for(uint32_t i = 0; i < S.nTotalTimers; ++i)
+			uint64_t nTick = nFrameEndCpu - nFrameStartCpu;
+			S.nFlipTicks = nTick;
+			S.nFlipAggregate += nTick;
+			S.nFlipMax = MicroProfileMax(S.nFlipMax, nTick);
+		}
+
+
+
+
+
+		for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
+		{
+			MicroProfileThreadLog* pLog = S.Pool[i];
+			if(!pLog)
 			{
-				S.Frame[i].nTicks = 0;
-				S.Frame[i].nCount = 0;
-				S.FrameExclusive[i] = 0;
+				pFramePut->nLogStart[i] = 0;
+			}
+			else
+			{
+				pFramePut->nLogStart[i] = pLog->nPut.load(std::memory_order_acquire);
+				//need to keep last frame around to close timers. timers more than 1 frame old is ditched.
+				pLog->nGet.store(pFrameCurrent->nLogStart[i], std::memory_order_relaxed);
 			}
 		}
+
+
+
+
+
+		if(S.nRunning)
 		{
-			MICROPROFILE_SCOPEI("MicroProfile", "ThreadLoop", 0x3355ee);
-			for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
 			{
-				MicroProfileThreadLog* pLog = S.Pool[i];
-				if(!pLog) 
-					continue;
-
-				uint32_t nPut = pFrameNext->nLogStart[i];
-				uint32_t nGet = pFrameCurrent->nLogStart[i];
-				uint32_t nRange[2][2] = { {0, 0}, {0, 0}, };
-				MicroProfileGetRange(nPut, nGet, nRange);
-
-				uint32_t nMaxStackDepth = 0;
-
-				uint64_t nFrameStart = pLog->nGpu ? nFrameStartGpu : nFrameStartCpu;
-				uint64_t nFrameEnd = pLog->nGpu ? nFrameEndGpu : nFrameEndCpu;
-
-
-				//fetch gpu results.
-				if(pLog->nGpu)
+				MICROPROFILE_SCOPEI("MicroProfile", "Clear", 0x3355ee);
+				for(uint32_t i = 0; i < S.nTotalTimers; ++i)
 				{
+					S.Frame[i].nTicks = 0;
+					S.Frame[i].nCount = 0;
+					S.FrameExclusive[i] = 0;
+				}
+			}
+			{
+				MICROPROFILE_SCOPEI("MicroProfile", "ThreadLoop", 0x3355ee);
+				for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
+				{
+					MicroProfileThreadLog* pLog = S.Pool[i];
+					if(!pLog) 
+						continue;
+
+					uint32_t nPut = pFrameNext->nLogStart[i];
+					uint32_t nGet = pFrameCurrent->nLogStart[i];
+					uint32_t nRange[2][2] = { {0, 0}, {0, 0}, };
+					MicroProfileGetRange(nPut, nGet, nRange);
+
+					uint32_t nMaxStackDepth = 0;
+
+					uint64_t nFrameStart = pLog->nGpu ? nFrameStartGpu : nFrameStartCpu;
+					uint64_t nFrameEnd = pLog->nGpu ? nFrameEndGpu : nFrameEndCpu;
+
+
+					//fetch gpu results.
+					if(pLog->nGpu)
+					{
+						for(uint32_t j = 0; j < 2; ++j)
+						{
+							uint32_t nStart = nRange[j][0];
+							uint32_t nEnd = nRange[j][1];
+							for(uint32_t k = nStart; k < nEnd; ++k)
+							{
+								
+								int64_t nRet = MicroProfileGpuGetTimeStamp((uint32_t)pLog->Log[k].nTick);
+								pLog->Log[k].nTick = nRet;
+
+							}
+						}
+					}
+					uint32_t nStack[MICROPROFILE_STACK_MAX];
+					uint32_t nChildTickStack[MICROPROFILE_STACK_MAX];
+					uint32_t nStackPos = 0;
+					nChildTickStack[0] = 0;
+
 					for(uint32_t j = 0; j < 2; ++j)
 					{
 						uint32_t nStart = nRange[j][0];
 						uint32_t nEnd = nRange[j][1];
 						for(uint32_t k = nStart; k < nEnd; ++k)
 						{
-							
-							int64_t nRet = MicroProfileGpuGetTimeStamp((uint32_t)pLog->Log[k].nTick);
-							pLog->Log[k].nTick = nRet;
-
-						}
-					}
-				}
-				uint32_t nStack[MICROPROFILE_STACK_MAX];
-				uint32_t nChildTickStack[MICROPROFILE_STACK_MAX];
-				uint32_t nStackPos = 0;
-				nChildTickStack[0] = 0;
-
-				for(uint32_t j = 0; j < 2; ++j)
-				{
-					uint32_t nStart = nRange[j][0];
-					uint32_t nEnd = nRange[j][1];
-					for(uint32_t k = nStart; k < nEnd; ++k)
-					{
-						MicroProfileLogEntry& LE = pLog->Log[k];
-						switch(LE.eType)
-						{
-							case MicroProfileLogEntry::EEnter:
+							MicroProfileLogEntry& LE = pLog->Log[k];
+							switch(LE.eType)
 							{
-								MP_ASSERT(nStackPos < MICROPROFILE_STACK_MAX);								
-								nStack[nStackPos++] = k;
-								nChildTickStack[nStackPos] = 0;
-								
-							}
-							break;
-							case MicroProfileLogEntry::ELeave:
-							{
-								//todo: reconsider the fallback for Leaves without enters
-								uint64_t nTickStart = 0 != nStackPos ? pLog->Log[nStack[nStackPos-1]].nTick : nFrameStart;
-								uint64_t nTicks = LE.nTick - nTickStart;
-								uint32_t nChildTicks = nChildTickStack[nStackPos];
-								if(0 != nStackPos)
+								case MicroProfileLogEntry::EEnter:
 								{
-									MP_ASSERT(pLog->Log[nStack[nStackPos-1]].nToken == LE.nToken);
-									nStackPos--;
-									nChildTickStack[nStackPos] += nTicks;
+									MP_ASSERT(nStackPos < MICROPROFILE_STACK_MAX);								
+									nStack[nStackPos++] = k;
+									nChildTickStack[nStackPos] = 0;
+									
 								}
-								uint32_t nTimerIndex = MicroProfileGetTimerIndex(LE.nToken);
-								S.Frame[nTimerIndex].nTicks += nTicks;								
-								S.FrameExclusive[nTimerIndex] += (nTicks-nChildTicks);
-								S.Frame[nTimerIndex].nCount += 1;
-							}
-						}
-					}
-				}
-				//todo: reconsider the fallback for enters without leaves
-				for(uint32_t j = 0; j < nStackPos; ++j)
-				{
-					MicroProfileLogEntry& LE = pLog->Log[nStack[j]];
-					uint64_t nTicks = nFrameEnd - LE.nTick;
-					uint32_t nTimerIndex = LE.nToken&0xffff;
-					S.Frame[nTimerIndex].nTicks += nTicks;
-				}
-			}
-		}
-		{
-			MICROPROFILE_SCOPEI("MicroProfile", "Accumulate", 0x3355ee);
-			for(uint32_t i = 0; i < S.nTotalTimers; ++i)
-			{
-				S.AggregateTimers[i].nTicks += S.Frame[i].nTicks;				
-				S.AggregateTimers[i].nCount += S.Frame[i].nCount;
-				S.MaxTimers[i] = MicroProfileMax(S.MaxTimers[i], S.Frame[i].nTicks);
-				S.AggregateTimersExclusive[i] += S.FrameExclusive[i];				
-				S.MaxTimersExclusive[i] = MicroProfileMax(S.MaxTimersExclusive[i], S.FrameExclusive[i]);
-			}
-		}
-		for(uint32_t i = 0; i < MICROPROFILE_MAX_GRAPHS; ++i)
-		{
-			if(S.Graph[i].nToken != MICROPROFILE_INVALID_TOKEN)
-			{
-				MicroProfileToken nToken = S.Graph[i].nToken;
-				S.Graph[i].nHistory[S.nGraphPut] = S.Frame[MicroProfileGetTimerIndex(nToken)].nTicks;
-			}
-		}
-		S.nGraphPut = (S.nGraphPut+1) % MICROPROFILE_GRAPH_HISTORY;
-
-	}
-
-
-	bool bFlipAggregate = false;
-	uint32_t nFlipFrequency = S.nAggregateFlip ? S.nAggregateFlip : 30;
-	if(S.nRunning && S.nAggregateFlip <= ++S.nAggregateFlipCount)
-	{
-		memcpy(&S.Aggregate[0], &S.AggregateTimers[0], sizeof(S.Aggregate[0]) * S.nTotalTimers);
-		memcpy(&S.AggregateMax[0], &S.MaxTimers[0], sizeof(S.AggregateMax[0]) * S.nTotalTimers);
-		memcpy(&S.AggregateExclusive[0], &S.AggregateTimersExclusive[0], sizeof(S.AggregateExclusive[0]) * S.nTotalTimers);
-		memcpy(&S.AggregateMaxExclusive[0], &S.MaxTimersExclusive[0], sizeof(S.AggregateMaxExclusive[0]) * S.nTotalTimers);
-		
-		S.nAggregateFrames = S.nAggregateFlipCount;
-		S.nFlipAggregateDisplay = S.nFlipAggregate;
-		S.nFlipMaxDisplay = S.nFlipMax;
-
-
-		if(S.nAggregateFlip) // if 0 accumulate indefinitely
-		{
-			memset(&S.AggregateTimers[0], 0, sizeof(S.Aggregate[0]) * S.nTotalTimers);
-			memset(&S.MaxTimers[0], 0, sizeof(S.MaxTimers[0]) * S.nTotalTimers);
-			memset(&S.AggregateTimersExclusive[0], 0, sizeof(S.AggregateExclusive[0]) * S.nTotalTimers);
-			memset(&S.MaxTimersExclusive[0], 0, sizeof(S.MaxTimersExclusive[0]) * S.nTotalTimers);
-			S.nAggregateFlipCount = 0;
-			S.nFlipAggregate = 0;
-			S.nFlipMax = 0;
-		}
-		#if 0
-		if(S.nRunning)
-		{
-			S.pDisplayMouseOver = 0;
-			for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
-			{
-
-				uint32_t nPut = pFrameNext->nLogStart[i];
-				uint32_t nGet = pFrameCurrent->nLogStart[i];
-				MicroProfileThreadLog* pLog = S.Pool[i];
-				if(!pLog)
-					continue;
-
-				uint64_t nFrameStart = pLog->nGpu ? nFrameStartGpu : nFrameStartCpu;
-				uint64_t nFrameEnd = pLog->nGpu ? nFrameEndGpu : nFrameEndCpu;
-
-				uint32_t nRanges[2][2] = 
-				{{0,0},{0,0},};
-				if(nPut > nGet)
-				{
-					nRanges[0][0] = nGet;
-					nRanges[0][1] = nPut;
-				}
-				else if(nPut != nGet)
-				{
-					nRanges[0][0] = nGet;
-					nRanges[0][1] = MICROPROFILE_BUFFER_SIZE;
-					nRanges[1][0] = 0;
-					nRanges[1][1] = nPut;
-				}
-
-				MicroProfileLogEntry StartEntries[MICROPROFILE_STACK_MAX];
-				uint32_t nStartEntryPos = MICROPROFILE_STACK_MAX;
-	
-				uint32_t nStack[MICROPROFILE_STACK_MAX];
-				uint32_t nStackPos = 0;
-				for(uint32_t j = 0; j < 2; ++j)
-				{
-					uint32_t nStart = nRanges[j][0];
-					uint32_t nEnd = nRanges[j][1];
-					for(uint32_t k = nStart; k != nEnd; ++k)
-					{
-						MicroProfileLogEntry& LE = pLog->Log[k];
-						switch(LE.eType)
-						{
-							case MicroProfileLogEntry::EEnter:
-							{
-								MP_ASSERT(nStackPos < MICROPROFILE_STACK_MAX);
-								nStack[nStackPos++] = k;
-							}
-							break;
-							case MicroProfileLogEntry::ELeave:
-							{
-								if(0 == nStackPos)
-								{
-									MP_ASSERT(nStartEntryPos);
-									nStartEntryPos--;
-									StartEntries[nStartEntryPos].eType = MicroProfileLogEntry::EEnter;
-									StartEntries[nStartEntryPos].nToken = LE.nToken;						
-									StartEntries[nStartEntryPos].nStartRelative = 0;
-									StartEntries[nStartEntryPos].nEndRelative = LE.nTick < nFrameStart ? 1 : LE.nTick - nFrameStart;
-
-								}
-								else
-								{
-									MP_ASSERT(pLog->Log[nStack[nStackPos-1]].nToken == LE.nToken);
-									uint32_t nStartIndex = nStack[nStackPos-1];
-									MicroProfileLogEntry& LEEnter = pLog->Log[nStartIndex];
-									uint64_t nTickStart = LEEnter.nTick;
-									uint64_t nTickEnd = LE.nTick;
-									LEEnter.nToken = LEEnter.nToken;
-									LEEnter.nStackDepth = nStackPos;
-									LEEnter.nStartRelative = nTickStart - nFrameStart;
-									LEEnter.nEndRelative = nTickEnd - nFrameStart;
-									MP_ASSERT(nTickStart <= nTickEnd);
-									nStackPos--;
-								}
-							}
-							break;
-						}
-					}
-				}
-				for(uint32_t j = 0; j < nStackPos; ++j)
-				{
-					MicroProfileLogEntry& LEEnter = pLog->Log[nStack[j]];
-					uint64_t nTickStart = LEEnter.nTick;
-					uint64_t nTickEnd = nFrameEnd;
-					if(nTickEnd < nTickStart)
-						nTickEnd = nTickStart+1;
-					LEEnter.nStackDepth = j;
-					LEEnter.nStartRelative = nTickStart - nFrameStart;
-					LEEnter.nEndRelative = nTickEnd - nFrameStart;
-					MP_ASSERT(nTickStart <= nTickEnd);
-				}
-				uint32_t nOut = 0;
-				MicroProfileThreadLog* pDest = S.DisplayPool[i];
-				if(!pDest)
-				{
-					S.DisplayPool[i] = new MicroProfileThreadLog;
-					S.nMemUsage += sizeof(MicroProfileThreadLog);
-					pDest = S.DisplayPool[i];
-				}
-				uint32_t nStackDepth = 0;
-				if(MICROPROFILE_STACK_MAX != nStartEntryPos)
-				{
-					uint32_t nCount = (MICROPROFILE_STACK_MAX-nStartEntryPos);
-					for(uint32_t j = nStartEntryPos; j < MICROPROFILE_STACK_MAX; ++j)
-					{
-						MicroProfileLogEntry& Out = pDest->Log[nOut++];
-						Out.eType = MicroProfileLogEntry::EEnter;
-						Out.nToken = StartEntries[j].nToken;
-						Out.nStackDepth = nStackDepth++;
-						Out.nStartRelative = StartEntries[j].nStartRelative;
-						Out.nEndRelative = StartEntries[j].nEndRelative;
-					}
-				}
-				for(uint32_t j = 0; j < 2; ++j)
-				{
-					uint32_t nStart = nRanges[j][0];
-					uint32_t nEnd = nRanges[j][1];
-					for(uint32_t k = nStart; k != nEnd; ++k)
-					{
-						MicroProfileLogEntry& LE = pLog->Log[k];
-						switch(LE.eType)
-						{
-							case MicroProfileLogEntry::EEnter:
-								pDest->Log[nOut] = LE;
-								pDest->Log[nOut++].nStackDepth = (uint8_t)(nStackDepth++);
 								break;
-							case MicroProfileLogEntry::ELeave:
-								nStackDepth--;
-								break;
+								case MicroProfileLogEntry::ELeave:
+								{
+									//todo: reconsider the fallback for Leaves without enters
+									uint64_t nTickStart = 0 != nStackPos ? pLog->Log[nStack[nStackPos-1]].nTick : nFrameStart;
+									uint64_t nTicks = LE.nTick - nTickStart;
+									uint32_t nChildTicks = nChildTickStack[nStackPos];
+									if(0 != nStackPos)
+									{
+										MP_ASSERT(pLog->Log[nStack[nStackPos-1]].nToken == LE.nToken);
+										nStackPos--;
+										nChildTickStack[nStackPos] += nTicks;
+									}
+									uint32_t nTimerIndex = MicroProfileGetTimerIndex(LE.nToken);
+									S.Frame[nTimerIndex].nTicks += nTicks;								
+									S.FrameExclusive[nTimerIndex] += (nTicks-nChildTicks);
+									S.Frame[nTimerIndex].nCount += 1;
+								}
+							}
 						}
 					}
+					//todo: reconsider the fallback for enters without leaves
+					for(uint32_t j = 0; j < nStackPos; ++j)
+					{
+						MicroProfileLogEntry& LE = pLog->Log[nStack[j]];
+						uint64_t nTicks = nFrameEnd - LE.nTick;
+						uint32_t nTimerIndex = LE.nToken&0xffff;
+						S.Frame[nTimerIndex].nTicks += nTicks;
+					}
 				}
-				pDest->nGet.store(0, std::memory_order_relaxed);
-				pDest->nPut.store(nOut, std::memory_order_relaxed);
-				//pDest->nOwningThread = S.Pool[i].nOwningThread;
-				pDest->nGpu = pLog->nGpu;
-				memcpy(&pDest->ThreadName[0], &pLog->ThreadName[0], sizeof(pLog->ThreadName));
-
 			}
-			// S.DisplayPoolFrameStartCpu = nFrameStartCpu;
-			// S.DisplayPoolFrameEndCpu = nFrameEndCpu;
-			// S.DisplayPoolFrameStartGpu = nFrameStartGpu;
-			// S.DisplayPoolFrameEndGpu = nFrameEndGpu;
+			{
+				MICROPROFILE_SCOPEI("MicroProfile", "Accumulate", 0x3355ee);
+				for(uint32_t i = 0; i < S.nTotalTimers; ++i)
+				{
+					S.AggregateTimers[i].nTicks += S.Frame[i].nTicks;				
+					S.AggregateTimers[i].nCount += S.Frame[i].nCount;
+					S.MaxTimers[i] = MicroProfileMax(S.MaxTimers[i], S.Frame[i].nTicks);
+					S.AggregateTimersExclusive[i] += S.FrameExclusive[i];				
+					S.MaxTimersExclusive[i] = MicroProfileMax(S.MaxTimersExclusive[i], S.FrameExclusive[i]);
+				}
+			}
+			for(uint32_t i = 0; i < MICROPROFILE_MAX_GRAPHS; ++i)
+			{
+				if(S.Graph[i].nToken != MICROPROFILE_INVALID_TOKEN)
+				{
+					MicroProfileToken nToken = S.Graph[i].nToken;
+					S.Graph[i].nHistory[S.nGraphPut] = S.Frame[MicroProfileGetTimerIndex(nToken)].nTicks;
+				}
+			}
+			S.nGraphPut = (S.nGraphPut+1) % MICROPROFILE_GRAPH_HISTORY;
+
 		}
-		#endif
-	}
-	// for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
-	// {
-	// 	MicroProfileThreadLog* pLog = S.Pool[i];
-	// 	if(pLog)
-	// 	{
-	// 		if(!pLog->nGpu)
-	// 		{
-	// 			pLog->nGet.store(nPutStart[i], std::memory_order_release);
-	// 		}
-	// 		else
-	// 		{
-	// 			pLog->nGet.store(pLog->nGpuGet[0], std::memory_order_release);
-	// 			for(uint32_t j = 0; j < MICROPROFILE_GPU_FRAME_DELAY-1; ++j)
-	// 			{
-	// 				pLog->nGpuGet[j] = pLog->nGpuGet[j+1];
-	// 			}
-	// 			pLog->nGpuGet[MICROPROFILE_GPU_FRAME_DELAY-1] =  pLog->nPut.load(std::memory_order_relaxed);
-	// 		}
-	// 	}
-	// }
-	S.nActiveGroup = 0;
-	if(S.nDisplay)
-	{
-		S.nActiveGroup = S.nMenuAllGroups ? S.nGroupMask : S.nMenuActiveGroup;
+
+
+		bool bFlipAggregate = false;
+		uint32_t nFlipFrequency = S.nAggregateFlip ? S.nAggregateFlip : 30;
+		if(S.nRunning && S.nAggregateFlip <= ++S.nAggregateFlipCount)
+		{
+			memcpy(&S.Aggregate[0], &S.AggregateTimers[0], sizeof(S.Aggregate[0]) * S.nTotalTimers);
+			memcpy(&S.AggregateMax[0], &S.MaxTimers[0], sizeof(S.AggregateMax[0]) * S.nTotalTimers);
+			memcpy(&S.AggregateExclusive[0], &S.AggregateTimersExclusive[0], sizeof(S.AggregateExclusive[0]) * S.nTotalTimers);
+			memcpy(&S.AggregateMaxExclusive[0], &S.MaxTimersExclusive[0], sizeof(S.AggregateMaxExclusive[0]) * S.nTotalTimers);
+			
+			S.nAggregateFrames = S.nAggregateFlipCount;
+			S.nFlipAggregateDisplay = S.nFlipAggregate;
+			S.nFlipMaxDisplay = S.nFlipMax;
+
+
+			if(S.nAggregateFlip) // if 0 accumulate indefinitely
+			{
+				memset(&S.AggregateTimers[0], 0, sizeof(S.Aggregate[0]) * S.nTotalTimers);
+				memset(&S.MaxTimers[0], 0, sizeof(S.MaxTimers[0]) * S.nTotalTimers);
+				memset(&S.AggregateTimersExclusive[0], 0, sizeof(S.AggregateExclusive[0]) * S.nTotalTimers);
+				memset(&S.MaxTimersExclusive[0], 0, sizeof(S.MaxTimersExclusive[0]) * S.nTotalTimers);
+				S.nAggregateFlipCount = 0;
+				S.nFlipAggregate = 0;
+				S.nFlipMax = 0;
+			}
+		}
+		if(S.nDisplay)
+		{
+			S.nActiveGroup = S.nMenuAllGroups ? S.nGroupMask : S.nMenuActiveGroup;
+		}
 	}
 	S.nActiveGroup |= S.nForceGroup;
 
