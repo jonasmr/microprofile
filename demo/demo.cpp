@@ -343,10 +343,13 @@ int main(int argc, char* argv[])
 			projection[14] = - (far + near) / (far - near);
 			projection[15] = 1.f; 
  
+ 			glEnable(GL_BLEND);
+ 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 			MicroProfileBeginDraw(WIDTH, HEIGHT, &projection[0]);
 			MicroProfileDraw(WIDTH, HEIGHT);
 			MicroProfileEndDraw();
+			glDisable(GL_BLEND);
 		}
 
 		MICROPROFILE_SCOPEI("MAIN", "Flip", 0xffee00);

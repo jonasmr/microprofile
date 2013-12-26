@@ -34,7 +34,7 @@ struct MicroProfileVertex
 };
 
 
-#define MICROPROFILE_MAX_VERTICES (64<<10)
+#define MICROPROFILE_MAX_VERTICES (1<<20)
 #define MICROPROFILE_NUM_QUERIES (8<<10)
 #define MAX_FONT_CHARS 256
 #define Q0(d, member, v) d[0].member = v
@@ -102,15 +102,15 @@ void main(void)   \
 	if(TC0.x > 1.0 ) \
 	{ \
 		Out0.xyz = Color.xyz; \
-		Out0.w = 1.0;	 \
+		Out0.w = Color.w;	 \
 	} \
 	else \
 	{ \
-		Out0.xyz = color.xyz * Color.xyz; \
-		Out0.w = color.w; \
+		Out0 = color * Color; \
+		if(color.w < 0.5) \
+			discard; \
+			\
 	} \
-	if(Out0.w<0.5) \
-		discard; \
 } \
 ";
 
@@ -379,7 +379,7 @@ void MicroProfileDrawBox(int nX0, int nY0, int nX1, int nY1, uint32_t nColor, Mi
 	{
 		MP_ASSERT(nX0 <= nX1);
 		MP_ASSERT(nY0 <= nY1);
-		nColor = 0xff000000|((nColor&0xff)<<16)|(nColor&0xff00)|((nColor>>16)&0xff);
+		nColor = ((nColor&0xff)<<16)|((nColor>>16)&0xff)|(0xff00ff00&nColor);
 		MicroProfileVertex* pVertex = PushVertices(GL_TRIANGLES, 6);
 		Q0(pVertex, nX, nX0);
 		Q0(pVertex, nY, nY0);
@@ -449,7 +449,7 @@ void MicroProfileDrawLine2D(uint32_t nVertices, float* pVertices, uint32_t nColo
 	if(!nVertices) return;
 
 	MicroProfileVertex* pVertex = PushVertices(GL_LINES, 2*(nVertices-1));
-	nColor = 0xff000000|((nColor&0xff)<<16)|(nColor&0xff00)|((nColor>>16)&0xff);
+	nColor = 0xff000000|((nColor&0xff)<<16)|(nColor&0xff00ff00)|((nColor>>16)&0xff);
 	for(uint32_t i = 0; i < nVertices-1; ++i)
 	{
 		pVertex[0].nX = pVertices[i*2];
