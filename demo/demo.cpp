@@ -63,7 +63,7 @@ void usleep(__int64 usec)
 }
 #endif
 
-#define WIDTH 800
+#define WIDTH 1200
 #define HEIGHT 600
 
 uint32_t g_nQuit = 0;
