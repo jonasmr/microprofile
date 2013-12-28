@@ -1367,6 +1367,23 @@ void MicroProfileDrawFloatTooltip(uint32_t nX, uint32_t nY, uint32_t nToken, uin
 #define MICROPROFILE_FRAME_COLOR_HIGHTLIGHT 0x20009900
 #define MICROPROFILE_NUM_FRAMES (MICROPROFILE_MAX_FRAME_HISTORY - (MICROPROFILE_GPU_FRAME_DELAY+1))
 
+void MicroProfileZoomTo(int64_t nTickStart, int64_t nTickEnd)
+{
+	int64_t nStart = S.Frames[S.nFrameCurrent].nFrameStartCpu;
+	float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+	S.fDetailedOffset = (nTickStart - nStart) * fToMs;
+	S.fDetailedRange = (nTickEnd - nTickStart) * fToMs;
+}
+
+void MicroProfileCenter(int64_t nTickCenter)
+{
+	int64_t nStart = S.Frames[S.nFrameCurrent].nFrameStartCpu;
+	float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+	float fCenter = (nTickCenter - nStart) * fToMs;
+	S.fDetailedOffset = fCenter - 0.5f * S.fDetailedRange;
+}
+
+
 void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY, int nSelectedFrame)
 {
 	int nX = 0;
@@ -1377,7 +1394,6 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 	MicroProfileFrameState* pFrameNext = &S.Frames[nFrameNext];
 
 	int64_t nRangeBegin = 0, nRangeEnd = 0;
-	
 	uint64_t nFrameStartCpu = pFrameCurrent->nFrameStartCpu;
 	uint64_t nFrameEndCpu = pFrameNext->nFrameStartCpu;
 	uint64_t nFrameStartGpu = pFrameCurrent->nFrameStartGpu;
@@ -1412,7 +1428,6 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 		float fRcpStep = 1.f / fStep;
 		int nColorIndex = (int)(floor(fMsBase*fRcpStep));
 		float fStart = floor(fMsBase*fRcpStep) * fStep;
-		//int nSkip = (fMsEnd-fMsBase)> 50 ? 2 : 1;
 		for(float f = fStart; f < fMsEnd; )
 		{
 			float fStart = f;
@@ -1619,9 +1634,9 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 
 	if(nSelectedFrame != -1)
 	{
-		uint32_t nRealIndex = (S.nFrameCurrent + MICROPROFILE_MAX_FRAME_HISTORY - nSelectedFrame) % MICROPROFILE_MAX_FRAME_HISTORY;
-		nRangeBegin = S.Frames[nRealIndex].nFrameStartCpu;
-		nRangeEnd = S.Frames[(nRealIndex+1)%MICROPROFILE_MAX_FRAME_HISTORY].nFrameStartCpu;
+//		uint32_t nRealIndex = (S.nFrameCurrent + MICROPROFILE_MAX_FRAME_HISTORY - nSelectedFrame) % MICROPROFILE_MAX_FRAME_HISTORY;
+		nRangeBegin = S.Frames[nSelectedFrame].nFrameStartCpu;
+		nRangeEnd = S.Frames[(nSelectedFrame+1)%MICROPROFILE_MAX_FRAME_HISTORY].nFrameStartCpu;
 		MP_ASSERT(nRangeBegin <= nRangeEnd);
 	}
 	if(nRangeBegin != nRangeEnd)
@@ -1633,6 +1648,18 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 		MicroProfileDrawBox(fXStart, nBaseY, fXEnd, nHeight, MICROPROFILE_FRAME_COLOR_HIGHTLIGHT, MicroProfileBoxTypeFlat);
 		MicroProfileDrawLineVertical(fXStart, nBaseY, nHeight, MICROPROFILE_FRAME_COLOR_HIGHTLIGHT | 0x44000000);
 		MicroProfileDrawLineVertical(fXEnd, nBaseY, nHeight, MICROPROFILE_FRAME_COLOR_HIGHTLIGHT | 0x44000000);
+
+		fMsStart += fDetailedOffset;
+		fMsEnd += fDetailedOffset;
+		char sBuffer[32];
+		uint32_t nLenStart = snprintf(sBuffer, sizeof(sBuffer)-1, "%.2fms", fMsStart);
+		float fStartTextWidth = (1+MICROPROFILE_TEXT_WIDTH) * nLenStart;
+		float fStartTextX = fXStart - fStartTextWidth - 2;
+		MicroProfileDrawBox(fStartTextX, nBaseY, fStartTextX + fStartTextWidth + 2, MICROPROFILE_TEXT_HEIGHT + 2 + nBaseY, 0x33000000, MicroProfileBoxTypeFlat);
+		MicroProfileDrawText(fStartTextX+1, nBaseY, (uint32_t)-1, sBuffer);
+		uint32_t nLenEnd = snprintf(sBuffer, sizeof(sBuffer)-1, "%.2fms", fMsEnd);
+		MicroProfileDrawBox(fXEnd+1, nBaseY, fXEnd+1+(1+MICROPROFILE_TEXT_WIDTH) * nLenEnd + 3, MICROPROFILE_TEXT_HEIGHT + 2 + nBaseY, 0x33000000, MicroProfileBoxTypeFlat);
+		MicroProfileDrawText(fXEnd+2, nBaseY+1, (uint32_t)-1, sBuffer);
 
 	}
 }
@@ -1679,7 +1706,7 @@ void MicroProfileDrawDetailedFrameHistory(uint32_t nWidth, uint32_t nHeight, uin
 		float fXStart = fBaseX - fDx;
 		fBaseX = fXStart;
 		uint32_t nColor = MICROPROFILE_FRAME_HISTORY_COLOR_CPU;
-		if(i == nSelectedFrame)
+		if(nIndex == nSelectedFrame)
 			nColor = (uint32_t)-1;
 		MicroProfileDrawBox(fXStart, nBaseY + fScale * nBarHeight, fXEnd, nBaseY+MICROPROFILE_FRAME_HISTORY_HEIGHT, nColor, MicroProfileBoxTypeBar);
 		if(pNext->nFrameStartCpu > nCpuStart)
@@ -1703,7 +1730,22 @@ void MicroProfileDrawDetailedView(uint32_t nWidth, uint32_t nHeight)
 	int nSelectedFrame = -1;
 	if(S.nMouseY > nBaseY && S.nMouseY <= nBaseY + MICROPROFILE_FRAME_HISTORY_HEIGHT)
 	{
+
 		nSelectedFrame = ((MICROPROFILE_NUM_FRAMES) * (S.nWidth-S.nMouseX) / S.nWidth);
+		nSelectedFrame = (S.nFrameCurrent + MICROPROFILE_MAX_FRAME_HISTORY - nSelectedFrame) % MICROPROFILE_MAX_FRAME_HISTORY;
+		if(S.nMouseRight)
+		{
+			int64_t nRangeBegin = S.Frames[nSelectedFrame].nFrameStartCpu;
+			int64_t nRangeEnd = S.Frames[(nSelectedFrame+1)%MICROPROFILE_MAX_FRAME_HISTORY].nFrameStartCpu;
+			MicroProfileZoomTo(nRangeBegin, nRangeEnd);
+		}
+		if(S.nMouseDownLeft)
+		{
+			uint64_t nFrac = (1024 * (MICROPROFILE_NUM_FRAMES) * (S.nMouseX) / S.nWidth) % 1024;
+			int64_t nRangeBegin = S.Frames[nSelectedFrame].nFrameStartCpu;
+			int64_t nRangeEnd = S.Frames[(nSelectedFrame+1)%MICROPROFILE_MAX_FRAME_HISTORY].nFrameStartCpu;
+			MicroProfileCenter(nRangeBegin + (nRangeEnd-nRangeBegin) * nFrac / 1024);
+		}
 	}
 
 	MicroProfileDrawDetailedBars(nWidth, nHeight, nBaseY + MICROPROFILE_FRAME_HISTORY_HEIGHT, nSelectedFrame);
