@@ -129,6 +129,7 @@
 #define MicroProfileOnThreadCreate(foo) do{}while(0)
 #define MicroProfileMouseButton(foo, bar) do{}while(0)
 #define MicroProfileMousePosition(foo, bar) do{}while(0)
+#define MicroProfileModKey(key) do{}while(0)
 #define MicroProfileFlip() do{}while(0)
 #define MicroProfileDraw(foo, bar) do{}while(0)
 #define MicroProfileIsDrawing() 0
@@ -272,6 +273,7 @@ MICROPROFILE_API void MicroProfileForceEnableGroup(const char* pGroup, MicroProf
 MICROPROFILE_API void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API float MicroProfileGetTime(const char* pGroup, const char* pName);
 MICROPROFILE_API void MicroProfileMousePosition(uint32_t nX, uint32_t nY, int nWheelDelta);
+MICROPROFILE_API void MicroProfileModKey(uint32_t nKeyState);
 MICROPROFILE_API void MicroProfileMouseButton(uint32_t nLeft, uint32_t nRight);
 MICROPROFILE_API void MicroProfileOnThreadCreate(const char* pThreadName); //should be called from newly created threads
 MICROPROFILE_API void MicroProfileInitThreadLog();
@@ -371,7 +373,7 @@ int64_t MicroProfileGetTick()
 #define MICROPROFILE_TOOLTIP_STRING_BUFFER_SIZE 1024
 #define MICROPROFILE_TOOLTIP_MAX_LOCKED 3
 #define MICROPROFILE_MAX_FRAME_HISTORY 120
-
+#define MICROPROFILE_ANIM_DELAY_PRC 0.5f
 
 enum MicroProfileDrawMask
 {
@@ -505,6 +507,9 @@ struct
 	float fDetailedOffset; //display offset relative to start of latest displayable frame.
 	float fDetailedRange; //no. of ms to display
 
+	float fDetailedOffsetTarget;
+	float fDetailedRangeTarget;
+
 	int nOffsetY;
 
 	uint32_t nWidth;
@@ -544,7 +549,11 @@ struct
 	uint32_t				nMouseDownRight;
 	uint32_t 				nMouseLeft;
 	uint32_t 				nMouseRight;
+	uint32_t 				nMouseLeftMod;
+	uint32_t 				nMouseRightMod;
+	uint32_t				nModDown;
 	uint32_t 				nActiveMenu;
+
 
 	uint32_t				nThreadActive[MICROPROFILE_MAX_THREADS];
 	MicroProfileThreadLog* 	Pool[MICROPROFILE_MAX_THREADS];
@@ -695,8 +704,8 @@ void MicroProfileInit()
 		S.Pool[S.nNumLogs++] = pGpu;
 		pGpu->nGpu = 1;
 
-		S.fDetailedOffset = 0.f;
-		S.fDetailedRange = 50.f;
+		S.fDetailedOffsetTarget = S.fDetailedOffset = 0.f;
+		S.fDetailedRangeTarget = S.fDetailedRange = 50.f;
 	}
 	if(bUseLock)
 		mutex.unlock();
@@ -1145,6 +1154,8 @@ void MicroProfileFlip()
 	}
 	S.nActiveGroup |= S.nForceGroup;
 
+	S.fDetailedOffset = S.fDetailedOffset + (S.fDetailedOffsetTarget - S.fDetailedOffset) * MICROPROFILE_ANIM_DELAY_PRC;
+	S.fDetailedRange = S.fDetailedRange + (S.fDetailedRangeTarget - S.fDetailedRange) * MICROPROFILE_ANIM_DELAY_PRC;
 
 }
 
@@ -1371,8 +1382,10 @@ void MicroProfileZoomTo(int64_t nTickStart, int64_t nTickEnd)
 {
 	int64_t nStart = S.Frames[S.nFrameCurrent].nFrameStartCpu;
 	float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
-	S.fDetailedOffset = (nTickStart - nStart) * fToMs;
-	S.fDetailedRange = (nTickEnd - nTickStart) * fToMs;
+	S.fDetailedOffsetTarget = (nTickStart - nStart) * fToMs;
+	S.fDetailedRangeTarget = (nTickEnd - nTickStart) * fToMs;
+
+
 }
 
 void MicroProfileCenter(int64_t nTickCenter)
@@ -1380,7 +1393,7 @@ void MicroProfileCenter(int64_t nTickCenter)
 	int64_t nStart = S.Frames[S.nFrameCurrent].nFrameStartCpu;
 	float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
 	float fCenter = (nTickCenter - nStart) * fToMs;
-	S.fDetailedOffset = fCenter - 0.5f * S.fDetailedRange;
+	S.fDetailedOffsetTarget = S.fDetailedOffset = fCenter - 0.5f * S.fDetailedRange;
 }
 
 
@@ -1585,6 +1598,10 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 							nHoverToken = (uint32_t)pEntry->nToken;
 							nHoverTime = nTickEnd - nTickStart;
 							pMouseOverNext = pEntry;
+							if(S.nMouseLeftMod)
+							{
+								MicroProfileZoomTo(nTickStart, nTickEnd);
+							}
 						}
 						MicroProfileDrawBox(fXStart, fYStart, fXEnd, fYEnd, nColor, MicroProfileBoxTypeBar);
 					}
@@ -1612,19 +1629,6 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 	}
 	S.pDisplayMouseOver = pMouseOverNext;
 
-	// for(float f = fMsBase; f < fMsEnd; ++i)
-	// {
-	// 	float fStart = f;
-	// 	float fNext = MicroProfileMin<float>(floor(f)+1.f, fMsEnd);
-	// 	uint32_t nXPos = (uint32_t)(nX + ((fStart-fMsBase) * fMsToScreen));
-	// 	if(0 == (i%nSkip))
-	// 	{
-	// 		char buf[10];
-	// 		snprintf(buf, 9, "%d", (int)f);
-	// 		MicroProfileDrawText(nXPos, nBaseY, (uint32_t)-1, buf);
-	// 	}
-	// 	f = fNext;
-	// }
 	if(nHoverToken != MICROPROFILE_INVALID_TOKEN && nHoverTime)
 	{
 		S.nHoverToken = nHoverToken;
@@ -1634,10 +1638,8 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 
 	if(nSelectedFrame != -1)
 	{
-//		uint32_t nRealIndex = (S.nFrameCurrent + MICROPROFILE_MAX_FRAME_HISTORY - nSelectedFrame) % MICROPROFILE_MAX_FRAME_HISTORY;
 		nRangeBegin = S.Frames[nSelectedFrame].nFrameStartCpu;
 		nRangeEnd = S.Frames[(nSelectedFrame+1)%MICROPROFILE_MAX_FRAME_HISTORY].nFrameStartCpu;
-		MP_ASSERT(nRangeBegin <= nRangeEnd);
 	}
 	if(nRangeBegin != nRangeEnd)
 	{
@@ -2420,7 +2422,7 @@ void MicroProfileMoveGraph()
 	int nPanX = 0;
 	int nPanY = 0;
 	static int X = 0, Y = 0;
-	if(S.nMouseDownLeft)
+	if(S.nMouseDownLeft && !S.nModDown)
 	{
 		nPanX = S.nMouseX - X;
 		nPanY = S.nMouseY - Y;
@@ -2432,18 +2434,22 @@ void MicroProfileMoveGraph()
 	{
 		float fOldRange = S.fDetailedRange;
 		if(nZoom>0)
-			S.fDetailedRange *= 1.05f;
+		{
+			S.fDetailedRangeTarget = S.fDetailedRange *= 1.05f;
+		}
 		else
-			S.fDetailedRange /= 1.05f;
+		{
+			S.fDetailedRangeTarget = S.fDetailedRange /= 1.05f;
+		}
 
 		float fDiff = fOldRange - S.fDetailedRange;
 		float fMousePrc = MicroProfileMax((float)S.nMouseX / S.nWidth ,0.f);
-		S.fDetailedOffset += fDiff * fMousePrc;
+		S.fDetailedOffsetTarget = S.fDetailedOffset += fDiff * fMousePrc;
 
 	}
 	if(nPanX)
 	{
-		S.fDetailedOffset += -nPanX * S.fDetailedRange / S.nWidth;
+		S.fDetailedOffsetTarget = S.fDetailedOffset += -nPanX * S.fDetailedRange / S.nWidth;
 	}
 	S.nOffsetY -= nPanY;
 	if(S.nOffsetY<0)
@@ -2538,6 +2544,7 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 
 	}
 	S.nMouseLeft = S.nMouseRight = 0;
+	S.nMouseLeftMod = S.nMouseRightMod = 0;
 	S.nMouseWheelDelta = 0;
 	if(S.nOverflow)
 		S.nOverflow--;
@@ -2549,6 +2556,12 @@ void MicroProfileMousePosition(uint32_t nX, uint32_t nY, int nWheelDelta)
 	S.nMouseY = nY;
 	S.nMouseWheelDelta = nWheelDelta;
 }
+
+void MicroProfileModKey(uint32_t nKeyState)
+{
+	S.nModDown = nKeyState ? 1 : 0;
+}
+
 void MicroProfileClearGraph()
 {
 	for(uint32_t i = 0; i < MICROPROFILE_MAX_GRAPHS; ++i)
@@ -2598,9 +2611,20 @@ void MicroProfileToggleGraph(MicroProfileToken nToken)
 void MicroProfileMouseButton(uint32_t nLeft, uint32_t nRight)
 {
 	if(0 == nLeft && S.nMouseDownLeft)
-		S.nMouseLeft = 1;
+	{
+		if(S.nModDown)
+			S.nMouseLeftMod = 1;
+		else
+			S.nMouseLeft = 1;
+	}
+
 	if(0 == nRight && S.nMouseDownRight)
-		S.nMouseRight = 1;
+	{
+		if(S.nModDown)
+			S.nMouseRightMod = 1;
+		else
+			S.nMouseRight = 1;
+	}
 
 	S.nMouseDownLeft = nLeft;
 	S.nMouseDownRight = nRight;

@@ -203,6 +203,16 @@ void HandleEvent(SDL_Event* pEvt)
 		{
 			MicroProfileTogglePause();
 		}
+		if(pEvt->key.keysym.scancode == SDL_SCANCODE_LCTRL)
+		{
+			MicroProfileModKey(0);
+		}
+		break;
+	case SDL_KEYDOWN:
+		if(pEvt->key.keysym.scancode == SDL_SCANCODE_LCTRL)
+		{
+			MicroProfileModKey(1);
+		}
 		break;
 	case SDL_MOUSEMOTION:
 		g_MouseX = pEvt->motion.x;
@@ -314,6 +324,7 @@ int main(int argc, char* argv[])
 				usleep(1000);
 			}
 		}
+
 
 
 
