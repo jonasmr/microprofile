@@ -365,14 +365,14 @@ int64_t MicroProfileGetTick()
 #define MICROPROFILE_MAX_GROUPS 48
 #define MICROPROFILE_MAX_GRAPHS 5
 #define MICROPROFILE_GRAPH_HISTORY 128
-#define MICROPROFILE_BUFFER_SIZE (((2048)<<10)/sizeof(MicroProfileLogEntry))
+#define MICROPROFILE_BUFFER_SIZE (((128)<<10)/sizeof(MicroProfileLogEntry))
 #define MICROPROFILE_MAX_THREADS 32
 #define MICROPROFILE_STACK_MAX 32
 #define MICROPROFILE_MAX_PRESETS 5
 #define MICROPROFILE_TOOLTIP_MAX_STRINGS 32
 #define MICROPROFILE_TOOLTIP_STRING_BUFFER_SIZE 1024
 #define MICROPROFILE_TOOLTIP_MAX_LOCKED 3
-#define MICROPROFILE_MAX_FRAME_HISTORY 120
+#define MICROPROFILE_MAX_FRAME_HISTORY 512
 #define MICROPROFILE_ANIM_DELAY_PRC 0.5f
 
 enum MicroProfileDrawMask
@@ -492,6 +492,7 @@ struct
 	uint32_t nMenuAllThreads;
 	uint64_t nHoverToken;
 	uint32_t nHoverTime;
+	int 	 nHoverFrame;
 	uint32_t nOverflow;
 
 	uint64_t nGroupMask;
@@ -1589,7 +1590,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 					float fYStart = (float)(nY + nStackPos * nYDelta);
 					float fYEnd = fYStart + (MICROPROFILE_DETAILED_BAR_HEIGHT);
 					float fXDist = MicroProfileMax(fXStart - fMouseX, fMouseX - fXEnd);
-					bool bHover = fXDist < fHoverDist && fYStart <= fMouseY && fMouseY <= fYEnd;
+					bool bHover = fXDist < fHoverDist && fYStart <= fMouseY && fMouseY <= fYEnd && nBaseY < fMouseY;
 					uint32_t nIntegerWidth = (uint32_t)(fXEnd - fXStart);
 					if(nIntegerWidth)
 					{
@@ -1735,6 +1736,7 @@ void MicroProfileDrawDetailedView(uint32_t nWidth, uint32_t nHeight)
 
 		nSelectedFrame = ((MICROPROFILE_NUM_FRAMES) * (S.nWidth-S.nMouseX) / S.nWidth);
 		nSelectedFrame = (S.nFrameCurrent + MICROPROFILE_MAX_FRAME_HISTORY - nSelectedFrame) % MICROPROFILE_MAX_FRAME_HISTORY;
+		S.nHoverFrame = nSelectedFrame;
 		if(S.nMouseRight)
 		{
 			int64_t nRangeBegin = S.Frames[nSelectedFrame].nFrameStartCpu;
@@ -1748,6 +1750,10 @@ void MicroProfileDrawDetailedView(uint32_t nWidth, uint32_t nHeight)
 			int64_t nRangeEnd = S.Frames[(nSelectedFrame+1)%MICROPROFILE_MAX_FRAME_HISTORY].nFrameStartCpu;
 			MicroProfileCenter(nRangeBegin + (nRangeEnd-nRangeBegin) * nFrac / 1024);
 		}
+	}
+	else
+	{
+		S.nHoverFrame = -1;
 	}
 
 	MicroProfileDrawDetailedBars(nWidth, nHeight, nBaseY + MICROPROFILE_FRAME_HISTORY_HEIGHT, nSelectedFrame);
@@ -2470,6 +2476,7 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 		S.nHeight = nHeight;
 		S.nHoverToken = MICROPROFILE_INVALID_TOKEN;
 		S.nHoverTime = 0;
+		S.nHoverFrame = -1;
 
 		MicroProfileMoveGraph();
 
@@ -2522,6 +2529,38 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 			if(S.nHoverToken != MICROPROFILE_INVALID_TOKEN)
 			{
 				MicroProfileDrawFloatTooltip(S.nMouseX, S.nMouseY, S.nHoverToken, S.nHoverTime);
+			}
+			else if(S.nHoverFrame != -1)
+			{
+				uint32_t nNextFrame = (S.nHoverFrame+1)%MICROPROFILE_MAX_FRAME_HISTORY;
+				int64_t nTick = S.Frames[S.nHoverFrame].nFrameStartCpu;
+				int64_t nTickNext = S.Frames[nNextFrame].nFrameStartCpu;
+				int64_t nTickGpu = S.Frames[S.nHoverFrame].nFrameStartGpu;
+				int64_t nTickNextGpu = S.Frames[nNextFrame].nFrameStartGpu;
+
+				float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+				float fToMsGpu = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondGpu());
+				float fMs = fToMs * (nTickNext - nTick);
+				float fMsGpu = fToMsGpu * (nTickNextGpu - nTickGpu);
+				MicroProfileToolTipStrings ToolTip;
+				const char* pBufferStart = &ToolTip.buffer[0];
+				char* pBuffer = &ToolTip.buffer[0];
+				#define SZ (intptr_t)(MICROPROFILE_TOOLTIP_STRING_BUFFER_SIZE-1-(pBufferStart - pBuffer))
+				uint32_t nTextCount = 0;
+				ToolTip.ppStrings[nTextCount++] = pBuffer;
+				pBuffer += 1 + snprintf(pBuffer,SZ, "Frame %d", S.nHoverFrame);
+				ToolTip.ppStrings[nTextCount++] = "";
+				ToolTip.ppStrings[nTextCount++] = "CPU Time";
+				ToolTip.ppStrings[nTextCount++] = pBuffer;
+				pBuffer += 1 + snprintf(pBuffer,SZ, "%6.2fms", fMs);
+				ToolTip.ppStrings[nTextCount++] = "GPU Time";
+				ToolTip.ppStrings[nTextCount++] = pBuffer;
+				pBuffer += 1 + snprintf(pBuffer,SZ, "%6.2fms", fMsGpu);
+
+				MP_ASSERT(pBuffer < &ToolTip.buffer[0] + sizeof(ToolTip.buffer));
+				MP_ASSERT(nTextCount <= MICROPROFILE_TOOLTIP_MAX_STRINGS);
+				#undef SZ
+				MicroProfileDrawFloatWindow(S.nMouseX, S.nMouseY+20, &ToolTip.ppStrings[0], nTextCount, -1);
 			}
 			if(S.nMouseLeft)
 			{
