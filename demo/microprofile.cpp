@@ -427,8 +427,8 @@ void MicroProfileDrawBox(int nX0, int nY0, int nX1, int nY1, uint32_t nColor, Mi
 		uint32_t r1 = 0xff & ((r+nMin)/2);
 		uint32_t g1 = 0xff & ((g+nMin)/2);
 		uint32_t b1 = 0xff & ((b+nMin)/2);
-		uint32_t nColor0 = (r0<<0)|(g0<<8)|(b0<<16)|0xff000000;
-		uint32_t nColor1 = (r1<<0)|(g1<<8)|(b1<<16)|0xff000000;
+		uint32_t nColor0 = (r0<<0)|(g0<<8)|(b0<<16)|(0xff000000&nColor);
+		uint32_t nColor1 = (r1<<0)|(g1<<8)|(b1<<16)|(0xff000000&nColor);
 		MicroProfileVertex* pVertex = PushVertices(GL_TRIANGLES, 6);
 		Q0(pVertex, nX, nX0);
 		Q0(pVertex, nY, nY0);
