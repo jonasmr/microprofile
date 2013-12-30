@@ -1379,7 +1379,7 @@ void MicroProfileDrawFloatTooltip(uint32_t nX, uint32_t nY, uint32_t nToken, uin
 #undef SZ
 	MicroProfileDrawFloatWindow(nX, nY+20, &ToolTip.ppStrings[0], nTextCount, S.TimerInfo[nTimerId].nColor);
 
-	if(S.nMouseRight)
+	if(S.nMouseLeftMod)
 	{
 		int nIndex = (S.LockedToolTipFront + MICROPROFILE_TOOLTIP_MAX_LOCKED - 1) % MICROPROFILE_TOOLTIP_MAX_LOCKED;
 		ToolTip.nNumStrings = nTextCount;
@@ -1638,7 +1638,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 							nHoverToken = (uint32_t)pEntry->nToken;
 							nHoverTime = nTickEnd - nTickStart;
 							pMouseOverNext = pEntry;
-							if(S.nMouseLeftMod)
+							if(S.nMouseRight)
 							{
 								MicroProfileZoomTo(nTickStart, nTickEnd);
 							}
