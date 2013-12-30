@@ -48,6 +48,9 @@
 // selection view on frame history
 // frame lines w. hightlight + info
 // fix main frame zoom out issue
+// zoom fully out, deselect all -> crash
+// gpu/cpu full frames on top of bar view
+// menu options
 // 
 //
 // Howto:
@@ -365,15 +368,17 @@ int64_t MicroProfileGetTick()
 #define MICROPROFILE_MAX_GROUPS 48
 #define MICROPROFILE_MAX_GRAPHS 5
 #define MICROPROFILE_GRAPH_HISTORY 128
-#define MICROPROFILE_BUFFER_SIZE (((128)<<10)/sizeof(MicroProfileLogEntry))
+#define MICROPROFILE_BUFFER_SIZE (((2048)<<10)/sizeof(MicroProfileLogEntry))
 #define MICROPROFILE_MAX_THREADS 32
 #define MICROPROFILE_STACK_MAX 32
 #define MICROPROFILE_MAX_PRESETS 5
-#define MICROPROFILE_TOOLTIP_MAX_STRINGS 32
+#define MICROPROFILE_DEBUG 1
+#define MICROPROFILE_TOOLTIP_MAX_STRINGS (32 + MICROPROFILE_MAX_GROUPS*2)
 #define MICROPROFILE_TOOLTIP_STRING_BUFFER_SIZE 1024
 #define MICROPROFILE_TOOLTIP_MAX_LOCKED 3
 #define MICROPROFILE_MAX_FRAME_HISTORY 512
 #define MICROPROFILE_ANIM_DELAY_PRC 0.5f
+#define MICROPROFILE_GAP_TIME 50 //extra ms to fetch to close timers from earlier frames
 
 enum MicroProfileDrawMask
 {
@@ -1402,6 +1407,8 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 {
 	int nX = 0;
 	int nY = nBaseY - S.nOffsetY;
+	int64_t nNumBoxes = 0;
+	int64_t nNumLines = 0;
 
 	uint32_t nFrameNext = (S.nFrameCurrent+1) % MICROPROFILE_MAX_FRAME_HISTORY;
 	MicroProfileFrameState* pFrameCurrent = &S.Frames[S.nFrameCurrent];
@@ -1423,13 +1430,15 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 	int64_t nBaseTicksGpu = nDetailedOffsetTicksGpu + nFrameStartGpu;
 
 	MicroProfileFrameState* pFrameFirst = pFrameCurrent;
+	int64_t nGapTime = MicroProfileTicksPerSecondCpu() * MICROPROFILE_GAP_TIME / 1000;
 	for(uint32_t i = 0; i < MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY; ++i)
 	{
 		uint32_t nNextIndex = (S.nFrameCurrent + MICROPROFILE_MAX_FRAME_HISTORY - i) % MICROPROFILE_MAX_FRAME_HISTORY;
 		pFrameFirst = &S.Frames[nNextIndex];
-		if(pFrameFirst->nFrameStartCpu <= nBaseTicksCpu)
+		if(pFrameFirst->nFrameStartCpu <= nBaseTicksCpu-nGapTime)
 			break;
 	}
+
 	float fMsBase = fToMsCpu * nDetailedOffsetTicksCpu;
 	float fMs = fDetailedRange;
 	float fMsEnd = fMs + fMsBase;
@@ -1482,13 +1491,15 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			continue;
 
 		uint32_t nPut = pFrameNext->nLogStart[i];
-		uint32_t nGet = (uint32_t)-1;//pFrameCurrent->nLogStart[i];
 		///note: this may display new samples as old data, but this will only happen when
 		// 		 unpaused, where the detailed view is hardly perceptible
 		uint32_t nFront = S.Pool[i]->nPut.load(std::memory_order_relaxed); 
-		MicroProfileFrameState* pFrameLogFirst = pFrameFirst;
+		MicroProfileFrameState* pFrameLogFirst = pFrameCurrent;
+		uint32_t nGet = pFrameLogFirst->nLogStart[i];
 		do
 		{
+			//uprintf("frame log is %p\n", pFrameLogFirst);
+			MP_ASSERT(pFrameLogFirst >= &S.Frames[0] && pFrameLogFirst < &S.Frames[MICROPROFILE_MAX_FRAME_HISTORY]);
 			uint32_t nNewGet = pFrameLogFirst->nLogStart[i];
 			//todo: fix
 			bool bIsValid = false;
@@ -1503,17 +1514,22 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			if(bIsValid)
 			{
 				nGet = nNewGet;
-				break;
+				pFrameLogFirst--;
+				if(pFrameLogFirst < &S.Frames[0])
+					pFrameLogFirst = &S.Frames[MICROPROFILE_MAX_FRAME_HISTORY-1]; 
 			}
 			else
 			{
-				pFrameLogFirst++;
-				if(pFrameLogFirst == &S.Frames[MICROPROFILE_MAX_FRAME_HISTORY])
-					pFrameLogFirst = &S.Frames[0]; 
+				break;
 			}
-		}while(pFrameLogFirst != pFrameCurrent);
+		}while(pFrameLogFirst != pFrameFirst);
+
+
+		if(nGet == (uint32_t)-1)
+			continue;
 		MP_ASSERT(nGet != (uint32_t)-1);
 
+		//uprintf("getand put %d %d ... %d\n", nGet, nPut, i);
 		uint32_t nRange[2][2] = { {0, 0}, {0, 0}, };
 
 		MicroProfileGetRange(nPut, nGet, nRange);
@@ -1538,6 +1554,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 		uint32_t nYDelta = MICROPROFILE_DETAILED_BAR_HEIGHT;
 		uint32_t nStack[MICROPROFILE_STACK_MAX];
 		uint32_t nStackPos = 0;
+		uprintf("Draw %d .. %d\n", i, nRange[0][1]-nRange[0][0] + nRange[1][1]-nRange[1][0]);
 		for(uint32_t j = 0; j < 2; ++j)
 		{
 			uint32_t nStart = nRange[j][0];
@@ -1561,7 +1578,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 					MicroProfileLogEntry* pEntryEnter = pLog->Log + nStack[nStackPos-1];
 					if(pEntryEnter->nToken != pEntry->nToken)
 					{
-						uprintf("mismatch %llx %llx\n", pEntryEnter->nToken, pEntry->nToken);
+						//uprintf("mismatch %llx %llx\n", pEntryEnter->nToken, pEntry->nToken);
 						continue;
 					}
 					int64_t nTickStart = pEntryEnter->nTick;
@@ -1605,6 +1622,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 							}
 						}
 						MicroProfileDrawBox(fXStart, fYStart, fXEnd, fYEnd, nColor, MicroProfileBoxTypeBar);
+						++nNumBoxes;
 					}
 					else
 					{
@@ -1620,6 +1638,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 							}
 							nLinesDrawn[nStackPos] = nLineX;
 							MicroProfileDrawLineVertical(nLineX, fYStart + 0.5f, fYEnd + 0.5f, nColor);
+							++nNumLines;
 						}
 					}
 					nStackPos--;
@@ -1665,6 +1684,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 		MicroProfileDrawText(fXEnd+2, nBaseY+1, (uint32_t)-1, sBuffer);
 
 	}
+	uprintf("boxes %lld lines %lld\n", nNumBoxes, nNumLines);
 }
 
 
@@ -2549,13 +2569,26 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 				uint32_t nTextCount = 0;
 				ToolTip.ppStrings[nTextCount++] = pBuffer;
 				pBuffer += 1 + snprintf(pBuffer,SZ, "Frame %d", S.nHoverFrame);
-				ToolTip.ppStrings[nTextCount++] = "";
+				ToolTip.ppStrings[nTextCount++] = pBuffer;
+				pBuffer += 1 + snprintf(pBuffer,SZ, "%p", &S.Frames[S.nHoverFrame]);
 				ToolTip.ppStrings[nTextCount++] = "CPU Time";
 				ToolTip.ppStrings[nTextCount++] = pBuffer;
 				pBuffer += 1 + snprintf(pBuffer,SZ, "%6.2fms", fMs);
 				ToolTip.ppStrings[nTextCount++] = "GPU Time";
 				ToolTip.ppStrings[nTextCount++] = pBuffer;
 				pBuffer += 1 + snprintf(pBuffer,SZ, "%6.2fms", fMsGpu);
+				#if MICROPROFILE_DEBUG
+				for(int i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
+				{
+					if(S.Frames[S.nHoverFrame].nLogStart[i])
+					{
+						ToolTip.ppStrings[nTextCount++] = pBuffer;
+						pBuffer += 1 + snprintf(pBuffer,SZ, "%d", i);
+						ToolTip.ppStrings[nTextCount++] = pBuffer;
+						pBuffer += 1 + snprintf(pBuffer,SZ, "%d", S.Frames[S.nHoverFrame].nLogStart[i]);
+					}
+				}
+				#endif
 
 				MP_ASSERT(pBuffer < &ToolTip.buffer[0] + sizeof(ToolTip.buffer));
 				MP_ASSERT(nTextCount <= MICROPROFILE_TOOLTIP_MAX_STRINGS);

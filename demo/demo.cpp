@@ -63,7 +63,7 @@ void usleep(__int64 usec)
 }
 #endif
 
-#define WIDTH 1200
+#define WIDTH 800
 #define HEIGHT 600
 
 uint32_t g_nQuit = 0;
@@ -292,7 +292,8 @@ int main(int argc, char* argv[])
 	MicroProfileQueryInitGL();
 	MicroProfileDrawInit();
 #endif
-
+#define FAKE_WORK 1
+#if FAKE_WORK
 	std::thread t0(WorkerThread, 0);
 	std::thread t1(WorkerThread, 1);
 	std::thread t2(WorkerThread, 2);
@@ -301,7 +302,7 @@ int main(int argc, char* argv[])
 	std::thread t43(WorkerThread, 43);
 	std::thread t44(WorkerThread, 44);
 	std::thread t45(WorkerThread, 45);
-
+#endif
 	while(!g_nQuit)
 	{
 		MICROPROFILE_SCOPE(MAIN);
@@ -316,6 +317,7 @@ int main(int argc, char* argv[])
 		glViewport(0, 0, WIDTH, HEIGHT);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+#if 1||FAKE_WORK
 		{
 			MICROPROFILE_SCOPEI("Main", "Dummy", 0xff3399ff);
 			for(uint32_t i = 0; i < 14; ++i)
@@ -324,7 +326,7 @@ int main(int argc, char* argv[])
 				usleep(1000);
 			}
 		}
-
+#endif
 
 
 
@@ -366,7 +368,7 @@ int main(int argc, char* argv[])
 		MICROPROFILE_SCOPEI("MAIN", "Flip", 0xffee00);
 		SDL_GL_SwapWindow(pWindow);
 	}
-
+	#if FAKE_WORK
 	t0.join();
 	t1.join();
 	t2.join();
@@ -375,6 +377,7 @@ int main(int argc, char* argv[])
 	t43.join();
 	t44.join();
 	t45.join();
+	#endif
 
   	SDL_GL_DeleteContext(glcontext);  
  	SDL_DestroyWindow(pWindow);
