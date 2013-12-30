@@ -34,7 +34,7 @@ struct MicroProfileVertex
 };
 
 
-#define MICROPROFILE_MAX_VERTICES (1<<20)
+#define MICROPROFILE_MAX_VERTICES (16<<10)
 #define MICROPROFILE_NUM_QUERIES (8<<10)
 #define MAX_FONT_CHARS 256
 #define Q0(d, member, v) d[0].member = v
@@ -42,6 +42,7 @@ struct MicroProfileVertex
 #define Q2(d, member, v) d[4].member = v
 #define Q3(d, member, v) d[2].member = v; d[5].member = v
 
+void MicroProfileFlush();
 namespace
 {
 	uint32_t nVertexPos = 0;
@@ -135,7 +136,11 @@ void main(void)   \
 
 	MicroProfileVertex* PushVertices(uint32_t nCommand, int nCount)
 	{
-		MP_ASSERT(nVertexPos + nCount < MICROPROFILE_MAX_VERTICES);
+		if(nVertexPos + nCount > MICROPROFILE_MAX_VERTICES)
+		{
+			MicroProfileFlush();
+		}
+		MP_ASSERT(nVertexPos + nCount <= MICROPROFILE_MAX_VERTICES);
 
 		uint32_t nOut = nVertexPos;
 		nVertexPos += nCount;
@@ -274,12 +279,12 @@ void MicroProfileBeginDraw(uint32_t nWidth, uint32_t nHeight, float* prj)
 	nVertexPos = 0;
 	nNumDrawCommands = 0;
 }
-void MicroProfileEndDraw()
+void MicroProfileFlush()
 {
 	if(0 == nVertexPos)
 		return;
-	MICROPROFILE_SCOPEI("MicroProfile", "EndDraw", 0x003456);
-	MICROPROFILE_SCOPEGPUI("GPU", "EndDraw", 0xff4444);
+	MICROPROFILE_SCOPEI("MicroProfile", "Flush", 0xffff3456);
+	MICROPROFILE_SCOPEGPUI("GPU", "FlushDraw", 0xffff4444);
 
 
 
@@ -322,6 +327,11 @@ void MicroProfileEndDraw()
 	glBindVertexArray(0);
 	nVertexPos = 0;
 	nNumDrawCommands = 0;
+}
+void MicroProfileEndDraw()
+{
+	MicroProfileFlush();
+
 }
 
 
