@@ -627,6 +627,18 @@ static const char* g_MicroProfilePresetNames[] =
 	"Sound",
 };
 
+
+MICROPROFILE_DEFINE(g_MicroProfileDetailed, "MicroProfile", "Detailed View", 0x8888000);
+MICROPROFILE_DEFINE(g_MicroProfileDrawGraph, "MicroProfile", "Draw Graph", 0xff44ee00);
+MICROPROFILE_DEFINE(g_MicroProfileFlip, "MicroProfile", "MicroProfileFlip", 0x3355ee);
+MICROPROFILE_DEFINE(g_MicroProfileThreadLoop, "MicroProfile", "ThreadLoop", 0x3355ee);
+MICROPROFILE_DEFINE(g_MicroProfileClear, "MicroProfile", "Clear", 0x3355ee);
+MICROPROFILE_DEFINE(g_MicroProfileAccumulate, "MicroProfile", "Accumulate", 0x3355ee);
+MICROPROFILE_DEFINE(g_MicroProfileDrawBarView, "MicroProfile", "DrawBarView", 0x00dd77);
+MICROPROFILE_DEFINE(g_MicroProfileDraw,"MicroProfile", "Draw", 0x737373);
+
+
+
 inline std::recursive_mutex& MicroProfileMutex()
 {
 	static std::recursive_mutex Mutex;
@@ -911,7 +923,7 @@ void MicroProfileGetRange(uint32_t nPut, uint32_t nGet, uint32_t nRange[2][2])
 
 void MicroProfileFlip()
 {
-	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileFlip", 0x3355ee);
+	MICROPROFILE_SCOPE(g_MicroProfileFlip);
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 
 	{
@@ -1009,7 +1021,7 @@ void MicroProfileFlip()
 		if(S.nRunning)
 		{
 			{
-				MICROPROFILE_SCOPEI("MicroProfile", "Clear", 0x3355ee);
+				MICROPROFILE_SCOPE(g_MicroProfileClear);
 				for(uint32_t i = 0; i < S.nTotalTimers; ++i)
 				{
 					S.Frame[i].nTicks = 0;
@@ -1018,7 +1030,7 @@ void MicroProfileFlip()
 				}
 			}
 			{
-				MICROPROFILE_SCOPEI("MicroProfile", "ThreadLoop", 0x3355ee);
+				MICROPROFILE_SCOPE(g_MicroProfileThreadLoop);
 				for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
 				{
 					MicroProfileThreadLog* pLog = S.Pool[i];
@@ -1105,7 +1117,7 @@ void MicroProfileFlip()
 				}
 			}
 			{
-				MICROPROFILE_SCOPEI("MicroProfile", "Accumulate", 0x3355ee);
+				MICROPROFILE_SCOPE(g_MicroProfileAccumulate);
 				for(uint32_t i = 0; i < S.nTotalTimers; ++i)
 				{
 					S.AggregateTimers[i].nTicks += S.Frame[i].nTicks;				
@@ -1428,6 +1440,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 	int64_t nDetailedOffsetTicksGpu = MicroProfileMsToTick(fDetailedOffset, MicroProfileTicksPerSecondGpu());
 	int64_t nBaseTicksCpu = nDetailedOffsetTicksCpu + nFrameStartCpu;
 	int64_t nBaseTicksGpu = nDetailedOffsetTicksGpu + nFrameStartGpu;
+	int64_t nBaseTicksEndCpu = nBaseTicksCpu + MicroProfileMsToTick(fDetailedRange, MicroProfileTicksPerSecondCpu());
 
 	MicroProfileFrameState* pFrameFirst = pFrameCurrent;
 	int64_t nGapTime = MicroProfileTicksPerSecondCpu() * MICROPROFILE_GAP_TIME / 1000;
@@ -1495,6 +1508,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 		// 		 unpaused, where the detailed view is hardly perceptible
 		uint32_t nFront = S.Pool[i]->nPut.load(std::memory_order_relaxed); 
 		MicroProfileFrameState* pFrameLogFirst = pFrameCurrent;
+		MicroProfileFrameState* pFrameLogLast = pFrameNext;
 		uint32_t nGet = pFrameLogFirst->nLogStart[i];
 		do
 		{
@@ -1514,6 +1528,12 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			if(bIsValid)
 			{
 				nGet = nNewGet;
+				if(pFrameLogFirst->nFrameStartCpu > nBaseTicksEndCpu)
+				{
+					pFrameLogLast = pFrameLogFirst;//pick the last frame that ends after 
+				}
+
+
 				pFrameLogFirst--;
 				if(pFrameLogFirst < &S.Frames[0])
 					pFrameLogFirst = &S.Frames[MICROPROFILE_MAX_FRAME_HISTORY-1]; 
@@ -1528,6 +1548,8 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 		if(nGet == (uint32_t)-1)
 			continue;
 		MP_ASSERT(nGet != (uint32_t)-1);
+
+		nPut = pFrameLogLast->nLogStart[i];
 
 		//uprintf("getand put %d %d ... %d\n", nGet, nPut, i);
 		uint32_t nRange[2][2] = { {0, 0}, {0, 0}, };
@@ -1554,7 +1576,6 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 		uint32_t nYDelta = MICROPROFILE_DETAILED_BAR_HEIGHT;
 		uint32_t nStack[MICROPROFILE_STACK_MAX];
 		uint32_t nStackPos = 0;
-		uprintf("Draw %d .. %d\n", i, nRange[0][1]-nRange[0][0] + nRange[1][1]-nRange[1][0]);
 		for(uint32_t j = 0; j < 2; ++j)
 		{
 			uint32_t nStart = nRange[j][0];
@@ -1684,7 +1705,6 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 		MicroProfileDrawText(fXEnd+2, nBaseY+1, (uint32_t)-1, sBuffer);
 
 	}
-	uprintf("boxes %lld lines %lld\n", nNumBoxes, nNumLines);
 }
 
 
@@ -1746,7 +1766,7 @@ void MicroProfileDrawDetailedFrameHistory(uint32_t nWidth, uint32_t nHeight, uin
 }
 void MicroProfileDrawDetailedView(uint32_t nWidth, uint32_t nHeight)
 {
-	MICROPROFILE_SCOPEI("MicroProfile", "Detailed View", 0x8888000);
+	MICROPROFILE_SCOPE(g_MicroProfileDetailed);
 	int nBaseY = S.nBarHeight + 1;
 
 	const float fMousePrc = MicroProfileMax((float)S.nMouseX / S.nWidth ,0.f);
@@ -1907,7 +1927,7 @@ uint32_t MicroProfileDrawBarLegend(uint32_t nX, uint32_t nY, uint32_t nTotalHeig
 
 bool MicroProfileDrawGraph(uint32_t nScreenWidth, uint32_t nScreenHeight)
 {
-	MICROPROFILE_SCOPEI("MicroProfile", "DrawGraph", 0xff0033);
+	MICROPROFILE_SCOPE(g_MicroProfileDrawGraph);
 	bool bEnabled = false;
 	for(uint32_t i = 0; i < MICROPROFILE_MAX_GRAPHS; ++i)
 		if(S.Graph[i].nToken != MICROPROFILE_INVALID_TOKEN)
@@ -2034,7 +2054,7 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 {
 	if(!S.nActiveGroup)
 		return;
-	MICROPROFILE_SCOPEI("MicroProfile", "DrawBarView", 0x00dd77);
+	MICROPROFILE_SCOPE(g_MicroProfileDrawBarView);
 
 	const uint32_t nHeight = S.nBarHeight;
 	const uint32_t nWidth = S.nBarWidth;
@@ -2117,7 +2137,6 @@ bool MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 	bool bMouseOver = S.nMouseY < MICROPROFILE_TEXT_HEIGHT + 1;
 #define SBUF_SIZE 256
 	char buffer[256];
-	MICROPROFILE_SCOPEI("MicroProfile", "Menu", 0x0373e3);
 	MicroProfileDrawBox(nX, nY, nX + nWidth, nY + (S.nBarHeight+1)+1, 0xff000000|g_nMicroProfileBackColors[1]);
 
 #define MICROPROFILE_MENU_MAX 16
@@ -2488,7 +2507,7 @@ bool MicroProfileIsDrawing()
 }
 void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 {
-	MICROPROFILE_SCOPEI("MicroProfile", "Draw", 0x737373);
+	MICROPROFILE_SCOPE(g_MicroProfileDraw);
 
 	if(S.nDisplay)
 	{
