@@ -333,6 +333,7 @@ struct MicroProfileScopeGpuHandler
 #endif
 #include <windows.h>
 #define snprintf _snprintf
+#define vsprintf vsprintf_s
 #pragma warning(push)
 #pragma warning(disable: 4244)
 int64_t MicroProfileTicksPerSecondCpu()
@@ -2159,7 +2160,8 @@ bool MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 		{
 			va_list args;
 			va_start (args, fmt);
-			vsprintf_s (Text, fmt, args);
+
+			vsprintf(Text, fmt, args);
 			va_end(args);
 		}
 		char Text[32];
