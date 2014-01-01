@@ -8,7 +8,7 @@ solution "microprofile"
       files { "*.h", "*.cpp", "glew/*.c"}
       includedirs {"sdl2/include/", "glew/", ".." } 
       
-      defines {"GLEW_STATIC"} 
+      defines {"GLEW_STATIC;_CRT_SECURE_NO_WARNINGS"} 
       
       libdirs {"sdl2/VisualC/SDL/Win32/Release/"}
 

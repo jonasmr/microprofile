@@ -333,7 +333,8 @@ struct MicroProfileScopeGpuHandler
 #endif
 #include <windows.h>
 #define snprintf _snprintf
-
+#pragma warning(push)
+#pragma warning(disable: 4244)
 int64_t MicroProfileTicksPerSecondCpu()
 {
 	static int64_t nTicksPerSecond = 0;	
@@ -369,7 +370,7 @@ int64_t MicroProfileGetTick()
 #define MICROPROFILE_MAX_THREADS 32
 #define MICROPROFILE_STACK_MAX 32
 #define MICROPROFILE_MAX_PRESETS 5
-#define MICROPROFILE_DEBUG 1
+#define MICROPROFILE_DEBUG 0
 #define MICROPROFILE_TOOLTIP_MAX_STRINGS (32 + MICROPROFILE_MAX_GROUPS*2)
 #define MICROPROFILE_TOOLTIP_STRING_BUFFER_SIZE 1024
 #define MICROPROFILE_TOOLTIP_MAX_LOCKED 3
@@ -493,12 +494,12 @@ struct
 	uint32_t nMenuAllGroups;
 	uint32_t nMenuAllThreads;
 	uint64_t nHoverToken;
-	uint32_t nHoverTime;
+	int64_t  nHoverTime;
 	int 	 nHoverFrame;
 	uint32_t nOverflow;
 
 	uint64_t nGroupMask;
-	uint32_t nStoredGroup;
+	uint64_t nStoredGroup;
 	uint32_t nRunning;
 	uint32_t nMaxGroupSize;
 
@@ -593,20 +594,6 @@ struct
 
 
 } g_MicroProfile;
-
-#ifdef _WIN32
-void uprintf(const char* fmt, ...)
-{
-	char buffer[32*1024];
-	va_list args;
-	va_start (args, fmt);
-	vsprintf_s (buffer, fmt, args);
-	OutputDebugString(&buffer[0]);
-	va_end (args);
-}
-#else
-#define uprintf printf
-#endif
 
 MicroProfileThreadLog*			g_MicroProfileGpuLog = 0;
 MP_THREAD_LOCAL MicroProfileThreadLog* g_MicroProfileThreadLog = 0;
@@ -984,7 +971,7 @@ void MicroProfileFlip()
 		pFramePut->nFrameStartCpu = MP_TICK();
 		pFramePut->nFrameStartGpu = (uint32_t)MicroProfileGpuInsertTimeStamp();
 		if(pFrameNext->nFrameStartGpu != (uint64_t)-1)
-			pFrameNext->nFrameStartGpu = MicroProfileGpuGetTimeStamp(pFrameNext->nFrameStartGpu);
+			pFrameNext->nFrameStartGpu = MicroProfileGpuGetTimeStamp((uint32_t)pFrameNext->nFrameStartGpu);
 
 		if(pFrameCurrent->nFrameStartGpu == (uint64_t)-1)
 			pFrameCurrent->nFrameStartGpu = pFrameNext->nFrameStartGpu + 1; 
@@ -1067,7 +1054,7 @@ void MicroProfileFlip()
 						}
 					}
 					uint32_t nStack[MICROPROFILE_STACK_MAX];
-					uint32_t nChildTickStack[MICROPROFILE_STACK_MAX];
+					int64_t nChildTickStack[MICROPROFILE_STACK_MAX];
 					uint32_t nStackPos = 0;
 					nChildTickStack[0] = 0;
 
@@ -1091,9 +1078,9 @@ void MicroProfileFlip()
 								case MicroProfileLogEntry::ELeave:
 								{
 									//todo: reconsider the fallback for Leaves without enters
-									uint64_t nTickStart = 0 != nStackPos ? pLog->Log[nStack[nStackPos-1]].nTick : nFrameStart;
-									uint64_t nTicks = LE.nTick - nTickStart;
-									uint32_t nChildTicks = nChildTickStack[nStackPos];
+									int64_t nTickStart = 0 != nStackPos ? pLog->Log[nStack[nStackPos-1]].nTick : nFrameStart;
+									int64_t nTicks = LE.nTick - nTickStart;
+									int64_t nChildTicks = nChildTickStack[nStackPos];
 									if(0 != nStackPos)
 									{
 										MP_ASSERT(pLog->Log[nStack[nStackPos-1]].nToken == LE.nToken);
@@ -1270,7 +1257,7 @@ void MicroProfileCopyToolTip(MicroProfileToolTipStrings* pDest, MicroProfileTool
 {
 	memcpy(&pDest->ppStrings[0], &pSrc->ppStrings[0], sizeof(pDest->ppStrings));
 	memcpy(&pDest->buffer[0], &pSrc->buffer[0], sizeof(pDest->buffer));
-	for(int i = 0; i < MICROPROFILE_TOOLTIP_MAX_STRINGS; ++i)
+	for(uint32_t i = 0; i < MICROPROFILE_TOOLTIP_MAX_STRINGS; ++i)
 	{
 		if(i < pSrc->nNumStrings)
 		{
@@ -1470,7 +1457,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 		{
 			float fStart = f;
 			float fNext = f + fStep;
-			uint32_t nXPos = (float)(nX + ((fStart-fMsBase) * fMsToScreen));
+			uint32_t nXPos = (uint32_t)(nX + ((fStart-fMsBase) * fMsToScreen));
 			MicroProfileDrawBox(nXPos, nBaseY, (fNext-fMsBase) * fMsToScreen+1, nBaseY + nHeight, S.nOpacityBackground | g_nMicroProfileBackColors[nColorIndex++ & 1]);
 			f = fNext;
 		}
@@ -1483,7 +1470,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 	float fMouseX = (float)S.nMouseX;
 	float fMouseY = (float)S.nMouseY;
 	uint64_t nHoverToken = MICROPROFILE_INVALID_TOKEN;
-	uint64_t nHoverTime = 0;
+	int64_t nHoverTime = 0;
 	float fHoverDist = 0.5f;
 	float fBestDist = 100000.f;
 
@@ -1697,7 +1684,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 		fMsEnd += fDetailedOffset;
 		char sBuffer[32];
 		uint32_t nLenStart = snprintf(sBuffer, sizeof(sBuffer)-1, "%.2fms", fMsStart);
-		float fStartTextWidth = (1+MICROPROFILE_TEXT_WIDTH) * nLenStart;
+		float fStartTextWidth = (float)((1+MICROPROFILE_TEXT_WIDTH) * nLenStart);
 		float fStartTextX = fXStart - fStartTextWidth - 2;
 		MicroProfileDrawBox(fStartTextX, nBaseY, fStartTextX + fStartTextWidth + 2, MICROPROFILE_TEXT_HEIGHT + 2 + nBaseY, 0x33000000, MicroProfileBoxTypeFlat);
 		MicroProfileDrawText(fStartTextX+1, nBaseY, (uint32_t)-1, sBuffer);
@@ -1714,7 +1701,7 @@ void MicroProfileDrawDetailedFrameHistory(uint32_t nWidth, uint32_t nHeight, uin
 	const uint32_t nBarWidth = MICROPROFILE_FRAME_HISTORY_WIDTH;
 	const uint32_t nBarHeight = MICROPROFILE_FRAME_HISTORY_HEIGHT;
 	uint32_t nBaseX = nWidth - nBarWidth;
-	float fBaseX = nWidth;
+	float fBaseX = (float)nWidth;
 	float fDx = fBaseX / MICROPROFILE_NUM_FRAMES;
 
 	uint32_t nLastIndex =  (S.nFrameCurrent+1) % MICROPROFILE_MAX_FRAME_HISTORY;
@@ -1732,7 +1719,7 @@ void MicroProfileDrawDetailedFrameHistory(uint32_t nWidth, uint32_t nHeight, uin
 	int64_t nCpuEnd = nCpuStart + MicroProfileMsToTick(S.fDetailedRange, MicroProfileTicksPerSecondCpu());;
 
 
-	float fSelectionStart = nWidth;
+	float fSelectionStart = (float)nWidth;
 	float fSelectionEnd = 0.f;
 	for(uint32_t i = 0; i < MICROPROFILE_NUM_FRAMES; ++i)
 	{
@@ -1768,7 +1755,7 @@ void MicroProfileDrawDetailedFrameHistory(uint32_t nWidth, uint32_t nHeight, uin
 void MicroProfileDrawDetailedView(uint32_t nWidth, uint32_t nHeight)
 {
 	MICROPROFILE_SCOPE(g_MicroProfileDetailed);
-	int nBaseY = S.nBarHeight + 1;
+	uint32_t nBaseY = S.nBarHeight + 1;
 
 	const float fMousePrc = MicroProfileMax((float)S.nMouseX / S.nWidth ,0.f);
 	int nSelectedFrame = -1;
@@ -2155,7 +2142,7 @@ bool MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 	snprintf(AggregateText, sizeof(AggregateText)-1, "Aggregate[%d]", S.nAggregateFlip ? S.nAggregateFlip : S.nAggregateFlipCount);
 	pMenuText[nNumMenuItems++] = &AggregateText[0];
 	pMenuText[nNumMenuItems++] = "Timers";
-	pMenuText[nNumMenuItems++] = "Reference";
+	pMenuText[nNumMenuItems++] = "Options";
 	pMenuText[nNumMenuItems++] = "Preset";
 	const int nPauseIndex = nNumMenuItems;
 	pMenuText[nNumMenuItems++] = S.nRunning ? "Pause" : "Unpause";
@@ -2413,8 +2400,8 @@ bool MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 	for(uint32_t i = 0; i < nNumMenuItems; ++i)
 	{
 		nMenuX[i] = nX;
-		int nLen = (int)strlen(pMenuText[i]);
-		int nEnd = nX + nLen * (MICROPROFILE_TEXT_WIDTH+1);
+		uint32_t nLen = (uint32_t)strlen(pMenuText[i]);
+		uint32_t nEnd = nX + nLen * (MICROPROFILE_TEXT_WIDTH+1);
 		if(S.nMouseY <= MICROPROFILE_TEXT_HEIGHT && S.nMouseX <= nEnd && S.nMouseX >= nX)
 		{
 			MicroProfileDrawBox(nX-1, nY, nX + nLen * (MICROPROFILE_TEXT_WIDTH+1), nY +(S.nBarHeight+1)+1, 0xff888888);
@@ -2563,7 +2550,7 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 		bool bMouseOverGraph = MicroProfileDrawGraph(nWidth, nHeight);
 
 
-		int nLockedToolTipX = 3;
+		uint32_t nLockedToolTipX = 3;
 		bool bDeleted = false;
 		for(int i = 0; i < MICROPROFILE_TOOLTIP_MAX_LOCKED; ++i)
 		{
@@ -2618,8 +2605,12 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 				uint32_t nTextCount = 0;
 				ToolTip.ppStrings[nTextCount++] = pBuffer;
 				pBuffer += 1 + snprintf(pBuffer,SZ, "Frame %d", S.nHoverFrame);
+#if MICROPROFILE_DEBUG
 				ToolTip.ppStrings[nTextCount++] = pBuffer;
 				pBuffer += 1 + snprintf(pBuffer,SZ, "%p", &S.Frames[S.nHoverFrame]);
+#else
+				ToolTip.ppStrings[nTextCount++] = "";
+#endif
 				ToolTip.ppStrings[nTextCount++] = "CPU Time";
 				ToolTip.ppStrings[nTextCount++] = pBuffer;
 				pBuffer += 1 + snprintf(pBuffer,SZ, "%6.2fms", fMs);
@@ -2988,6 +2979,10 @@ void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Typ
 }
 
 #undef S
+
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 #endif
 #endif
 

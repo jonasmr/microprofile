@@ -42,12 +42,12 @@ void usleep(__int64 usec)
 { 
 	if(usec > 20000)
 	{
-		Sleep(usec/1000);
+		Sleep((DWORD)(usec/1000));
 	}
 	else if(usec >= 1000)
 	{
 		timeBeginPeriod(1);
-		Sleep(usec/1000);
+		Sleep((DWORD)(usec/1000));
 		timeEndPeriod(1);
 	}
 	else
@@ -313,7 +313,7 @@ int main(int argc, char* argv[])
 			HandleEvent(&Evt);
 		}
 
-		glClearColor(0.3,0.4,0.6,0);
+		glClearColor(0.3f,0.4f,0.6f,0.f);
 		glViewport(0, 0, WIDTH, HEIGHT);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -348,9 +348,9 @@ int main(int argc, char* argv[])
 			float far = 1.f;
 			memset(&projection[0], 0, sizeof(projection));
 
-			projection[0] = 2.0 / (right - left);
-			projection[5] = 2.0 / (top - bottom);
-			projection[10] = -2.0 / (far - near);
+			projection[0] = 2.0f / (right - left);
+			projection[5] = 2.0f / (top - bottom);
+			projection[10] = -2.0f / (far - near);
 			projection[12] = - (right + left) / (right - left);
 			projection[13] = - (top + bottom) / (top - bottom);
 			projection[14] = - (far + near) / (far - near);
