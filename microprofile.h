@@ -318,7 +318,7 @@ struct MicroProfileScopeGpuHandler
 #endif
 #include <windows.h>
 #define snprintf _snprintf
-#define vsprintf vsprintf_s
+
 #pragma warning(push)
 #pragma warning(disable: 4244)
 int64_t MicroProfileTicksPerSecondCpu()
