@@ -208,6 +208,7 @@ int64_t MicroProfileGetTick();
 
 
 
+
 #define MICROPROFILE_FORCEENABLECPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeCpu)
 #define MICROPROFILE_FORCEDISABLECPUGROUP(s) MicroProfileForceDisableGroup(s, MicroProfileTokenTypeCpu)
 #define MICROPROFILE_FORCEENABLEGPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeGpu)
@@ -2457,11 +2458,11 @@ void MicroProfileMoveGraph()
 		float fOldRange = S.fDetailedRange;
 		if(nZoom>0)
 		{
-			S.fDetailedRangeTarget = S.fDetailedRange *= 1.05f;
+			S.fDetailedRangeTarget = S.fDetailedRange *= S.nModDown ? 1.40 : 1.05f;
 		}
 		else
 		{
-			S.fDetailedRangeTarget = S.fDetailedRange /= 1.05f;
+			S.fDetailedRangeTarget = S.fDetailedRange /= S.nModDown ? 1.40 : 1.05f;
 		}
 
 		float fDiff = fOldRange - S.fDetailedRange;
@@ -2810,17 +2811,20 @@ struct MicroProfilePresetHeader
 	uint32_t nOpacityForeground;
 };
 
-const char* MicroProfilePresetFilename(const char* pSuffix)
+#ifndef MICROPROFILE_PRESET_FILENAME_FUNC
+#define MICROPROFILE_PRESET_FILENAME_FUNC MicroProfilePresetFilename
+static const char* MicroProfilePresetFilename(const char* pSuffix)
 {
 	static char filename[512];
 	snprintf(filename, sizeof(filename)-1, ".microprofilepreset.%s", pSuffix);
 	return filename;
 }
+#endif
 
 void MicroProfileSavePreset(const char* pPresetName)
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
-	FILE* F = fopen(MicroProfilePresetFilename(pPresetName), "w");
+	FILE* F = fopen(MICROPROFILE_PRESET_FILENAME_FUNC(pPresetName), "w");
 	if(!F) return;
 
 	MicroProfilePresetHeader Header;
@@ -2895,7 +2899,7 @@ void MicroProfileSavePreset(const char* pPresetName)
 void MicroProfileLoadPreset(const char* pSuffix)
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
-	FILE* F = fopen(MicroProfilePresetFilename(pSuffix), "r");
+	FILE* F = fopen(MICROPROFILE_PRESET_FILENAME_FUNC(pSuffix), "r");
 	if(!F)
 	{
 	 	return;
