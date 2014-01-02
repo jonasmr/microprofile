@@ -19,6 +19,10 @@
 // OTHER DEALINGS IN THE SOFTWARE.
 // For more information, please refer to <http://unlicense.org/>
 
+#define MICROPROFILE_HELP_ALT "Right-Click"
+#define MICROPROFILE_HELP_MOD "Ctrl"
+
+
 #define MICRO_PROFILE_IMPL
 #include "microprofile.h"
 #include "glinc.h"
