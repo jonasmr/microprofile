@@ -42,12 +42,12 @@ void usleep(__int64 usec)
 { 
 	if(usec > 20000)
 	{
-		Sleep(usec/1000);
+		Sleep((DWORD)(usec/1000));
 	}
 	else if(usec >= 1000)
 	{
 		timeBeginPeriod(1);
-		Sleep(usec/1000);
+		Sleep((DWORD)(usec/1000));
 		timeEndPeriod(1);
 	}
 	else
@@ -203,6 +203,16 @@ void HandleEvent(SDL_Event* pEvt)
 		{
 			MicroProfileTogglePause();
 		}
+		if(pEvt->key.keysym.scancode == SDL_SCANCODE_LCTRL)
+		{
+			MicroProfileModKey(0);
+		}
+		break;
+	case SDL_KEYDOWN:
+		if(pEvt->key.keysym.scancode == SDL_SCANCODE_LCTRL)
+		{
+			MicroProfileModKey(1);
+		}
 		break;
 	case SDL_MOUSEMOTION:
 		g_MouseX = pEvt->motion.x;
@@ -282,7 +292,8 @@ int main(int argc, char* argv[])
 	MicroProfileQueryInitGL();
 	MicroProfileDrawInit();
 #endif
-
+#define FAKE_WORK 1
+#if FAKE_WORK
 	std::thread t0(WorkerThread, 0);
 	std::thread t1(WorkerThread, 1);
 	std::thread t2(WorkerThread, 2);
@@ -291,7 +302,7 @@ int main(int argc, char* argv[])
 	std::thread t43(WorkerThread, 43);
 	std::thread t44(WorkerThread, 44);
 	std::thread t45(WorkerThread, 45);
-
+#endif
 	while(!g_nQuit)
 	{
 		MICROPROFILE_SCOPE(MAIN);
@@ -302,10 +313,11 @@ int main(int argc, char* argv[])
 			HandleEvent(&Evt);
 		}
 
-		glClearColor(0.3,0.4,0.6,0);
+		glClearColor(0.3f,0.4f,0.6f,0.f);
 		glViewport(0, 0, WIDTH, HEIGHT);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+#if 1||FAKE_WORK
 		{
 			MICROPROFILE_SCOPEI("Main", "Dummy", 0xff3399ff);
 			for(uint32_t i = 0; i < 14; ++i)
@@ -314,6 +326,7 @@ int main(int argc, char* argv[])
 				usleep(1000);
 			}
 		}
+#endif
 
 
 
@@ -335,24 +348,27 @@ int main(int argc, char* argv[])
 			float far = 1.f;
 			memset(&projection[0], 0, sizeof(projection));
 
-			projection[0] = 2.0 / (right - left);
-			projection[5] = 2.0 / (top - bottom);
-			projection[10] = -2.0 / (far - near);
+			projection[0] = 2.0f / (right - left);
+			projection[5] = 2.0f / (top - bottom);
+			projection[10] = -2.0f / (far - near);
 			projection[12] = - (right + left) / (right - left);
 			projection[13] = - (top + bottom) / (top - bottom);
 			projection[14] = - (far + near) / (far - near);
 			projection[15] = 1.f; 
  
+ 			glEnable(GL_BLEND);
+ 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 			MicroProfileBeginDraw(WIDTH, HEIGHT, &projection[0]);
 			MicroProfileDraw(WIDTH, HEIGHT);
 			MicroProfileEndDraw();
+			glDisable(GL_BLEND);
 		}
 
 		MICROPROFILE_SCOPEI("MAIN", "Flip", 0xffee00);
 		SDL_GL_SwapWindow(pWindow);
 	}
-
+	#if FAKE_WORK
 	t0.join();
 	t1.join();
 	t2.join();
@@ -361,6 +377,7 @@ int main(int argc, char* argv[])
 	t43.join();
 	t44.join();
 	t45.join();
+	#endif
 
   	SDL_GL_DeleteContext(glcontext);  
  	SDL_DestroyWindow(pWindow);

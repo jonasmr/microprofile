@@ -19,6 +19,10 @@
 // OTHER DEALINGS IN THE SOFTWARE.
 // For more information, please refer to <http://unlicense.org/>
 
+#define MICROPROFILE_HELP_ALT "Right-Click"
+#define MICROPROFILE_HELP_MOD "Ctrl"
+
+
 #define MICRO_PROFILE_IMPL
 #include "microprofile.h"
 #include "glinc.h"
@@ -34,7 +38,7 @@ struct MicroProfileVertex
 };
 
 
-#define MICROPROFILE_MAX_VERTICES (64<<10)
+#define MICROPROFILE_MAX_VERTICES (16<<10)
 #define MICROPROFILE_NUM_QUERIES (8<<10)
 #define MAX_FONT_CHARS 256
 #define Q0(d, member, v) d[0].member = v
@@ -42,6 +46,7 @@ struct MicroProfileVertex
 #define Q2(d, member, v) d[4].member = v
 #define Q3(d, member, v) d[2].member = v; d[5].member = v
 
+void MicroProfileFlush();
 namespace
 {
 	uint32_t nVertexPos = 0;
@@ -102,15 +107,15 @@ void main(void)   \
 	if(TC0.x > 1.0 ) \
 	{ \
 		Out0.xyz = Color.xyz; \
-		Out0.w = 1.0;	 \
+		Out0.w = Color.w;	 \
 	} \
 	else \
 	{ \
-		Out0.xyz = color.xyz * Color.xyz; \
-		Out0.w = color.w; \
+		Out0 = color * Color; \
+		if(color.w < 0.5) \
+			discard; \
+			\
 	} \
-	if(Out0.w<0.5) \
-		discard; \
 } \
 ";
 
@@ -135,7 +140,11 @@ void main(void)   \
 
 	MicroProfileVertex* PushVertices(uint32_t nCommand, int nCount)
 	{
-		MP_ASSERT(nVertexPos + nCount < MICROPROFILE_MAX_VERTICES);
+		if(nVertexPos + nCount > MICROPROFILE_MAX_VERTICES)
+		{
+			MicroProfileFlush();
+		}
+		MP_ASSERT(nVertexPos + nCount <= MICROPROFILE_MAX_VERTICES);
 
 		uint32_t nOut = nVertexPos;
 		nVertexPos += nCount;
@@ -274,12 +283,12 @@ void MicroProfileBeginDraw(uint32_t nWidth, uint32_t nHeight, float* prj)
 	nVertexPos = 0;
 	nNumDrawCommands = 0;
 }
-void MicroProfileEndDraw()
+void MicroProfileFlush()
 {
 	if(0 == nVertexPos)
 		return;
-	MICROPROFILE_SCOPEI("MicroProfile", "EndDraw", 0x003456);
-	MICROPROFILE_SCOPEGPUI("GPU", "EndDraw", 0xff4444);
+	MICROPROFILE_SCOPEI("MicroProfile", "Flush", 0xffff3456);
+	MICROPROFILE_SCOPEGPUI("GPU", "FlushDraw", 0xffff4444);
 
 
 
@@ -323,6 +332,11 @@ void MicroProfileEndDraw()
 	nVertexPos = 0;
 	nNumDrawCommands = 0;
 }
+void MicroProfileEndDraw()
+{
+	MicroProfileFlush();
+
+}
 
 
 
@@ -331,9 +345,9 @@ void MicroProfileDrawText(int nX, int nY, uint32_t nColor, const char* pText)
 	MICROPROFILE_SCOPEI("MicroProfile", "TextDraw", 0xff88ee);
 	const float fEndV = 9.f / 16.f;
 	const float fOffsetU = 5.f / 1024.f;
-	int nLen = strlen(pText);
-	float fX = nX;
-	float fY = nY;
+	uint32_t nLen = strlen(pText);
+	float fX = (float)nX;
+	float fY = (float)nY;
 	float fY2 = fY + (MICROPROFILE_TEXT_HEIGHT+1);
 
 	MicroProfileVertex* pVertex = PushVertices(GL_TRIANGLES, 6 * nLen);
@@ -379,25 +393,25 @@ void MicroProfileDrawBox(int nX0, int nY0, int nX1, int nY1, uint32_t nColor, Mi
 	{
 		MP_ASSERT(nX0 <= nX1);
 		MP_ASSERT(nY0 <= nY1);
-		nColor = 0xff000000|((nColor&0xff)<<16)|(nColor&0xff00)|((nColor>>16)&0xff);
+		nColor = ((nColor&0xff)<<16)|((nColor>>16)&0xff)|(0xff00ff00&nColor);
 		MicroProfileVertex* pVertex = PushVertices(GL_TRIANGLES, 6);
-		Q0(pVertex, nX, nX0);
-		Q0(pVertex, nY, nY0);
+		Q0(pVertex, nX, (float)nX0);
+		Q0(pVertex, nY, (float)nY0);
 		Q0(pVertex, nColor, nColor);
 		Q0(pVertex, fU, 2.f);
 		Q0(pVertex, fV, 2.f);
-		Q1(pVertex, nX, nX1);
-		Q1(pVertex, nY, nY0);
+		Q1(pVertex, nX, (float)nX1);
+		Q1(pVertex, nY, (float)nY0);
 		Q1(pVertex, nColor, nColor);
 		Q1(pVertex, fU, 2.f);
 		Q1(pVertex, fV, 2.f);
-		Q2(pVertex, nX, nX1);
-		Q2(pVertex, nY, nY1);
+		Q2(pVertex, nX, (float)nX1);
+		Q2(pVertex, nY, (float)nY1);
 		Q2(pVertex, nColor, nColor);
 		Q2(pVertex, fU, 2.f);
 		Q2(pVertex, fV, 2.f);
-		Q3(pVertex, nX, nX0);
-		Q3(pVertex, nY, nY1);
+		Q3(pVertex, nX, (float)nX0);
+		Q3(pVertex, nY, (float)nY1);
 		Q3(pVertex, nColor, nColor);
 		Q3(pVertex, fU, 2.f);
 		Q3(pVertex, fV, 2.f);
@@ -417,26 +431,26 @@ void MicroProfileDrawBox(int nX0, int nY0, int nX1, int nY1, uint32_t nColor, Mi
 		uint32_t r1 = 0xff & ((r+nMin)/2);
 		uint32_t g1 = 0xff & ((g+nMin)/2);
 		uint32_t b1 = 0xff & ((b+nMin)/2);
-		uint32_t nColor0 = (r0<<0)|(g0<<8)|(b0<<16)|0xff000000;
-		uint32_t nColor1 = (r1<<0)|(g1<<8)|(b1<<16)|0xff000000;
+		uint32_t nColor0 = (r0<<0)|(g0<<8)|(b0<<16)|(0xff000000&nColor);
+		uint32_t nColor1 = (r1<<0)|(g1<<8)|(b1<<16)|(0xff000000&nColor);
 		MicroProfileVertex* pVertex = PushVertices(GL_TRIANGLES, 6);
-		Q0(pVertex, nX, nX0);
-		Q0(pVertex, nY, nY0);
+		Q0(pVertex, nX, (float)nX0);
+		Q0(pVertex, nY, (float)nY0);
 		Q0(pVertex, nColor, nColor0);
 		Q0(pVertex, fU, 2.f);
 		Q0(pVertex, fV, 2.f);
-		Q1(pVertex, nX, nX1);
-		Q1(pVertex, nY, nY0);
+		Q1(pVertex, nX, (float)nX1);
+		Q1(pVertex, nY, (float)nY0);
 		Q1(pVertex, nColor, nColor0);
 		Q1(pVertex, fU, 3.f);
 		Q1(pVertex, fV, 2.f);
-		Q2(pVertex, nX, nX1);
-		Q2(pVertex, nY, nY1);
+		Q2(pVertex, nX, (float)nX1);
+		Q2(pVertex, nY, (float)nY1);
 		Q2(pVertex, nColor, nColor1);
 		Q2(pVertex, fU, 3.f);
 		Q2(pVertex, fV, 3.f);
-		Q3(pVertex, nX, nX0);
-		Q3(pVertex, nY, nY1);
+		Q3(pVertex, nX, (float)nX0);
+		Q3(pVertex, nY, (float)nY1);
 		Q3(pVertex, nColor, nColor1);
 		Q3(pVertex, fU, 2.f);
 		Q3(pVertex, fV, 3.f);
@@ -449,7 +463,7 @@ void MicroProfileDrawLine2D(uint32_t nVertices, float* pVertices, uint32_t nColo
 	if(!nVertices) return;
 
 	MicroProfileVertex* pVertex = PushVertices(GL_LINES, 2*(nVertices-1));
-	nColor = 0xff000000|((nColor&0xff)<<16)|(nColor&0xff00)|((nColor>>16)&0xff);
+	nColor = 0xff000000|((nColor&0xff)<<16)|(nColor&0xff00ff00)|((nColor>>16)&0xff);
 	for(uint32_t i = 0; i < nVertices-1; ++i)
 	{
 		pVertex[0].nX = pVertices[i*2];
