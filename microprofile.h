@@ -225,6 +225,18 @@ enum MicroProfileBoxType
 	MicroProfileBoxTypeFlat,
 };
 
+struct MicroProfileState
+{
+	uint32_t nDisplay;
+	uint32_t nMenuAllGroups;
+	uint64_t nMenuActiveGroup;
+	uint32_t nMenuAllThreads;
+	uint32_t nAggregateFlip;
+	uint32_t nBars;
+	float fReferenceTime;
+};
+
+
 MICROPROFILE_API void MicroProfileInit();
 MICROPROFILE_API MicroProfileToken MicroProfileFindToken(const char* sGroup, const char* sName);
 MICROPROFILE_API MicroProfileToken MicroProfileGetToken(const char* sGroup, const char* sName, uint32_t nColor, MicroProfileTokenType Token = MicroProfileTokenTypeCpu);
@@ -246,6 +258,8 @@ MICROPROFILE_API void MicroProfileToggleDisplayMode(); //switch between off, bar
 MICROPROFILE_API void MicroProfileSetDisplayMode(int); //switch between off, bars, detailed
 MICROPROFILE_API void MicroProfileClearGraph();
 MICROPROFILE_API void MicroProfileTogglePause();
+MICROPROFILE_API void MicroProfileGetState(MicroProfileState* pStateOut);
+MICROPROFILE_API void MicroProfileSetState(MicroProfileState* pStateIn);
 MICROPROFILE_API void MicroProfileForceEnableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API float MicroProfileGetTime(const char* pGroup, const char* pName);
@@ -255,6 +269,7 @@ MICROPROFILE_API void MicroProfileOnThreadCreate(const char* pThreadName); //sho
 MICROPROFILE_API void MicroProfileInitThreadLog();
 MICROPROFILE_API void MicroProfileDrawLineVertical(int nX, int nTop, int nBottom, uint32_t nColor);
 MICROPROFILE_API void MicroProfileDrawLineHorizontal(int nLeft, int nRight, int nY, uint32_t nColor);
+
 
 
 
@@ -298,6 +313,7 @@ struct MicroProfileScopeGpuHandler
 		MicroProfileGpuLeave(nToken, nTick);
 	}
 };
+
 
 
 
@@ -665,7 +681,7 @@ void MicroProfileOnThreadCreate(const char* pThreadName)
 	MicroProfileInit();
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 	MP_ASSERT(g_MicroProfileThreadLog == 0);
-	MicroProfileThreadLog* pLog = MicroProfileCreateThreadLog(pThreadName);
+	MicroProfileThreadLog* pLog = MicroProfileCreateThreadLog(pThreadName ? pThreadName : MicroProfileGetThreadName());
 	MP_ASSERT(pLog);
 	g_MicroProfileThreadLog = pLog;
 	S.Pool[S.nNumLogs++] = pLog;
@@ -673,7 +689,7 @@ void MicroProfileOnThreadCreate(const char* pThreadName)
 
 void MicroProfileInitThreadLog()
 {
-	MicroProfileOnThreadCreate(MicroProfileGetThreadName());
+	MicroProfileOnThreadCreate(nullptr);
 }
 
 
@@ -2308,6 +2324,7 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 
 	if(S.nDisplay)
 	{
+		MicroProfileScopeLock L(MicroProfileMutex());
 		S.nWidth = nWidth;
 		S.nHeight = nHeight;
 		S.nHoverToken = MICROPROFILE_INVALID_TOKEN;
@@ -2410,6 +2427,30 @@ void MicroProfileClearGraph()
 void MicroProfileTogglePause()
 {
 	S.nRunning = !S.nRunning;
+}
+
+void MicroProfileGetState(MicroProfileState* pStateOut)
+{
+	pStateOut->nDisplay = S.nDisplay;
+	pStateOut->nMenuAllGroups = S.nMenuAllGroups;
+	pStateOut->nMenuActiveGroup = S.nMenuActiveGroup;
+	pStateOut->nMenuAllThreads = S.nMenuAllThreads;
+	pStateOut->nAggregateFlip = S.nAggregateFlip;
+	pStateOut->nBars = S.nBars;
+	pStateOut->fReferenceTime = S.fReferenceTime;
+}
+
+void MicroProfileSetState(MicroProfileState* pStateOut)
+{
+	MicroProfileScopeLock L(MicroProfileMutex());
+	S.nDisplay = pStateOut->nDisplay;
+	S.nMenuAllGroups = pStateOut->nMenuAllGroups;
+	S.nMenuActiveGroup = pStateOut->nMenuActiveGroup;
+	S.nMenuAllThreads = pStateOut->nMenuAllThreads;
+	S.nAggregateFlip = pStateOut->nAggregateFlip;
+	S.nBars = pStateOut->nBars;
+	S.fReferenceTime = pStateOut->fReferenceTime;
+	S.fRcpReferenceTime = 1.f / S.fReferenceTime;
 }
 
 void MicroProfileToggleGraph(MicroProfileToken nToken)
