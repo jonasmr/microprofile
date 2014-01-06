@@ -194,6 +194,10 @@ int64_t MicroProfileGetTick();
 #define MICROPROFILE_GPU_FRAME_DELAY 3 //must be > 0
 #endif
 
+#ifndef MICROPROFILE_PER_THREAD_BUFFER_SIZE
+#define MICROPROFILE_PER_THREAD_BUFFER_SIZE (2048<<10)
+#endif
+
 #ifndef MICROPROFILE_HELP_LEFT
 #define MICROPROFILE_HELP_LEFT "Left-Click"
 #endif
@@ -369,7 +373,7 @@ int64_t MicroProfileGetTick()
 #define MICROPROFILE_MAX_GROUPS 48 //dont bump! no. of bits used it bitmask
 #define MICROPROFILE_MAX_GRAPHS 5
 #define MICROPROFILE_GRAPH_HISTORY 128
-#define MICROPROFILE_BUFFER_SIZE (((2048)<<10)/sizeof(MicroProfileLogEntry))
+#define MICROPROFILE_BUFFER_SIZE ((MICROPROFILE_PER_THREAD_BUFFER_SIZE)/sizeof(MicroProfileLogEntry))
 #define MICROPROFILE_MAX_THREADS 32
 #define MICROPROFILE_STACK_MAX 32
 #define MICROPROFILE_MAX_PRESETS 5
