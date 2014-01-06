@@ -166,7 +166,7 @@ void main(void)   \
 	{
 		int nLogLen = 0;
 		glGetObjectParameterivARB(handle, GL_OBJECT_INFO_LOG_LENGTH_ARB, &nLogLen);
-		if(nLogLen > 0)
+		if(nLogLen > 1) 
 		{
 			char* pChars = (char*)malloc(nLogLen);
 			int nLen = 0;

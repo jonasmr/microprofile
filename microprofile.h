@@ -123,6 +123,11 @@
 #include <mach/mach_time.h>
 #include <unistd.h>
 #include <libkern/OSAtomic.h>
+#include <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+#define MICROPROFILE_IOS
+#endif
+
 #define MP_TICK() mach_absolute_time()
 inline int64_t MicroProfileTicksPerSecondCpu()
 {
@@ -614,7 +619,17 @@ struct
 } g_MicroProfile;
 
 MicroProfileThreadLog*			g_MicroProfileGpuLog = 0;
+#ifdef MICROPROFILE_IOS
+// iOS doesn't support __thread
+static pthread_key_t g_MicroProfileThreadLogKey;
+static pthread_once_t g_MicroProfileThreadLogKeyOnce = PTHREAD_ONCE_INIT;
+static void MicroProfileCreateThreadLogKey()
+{
+	pthread_key_create(&g_MicroProfileThreadLogKey, NULL);
+}
+#else
 MP_THREAD_LOCAL MicroProfileThreadLog* g_MicroProfileThreadLog = 0;
+#endif
 static bool g_bUseLock = false; /// This is used because windows does not support using mutexes under dll init(which is where global initialization is handled)
 static uint32_t 				g_nMicroProfileBackColors[2] = {  0x474747, 0x313131 };
 static uint32_t g_MicroProfileAggregatePresets[] = {0, 10, 20, 30, 60, 120};
@@ -773,6 +788,30 @@ void MicroProfileInit()
 		mutex.unlock();
 }
 
+#ifdef MICROPROFILE_IOS
+inline MicroProfileThreadLog* MicroProfileGetThreadLog()
+{
+	pthread_once(&g_MicroProfileThreadLogKeyOnce, MicroProfileCreateThreadLogKey);
+	return (MicroProfileThreadLog*)pthread_getspecific(g_MicroProfileThreadLogKey);
+}
+
+inline void MicroProfileSetThreadLog(MicroProfileThreadLog* pLog)
+{
+	pthread_once(&g_MicroProfileThreadLogKeyOnce, MicroProfileCreateThreadLogKey);
+	pthread_setspecific(g_MicroProfileThreadLogKey, pLog);
+}
+#else
+MicroProfileThreadLog* MicroProfileGetThreadLog()
+{
+	return g_MicroProfileThreadLog;
+}
+inline void MicroProfileSetThreadLog(MicroProfileThreadLog* pLog)
+{
+	g_MicroProfileThreadLog = pLog;
+}
+#endif
+
+
 MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 {
 	MicroProfileThreadLog* pLog = new MicroProfileThreadLog;
@@ -791,10 +830,10 @@ void MicroProfileOnThreadCreate(const char* pThreadName)
 	g_bUseLock = true;
 	MicroProfileInit();
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
-	MP_ASSERT(g_MicroProfileThreadLog == 0);
+	MP_ASSERT(MicroProfileGetThreadLog() == 0);
 	MicroProfileThreadLog* pLog = MicroProfileCreateThreadLog(pThreadName ? pThreadName : MicroProfileGetThreadName());
 	MP_ASSERT(pLog);
-	g_MicroProfileThreadLog = pLog;
+	MicroProfileSetThreadLog(pLog);
 	S.Pool[S.nNumLogs++] = pLog;
 }
 
@@ -897,12 +936,12 @@ uint64_t MicroProfileEnter(MicroProfileToken nToken_)
 {
 	if(MicroProfileGetGroupMask(nToken_) & S.nActiveGroup)
 	{
-		if(!g_MicroProfileThreadLog)
+		if(!MicroProfileGetThreadLog())
 		{
 			MicroProfileInitThreadLog();
 		}
 		uint64_t nTick = MP_TICK();
-		MicroProfileLogPut(nToken_, nTick, MP_LOG_ENTER, g_MicroProfileThreadLog);
+		MicroProfileLogPut(nToken_, nTick, MP_LOG_ENTER, MicroProfileGetThreadLog());
 		return nTick;
 	}
 	return MICROPROFILE_INVALID_TICK;
@@ -914,12 +953,12 @@ void MicroProfileLeave(MicroProfileToken nToken_, uint64_t nTickStart)
 {
 	if(MICROPROFILE_INVALID_TICK != nTickStart)
 	{
-		if(!g_MicroProfileThreadLog)
+		if(!MicroProfileGetThreadLog())
 		{
 			MicroProfileInitThreadLog();
 		}
 		uint64_t nTick = MP_TICK();
-		MicroProfileLogPut(nToken_, nTick, MP_LOG_LEAVE, g_MicroProfileThreadLog);
+		MicroProfileLogPut(nToken_, nTick, MP_LOG_LEAVE, MicroProfileGetThreadLog());
 	}
 }
 
