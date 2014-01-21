@@ -22,6 +22,25 @@
 #define MICROPROFILE_HELP_ALT "Right-Click"
 #define MICROPROFILE_HELP_MOD "Ctrl"
 
+#ifdef _WIN32
+#include <stdio.h>
+#include <stdarg.h>
+
+#include <windows.h>
+void uprintf(const char* fmt, ...)
+{
+	char buffer[32*1024];
+	va_list args;
+	va_start (args, fmt);
+	vsprintf_s(buffer, fmt, args);
+	OutputDebugString(&buffer[0]);
+	va_end (args);
+}
+//change printf function to dump in debugger
+#define MICROPROFILE_PRINTF uprintf
+#endif
+
+
 
 #define MICRO_PROFILE_IMPL
 #include "microprofile.h"

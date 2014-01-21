@@ -112,6 +112,7 @@
 #define MicroProfileToggleDisplayMode() do{}while(0)
 #define MicroProfileSetDisplayMode() do{}while(0)
 #define MicroProfileTogglePause() do{}while(0)
+#define MicroProfileDumpTimers() do{}while(0)
 
 #else
 
@@ -215,6 +216,9 @@ int64_t MicroProfileGetTick();
 #define MICROPROFILE_HELP_MOD "Mod"
 #endif
 
+#ifndef MICROPROFILE_PRINTF
+#define MICROPROFILE_PRINTF printf
+#endif
 
 
 
@@ -288,7 +292,7 @@ MICROPROFILE_API void MicroProfileOnThreadCreate(const char* pThreadName); //sho
 MICROPROFILE_API void MicroProfileInitThreadLog();
 MICROPROFILE_API void MicroProfileDrawLineVertical(int nX, int nTop, int nBottom, uint32_t nColor);
 MICROPROFILE_API void MicroProfileDrawLineHorizontal(int nLeft, int nRight, int nY, uint32_t nColor);
-
+MICROPROFILE_API void MicroProfileDumpTimers();
 
 
 
@@ -1840,7 +1844,6 @@ void MicroProfileLoopActiveGroupsDraw(int32_t nX, int32_t nY, const char* pName,
 
 void MicroProfileCalcTimers(float* pTimers, float* pAverage, float* pMax, float* pCallAverage, float* pExclusive, float* pAverageExclusive, float* pMaxExclusive, uint64_t nGroup, uint32_t nSize)
 {
-	nGroup = S.nActiveGroup = S.nMenuAllGroups ? S.nGroupMask : S.nMenuActiveGroup;
 	uint64_t nGroupMask = (uint64_t)-1;
 	uint32_t nCount = 0;
 	uint64_t nMask = 1;
@@ -2068,6 +2071,59 @@ bool MicroProfileDrawGraph(uint32_t nScreenWidth, uint32_t nScreenHeight)
 	}
 
 	return bMouseOver;
+}
+
+void MicroProfileDumpTimers()
+{
+	uint64_t nActiveGroup = S.nGroupMask;
+
+	uint32_t nNumTimers = S.nTotalTimers;
+	uint32_t nNumGroups = S.nGroupCount;
+	uint32_t nBlockSize = 2 * nNumTimers;
+	float* pTimers = (float*)alloca(nBlockSize * 7 * sizeof(float));
+	float* pAverage = pTimers + nBlockSize;
+	float* pMax = pTimers + 2 * nBlockSize;
+	float* pCallAverage = pTimers + 3 * nBlockSize;
+	float* pTimersExclusive = pTimers + 4 * nBlockSize;
+	float* pAverageExclusive = pTimers + 5 * nBlockSize;
+	float* pMaxExclusive = pTimers + 6 * nBlockSize;
+	MicroProfileCalcTimers(pTimers, pAverage, pMax, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, nActiveGroup, nNumTimers);
+
+	MICROPROFILE_PRINTF("%11s, ", "Time");
+	MICROPROFILE_PRINTF("%11s, ", "Average");
+	MICROPROFILE_PRINTF("%11s, ", "Max");
+	MICROPROFILE_PRINTF("%11s, ", "Call Avg");
+	MICROPROFILE_PRINTF("%9s, ", "Count");
+	MICROPROFILE_PRINTF("%11s, ", "Excl");
+	MICROPROFILE_PRINTF("%11s, ", "Avg Excl");
+	MICROPROFILE_PRINTF("%11s, \n", "Max Excl");
+
+	for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
+	{
+		uint64_t nMask = 1ll << j;
+		if(nMask & nActiveGroup)
+		{
+			float fToMs = MicroProfileTickToMsMultiplier(S.GroupInfo[j].Type == MicroProfileTokenTypeGpu ? MicroProfileTicksPerSecondGpu() : MicroProfileTicksPerSecondCpu());
+			MICROPROFILE_PRINTF("%s\n", S.GroupInfo[j].pName);
+			for(uint32_t i = 0; i < S.nTotalTimers;++i)
+			{
+				uint64_t nTokenMask = MicroProfileGetGroupMask(S.TimerInfo[i].nToken);
+				if(nTokenMask & nMask)
+				{
+					uint32_t nIdx = i * 2;
+					MICROPROFILE_PRINTF("%9.2fms, ", pTimers[nIdx]);
+					MICROPROFILE_PRINTF("%9.2fms, ", pAverage[nIdx]);
+					MICROPROFILE_PRINTF("%9.2fms, ", pMax[nIdx]);
+					MICROPROFILE_PRINTF("%9.2fms, ", pCallAverage[nIdx]);
+					MICROPROFILE_PRINTF("%9d, ", S.Frame[i].nCount);
+					MICROPROFILE_PRINTF("%9.2fms, ", pTimersExclusive[nIdx]);
+					MICROPROFILE_PRINTF("%9.2fms, ", pAverageExclusive[nIdx]);
+					MICROPROFILE_PRINTF("%9.2fms, ", pMaxExclusive[nIdx]);
+					MICROPROFILE_PRINTF("%s\n", S.TimerInfo[i].pName);
+				}
+			}
+		}
+	}
 }
 
 void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)

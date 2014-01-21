@@ -207,6 +207,10 @@ void HandleEvent(SDL_Event* pEvt)
 		{
 			MicroProfileModKey(0);
 		}
+		if(pEvt->key.keysym.sym == 'a')
+		{
+			MicroProfileDumpTimers();
+		}
 		break;
 	case SDL_KEYDOWN:
 		if(pEvt->key.keysym.scancode == SDL_SCANCODE_LCTRL)
