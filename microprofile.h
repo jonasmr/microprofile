@@ -393,7 +393,7 @@ int64_t MicroProfileGetTick()
 
 enum MicroProfileDrawMask
 {
-	MP_DRAW_OFF		= 0x0,
+	MP_DRAW_OFF			= 0x0,
 	MP_DRAW_BARS		= 0x1,
 	MP_DRAW_DETAILED	= 0x2,
 	MP_DRAW_HIDDEN		= 0x3,
@@ -534,6 +534,10 @@ struct
 	uint64_t nHoverToken;
 	int64_t  nHoverTime;
 	int 	 nHoverFrame;
+#if MICROPROFILE_DEBUG
+	uint64_t nHoverAddressEnter;
+	uint64_t nHoverAddressLeave;
+#endif
 	uint32_t nOverflow;
 
 	uint64_t nGroupMask;
@@ -1028,7 +1032,7 @@ void MicroProfileFlip()
 			S.nDisplay = nDisplay;// dont load display, just state
 		}
 	}
-	S.nActiveGroup = 0;
+
 	if(S.nRunning)
 	{
 		S.nFramePut = (S.nFramePut+1) % MICROPROFILE_MAX_FRAME_HISTORY;
@@ -1212,13 +1216,14 @@ void MicroProfileFlip()
 				S.nFlipMax = 0;
 			}
 		}
-		if(S.nDisplay)
-		{
-			S.nActiveGroup = S.nMenuAllGroups ? S.nGroupMask : S.nMenuActiveGroup;
-		}
 	}
+	uint64_t nNewActiveGroup = 0;
+	if(S.nDisplay && S.nRunning)
+		nNewActiveGroup = S.nMenuAllGroups ? S.nGroupMask : S.nMenuActiveGroup;
+	nNewActiveGroup |= S.nForceGroup;
+	if(S.nActiveGroup != nNewActiveGroup)
+		S.nActiveGroup = nNewActiveGroup;
 
-	S.nActiveGroup |= S.nForceGroup;
 	S.fDetailedOffset = S.fDetailedOffset + (S.fDetailedOffsetTarget - S.fDetailedOffset) * MICROPROFILE_ANIM_DELAY_PRC;
 	S.fDetailedRange = S.fDetailedRange + (S.fDetailedRangeTarget - S.fDetailedRange) * MICROPROFILE_ANIM_DELAY_PRC;
 
@@ -1344,6 +1349,11 @@ void MicroProfileDrawFloatTooltip(uint32_t nX, uint32_t nY, uint32_t nToken, uin
 	const char* pTimerName = S.TimerInfo[nTimerId].pName;
 	MicroProfileStringArrayFormat(&ToolTip, "%s", pGroupName);
 	MicroProfileStringArrayFormat(&ToolTip,"%s", pTimerName);
+
+#if MICROPROFILE_DEBUG
+	MicroProfileStringArrayFormat(&ToolTip,"0x%p", S.nHoverAddressEnter);
+	MicroProfileStringArrayFormat(&ToolTip,"0x%p", S.nHoverAddressLeave);
+#endif
 	
 	if(nTime != (uint64_t)0)
 	{
@@ -1421,10 +1431,47 @@ void MicroProfileCenter(int64_t nTickCenter)
 	float fCenter = MicroProfileLogTickDifference(nStart, nTickCenter) * fToMs;
 	S.fDetailedOffsetTarget = S.fDetailedOffset = fCenter - 0.5f * S.fDetailedRange;
 }
+#ifdef MICROPROFILE_DEBUG
+uint64_t* g_pMicroProfileDumpStart = 0;
+uint64_t* g_pMicroProfileDumpEnd = 0;
+void MicroProfileDebugDumpRange()
+{
+	if(g_pMicroProfileDumpStart != g_pMicroProfileDumpEnd)
+	{
+		uint64_t* pStart = g_pMicroProfileDumpStart;
+		uint64_t* pEnd = g_pMicroProfileDumpEnd;
+		while(pStart != pEnd)
+		{
+			uint64_t nTick = MicroProfileLogGetTick(*pStart);
+			uint64_t nToken = MicroProfileLogTimerIndex(*pStart);
+			uint32_t nGroupId = MicroProfileGetGroupIndex(nToken);
+			uint32_t nTimerId = MicroProfileGetTimerIndex(nToken);
+	
+			bool bGpu = S.GroupInfo[nGroupId].Type == MicroProfileTokenTypeGpu;
+			float fToMs = MicroProfileTickToMsMultiplier(bGpu ? MicroProfileTicksPerSecondGpu() : MicroProfileTicksPerSecondCpu());
+			const char* pTimerName = S.TimerInfo[nTimerId].pName;
+			char buffer[256];
+			const char* pBegin = (MicroProfileLogIsBegin(*pStart) ? "BEGIN" : "END");
+			snprintf(buffer, 255, "DUMP 0x%p: %s :: %llx: %s\n", pStart, pBegin,  nTick, pTimerName);
+#ifdef _WIN32
+			OutputDebugString(buffer);
+#else
+			printf(buffer);
+#endif
+			pStart++;
+		}
 
+		g_pMicroProfileDumpStart = g_pMicroProfileDumpEnd;
+	}
+}
+#define MP_DEBUG_DUMP_RANGE() MicroProfileDebugDumpRange();
+#else
+#define MP_DEBUG_DUMP_RANGE() do{} while(0)
+#endif
 
 void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY, int nSelectedFrame)
 {
+	MP_DEBUG_DUMP_RANGE();
 	int nY = nBaseY - S.nOffsetY;
 	int64_t nNumBoxes = 0;
 	int64_t nNumLines = 0;
@@ -1483,7 +1530,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 	nY += MICROPROFILE_TEXT_HEIGHT+1;
 	MicroProfileLogEntry* pMouseOver = S.pDisplayMouseOver;
 	MicroProfileLogEntry* pMouseOverNext = 0;
-	uint64_t nMouseOverToken = pMouseOver ? MicroProfileLogTimerIndex(*pMouseOver) : 0;
+	uint64_t nMouseOverToken = pMouseOver ? MicroProfileLogTimerIndex(*pMouseOver) : MICROPROFILE_INVALID_TOKEN;
 	float fMouseX = (float)S.nMouseX;
 	float fMouseY = (float)S.nMouseY;
 	uint64_t nHoverToken = MICROPROFILE_INVALID_TOKEN;
@@ -1638,6 +1685,10 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 						if(bHover && S.nActiveMenu == -1)
 						{
 							nHoverToken = MicroProfileLogTimerIndex(*pEntry);
+#if MICROPROFILE_DEBUG
+							S.nHoverAddressEnter = (uint64_t)pEntryEnter;
+							S.nHoverAddressLeave = (uint64_t)pEntry;
+#endif
 							nHoverTime = MicroProfileLogTickDifference(nTickStart, nTickEnd);
 							pMouseOverNext = pEntry;
 							if(S.nMouseRight)

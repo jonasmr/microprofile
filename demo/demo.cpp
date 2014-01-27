@@ -106,11 +106,22 @@ void WorkerThread(int threadId)
 		case 0:
 		{
 			usleep(100);
-			{MICROPROFILE_SCOPEI("Thread0", "Work Thread0", c4); usleep(200);
-			{MICROPROFILE_SCOPEI("Thread0", "Work Thread1", c3); usleep(200);
-			{MICROPROFILE_SCOPEI("Thread0", "Work Thread2", c2); usleep(200);
-			{MICROPROFILE_SCOPEI("Thread0", "Work Thread3", c1); usleep(200);
-			}}}}
+			{
+				MICROPROFILE_SCOPEI("Thread0", "Work Thread0", c4); 
+				usleep(200);
+				{
+					MICROPROFILE_SCOPEI("Thread0", "Work Thread1", c3); 
+					usleep(200);
+					{
+						MICROPROFILE_SCOPEI("Thread0", "Work Thread2", c2); 
+						usleep(200);
+						{
+							MICROPROFILE_SCOPEI("Thread0", "Work Thread3", c1); 
+							usleep(200);
+						}
+					}
+				}
+			}
 		}
 		break;
 		
@@ -125,12 +136,26 @@ void WorkerThread(int threadId)
 		case 2:
 			{
 				usleep(1000);
-				{MICROPROFILE_SCOPEI("Thread2", "Worker2", c0); usleep(200);
-				{MICROPROFILE_SCOPEI("Thread2", "InnerWork0", c1); usleep(100);
-				{MICROPROFILE_SCOPEI("Thread2", "InnerWork1", c2); usleep(100);
-				{MICROPROFILE_SCOPEI("Thread2", "InnerWork2", c3); usleep(100);
-				{MICROPROFILE_SCOPEI("Thread2", "InnerWork3", c4); usleep(100);
-				}}}}}
+				{
+					MICROPROFILE_SCOPEI("Thread2", "Worker2", c0); 
+					usleep(200);
+					{
+						MICROPROFILE_SCOPEI("Thread2", "InnerWork0", c1); 
+						usleep(100);
+						{
+							MICROPROFILE_SCOPEI("Thread2", "InnerWork1", c2); 
+							usleep(100);
+							{
+								MICROPROFILE_SCOPEI("Thread2", "InnerWork2", c3); 
+								usleep(100);
+								{
+									MICROPROFILE_SCOPEI("Thread2", "InnerWork3", c4); 
+									usleep(100);
+								}
+							}
+						}
+					}
+				}
 			}
 			break;
 		case 3:
