@@ -184,6 +184,8 @@ void main(void)   \
 	void DumpGlLog(GLuint handle)
 	{
 		int nLogLen = 0;
+		return;//temp hack
+		MP_ASSERT(0 == glGetError());
 		glGetObjectParameterivARB(handle, GL_OBJECT_INFO_LOG_LENGTH_ARB, &nLogLen);
 		if(nLogLen > 1) 
 		{
@@ -196,15 +198,18 @@ void main(void)   \
 			free(pChars);
 			MP_BREAK();
 		}
+		MP_ASSERT(0 == glGetError());
 	}
 
 	GLuint CreateProgram(int nType, const char* pShader)
 	{
+		MP_ASSERT(0 == glGetError());
 		GLuint handle = glCreateShaderObjectARB(nType);
 		glShaderSource(handle, 1, (const char**)&pShader, 0);
 		glCompileShader(handle);
 		DumpGlLog(handle);
 		MP_ASSERT(handle);	
+		MP_ASSERT(0 == glGetError());
 		return handle;
 	}
 }

@@ -320,6 +320,7 @@ int main(int argc, char* argv[])
 #if MICROPROFILE_ENABLED
 	MicroProfileQueryInitGL();
 	MicroProfileDrawInit();
+	MP_ASSERT(glGetError() == 0);
 #endif
 #define FAKE_WORK 1
 #if FAKE_WORK
