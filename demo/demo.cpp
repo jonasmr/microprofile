@@ -63,6 +63,7 @@ void usleep(__int64 usec)
 }
 #endif
 
+
 #define WIDTH 800
 #define HEIGHT 600
 
@@ -333,6 +334,7 @@ int main(int argc, char* argv[])
 	std::thread t44(WorkerThread, 44);
 	std::thread t45(WorkerThread, 45);
 #endif
+
 	while(!g_nQuit)
 	{
 		MICROPROFILE_SCOPE(MAIN);
@@ -398,6 +400,7 @@ int main(int argc, char* argv[])
 		MICROPROFILE_SCOPEI("MAIN", "Flip", 0xffee00);
 		SDL_GL_SwapWindow(pWindow);
 	}
+
 	#if FAKE_WORK
 	t0.join();
 	t1.join();
@@ -408,6 +411,7 @@ int main(int argc, char* argv[])
 	t44.join();
 	t45.join();
 	#endif
+	MicroProfileShutdown();
 
   	SDL_GL_DeleteContext(glcontext);  
  	SDL_DestroyWindow(pWindow);

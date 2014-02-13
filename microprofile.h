@@ -152,6 +152,11 @@ int64_t MicroProfileGetTick();
 #define MP_BREAK() __debugbreak()
 #define MP_THREAD_LOCAL __declspec(thread)
 #define MP_STRCASECMP _stricmp
+#define MP_GETCURRENTTHREADID() GetCurrentThreadId()
+#endif
+
+#ifndef MP_GETCURRENTTHREADID 
+#define MP_GETCURRENTTHREADID() 0
 #endif
 
 #ifndef MICROPROFILE_API
@@ -260,6 +265,7 @@ struct MicroProfileState
 
 
 MICROPROFILE_API void MicroProfileInit();
+MICROPROFILE_API void MicroProfileShutdown();
 MICROPROFILE_API MicroProfileToken MicroProfileFindToken(const char* sGroup, const char* sName);
 MICROPROFILE_API MicroProfileToken MicroProfileGetToken(const char* sGroup, const char* sName, uint32_t nColor, MicroProfileTokenType Token = MicroProfileTokenTypeCpu);
 MICROPROFILE_API uint64_t MicroProfileEnter(MicroProfileToken nToken);
@@ -391,6 +397,16 @@ int64_t MicroProfileGetTick()
 #define MICROPROFILE_ANIM_DELAY_PRC 0.5f
 #define MICROPROFILE_GAP_TIME 50 //extra ms to fetch to close timers from earlier frames
 
+#ifndef MICROPROFILE_CONTEXT_SWITCH_TRACE 
+#ifdef _WIN32
+#define MICROPROFILE_CONTEXT_SWITCH_TRACE 1
+#else
+#define MICROPROFILE_CONTEXT_SWITCH_TRACE 0
+#endif
+#endif
+
+#define MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE (128*1024) //2mb with 16 byte entry size
+
 enum MicroProfileDrawMask
 {
 	MP_DRAW_OFF			= 0x0,
@@ -442,6 +458,14 @@ struct MicroProfileGraphState
 	MicroProfileToken nToken;
 	int32_t nKey;
 };
+
+struct MicroProfileContextSwitch
+{
+	uint32_t nThreadOut;
+	uint32_t nThreadIn;
+	int64_t nTicks;
+};
+
 
 #define MP_LOG_TICK_MASK  0x0000ffffffffffff
 #define MP_LOG_INDEX_MASK 0x7fff000000000000
@@ -497,6 +521,7 @@ struct MicroProfileThreadLog
 	std::atomic<uint32_t>	nGet;	
 	uint32_t 				nActive;
 	uint32_t 				nGpu;
+	uint32_t 				nThreadId;
 	enum
 	{
 		THREAD_MAX_LEN = 64,
@@ -622,6 +647,16 @@ struct
 	int 					LockedToolTipFront;
 
 
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+	std::thread* 				pContextSwitchThread;
+	bool  						bContextSwitchRunning;
+	bool						bContextSwitchStop;
+	uint32_t					nContextSwitchPut;	
+	uint32_t					nContextSwitchUsage;
+	uint32_t					nContextSwitchLastPut;
+	MicroProfileContextSwitch 	ContextSwitch[MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE];
+#endif
+
 } g_MicroProfile;
 
 MicroProfileThreadLog*			g_MicroProfileGpuLog = 0;
@@ -661,8 +696,11 @@ MICROPROFILE_DEFINE(g_MicroProfileClear, "MicroProfile", "Clear", 0x3355ee);
 MICROPROFILE_DEFINE(g_MicroProfileAccumulate, "MicroProfile", "Accumulate", 0x3355ee);
 MICROPROFILE_DEFINE(g_MicroProfileDrawBarView, "MicroProfile", "DrawBarView", 0x00dd77);
 MICROPROFILE_DEFINE(g_MicroProfileDraw,"MicroProfile", "Draw", 0x737373);
+MICROPROFILE_DEFINE(g_MicroProfileContextSwitchDraw, "MicroProfile", "ContextSwitchDraw", 0x730073);
+MICROPROFILE_DEFINE(g_MicroProfileContextSwitchSearch,"MicroProfile", "ContextSwitchSearch", 0xDD7300);
 
-
+void MicroProfileStartContextSwitchTrace();
+void MicroProfileStopContextSwitchTrace();
 
 inline std::recursive_mutex& MicroProfileMutex()
 {
@@ -794,6 +832,24 @@ void MicroProfileInit()
 		mutex.unlock();
 }
 
+void MicroProfileShutdown()
+{
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+	if(S.pContextSwitchThread)
+	{
+		if(S.pContextSwitchThread->joinable())
+		{
+			S.bContextSwitchStop = true;
+			S.pContextSwitchThread->join();
+		}
+		delete S.pContextSwitchThread;
+	}
+#endif
+
+
+}
+
 #ifdef MICROPROFILE_IOS
 inline MicroProfileThreadLog* MicroProfileGetThreadLog()
 {
@@ -828,6 +884,7 @@ MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 	len = len < maxlen ? len : maxlen;
 	memcpy(&pLog->ThreadName[0], pName, len);
 	pLog->ThreadName[len] = '\0';
+	pLog->nThreadId = MP_GETCURRENTTHREADID();
 	return pLog;
 }
 
@@ -989,6 +1046,21 @@ void MicroProfileGpuLeave(MicroProfileToken nToken_, uint64_t nTickStart)
 	}
 }
 
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+void MicroProfileContextSwitchPut(MicroProfileContextSwitch* pContextSwitch)
+{
+	if(S.nRunning)
+	{
+		uint32_t nPut = S.nContextSwitchPut;
+		if(nPut%10000 == 0)
+			int a = 0;
+		S.ContextSwitch[nPut] = *pContextSwitch;
+		S.nContextSwitchPut = (S.nContextSwitchPut+1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE;
+	}
+}
+#endif
+
+
 void MicroProfileGetRange(uint32_t nPut, uint32_t nGet, uint32_t nRange[2][2])
 {
 	if(nPut > nGet)
@@ -1039,6 +1111,18 @@ void MicroProfileFlip()
 		S.nFrameCurrent = (S.nFramePut + MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY - 1) % MICROPROFILE_MAX_FRAME_HISTORY;
 		uint32_t nFrameNext = (S.nFrameCurrent+1) % MICROPROFILE_MAX_FRAME_HISTORY;
 
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+		uint32_t nContextSwitchPut = S.nContextSwitchPut;
+		if(S.nContextSwitchLastPut < nContextSwitchPut)
+		{
+			S.nContextSwitchUsage = (nContextSwitchPut - S.nContextSwitchLastPut);
+		}
+		else
+		{
+			S.nContextSwitchUsage = MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE - S.nContextSwitchLastPut + nContextSwitchPut;
+		}
+		S.nContextSwitchLastPut = nContextSwitchPut;
+#endif
 		MicroProfileFrameState* pFramePut = &S.Frames[S.nFramePut];
 		MicroProfileFrameState* pFrameCurrent = &S.Frames[S.nFrameCurrent];
 		MicroProfileFrameState* pFrameNext = &S.Frames[nFrameNext];
@@ -1550,6 +1634,31 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 	uint32_t nHoverColorShared = (nHoverCounterShared<<24)|(nHoverCounterShared<<16)|(nHoverCounterShared<<8)|nHoverCounterShared;
 
 	uint32_t nLinesDrawn[MICROPROFILE_STACK_MAX]={0};
+
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+	uint32_t nContextSwitchStart = -1;
+	uint32_t nContextSwitchEnd = -1;
+	if(S.bContextSwitchRunning)
+	{
+		uint32_t nContextSwitchPut = S.nContextSwitchPut;
+		nContextSwitchStart = nContextSwitchEnd = (nContextSwitchPut + MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE - 1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE;
+		MICROPROFILE_SCOPE(g_MicroProfileContextSwitchSearch);
+		for(uint32_t i = 0; i < MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE; ++i)
+		{
+			uint32_t nIndex = (nContextSwitchPut + MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE - (i+1)) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE;
+			MicroProfileContextSwitch& CS = S.ContextSwitch[nIndex];
+			if(CS.nTicks > nBaseTicksEndCpu)
+			{
+				nContextSwitchEnd = nIndex;
+			}
+			if(CS.nTicks > nBaseTicksCpu)
+			{
+				nContextSwitchStart = nIndex;
+			}
+		}
+	}
+#endif
+
 	for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
 	{
 		MicroProfileThreadLog* pLog = S.Pool[i];
@@ -1620,9 +1729,52 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 		int64_t nBaseTicks = bGpu ? nBaseTicksGpu : nBaseTicksCpu;
 
 		nY += 3;
-		MicroProfileDrawText(0, nY, (uint32_t)-1, &pLog->ThreadName[0]);
+		MicroProfileDrawText(0, nY, (uint32_t)-1, &pLog->ThreadName[0]);		
 		nY += 3;
 		nY += MICROPROFILE_TEXT_HEIGHT + 1;
+
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+		if(S.bContextSwitchRunning)
+		{
+			MICROPROFILE_SCOPE(g_MicroProfileContextSwitchDraw);
+			uint32_t nContextSwitchPut = S.nContextSwitchPut;
+			int64_t nTickIn = -1;
+			uint32_t nThreadId = pLog->nThreadId;
+			for(uint32_t j = nContextSwitchStart; j != nContextSwitchEnd; j = (j+1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE)
+			{
+				MP_ASSERT(j < MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE);
+				MicroProfileContextSwitch CS = S.ContextSwitch[j];
+
+				if(nTickIn == -1)
+				{
+					if(CS.nThreadIn == nThreadId)
+					{
+						nTickIn = CS.nTicks;
+					}
+				}
+				else
+				{
+					if(CS.nThreadOut == nThreadId)
+					{
+						int64_t nTickOut = CS.nTicks;
+						float fMsStart = fToMs * MicroProfileLogTickDifference(nBaseTicks, nTickIn);
+						float fMsEnd = fToMs * MicroProfileLogTickDifference(nBaseTicks, nTickOut);
+						if(fMsStart <= fMsEnd)
+						{
+							float fXStart = fMsStart * fMsToScreen;
+							float fXEnd = fMsEnd * fMsToScreen;
+							float fYStart = (float)nY;
+							float fYEnd = fYStart + (MICROPROFILE_DETAILED_BAR_HEIGHT);
+							MicroProfileDrawBox(fXStart, fYStart, fXEnd, fYEnd, (0x808080)|S.nOpacityForeground, MicroProfileBoxTypeBar);
+						}
+						nTickIn = -1;
+					}
+				}
+			}
+		}
+#endif
+
+
 		uint32_t nYDelta = MICROPROFILE_DETAILED_BAR_HEIGHT;
 		uint32_t nStack[MICROPROFILE_STACK_MAX];
 		uint32_t nStackPos = 0;
@@ -1654,7 +1806,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 					int64_t nTickStart = MicroProfileLogGetTick(*pEntryEnter);
 					int64_t nTickEnd = MicroProfileLogGetTick(*pEntry);
 					uint64_t nTimerIndex = MicroProfileLogTimerIndex(*pEntry);
-					uint32_t nColor = S.TimerInfo[ nTimerIndex ].nColor;
+					uint32_t nColor = S.TimerInfo[nTimerIndex].nColor;
 					if(nMouseOverToken == nTimerIndex)
 					{
 						if(pEntry == pMouseOver)
@@ -2310,7 +2462,7 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 	};
 	static const int nNumReferencePresets = sizeof(g_MicroProfileReferenceTimePresets)/sizeof(g_MicroProfileReferenceTimePresets[0]);
 	static const int nNumOpacityPresets = sizeof(g_MicroProfileOpacityPresets)/sizeof(g_MicroProfileOpacityPresets[0]);
-	static const int nOptionSize = nNumReferencePresets + nNumOpacityPresets * 2 + 3;
+	static const int nOptionSize = nNumReferencePresets + nNumOpacityPresets * 2 + 6;
 	static SOptionDesc Options[nOptionSize];
 	static bool bOptionInit = false;
 	if(!bOptionInit)
@@ -2332,6 +2484,11 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 		{
 			Options[nIndex++] = SOptionDesc(2, i, "  %7d%%", (i+1)*25);
 		}
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+		Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "CSwitch Trace");		
+		Options[nIndex++] = SOptionDesc(3, 0, "%s", "  Enable");
+		Options[nIndex++] = SOptionDesc(3, 1, "%s", "  All Threads");
+#endif
 
 
 		MP_ASSERT(nIndex == nOptionSize);
@@ -2418,7 +2575,10 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 				bSelected = S.nOpacityBackground>>24 == g_MicroProfileOpacityPresets[Options[index].nIndex];
 				break;
 			case 2:
-				bSelected = S.nOpacityForeground>>24 == g_MicroProfileOpacityPresets[Options[index].nIndex];
+				bSelected = S.nOpacityForeground>>24 == g_MicroProfileOpacityPresets[Options[index].nIndex];				
+				break;
+			case 3:
+				bSelected = S.bContextSwitchRunning;
 				break;
 			}
 			return Options[index].Text;
@@ -2517,6 +2677,16 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 				break;
 			case 2:
 				S.nOpacityForeground = g_MicroProfileOpacityPresets[Options[nIndex].nIndex]<<24;
+				break;
+			case 3:
+				if(S.bContextSwitchRunning)
+				{
+					MicroProfileStopContextSwitchTrace();
+				}
+				else
+				{
+					MicroProfileStartContextSwitchTrace();
+				}
 				break;
 			}
 		},
@@ -2783,6 +2953,13 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 				MicroProfileStringArrayAddLiteral(&Debug, "");
 				MicroProfileStringArrayAddLiteral(&Debug, "Usage");
 				MicroProfileStringArrayAddLiteral(&Debug, "markers [frames] ");
+
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+				MicroProfileStringArrayAddLiteral(&Debug, "Context Switch");
+				MicroProfileStringArrayFormat(&Debug, "%9d [%7d]", S.nContextSwitchUsage, MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE / S.nContextSwitchUsage );
+
+#endif
+
 				for(int i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
 				{
 					if(pFrameCurrent->nLogStart[i] && S.Pool[i])
@@ -3215,6 +3392,173 @@ void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Typ
 	S.nForceGroup &= ~(1ll << nGroup);
 }
 
+
+
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+#ifdef _WIN32
+#define INITGUID
+#include <evntrace.h>
+#include <evntcons.h>
+#include <strsafe.h>
+
+
+static GUID g_MicroProfileThreadClassGuid = { 0x3d6fa8d1, 0xfe05, 0x11d0, 0x9d, 0xda, 0x00, 0xc0, 0x4f, 0xd7, 0xba, 0x7c };
+
+struct MicroProfileSCSwitch
+{
+	uint32_t NewThreadId;
+	uint32_t OldThreadId;
+	int8_t   NewThreadPriority;
+	int8_t   OldThreadPriority;
+	uint8_t  PreviousCState;
+	int8_t   SpareByte;
+	int8_t   OldThreadWaitReason;
+	int8_t   OldThreadWaitMode;
+	int8_t   OldThreadState;
+	int8_t   OldThreadWaitIdealProcessor;
+	uint32_t NewThreadWaitTime;
+	uint32_t Reserved;
+};
+
+
+VOID WINAPI MicroProfileContextSwitchCallback(PEVENT_TRACE pEvent)
+{
+	if (pEvent->Header.Guid == g_MicroProfileThreadClassGuid)
+	{
+		if (pEvent->Header.Class.Type == 36)
+		{
+			MicroProfileSCSwitch* pCSwitch = (MicroProfileSCSwitch*) pEvent->MofData;
+			if ((pCSwitch->NewThreadId != 0) || (pCSwitch->OldThreadId != 0))
+			{
+				MicroProfileContextSwitch Switch = {pCSwitch->OldThreadId, pCSwitch->NewThreadId, pEvent->Header.TimeStamp.QuadPart};
+				MicroProfileContextSwitchPut(&Switch);
+			}
+		}
+	}
+}
+
+ULONG WINAPI MicroProfileBufferCallback(PEVENT_TRACE_LOGFILE Buffer)
+{
+	if (Buffer->EventsLost) //this doesn't work ... handle RT_LostEvent instead
+	{
+		//printf("events lost : %lu\n", Buffer->EventsLost);
+	}
+	return (S.bContextSwitchStop || !S.bContextSwitchRunning) ? FALSE : TRUE;
+}
+
+
+struct MicroProfileKernelTraceProperties : public EVENT_TRACE_PROPERTIES
+{
+	char dummy[sizeof(KERNEL_LOGGER_NAME)];
+};
+
+
+void MicroProfileTraceThread(int unused)
+{
+
+	{
+		TRACEHANDLE SessionHandle = 0;
+		MicroProfileKernelTraceProperties sessionProperties;
+
+		ZeroMemory(&sessionProperties, sizeof(sessionProperties));
+		sessionProperties.Wnode.BufferSize = sizeof(sessionProperties);
+		sessionProperties.Wnode.Flags = WNODE_FLAG_TRACED_GUID;
+		sessionProperties.Wnode.ClientContext = 1; //QPC clock resolution	
+		sessionProperties.Wnode.Guid = SystemTraceControlGuid;
+		sessionProperties.BufferSize = 1;
+		sessionProperties.NumberOfBuffers = 128;
+		sessionProperties.EnableFlags = EVENT_TRACE_FLAG_CSWITCH;
+		sessionProperties.LogFileMode = EVENT_TRACE_REAL_TIME_MODE;
+		sessionProperties.MaximumFileSize = 0;  
+		sessionProperties.LoggerNameOffset = sizeof(EVENT_TRACE_PROPERTIES);
+		sessionProperties.LogFileNameOffset = 0;
+
+		EVENT_TRACE_LOGFILE log;
+		ZeroMemory(&log, sizeof(log));
+		log.LoggerName = KERNEL_LOGGER_NAME;
+		log.ProcessTraceMode = 0;
+		TRACEHANDLE hLog = OpenTrace(&log);
+		if (hLog)
+		{
+			ControlTrace(SessionHandle, KERNEL_LOGGER_NAME, &sessionProperties, EVENT_TRACE_CONTROL_STOP);
+		}
+		CloseTrace(hLog);
+
+			
+	}
+	ULONG status = ERROR_SUCCESS;
+	TRACEHANDLE SessionHandle = 0;
+	MicroProfileKernelTraceProperties sessionProperties;
+
+	ZeroMemory(&sessionProperties, sizeof(sessionProperties));
+	sessionProperties.Wnode.BufferSize = sizeof(sessionProperties);
+	sessionProperties.Wnode.Flags = WNODE_FLAG_TRACED_GUID;
+	sessionProperties.Wnode.ClientContext = 1; //QPC clock resolution	
+	sessionProperties.Wnode.Guid = SystemTraceControlGuid;
+	sessionProperties.BufferSize = 1;
+	sessionProperties.NumberOfBuffers = 128;
+	sessionProperties.EnableFlags = EVENT_TRACE_FLAG_CSWITCH;
+	sessionProperties.LogFileMode = EVENT_TRACE_REAL_TIME_MODE;
+	sessionProperties.MaximumFileSize = 0;  
+	sessionProperties.LoggerNameOffset = sizeof(EVENT_TRACE_PROPERTIES);
+	sessionProperties.LogFileNameOffset = 0;
+
+
+	status = StartTrace((PTRACEHANDLE) &SessionHandle, KERNEL_LOGGER_NAME, &sessionProperties);
+
+	if (ERROR_SUCCESS != status)
+	{
+		S.bContextSwitchRunning = false;
+		return;
+	}
+
+	EVENT_TRACE_LOGFILE log;
+	ZeroMemory(&log, sizeof(log));
+
+	log.LoggerName = KERNEL_LOGGER_NAME;
+	log.ProcessTraceMode = PROCESS_TRACE_MODE_REAL_TIME | PROCESS_TRACE_MODE_RAW_TIMESTAMP;
+	log.EventCallback = MicroProfileContextSwitchCallback;
+	log.BufferCallback = MicroProfileBufferCallback;
+
+	TRACEHANDLE hLog = OpenTrace(&log);
+	ProcessTrace(&hLog, 1, 0, 0);
+	CloseTrace(hLog);
+	S.bContextSwitchRunning = false;
+}
+
+void MicroProfileStartContextSwitchTrace()
+{
+	if(!S.bContextSwitchRunning)
+	{
+		if(!S.pContextSwitchThread)
+			S.pContextSwitchThread = new std::thread();
+		if(S.pContextSwitchThread->joinable())
+		{
+			S.bContextSwitchStop = true;
+			S.pContextSwitchThread->join();
+		}
+		S.bContextSwitchRunning	= true;
+		S.bContextSwitchStop = false;
+		*S.pContextSwitchThread = std::thread(&MicroProfileTraceThread, 0);
+	}
+}
+
+void MicroProfileStopContextSwitchTrace()
+{
+	if(S.bContextSwitchRunning && S.pContextSwitchThread)
+	{
+		S.bContextSwitchStop = true;
+		S.pContextSwitchThread->join();
+	}
+}
+
+
+#else
+#error "context switch trace not supported/implemented on platform"
+#endif
+#endif
+
+
 #undef S
 
 #ifdef _WIN32
@@ -3223,5 +3567,11 @@ void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Typ
 #endif
 #endif
 
-
+//
+// TODO
+//  color by cpu
+//  generic range display 
+//  fix zoom on all types
+//  tooltip for cswitch
+//  fix all thread view
 
