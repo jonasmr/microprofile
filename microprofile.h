@@ -748,6 +748,7 @@ MICROPROFILE_DEFINE(g_MicroProfileContextSwitchSearch,"MicroProfile", "ContextSw
 
 void MicroProfileStartContextSwitchTrace();
 void MicroProfileStopContextSwitchTrace();
+bool MicroProfileIsLocalThread(uint32_t nThreadId);
 
 inline std::recursive_mutex& MicroProfileMutex()
 {
@@ -2026,7 +2027,8 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			if(nThreadId)
 			{
 				char ThreadName[MicroProfileThreadLog::THREAD_MAX_LEN + 16];
-				snprintf(ThreadName, sizeof(ThreadName)-1, "%04x: %s", nThreadId, i < nNumThreadsBase ? &S.Pool[i]->ThreadName[0] : "" );
+				const char* cLocal = MicroProfileIsLocalThread(nThreadId) ? "*": " ";
+				snprintf(ThreadName, sizeof(ThreadName)-1, "%04x: %s", nThreadId, i < nNumThreadsBase ? &S.Pool[i]->ThreadName[0] : cLocal );
 				uint32_t nThreadColor = -1;
 				if(nThreadId == nContextSwitchHoverThreadAfter || nThreadId == nContextSwitchHoverThreadBefore)
 					nThreadColor = S.nHoverColorShared|0x906060;
@@ -3808,6 +3810,15 @@ void MicroProfileStopContextSwitchTrace()
 	}
 }
 
+bool MicroProfileIsLocalThread(uint32_t nThreadId) 
+{
+	HANDLE h = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, nThreadId);
+	if(h == NULL)
+		return false;
+	DWORD hProcess = GetProcessIdOfThread(h);
+	CloseHandle(h);
+	return GetCurrentProcessId() == hProcess;
+}
 
 #else
 #error "context switch trace not supported/implemented on platform"
