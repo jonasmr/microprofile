@@ -64,8 +64,8 @@ void usleep(__int64 usec)
 #endif
 
 
-#define WIDTH 800
-#define HEIGHT 600
+#define WIDTH 1500
+#define HEIGHT 900
 
 uint32_t g_nQuit = 0;
 uint32_t g_MouseX = 0;
