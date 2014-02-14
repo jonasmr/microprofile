@@ -145,6 +145,8 @@ inline int64_t MicroProfileTicksPerSecondCpu()
 #define MP_BREAK() __builtin_trap()
 #define MP_THREAD_LOCAL __thread
 #define MP_STRCASECMP strcasecmp
+#define MP_GETCURRENTTHREADID() (uint64_t)pthread_self()
+typedef uint64_t ThreadIdType;
 #elif defined(_WIN32)
 int64_t MicroProfileTicksPerSecondCpu();
 int64_t MicroProfileGetTick();
@@ -153,10 +155,12 @@ int64_t MicroProfileGetTick();
 #define MP_THREAD_LOCAL __declspec(thread)
 #define MP_STRCASECMP _stricmp
 #define MP_GETCURRENTTHREADID() GetCurrentThreadId()
+typedef uint32_t ThreadIdType;
 #endif
 
 #ifndef MP_GETCURRENTTHREADID 
 #define MP_GETCURRENTTHREADID() 0
+typedef uint32_t ThreadIdType;
 #endif
 
 #ifndef MICROPROFILE_API
@@ -471,8 +475,8 @@ struct MicroProfileGraphState
 
 struct MicroProfileContextSwitch
 {
-	uint32_t nThreadOut;
-	uint32_t nThreadIn;
+	ThreadIdType nThreadOut;
+	ThreadIdType nThreadIn;
 	int64_t nCpu : 8;
 	int64_t nTicks : 56;
 };
@@ -532,7 +536,7 @@ struct MicroProfileThreadLog
 	std::atomic<uint32_t>	nGet;	
 	uint32_t 				nActive;
 	uint32_t 				nGpu;
-	uint32_t 				nThreadId;
+	ThreadIdType			nThreadId;
 	enum
 	{
 		THREAD_MAX_LEN = 64,
@@ -1855,7 +1859,8 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			float fToMs = bGpu ? fToMsGpu : fToMsCpu;
 			int64_t nBaseTicks = bGpu ? nBaseTicksGpu : nBaseTicksCpu;
 			char ThreadName[MicroProfileThreadLog::THREAD_MAX_LEN + 16];
-			snprintf(ThreadName, sizeof(ThreadName)-1, "%04x: %s", pLog->nThreadId, &pLog->ThreadName[0] );
+			uint64_t nThreadId = pLog->nThreadId;
+			snprintf(ThreadName, sizeof(ThreadName)-1, "%04llx: %s", nThreadId, &pLog->ThreadName[0] );
 			nY += 3;
 			uint32_t nThreadColor = -1;
 			if(pLog->nThreadId == nContextSwitchHoverThreadAfter || pLog->nThreadId == nContextSwitchHoverThreadBefore)
