@@ -411,7 +411,11 @@ int64_t MicroProfileGetTick()
 #endif
 #endif
 
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
 #define MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE (128*1024) //2mb with 16 byte entry size
+#else
+#define MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE (1)
+#endif
 
 enum MicroProfileDrawMask
 {
@@ -662,7 +666,6 @@ struct
 	uint32_t				nHoverColorShared;
 
 
-#if MICROPROFILE_CONTEXT_SWITCH_TRACE
 	std::thread* 				pContextSwitchThread;
 	bool  						bContextSwitchRunning;
 	bool						bContextSwitchStop;
@@ -681,7 +684,6 @@ struct
 
 	uint32_t					nContextSwitchPut;	
 	MicroProfileContextSwitch 	ContextSwitch[MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE];
-#endif
 
 } g_MicroProfile;
 
@@ -1095,7 +1097,6 @@ void MicroProfileGpuLeave(MicroProfileToken nToken_, uint64_t nTickStart)
 	}
 }
 
-#if MICROPROFILE_CONTEXT_SWITCH_TRACE
 void MicroProfileContextSwitchPut(MicroProfileContextSwitch* pContextSwitch)
 {
 	if(S.nRunning)
@@ -1105,7 +1106,6 @@ void MicroProfileContextSwitchPut(MicroProfileContextSwitch* pContextSwitch)
 		S.nContextSwitchPut = (S.nContextSwitchPut+1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE;
 	}
 }
-#endif
 
 
 void MicroProfileGetRange(uint32_t nPut, uint32_t nGet, uint32_t nRange[2][2])
@@ -1158,7 +1158,6 @@ void MicroProfileFlip()
 		S.nFrameCurrent = (S.nFramePut + MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY - 1) % MICROPROFILE_MAX_FRAME_HISTORY;
 		uint32_t nFrameNext = (S.nFrameCurrent+1) % MICROPROFILE_MAX_FRAME_HISTORY;
 
-#if MICROPROFILE_CONTEXT_SWITCH_TRACE
 		uint32_t nContextSwitchPut = S.nContextSwitchPut;
 		if(S.nContextSwitchLastPut < nContextSwitchPut)
 		{
@@ -1169,7 +1168,7 @@ void MicroProfileFlip()
 			S.nContextSwitchUsage = MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE - S.nContextSwitchLastPut + nContextSwitchPut;
 		}
 		S.nContextSwitchLastPut = nContextSwitchPut;
-#endif
+
 		MicroProfileFrameState* pFramePut = &S.Frames[S.nFramePut];
 		MicroProfileFrameState* pFrameCurrent = &S.Frames[S.nFrameCurrent];
 		MicroProfileFrameState* pFrameNext = &S.Frames[nFrameNext];
@@ -1756,7 +1755,6 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 	uint32_t nContextSwitchHoverThreadBefore = S.nContextSwitchHoverThreadBefore;
 	S.nContextSwitchHoverThread = S.nContextSwitchHoverThreadAfter = S.nContextSwitchHoverThreadBefore = -1;
 
-#if MICROPROFILE_CONTEXT_SWITCH_TRACE
 	uint32_t nContextSwitchStart = -1;
 	uint32_t nContextSwitchEnd = -1;
 	S.nContextSwitchHoverCpuNext = 0xff;
@@ -1783,7 +1781,6 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			}
 		}
 	}
-#endif
 
 	bool bSkipBarView = S.bContextSwitchRunning && S.bContextSwitchNoBars;
 
@@ -1867,15 +1864,12 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			nY += 3;
 			nY += MICROPROFILE_TEXT_HEIGHT + 1;
 
-	#if MICROPROFILE_CONTEXT_SWITCH_TRACE
 			if(S.bContextSwitchRunning)
 			{
 				MicroProfileDrawDetailedContextSwitchBars(nY, pLog->nThreadId, nContextSwitchStart, nContextSwitchEnd, nBaseTicks, nBaseY);
 				nY -= MICROPROFILE_DETAILED_BAR_HEIGHT;
 				nY += MICROPROFILE_DETAILED_CONTEXT_SWITCH_HEIGHT+1;
 			}
-	#endif
-
 
 			uint32_t nYDelta = MICROPROFILE_DETAILED_BAR_HEIGHT;
 			uint32_t nStack[MICROPROFILE_STACK_MAX];
@@ -2787,6 +2781,7 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 			case 2:
 				bSelected = S.nOpacityForeground>>24 == g_MicroProfileOpacityPresets[Options[index].nIndex];				
 				break;
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
 			case 3:
 				{
 					switch(Options[index].nIndex)
@@ -2803,6 +2798,7 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 					}
 				}
 				break;
+#endif
 			}
 			return Options[index].Text;
 		},
@@ -2901,6 +2897,7 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 			case 2:
 				S.nOpacityForeground = g_MicroProfileOpacityPresets[Options[nIndex].nIndex]<<24;
 				break;
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
 			case 3:
 				{
 					switch(Options[nIndex].nIndex)
@@ -2925,6 +2922,7 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 					}
 				}
 				break;
+#endif
 			}
 		},
 		[](int nIndex)
@@ -3195,7 +3193,6 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 #if MICROPROFILE_CONTEXT_SWITCH_TRACE
 				MicroProfileStringArrayAddLiteral(&Debug, "Context Switch");
 				MicroProfileStringArrayFormat(&Debug, "%9d [%7d]", S.nContextSwitchUsage, MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE / S.nContextSwitchUsage );
-
 #endif
 
 				for(int i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
@@ -3823,6 +3820,12 @@ bool MicroProfileIsLocalThread(uint32_t nThreadId)
 #else
 #error "context switch trace not supported/implemented on platform"
 #endif
+#else
+
+bool MicroProfileIsLocalThread(uint32_t nThreadId){return false;}
+void MicroProfileStopContextSwitchTrace(){}
+void MicroProfileStartContextSwitchTrace(){}
+
 #endif
 
 
