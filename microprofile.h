@@ -3834,11 +3834,3 @@ bool MicroProfileIsLocalThread(uint32_t nThreadId)
 #endif
 #endif
 
-//
-// TODO
-//  color by cpu
-//  generic range display 
-//  fix zoom on all types
-//  tooltip for cswitch
-//  fix all thread view
-
