@@ -4,6 +4,10 @@
 		"selected_items":
 		[
 			[
+				"nTh",
+				"nThreadId"
+			],
+			[
 				"MICROPROFILE_MAX",
 				"MICROPROFILE_MAX_FRAME_HISTORY"
 			],
@@ -75,37 +79,12 @@
 			"file": "microprofile.h",
 			"settings":
 			{
-				"buffer_size": 87962,
-				"line_ending": "Windows"
-			}
-		},
-		{
-			"file": "  d:/microprofile/microprofile.h",
-			"settings":
-			{
-				"buffer_size": 0,
-				"line_ending": "Windows"
-			}
-		},
-		{
-			"file": "/C/Users/jonasm/AppData/Roaming/Sublime Text 3/Packages/User/msbuild.sublime-build",
-			"settings":
-			{
-				"buffer_size": 224,
-				"line_ending": "Windows",
-				"name": "untitled.sublime-build"
-			}
-		},
-		{
-			"file": "/D/PRJ_PRO/main/code/src/builder_msbuild.bat",
-			"settings":
-			{
-				"buffer_size": 3389,
+				"buffer_size": 128524,
 				"line_ending": "Windows"
 			}
 		}
 	],
-	"build_system": "Packages/User/msbuild.sublime-build",
+	"build_system": "Packages/User/microprofile-build.sublime-build",
 	"command_palette":
 	{
 		"height": 58.0,
@@ -152,6 +131,9 @@
 	},
 	"file_history":
 	[
+		"/D/PRJ_PRO/main/code/src/builder_msbuild.bat",
+		"/C/Users/jonasm/AppData/Roaming/Sublime Text 3/Packages/User/msbuild.sublime-build",
+		"/Users/jonasm/microprofile/  d:/microprofile/microprofile.h",
 		"/D/microprofile/  d:/microprofile/microprofile.h",
 		"/D/microprofile/h",
 		"/C/Program Files (x86)/Intel/VTune Amplifier XE 2013/include/ittnotify.h",
@@ -276,14 +258,11 @@
 		"/D/PRJ_PRO/main/code/src/runtime/render/runtime_render.vcxproj",
 		"/D/PRJ_PRO/main/code/src/runtime/core/runtime_core.vcxproj",
 		"/D/PRJ_PRO/main/code/src/system/io/system_io.vcxproj",
-		"/D/PRJ_PRO/main/code/src/system/net/system_net.vcxproj",
-		"/D/PRJ_PRO/main/code/src/system/render/system_render.vcxproj",
-		"/D/PRJ_PRO/main/code/src/system/job/system_job.vcxproj",
-		"/D/PRJ_PRO/main/code/src/game/ui/game_ui.vcxproj"
+		"/D/PRJ_PRO/main/code/src/system/net/system_net.vcxproj"
 	],
 	"find":
 	{
-		"height": 34.0
+		"height": 35.0
 	},
 	"find_in_files":
 	{
@@ -302,6 +281,17 @@
 		"case_sensitive": false,
 		"find_history":
 		[
+			"ThreadIn",
+			"			",
+			"nThreadId",
+			"MICROPROFILE_IOS",
+			"nThreadId",
+			"MP_GETCURRENTTHREADID",
+			"strcasecmp",
+			"IsLocalThread",
+			"MICROPROFILE_CONTEXT_SWITCH_TRACE",
+			"MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE",
+			"MICROPROFILE_CONTEXT_SWITCH_TRACE",
 			"pEntryStart",
 			"pDisplayMouseOver",
 			"\\",
@@ -418,18 +408,7 @@
 			"TraverseAddVisitHash",
 			"hash",
 			"DebugDrawStatistics",
-			"DebugDrawOutlinedLegend",
-			"fBaseX",
-			"pDebugRender",
-			"fStepY",
-			"100",
-			"DebugDrawOutlinedLegend",
-			"Lights\"",
-			"ColorRgbLoad(nColorEnd",
-			"DebugDrawOutlinedLegend",
-			"g_nDebugLightOverdraw",
-			"g_nDebugTransOverdraw",
-			"DebugDrawTransOverdraw"
+			"DebugDrawOutlinedLegend"
 		],
 		"highlight": true,
 		"in_selection": false,
@@ -469,36 +448,15 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 87962,
+						"buffer_size": 128524,
 						"regions":
 						{
-							"bookmarks":
-							{
-								"flags": 144,
-								"icon": "bookmark",
-								"regions":
-								[
-									[
-										15203,
-										15203
-									],
-									[
-										50953,
-										50953
-									],
-									[
-										51815,
-										51815
-									]
-								],
-								"scope": "bookmarks"
-							}
 						},
 						"selection":
 						[
 							[
-								52264,
-								52264
+								61590,
+								61590
 							]
 						],
 						"settings":
@@ -507,94 +465,10 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 29268.0,
+						"translation.y": 31461.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 0,
-					"type": "text"
-				},
-				{
-					"buffer": 1,
-					"file": "  d:/microprofile/microprofile.h",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 0,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								0,
-								0
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/C++/C++.tmLanguage"
-						},
-						"translation.x": 0.0,
-						"translation.y": 0.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 1,
-					"type": "text"
-				},
-				{
-					"buffer": 2,
-					"file": "/C/Users/jonasm/AppData/Roaming/Sublime Text 3/Packages/User/msbuild.sublime-build",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 224,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								224,
-								224
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/JavaScript/JSON.tmLanguage"
-						},
-						"translation.x": 0.0,
-						"translation.y": 0.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 2,
-					"type": "text"
-				},
-				{
-					"buffer": 3,
-					"file": "/D/PRJ_PRO/main/code/src/builder_msbuild.bat",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 3389,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								0,
-								0
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/Batch File/Batch File.tmLanguage"
-						},
-						"translation.x": 0.0,
-						"translation.y": 0.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 3,
 					"type": "text"
 				}
 			]
@@ -1168,7 +1042,7 @@
 		[
 			[
 				"",
-				"D:\\bsp\\screenbsp.sublime-project"
+				"~/archer/src/archer.sublime-project"
 			]
 		],
 		"width": 380.0
@@ -1200,7 +1074,7 @@
 	"show_open_files": true,
 	"show_tabs": true,
 	"side_bar_visible": true,
-	"side_bar_width": 351.0,
+	"side_bar_width": 166.0,
 	"status_bar_visible": true,
 	"template_settings":
 	{

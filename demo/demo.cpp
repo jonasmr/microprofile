@@ -64,8 +64,8 @@ void usleep(__int64 usec)
 #endif
 
 
-#define WIDTH 1500
-#define HEIGHT 900
+#define WIDTH 1024
+#define HEIGHT 768
 
 uint32_t g_nQuit = 0;
 uint32_t g_MouseX = 0;
@@ -109,15 +109,20 @@ void WorkerThread(int threadId)
 			usleep(100);
 			{
 				MICROPROFILE_SCOPEI("Thread0", "Work Thread0", c4); 
+				MICROPROFILE_META_CPU("Triangles",1);
 				usleep(200);
 				{
 					MICROPROFILE_SCOPEI("Thread0", "Work Thread1", c3); 
 					usleep(200);
 					{
 						MICROPROFILE_SCOPEI("Thread0", "Work Thread2", c2); 
+						MICROPROFILE_META_CPU("DrawCalls", 1);
 						usleep(200);
 						{
 							MICROPROFILE_SCOPEI("Thread0", "Work Thread3", c1); 
+							MICROPROFILE_META_CPU("DrawCalls", 4);
+							MICROPROFILE_META_CPU("Triangles",1000);
+
 							usleep(200);
 						}
 					}
@@ -355,6 +360,8 @@ int main(int argc, char* argv[])
 			for(uint32_t i = 0; i < 14; ++i)
 			{
 				MICROPROFILE_SCOPEI("Main", "1ms", 0xff3399ff);
+				MICROPROFILE_META_CPU("Sleep",1);
+
 				usleep(1000);
 			}
 		}
