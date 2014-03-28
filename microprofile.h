@@ -695,6 +695,9 @@ struct
 	int64_t					nRangeEnd;
 	int64_t					nRangeBeginGpu;
 	int64_t					nRangeEndGpu;
+	uint32_t				nRangeBeginIndex;
+	uint32_t 				nRangeEndIndex;
+	MicroProfileThreadLog* 	pRangeLog;
 	uint32_t				nHoverColor;
 	uint32_t				nHoverColorShared;
 
@@ -1549,6 +1552,54 @@ void MicroProfileDrawTextBox(uint32_t nX, uint32_t nY, const char** ppStrings, u
 
 
 
+void MicroProfileToolTipMeta(MicroProfileStringArray* pToolTip)
+{
+	if(S.nRangeBeginIndex != S.nRangeEndIndex && S.pRangeLog)
+	{
+		uint64_t nMetaSum[MICROPROFILE_META_MAX] = {0};
+
+		uint32_t nRange[2][2];
+		MicroProfileThreadLog* pLog = S.pRangeLog;
+
+		MP_ASSERT(MicroProfileLogGetTick(S.nRangeBegin) == MicroProfileLogGetTick(pLog->Log[S.nRangeBeginIndex]));
+		MP_ASSERT(MicroProfileLogGetTick(S.nRangeEnd) == MicroProfileLogGetTick(pLog->Log[S.nRangeEndIndex]));
+
+		MicroProfileGetRange(S.nRangeEndIndex, S.nRangeBeginIndex, nRange);
+		for(uint32_t i = 0; i < 2; ++i)
+		{
+			uint32_t nStart = nRange[i][0];
+			uint32_t nEnd = nRange[i][1];
+			for(uint32_t j = nStart; j < nEnd; ++j)
+			{
+				MicroProfileLogEntry LE = pLog->Log[j];
+				int nType = MicroProfileLogType(LE);
+				if(MP_LOG_META == nType)
+				{
+					int64_t nMetaIndex = MicroProfileLogTimerIndex(LE);
+					int64_t nMetaCount = MicroProfileLogGetTick(LE);
+					MP_ASSERT(nMetaIndex < MICROPROFILE_META_MAX);
+					nMetaSum[nMetaIndex] += nMetaCount;
+				}
+			}
+		}
+		bool bSpaced = false;
+		for(int i = 0; i < MICROPROFILE_META_MAX; ++i)
+		{
+			if(S.MetaCounters[i].pName && nMetaSum[i])
+			{
+				if(!bSpaced)
+				{
+					bSpaced = true;
+					MicroProfileStringArrayAddLiteral(pToolTip, "");
+					MicroProfileStringArrayAddLiteral(pToolTip, "");					
+				}
+				MicroProfileStringArrayFormat(pToolTip, "%s", S.MetaCounters[i].pName);
+				MicroProfileStringArrayFormat(pToolTip, "%5d", nMetaSum[i]);
+			}
+		}
+	}
+}
+
 
 void MicroProfileDrawFloatTooltip(uint32_t nX, uint32_t nY, uint32_t nToken, uint64_t nTime)
 {
@@ -1622,6 +1673,8 @@ void MicroProfileDrawFloatTooltip(uint32_t nX, uint32_t nY, uint32_t nToken, uin
 
 	MicroProfileStringArrayAddLiteral(&ToolTip, "Exclusive Max:");
 	MicroProfileStringArrayFormat(&ToolTip, "%6.3fms",  fMaxExclusive);
+
+	MicroProfileToolTipMeta(&ToolTip);
 
 
 	MicroProfileDrawFloatWindow(nX, nY+20, &ToolTip.ppStrings[0], ToolTip.nNumStrings, S.TimerInfo[nTimerId].nColor);
@@ -1785,6 +1838,8 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 	S.nRangeEnd = 0;
 	S.nRangeBeginGpu = 0;
 	S.nRangeEndGpu = 0;
+	S.nRangeBeginIndex = S.nRangeEndIndex = 0;
+	S.pRangeLog = 0;
 	uint64_t nFrameStartCpu = pFrameCurrent->nFrameStartCpu;
 	uint64_t nFrameEndCpu = pFrameNext->nFrameStartCpu;
 	uint64_t nFrameStartGpu = pFrameCurrent->nFrameStartGpu;
@@ -2021,11 +2076,18 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 								{
 									S.nRangeBeginGpu = *pEntryEnter;
 									S.nRangeEndGpu = *pEntry;
+									S.nRangeBeginIndex = nStack[nStackPos-1];
+									S.nRangeEndIndex = k;
+									S.pRangeLog = pLog;
 								}
 								else
 								{
 									S.nRangeBegin = *pEntryEnter;
 									S.nRangeEnd = *pEntry;
+									S.nRangeBeginIndex = nStack[nStackPos-1];
+									S.nRangeEndIndex = k;
+									S.pRangeLog = pLog;
+
 								}
 							}
 							else

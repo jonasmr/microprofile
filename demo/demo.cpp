@@ -65,7 +65,7 @@ void usleep(__int64 usec)
 
 
 #define WIDTH 1024
-#define HEIGHT 768
+#define HEIGHT 600
 
 uint32_t g_nQuit = 0;
 uint32_t g_MouseX = 0;
@@ -109,7 +109,7 @@ void WorkerThread(int threadId)
 			usleep(100);
 			{
 				MICROPROFILE_SCOPEI("Thread0", "Work Thread0", c4); 
-				MICROPROFILE_META_CPU("Triangles",1);
+				MICROPROFILE_META_CPU("Sleep",1);
 				usleep(200);
 				{
 					MICROPROFILE_SCOPEI("Thread0", "Work Thread1", c3); 
@@ -122,7 +122,6 @@ void WorkerThread(int threadId)
 							MICROPROFILE_SCOPEI("Thread0", "Work Thread3", c1); 
 							MICROPROFILE_META_CPU("DrawCalls", 4);
 							MICROPROFILE_META_CPU("Triangles",1000);
-
 							usleep(200);
 						}
 					}
