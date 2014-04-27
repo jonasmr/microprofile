@@ -2792,7 +2792,7 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 
 	for(int i = 0; i < MICROPROFILE_META_MAX; ++i)
 	{
-		if(S.nBars & (MP_DRAW_META_FIRST<<i))
+		if(0 != (S.nBars & (MP_DRAW_META_FIRST<<i)) && nullptr != S.MetaCounters[i].pName)
 		{
 			nX += MicroProfileDrawBarMetaCount(nX, nY, &S.MetaCounters[i].nCounters[0], S.MetaCounters[i].pName, nTotalHeight) + 1; 
 		}
