@@ -5,7 +5,7 @@ CFLAGS=`sdl2-config --cflags` -I.. -Iglew -DGLEW_STATIC -Wno-c++11-extensions
 CFLAGS+=-g -O0 -Wno-invalid-offsetof
 
 CPPFLAGS=$(CFLAGS)
-CPPFLAGS+=-Wno-lambda-extensions -stdlib=libc++ -std=c++11
+CPPFLAGS+=-stdlib=libc++ -std=c++11
 
 CPP_SOURCES = demo.cpp microprofile.cpp
 C_SOURCES = glew/glew.c

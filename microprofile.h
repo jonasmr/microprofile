@@ -314,6 +314,7 @@ MICROPROFILE_API void MicroProfileMousePosition(uint32_t nX, uint32_t nY, int nW
 MICROPROFILE_API void MicroProfileModKey(uint32_t nKeyState);
 MICROPROFILE_API void MicroProfileMouseButton(uint32_t nLeft, uint32_t nRight);
 MICROPROFILE_API void MicroProfileOnThreadCreate(const char* pThreadName); //should be called from newly created threads
+MICROPROFILE_API void MicroProfileOnThreadExit(); //call on exit to reuse log
 MICROPROFILE_API void MicroProfileInitThreadLog();
 MICROPROFILE_API void MicroProfileDrawLineVertical(int nX, int nTop, int nBottom, uint32_t nColor);
 MICROPROFILE_API void MicroProfileDrawLineHorizontal(int nLeft, int nRight, int nY, uint32_t nColor);
@@ -564,6 +565,7 @@ struct MicroProfileThreadLog
 		THREAD_MAX_LEN = 64,
 	};
 	char					ThreadName[64];
+	int 					nFreeListNext;
 };
 
 struct MicroProfileStringArray
@@ -670,6 +672,7 @@ struct
 	MicroProfileThreadLog* 	Pool[MICROPROFILE_MAX_THREADS];
 	uint32_t				nNumLogs;
 	uint32_t 				nMemUsage;
+	int 					nFreeListHead;
 
 	uint32_t 				nFrameCurrent;
 	uint32_t 				nFramePut;
@@ -897,6 +900,7 @@ void MicroProfileInit()
 		S.nActiveMenu = (uint32_t)-1;
 		S.fReferenceTime = 33.33f;
 		S.fRcpReferenceTime = 1.f / S.fReferenceTime;
+		S.nFreeListHead = -1;
 		int64_t nTick = MP_TICK();
 		for(int i = 0; i < MICROPROFILE_MAX_FRAME_HISTORY; ++i)
 		{
@@ -906,9 +910,10 @@ void MicroProfileInit()
 
 		MicroProfileThreadLog* pGpu = MicroProfileCreateThreadLog("GPU");
 		g_MicroProfileGpuLog = pGpu;
-		S.Pool[S.nNumLogs++] = pGpu;
+		MP_ASSERT(S.Pool[0] == pGpu);
 		pGpu->nGpu = 1;
 		pGpu->nThreadId = 0;
+
 
 		S.fDetailedOffsetTarget = S.fDetailedOffset = 0.f;
 		S.fDetailedRangeTarget = S.fDetailedRange = 50.f;
@@ -964,8 +969,18 @@ inline void MicroProfileSetThreadLog(MicroProfileThreadLog* pLog)
 
 MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 {
-	MicroProfileThreadLog* pLog = new MicroProfileThreadLog;
-	S.nMemUsage += sizeof(MicroProfileThreadLog);
+	MicroProfileThreadLog* pLog = 0;
+	if(S.nFreeListHead != -1)
+	{
+		pLog = S.Pool[S.nFreeListHead];
+		S.nFreeListHead = S.Pool[S.nFreeListHead]->nFreeListNext;
+	}
+	else
+	{
+		pLog = new MicroProfileThreadLog;
+		S.nMemUsage += sizeof(MicroProfileThreadLog);
+		S.Pool[S.nNumLogs++] = pLog;	
+	}
 	memset(pLog, 0, sizeof(*pLog));
 	int len = (int)strlen(pName);
 	int maxlen = sizeof(pLog->ThreadName)-1;
@@ -973,6 +988,7 @@ MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 	memcpy(&pLog->ThreadName[0], pName, len);
 	pLog->ThreadName[len] = '\0';
 	pLog->nThreadId = MP_GETCURRENTTHREADID();
+	pLog->nFreeListNext = -1;
 	return pLog;
 }
 
@@ -985,7 +1001,27 @@ void MicroProfileOnThreadCreate(const char* pThreadName)
 	MicroProfileThreadLog* pLog = MicroProfileCreateThreadLog(pThreadName ? pThreadName : MicroProfileGetThreadName());
 	MP_ASSERT(pLog);
 	MicroProfileSetThreadLog(pLog);
-	S.Pool[S.nNumLogs++] = pLog;
+}
+
+void MicroProfileOnThreadExit()
+{
+	MicroProfileThreadLog* pLog = MicroProfileGetThreadLog();
+	if(pLog)
+	{
+		int32_t nLogIndex = -1;
+		for(int i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
+		{
+			if(pLog == S.Pool[i])
+			{
+				nLogIndex = i;
+				break;
+			}
+		}
+		MP_ASSERT(nLogIndex < MICROPROFILE_MAX_THREADS && nLogIndex > 0);
+		pLog->nFreeListNext = S.nFreeListHead;
+		pLog->nThreadId = 0;
+		S.nFreeListHead = nLogIndex;
+	}
 }
 
 void MicroProfileInitThreadLog()
@@ -1743,7 +1779,7 @@ void MicroProfileDebugDumpRange()
 #ifdef _WIN32
 			OutputDebugString(buffer);
 #else
-			printf(buffer);
+			printf("%s", buffer);
 #endif
 			pStart++;
 		}
