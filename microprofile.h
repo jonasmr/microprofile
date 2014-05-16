@@ -1597,8 +1597,6 @@ void MicroProfileToolTipMeta(MicroProfileStringArray* pToolTip)
 		uint32_t nRange[2][2];
 		MicroProfileThreadLog* pLog = S.pRangeLog;
 
-		MP_ASSERT(MicroProfileLogGetTick(S.nRangeBegin) == MicroProfileLogGetTick(pLog->Log[S.nRangeBeginIndex]));
-		MP_ASSERT(MicroProfileLogGetTick(S.nRangeEnd) == MicroProfileLogGetTick(pLog->Log[S.nRangeEndIndex]));
 
 		MicroProfileGetRange(S.nRangeEndIndex, S.nRangeBeginIndex, nRange);
 		for(uint32_t i = 0; i < 2; ++i)
