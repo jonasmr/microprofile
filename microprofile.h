@@ -150,6 +150,7 @@ inline int64_t MicroProfileTicksPerSecondCpu()
 #define MP_STRCASECMP strcasecmp
 #define MP_GETCURRENTTHREADID() (uint64_t)pthread_self()
 typedef uint64_t ThreadIdType;
+
 #elif defined(_WIN32)
 int64_t MicroProfileTicksPerSecondCpu();
 int64_t MicroProfileGetTick();
@@ -159,6 +160,27 @@ int64_t MicroProfileGetTick();
 #define MP_STRCASECMP _stricmp
 #define MP_GETCURRENTTHREADID() GetCurrentThreadId()
 typedef uint32_t ThreadIdType;
+
+#elif defined(__linux__)
+#include <unistd.h>
+#include <time.h>
+
+inline int64_t MicroProfileTicksPerSecondCpu()
+{
+	return 1000000000ll;
+}
+
+inline int64_t MicroProfileGetTick()
+{
+	timespec ts;
+	clock_gettime(CLOCK_REALTIME, &ts);
+	return 1000000000ll * ts.tv_sec + ts.tv_nsec;
+}
+
+#define MP_BREAK() __builtin_trap()
+#define MP_STRCASECMP strcasecmp
+#define MP_GETCURRENTTHREADID() (uint64_t)pthread_self()
+typedef uint64_t ThreadIdType;
 #endif
 
 #ifndef MP_GETCURRENTTHREADID 
