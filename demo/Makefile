@@ -1,5 +1,10 @@
-
-LDFLAGS=-framework OpenGL `sdl2-config --static-libs` -lpthread
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+	LDFLAGS=-lGL `sdl2-config --static-libs` -lpthread
+endif
+ifeq ($(UNAME_S),Darwin)
+	LDFLAGS=-framework OpenGL `sdl2-config --static-libs` -lpthread
+endif
 
 CFLAGS=`sdl2-config --cflags` -I.. -Iglew -DGLEW_STATIC -Wno-c++11-extensions
 CFLAGS+=-g -O0 -Wno-invalid-offsetof

@@ -164,7 +164,6 @@ typedef uint32_t ThreadIdType;
 #elif defined(__linux__)
 #include <unistd.h>
 #include <time.h>
-
 inline int64_t MicroProfileTicksPerSecondCpu()
 {
 	return 1000000000ll;
@@ -176,8 +175,9 @@ inline int64_t MicroProfileGetTick()
 	clock_gettime(CLOCK_REALTIME, &ts);
 	return 1000000000ll * ts.tv_sec + ts.tv_nsec;
 }
-
+#define MP_TICK() MicroProfileGetTick()
 #define MP_BREAK() __builtin_trap()
+#define MP_THREAD_LOCAL __thread
 #define MP_STRCASECMP strcasecmp
 #define MP_GETCURRENTTHREADID() (uint64_t)pthread_self()
 typedef uint64_t ThreadIdType;
