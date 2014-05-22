@@ -353,6 +353,7 @@ int main(int argc, char* argv[])
 		glViewport(0, 0, WIDTH, HEIGHT);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+
 #if 1||FAKE_WORK
 		{
 			MICROPROFILE_SCOPEI("Main", "Dummy", 0xff3399ff);
@@ -396,6 +397,7 @@ int main(int argc, char* argv[])
  
  			glEnable(GL_BLEND);
  			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+ 			glDisable(GL_DEPTH_TEST);
 
 			MicroProfileBeginDraw(WIDTH, HEIGHT, &projection[0]);
 			MicroProfileDraw(WIDTH, HEIGHT);
