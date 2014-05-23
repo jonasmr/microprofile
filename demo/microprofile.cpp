@@ -367,7 +367,6 @@ void MicroProfileEndDraw()
 void MicroProfileDrawText(int nX, int nY, uint32_t nColor, const char* pText)
 {
 	MICROPROFILE_SCOPEI("MicroProfile", "TextDraw", 0xff88ee);
-	const float fEndV = 9.f / 16.f;
 	const float fOffsetU = 5.f / 1024.f;
 	uint32_t nLen = strlen(pText);
 	float fX = (float)nX;
@@ -380,7 +379,7 @@ void MicroProfileDrawText(int nX, int nY, uint32_t nColor, const char* pText)
 
 	for(uint32_t j = 0; j < nLen; ++j)
 	{
-		int16_t nOffset = g_FontDescription.nCharOffsets[*pStr++];
+		int16_t nOffset = g_FontDescription.nCharOffsets[(int)*pStr++];
 		float fOffset = nOffset / 1024.f;
 		Q0(pVertex,nX, fX);
 		Q0(pVertex,nY, fY);

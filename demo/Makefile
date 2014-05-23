@@ -7,6 +7,10 @@ ifeq ($(UNAME_S),Darwin)
 endif
 
 CFLAGS=`sdl2-config --cflags` -I.. -Iglew -DGLEW_STATIC -Wno-c++11-extensions
+#CFLAGS+=-fsanitize=undefined-trap -fsanitize-undefined-trap-on-error
+CFLAGS+=-Wall
+
+
 CFLAGS+=-g -O0 -Wno-invalid-offsetof
 
 CPPFLAGS=$(CFLAGS)
