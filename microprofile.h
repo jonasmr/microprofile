@@ -2011,11 +2011,11 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 				bool bIsValid = false;
 				if(nPut < nFront)
 				{
-					bIsValid = nNewGet < nPut || nNewGet > nFront;
+					bIsValid = nNewGet <= nPut || nNewGet >= nFront;
 				}
 				else
 				{
-					bIsValid = nNewGet < nPut && nNewGet > nFront;
+					bIsValid = nNewGet <= nPut && nNewGet >= nFront;
 				}
 				if(bIsValid)
 				{
