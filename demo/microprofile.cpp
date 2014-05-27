@@ -41,7 +41,6 @@ void uprintf(const char* fmt, ...)
 #endif
 
 
-
 #define MICRO_PROFILE_IMPL
 #include "microprofile.h"
 #include "glinc.h"
@@ -364,11 +363,11 @@ void MicroProfileEndDraw()
 
 
 
-void MicroProfileDrawText(int nX, int nY, uint32_t nColor, const char* pText)
+void MicroProfileDrawText(int nX, int nY, uint32_t nColor, const char* pText, uint32_t nLen)
 {
 	MICROPROFILE_SCOPEI("MicroProfile", "TextDraw", 0xff88ee);
 	const float fOffsetU = 5.f / 1024.f;
-	uint32_t nLen = strlen(pText);
+	MP_ASSERT(nLen <= strlen(pText));
 	float fX = (float)nX;
 	float fY = (float)nY;
 	float fY2 = fY + (MICROPROFILE_TEXT_HEIGHT+1);
