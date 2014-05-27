@@ -3289,7 +3289,10 @@ void MicroProfileMoveGraph()
 		}
 		else
 		{
-			S.fDetailedRangeTarget = S.fDetailedRange /= S.nModDown ? 1.40 : 1.05f;
+			float fNewDetailedRange = S.fDetailedRange / (S.nModDown ? 1.40 : 1.05f);
+			if(fNewDetailedRange < 1e-4f) //100ns
+				fNewDetailedRange = 1e-4f;
+			S.fDetailedRangeTarget = S.fDetailedRange = fNewDetailedRange;
 		}
 
 		float fDiff = fOldRange - S.fDetailedRange;
