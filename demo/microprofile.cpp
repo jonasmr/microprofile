@@ -89,6 +89,7 @@ namespace
 	int 	g_LocTC0In;
 	int 	g_LocTex;
 	int 	g_LocProjectionMatrix;
+	int 	g_LocfRcpFontHeight;
 
 	float g_Projection[16];
 
@@ -115,6 +116,7 @@ namespace
 	const char* g_PixelShaderCode = "\
 #version 150 \n \
 uniform sampler2D tex; \
+uniform float fRcpFontHeight; \
 in vec2 TC0; \
 in vec4 Color; \
 out vec4 Out0; \
@@ -129,14 +131,14 @@ void main(void)   \
 	} \
 	else \
 	{ \
+		vec4 c1 = texture(tex, TC0.xy + vec2(0.0, fRcpFontHeight));\
 		Out0 = color * Color; \
-		if(color.w < 0.5) \
-			discard; \
-			\
+		if(color.w < 0.5){ \
+			Out0 = vec4(0,0,0,c1.w);\
+		}\
 	} \
 } \
 ";
-
 	const char* g_VertexShaderCode = " \
 #version 150 \n \
 uniform mat4 ProjectionMatrix; \
@@ -213,6 +215,9 @@ void main(void)   \
 	}
 }
 
+#define FONT_TEX_X 1024
+#define FONT_TEX_Y 9
+#define UNPACKED_SIZE (FONT_TEX_X*FONT_TEX_Y * 4)
 
 
 void MicroProfileDrawInit()
@@ -237,6 +242,7 @@ void MicroProfileDrawInit()
 
 	g_LocTex = glGetUniformLocation(g_Program, "tex");
 	g_LocProjectionMatrix = glGetUniformLocation(g_Program, "ProjectionMatrix");
+	g_LocfRcpFontHeight = glGetUniformLocation(g_Program, "fRcpFontHeight");
 
 	for(uint32_t i = 0; i < MAX_FONT_CHARS; ++i)
 	{
@@ -270,9 +276,7 @@ void MicroProfileDrawInit()
 	{
 		g_FontDescription.nCharOffsets[i] = (i-'{')*8+721+8;
 	}
-#define FONT_TEX_X 1024
-#define FONT_TEX_Y 9
-#define UNPACKED_SIZE (FONT_TEX_X*FONT_TEX_Y * 4)
+
 	uint32_t* pUnpacked = (uint32_t*)alloca(UNPACKED_SIZE);
 	int idx = 0;
 	int end = FONT_TEX_X * FONT_TEX_Y / 8;
@@ -320,6 +324,7 @@ void MicroProfileFlush()
 
 	glUniform1i(g_LocTex, 0);
 	glUniformMatrix4fv(g_LocProjectionMatrix, 1, 0, g_Projection);
+	glUniform1f(g_LocfRcpFontHeight, 1.0 / FONT_TEX_Y);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, g_FontTexture);
