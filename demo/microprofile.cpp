@@ -324,7 +324,7 @@ void MicroProfileFlush()
 
 	glUniform1i(g_LocTex, 0);
 	glUniformMatrix4fv(g_LocProjectionMatrix, 1, 0, g_Projection);
-	glUniform1f(g_LocfRcpFontHeight, 1.0 / FONT_TEX_Y);
+	glUniform1f(g_LocfRcpFontHeight, 1.0f / FONT_TEX_Y);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, g_FontTexture);
