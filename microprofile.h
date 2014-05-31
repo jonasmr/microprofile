@@ -597,7 +597,6 @@ struct MicroProfileFrameState
 
 struct MicroProfileThreadLog
 {
-	MicroProfileThreadLog*  pNext;
 	MicroProfileLogEntry	Log[MICROPROFILE_BUFFER_SIZE];
 
 	std::atomic<uint32_t>	nPut;
@@ -605,6 +604,11 @@ struct MicroProfileThreadLog
 	uint32_t 				nActive;
 	uint32_t 				nGpu;
 	ThreadIdType			nThreadId;
+
+	uint32_t				nStack[MICROPROFILE_STACK_MAX];
+	int64_t					nChildTickStack[MICROPROFILE_STACK_MAX];
+	uint32_t				nStackPos;
+
 	enum
 	{
 		THREAD_MAX_LEN = 64,
@@ -652,6 +656,7 @@ struct
 
 	uint64_t nGroupMask;
 	uint32_t nRunning;
+	uint32_t nToggleRunning;
 	uint32_t nMaxGroupSize;
 
 	int64_t nPauseTicks;
@@ -1069,12 +1074,6 @@ void MicroProfileOnThreadExit()
 		}
 		MP_ASSERT(nLogIndex < MICROPROFILE_MAX_THREADS && nLogIndex > 0);
 		pLog->nFreeListNext = S.nFreeListHead;
-		pLog->nThreadId = 0;
-		pLog->nPut = 0;
-		pLog->nGet = 0;
-		pLog->nActive = 0;
-		pLog->nGpu = 0;
-		pLog->nThreadId = 0;
 		S.nFreeListHead = nLogIndex;
 		for(int i = 0; i < MICROPROFILE_MAX_FRAME_HISTORY; ++i)
 		{
@@ -1324,6 +1323,22 @@ void MicroProfileFlip()
 		}
 	}
 
+	if(S.nToggleRunning)
+	{
+		S.nRunning = !S.nRunning;
+		if(!S.nRunning)
+			S.nPauseTicks = MP_TICK();
+		S.nToggleRunning = 0;
+		for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
+		{
+			MicroProfileThreadLog* pLog = S.Pool[i];
+			if(pLog)
+			{
+				pLog->nStackPos = 0;
+			}
+		}
+	}
+
 	if(S.nRunning)
 	{
 		S.nFramePut = (S.nFramePut+1) % MICROPROFILE_MAX_FRAME_HISTORY;
@@ -1433,10 +1448,11 @@ void MicroProfileFlip()
 							}
 						}
 					}
-					uint32_t nStack[MICROPROFILE_STACK_MAX];
-					int64_t nChildTickStack[MICROPROFILE_STACK_MAX];
-					uint32_t nStackPos = 0;
-					nChildTickStack[0] = 0;
+					
+					
+					uint32_t* pStack = &pLog->nStack[0];
+					int64_t* pChildTickStack = &pLog->nChildTickStack[0];
+					uint32_t nStackPos = pLog->nStackPos;
 
 					for(uint32_t j = 0; j < 2; ++j)
 					{
@@ -1449,8 +1465,8 @@ void MicroProfileFlip()
 							if(MP_LOG_ENTER == nType)
 							{
 								MP_ASSERT(nStackPos < MICROPROFILE_STACK_MAX);								
-								nStack[nStackPos++] = k;
-								nChildTickStack[nStackPos] = 0;
+								pStack[nStackPos++] = k;
+								pChildTickStack[nStackPos] = 0;
 							}
 							else if(MP_LOG_META == nType)
 							{
@@ -1459,38 +1475,31 @@ void MicroProfileFlip()
 									int64_t nMetaIndex = MicroProfileLogTimerIndex(LE);
 									int64_t nMetaCount = MicroProfileLogGetTick(LE);
 									MP_ASSERT(nMetaIndex < MICROPROFILE_META_MAX);
-									int64_t nCounter = MicroProfileLogTimerIndex(pLog->Log[nStack[nStackPos-1]]);
+									int64_t nCounter = MicroProfileLogTimerIndex(pLog->Log[pStack[nStackPos-1]]);
 									S.MetaCounters[nMetaIndex].nCounters[nCounter] += nMetaCount;
 								}
 							}
 							else
 							{
 								MP_ASSERT(nType == MP_LOG_LEAVE);
-								//todo: reconsider the fallback for Leaves without enters
-								int64_t nTickStart = 0 != nStackPos ? pLog->Log[nStack[nStackPos-1]] : nFrameStart;
-								int64_t nTicks = MicroProfileLogTickDifference(nTickStart, LE);
-								int64_t nChildTicks = nChildTickStack[nStackPos];
-								if(0 != nStackPos)
-								{
-									MP_ASSERT(MicroProfileLogTimerIndex(pLog->Log[nStack[nStackPos-1]]) == MicroProfileLogTimerIndex(LE));
+								if(nStackPos)
+								{									
+									int64_t nTickStart = pLog->Log[pStack[nStackPos-1]];
+									int64_t nTicks = MicroProfileLogTickDifference(nTickStart, LE);
+									int64_t nChildTicks = pChildTickStack[nStackPos];
+									MP_ASSERT(MicroProfileLogTimerIndex(pLog->Log[pStack[nStackPos-1]]) == MicroProfileLogTimerIndex(LE));
 									nStackPos--;
-									nChildTickStack[nStackPos] += nTicks;
+									pChildTickStack[nStackPos] += nTicks;
+
+									uint32_t nTimerIndex = MicroProfileLogTimerIndex(LE);
+									S.Frame[nTimerIndex].nTicks += nTicks;
+									S.FrameExclusive[nTimerIndex] += (nTicks-nChildTicks);
+									S.Frame[nTimerIndex].nCount += 1;
 								}
-								uint32_t nTimerIndex = MicroProfileLogTimerIndex(LE);
-								S.Frame[nTimerIndex].nTicks += nTicks;								
-								S.FrameExclusive[nTimerIndex] += (nTicks-nChildTicks);
-								S.Frame[nTimerIndex].nCount += 1;
 							}
 						}
 					}
-					//todo: reconsider the fallback for enters without leaves
-					for(uint32_t j = 0; j < nStackPos; ++j)
-					{
-						MicroProfileLogEntry LE = pLog->Log[nStack[j]];
-						uint64_t nTicks = MicroProfileLogTickDifference(LE, nFrameEnd);
-						uint32_t nTimerIndex = MicroProfileLogTimerIndex(LE);
-						S.Frame[nTimerIndex].nTicks += nTicks;
-					}
+					pLog->nStackPos = nStackPos;
 				}
 			}
 			{
@@ -2467,7 +2476,7 @@ void MicroProfileLoopActiveGroupsDraw(int32_t nX, int32_t nY, const char* pName,
 		MicroProfileDrawText(nX, nY, (uint32_t)-1, pName, (uint32_t)strlen(pName));
 
 	nY += S.nBarHeight + 2;
-	uint64_t nGroup = S.nActiveGroup = S.nMenuAllGroups ? S.nGroupMask : S.nMenuActiveGroup;
+	uint64_t nGroup = S.nMenuAllGroups ? S.nGroupMask : S.nMenuActiveGroup;
 	uint32_t nCount = 0;
 	for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
 	{
@@ -3224,9 +3233,7 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 			nSelectMenu = i;
 			if((S.nMouseLeft || S.nMouseRight) && i == (int)nPauseIndex)
 			{
-				S.nRunning = !S.nRunning;
-				if(!S.nRunning)
-					S.nPauseTicks = MP_TICK();
+				S.nToggleRunning = 1;
 			}
 		}
 		MicroProfileDrawText(nX, nY, (uint32_t)-1, pMenuText[i], (uint32_t)strlen(pMenuText[i]));
@@ -3596,9 +3603,7 @@ void MicroProfileClearGraph()
 }
 void MicroProfileTogglePause()
 {
-	S.nRunning = !S.nRunning;
-	if(!S.nRunning)
-		S.nPauseTicks = MP_TICK();
+	S.nToggleRunning = 1;
 }
 
 void MicroProfileGetState(MicroProfileState* pStateOut)

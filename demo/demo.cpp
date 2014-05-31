@@ -89,6 +89,25 @@ MICROPROFILE_DEFINE(ThreadSafeInner0,"ThreadSafe", "Inner0", 0xff00bbee);
 MICROPROFILE_DEFINE(ThreadSafeMain,"ThreadSafe", "Main", 0xffdd3355);
 MICROPROFILE_DEFINE(MAIN, "MAIN", "Main", 0xff0000);
 
+void WorkerThreadLong(int threadId)
+{
+	uint32_t c0 = 0xff3399ff;
+	uint32_t c1 = 0xffff99ff;
+	char name[100];
+	snprintf(name, 99, "Worker_long%d", threadId);
+	MicroProfileOnThreadCreate(&name[0]);
+	while(!g_nQuit)
+	{
+		MICROPROFILE_SCOPEI("long", "outer 150ms", c0); 
+		usleep(100*1000);
+		for(int i = 0; i < 10; ++i)
+		{
+			MICROPROFILE_SCOPEI("long", "inner 5ms", c1); 
+			usleep(5000);
+		}
+	}
+}
+
 void WorkerThread(int threadId)
 {
 	char name[100];
@@ -337,6 +356,7 @@ int main(int argc, char* argv[])
 	std::thread t43(WorkerThread, 43);
 	std::thread t44(WorkerThread, 44);
 	std::thread t45(WorkerThread, 45);
+	std::thread tlong(WorkerThreadLong, 0);
 #endif
 
 	while(!g_nQuit)
@@ -418,6 +438,7 @@ int main(int argc, char* argv[])
 	t43.join();
 	t44.join();
 	t45.join();
+	tlong.join();
 	#endif
 	MicroProfileShutdown();
 
