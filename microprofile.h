@@ -108,7 +108,7 @@
 #define MicroProfileGetTime(group, name) 0.f
 #define MicroProfileOnThreadCreate(foo) do{}while(0)
 #define MicroProfileMouseButton(foo, bar) do{}while(0)
-#define MicroProfileMousePosition(foo, bar) do{}while(0)
+#define MicroProfileMousePosition(foo, bar, z) do{}while(0)
 #define MicroProfileModKey(key) do{}while(0)
 #define MicroProfileFlip() do{}while(0)
 #define MicroProfileDraw(foo, bar) do{}while(0)
@@ -117,6 +117,7 @@
 #define MicroProfileSetDisplayMode() do{}while(0)
 #define MicroProfileTogglePause() do{}while(0)
 #define MicroProfileDumpTimers() do{}while(0)
+#define MicroProfileShutdown() do{}while(0)
 
 #else
 

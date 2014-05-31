@@ -301,6 +301,11 @@ void MicroProfileDrawInit();
 void MicroProfileBeginDraw(uint32_t nWidth, uint32_t nHeight, float* prj);
 void MicroProfileEndDraw();
 
+#ifdef _WIN32
+#define __BREAK() __debugbreak()
+#else
+#define __BREAK() __builtin_trap()
+#endif
 int main(int argc, char* argv[])
 {
 	printf("press 'z' to toggle microprofile drawing\n");
@@ -335,7 +340,7 @@ int main(int argc, char* argv[])
 	GLenum err=glewInit();
 	if(err!=GLEW_OK)
 	{
-		MP_BREAK();
+		__BREAK();
 	}
 	glGetError(); //glew generates an error
 		
@@ -418,10 +423,11 @@ int main(int argc, char* argv[])
  			glEnable(GL_BLEND);
  			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
  			glDisable(GL_DEPTH_TEST);
-
+#if MICROPROFILE_ENABLED
 			MicroProfileBeginDraw(WIDTH, HEIGHT, &projection[0]);
 			MicroProfileDraw(WIDTH, HEIGHT);
 			MicroProfileEndDraw();
+#endif
 			glDisable(GL_BLEND);
 		}
 
