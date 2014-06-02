@@ -1028,6 +1028,8 @@ MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 	if(S.nFreeListHead != -1)
 	{
 		pLog = S.Pool[S.nFreeListHead];
+		MP_ASSERT(pLog->nPut.load() == 0);
+		MP_ASSERT(pLog->nGet.load() == 0);
 		S.nFreeListHead = S.Pool[S.nFreeListHead]->nFreeListNext;
 	}
 	else
@@ -1044,6 +1046,7 @@ MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 	pLog->ThreadName[len] = '\0';
 	pLog->nThreadId = MP_GETCURRENTTHREADID();
 	pLog->nFreeListNext = -1;
+	pLog->nActive = 1;
 	return pLog;
 }
 
@@ -1075,6 +1078,9 @@ void MicroProfileOnThreadExit()
 		}
 		MP_ASSERT(nLogIndex < MICROPROFILE_MAX_THREADS && nLogIndex > 0);
 		pLog->nFreeListNext = S.nFreeListHead;
+		pLog->nActive = 0;
+		pLog->nPut.store(0);
+		pLog->nGet.store(0);
 		S.nFreeListHead = nLogIndex;
 		for(int i = 0; i < MICROPROFILE_MAX_FRAME_HISTORY; ++i)
 		{
@@ -1189,6 +1195,7 @@ MicroProfileToken MicroProfileGetMetaToken(const char* pName)
 inline void MicroProfileLogPut(MicroProfileToken nToken_, uint64_t nTick, uint64_t nBegin, MicroProfileThreadLog* pLog)
 {
 	MP_ASSERT(pLog != 0); //this assert is hit if MicroProfileOnCreateThread is not called
+	MP_ASSERT(pLog->nActive);
 	uint32_t nPos = pLog->nPut.load(std::memory_order_relaxed);
 	uint32_t nNextPos = (nPos+1) % MICROPROFILE_BUFFER_SIZE;
 	if(nNextPos == pLog->nGet.load(std::memory_order_relaxed))
@@ -1371,8 +1378,6 @@ void MicroProfileFlip()
 
 		uint64_t nFrameStartCpu = pFrameCurrent->nFrameStartCpu;
 		uint64_t nFrameEndCpu = pFrameNext->nFrameStartCpu;
-		uint64_t nFrameStartGpu = pFrameCurrent->nFrameStartGpu;
-		uint64_t nFrameEndGpu = pFrameNext->nFrameStartGpu;
 
 		{
 			uint64_t nTick = nFrameEndCpu - nFrameStartCpu;
@@ -1433,8 +1438,6 @@ void MicroProfileFlip()
 					MicroProfileGetRange(nPut, nGet, nRange);
 
 
-					uint64_t nFrameStart = pLog->nGpu ? nFrameStartGpu : nFrameStartCpu;
-					uint64_t nFrameEnd = pLog->nGpu ? nFrameEndGpu : nFrameEndCpu;
 					//fetch gpu results.
 					if(pLog->nGpu)
 					{
