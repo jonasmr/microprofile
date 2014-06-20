@@ -2220,8 +2220,13 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 #if MICROPROFILE_DETAILED_BAR_NAMES
 							if(nIntegerWidth>3*MICROPROFILE_TEXT_WIDTH)
 							{
-								int nCharacters = (nIntegerWidth - 2*MICROPROFILE_TEXT_WIDTH) / MICROPROFILE_TEXT_WIDTH;
-								MicroProfileDrawText(fXStart+1, fYStart+1, -1, S.TimerInfo[nTimerIndex].pName, MicroProfileMin<uint32_t>(S.TimerInfo[nTimerIndex].nNameLen, nCharacters));
+								float fXStartText = MicroProfileMax(fXStart, 0.f);
+								int nTextWidth = (int)(fXEnd - fXStartText);
+								int nCharacters = (nTextWidth - 2*MICROPROFILE_TEXT_WIDTH) / MICROPROFILE_TEXT_WIDTH;
+								if(nCharacters>0)
+								{
+									MicroProfileDrawText(fXStartText+1, fYStart+1, -1, S.TimerInfo[nTimerIndex].pName, MicroProfileMin<uint32_t>(S.TimerInfo[nTimerIndex].nNameLen, nCharacters));
+								}
 							}
 #endif
 							++nNumBoxes;
