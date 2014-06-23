@@ -128,10 +128,13 @@ void WorkerThread(int threadId)
 			usleep(100);
 			{
 				MICROPROFILE_SCOPEI("Thread0", "Work Thread0", c4); 
-				MICROPROFILE_META_CPU("Sleep",1);
+				MICROPROFILE_META_CPU("Sleep",10);
 				usleep(200);
 				{
 					MICROPROFILE_SCOPEI("Thread0", "Work Thread1", c3); 
+					MICROPROFILE_META_CPU("DrawCalls", 1);
+					MICROPROFILE_META_CPU("DrawCalls", 1);
+					MICROPROFILE_META_CPU("DrawCalls", 1);
 					usleep(200);
 					{
 						MICROPROFILE_SCOPEI("Thread0", "Work Thread2", c2); 

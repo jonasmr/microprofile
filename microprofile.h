@@ -1666,7 +1666,8 @@ void MicroProfileToolTipMeta(MicroProfileStringArray* pToolTip)
 	if(S.nRangeBeginIndex != S.nRangeEndIndex && S.pRangeLog)
 	{
 		uint64_t nMetaSum[MICROPROFILE_META_MAX] = {0};
-
+		uint64_t nMetaSumInclusive[MICROPROFILE_META_MAX] = {0};
+		int nStackDepth = 0;
 		uint32_t nRange[2][2];
 		MicroProfileThreadLog* pLog = S.pRangeLog;
 
@@ -1680,19 +1681,48 @@ void MicroProfileToolTipMeta(MicroProfileStringArray* pToolTip)
 			{
 				MicroProfileLogEntry LE = pLog->Log[j];
 				int nType = MicroProfileLogType(LE);
-				if(MP_LOG_META == nType)
+				switch(nType)
 				{
-					int64_t nMetaIndex = MicroProfileLogTimerIndex(LE);
-					int64_t nMetaCount = MicroProfileLogGetTick(LE);
-					MP_ASSERT(nMetaIndex < MICROPROFILE_META_MAX);
-					nMetaSum[nMetaIndex] += nMetaCount;
+				case MP_LOG_META:
+					{
+						int64_t nMetaIndex = MicroProfileLogTimerIndex(LE);
+						int64_t nMetaCount = MicroProfileLogGetTick(LE);
+						MP_ASSERT(nMetaIndex < MICROPROFILE_META_MAX);
+						if(nStackDepth>1)
+						{
+							nMetaSumInclusive[nMetaIndex] += nMetaCount;
+						}
+						else
+						{
+							nMetaSum[nMetaIndex] += nMetaCount;
+						}
+					}
+					break;
+				case MP_LOG_LEAVE:
+					if(nStackDepth)
+					{
+						nStackDepth--;
+					}
+					else
+					{
+						for(int i = 0; i < MICROPROFILE_META_MAX; ++i)
+						{
+							nMetaSumInclusive[i] += nMetaSum[i];
+							nMetaSum[i] = 0;
+						}
+					}
+					break;
+				case MP_LOG_ENTER:
+					nStackDepth++;
+					break;
 				}
+
 			}
 		}
 		bool bSpaced = false;
 		for(int i = 0; i < MICROPROFILE_META_MAX; ++i)
 		{
-			if(S.MetaCounters[i].pName && nMetaSum[i])
+			if(S.MetaCounters[i].pName && (nMetaSum[i]||nMetaSumInclusive[i]))
 			{
 				if(!bSpaced)
 				{
@@ -1700,8 +1730,10 @@ void MicroProfileToolTipMeta(MicroProfileStringArray* pToolTip)
 					MicroProfileStringArrayAddLiteral(pToolTip, "");
 					MicroProfileStringArrayAddLiteral(pToolTip, "");					
 				}
-				MicroProfileStringArrayFormat(pToolTip, "%s", S.MetaCounters[i].pName);
+				MicroProfileStringArrayFormat(pToolTip, "%s excl", S.MetaCounters[i].pName);
 				MicroProfileStringArrayFormat(pToolTip, "%5d", nMetaSum[i]);
+				MicroProfileStringArrayFormat(pToolTip, "%s incl", S.MetaCounters[i].pName);
+				MicroProfileStringArrayFormat(pToolTip, "%5d", nMetaSum[i] + nMetaSumInclusive[i]);
 			}
 		}
 	}
