@@ -2231,7 +2231,6 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 						nMaxStackDepth = MicroProfileMax(nMaxStackDepth, nStackPos);
 						float fMsStart = fToMs * MicroProfileLogTickDifference(nBaseTicks, nTickStart);
 						float fMsEnd = fToMs * MicroProfileLogTickDifference(nBaseTicks, nTickEnd);
-						MP_ASSERT(fMsStart <= fMsEnd);
 						float fXStart = fMsStart * fMsToScreen;
 						float fXEnd = fMsEnd * fMsToScreen;
 						float fYStart = (float)(nY + nStackPos * nYDelta);
