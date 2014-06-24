@@ -2627,7 +2627,7 @@ uint32_t MicroProfileDrawBarArray(int32_t nX, int32_t nY, float* pTimers, const 
 				snprintf(sBuffer, SBUF_MAX-1, "%5.2f", pTimers[nIdx]);
 			if (!pTimers2)
 				MicroProfileDrawBox(nX + nTextWidth, nY, nX + nTextWidth + fWidth * pTimers[nIdx+1], nY + nHeight, S.nOpacityForeground|S.TimerInfo[nTimer].nColor, MicroProfileBoxTypeBar);
-			MicroProfileDrawText(nX, nY, (uint32_t)-1, sBuffer, strlen(sBuffer));		
+			MicroProfileDrawText(nX, nY, (uint32_t)-1, sBuffer, (uint32_t)strlen(sBuffer));		
 		});
 	return nWidth + 5 + nTextWidth;
 
