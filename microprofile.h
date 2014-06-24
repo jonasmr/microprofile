@@ -2912,7 +2912,7 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 	if(S.nBars & MP_DRAW_AVERAGE_EXCLUSIVE)		
 		nX += MicroProfileDrawBarArray(nX, nY, pAverageExclusive, "Exclusive Average", nTotalHeight) + 1;
 	if(S.nBars & MP_DRAW_MAX_EXCLUSIVE)		
-		nX += MicroProfileDrawBarArray(nX, nY, pMaxExclusive, "Exclusive Max Time", nTotalHeight) + 1;
+		nX += MicroProfileDrawBarArray(nX, nY, pMaxExclusive, (!S.bShowSpikes) ? "Exclusive Max Time" :"Excl Max Time, Spike", nTotalHeight, S.bShowSpikes ? pAverageExclusive : NULL) + 1;
 
 	for(int i = 0; i < MICROPROFILE_META_MAX; ++i)
 	{
