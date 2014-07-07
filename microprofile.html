@@ -1,0 +1,94 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <style>
+      body {
+        margin: 0px;
+        padding: 0px;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="DetailedView" width="1600" height="1024" border="1" bordercolor="black"></canvas>
+    <script>
+
+		var canvas = document.getElementById('DetailedView');
+		var w = canvas.width;
+		var h = canvas.height;
+		var xs = [];
+		var ys = []
+		for(var i = 0; i < 1000; ++i)
+		{
+			xs.push(Math.random()*w);
+			ys.push(Math.random()*h);
+		}
+
+
+		function DrawDetailed(x, y)
+		{
+			var start = new Date();
+
+			var canvas = document.getElementById('DetailedView');
+			var context = canvas.getContext('2d');
+			context.clearRect(0, 0, canvas.width, canvas.height);
+
+			var colors = [ '#ff0000', '#ff00ff', '#ffff00'];
+			context.font = '8pt Courier';
+			for(var i = 0; i < 1000; ++i)
+			{
+				context.fillStyle = colors[i%colors.length];
+				var xpos = xs[i]-x + w * 0.5;
+				var ypos = ys[i]-y + h * 0.5;
+				context.fillRect(xpos, ypos, 100, 10);  
+				context.fillStyle = 'black';
+				context.fillText('lillehest', xpos, ypos+8);
+			}
+			var end = new Date();
+			var time = end - start;
+			var timeTaken = 'TIME ' + time + 'ms ' + x + ':' + y;
+			context.fillStyle = 'black';
+			context.font = 'italic 40pt Calibri';
+			context.fillText(timeTaken, 100, 100);
+		}
+
+		function getMousePos(canvas, evt) {
+			var rect = canvas.getBoundingClientRect();
+			return {
+				x: evt.clientX - rect.left,
+				y: evt.clientY - rect.top
+			};
+		}
+
+	   function resizeCanvas() {
+            w = canvas.width = window.innerWidth;
+            DrawDetailed(0,0);
+
+    	}
+
+
+		canvas.addEventListener('mousemove', function(evt) {
+	        var mousePos = getMousePos(canvas, evt);
+	        DrawDetailed(mousePos.x, mousePos.y);
+		}, false);
+
+		window.addEventListener('resize', resizeCanvas, false);
+
+
+
+    	resizeCanvas();
+
+
+
+
+
+
+
+
+
+
+
+
+
+    </script>
+  </body>
+</html>      
