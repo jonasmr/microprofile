@@ -2856,6 +2856,7 @@ void MicroProfileDumpState()
 void MicroProfileDumpStateInternal()
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+	printf("dumping stuff\n");
 
 	FILE* F = fopen("../dump.txt", "w");
 
@@ -2872,25 +2873,53 @@ void MicroProfileDumpStateInternal()
 	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
 	{
 		MP_ASSERT(i == S.TimerInfo[i].nTimerIndex);
-		fprintf(F, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, %d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, S.TimerInfo[i].nColor);
+		fprintf(F, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x');\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
+		(S.TimerInfo[i].nColor>>16) & 0xff,
+		(S.TimerInfo[i].nColor>>8) & 0xff,
+		S.TimerInfo[i].nColor & 0xff
+		);
 	}
+
+//		S.Pool[S.nNumLogs++] = pLog;	
+
+	fprintf(F, "\nvar ThreadNames = [");
+	for(uint32_t i = 0; i < S.nNumLogs; ++i)
+	{
+		if(S.Pool[i])
+		{
+			fprintf(F, "'%s',", S.Pool[i]->ThreadName);
+
+		}
+		else
+		{
+			fprintf(F, "'Thread %d',", i);
+		}
+	}
+	fprintf(F, "];\n\n");
+
 
 
 
 	uint32_t nNumFrames = (MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY - 1);
 	if(S.nFrameCurrentIndex < nNumFrames)
 		nNumFrames = S.nFrameCurrentIndex;
+	if(nNumFrames > 20) 
+	{
+		nNumFrames = 20;
+	}
 	uint32_t nFirstFrame = (S.nFrameCurrent + MICROPROFILE_MAX_FRAME_HISTORY - nNumFrames) % MICROPROFILE_MAX_FRAME_HISTORY;
 	uint32_t nFirstFrameIndex = S.nFrameCurrentIndex - nNumFrames;
+	int64_t nTickStart = S.Frames[nFirstFrame].nFrameStartCpu;
+	int64_t nTickStartGpu = S.Frames[nFirstFrame].nFrameStartGpu;
 
-	fprintf(F, "var Frames = Array(%d)", nNumFrames);
+
+
+	fprintf(F, "var Frames = Array(%d);\n", nNumFrames);
 	for(uint32_t i = 0; i < nNumFrames; ++i)
 	{
 		uint32_t nFrameIndex = (nFirstFrame + i) % MICROPROFILE_MAX_FRAME_HISTORY;
 		uint32_t nFrameIndexNext = (nFrameIndex + 1) % MICROPROFILE_MAX_FRAME_HISTORY;
 
-		int64_t nTickStart = S.Frames[nFrameIndex].nFrameStartCpu;
-		int64_t nTickStartGpu = S.Frames[nFrameIndex].nFrameStartGpu;
 		for(uint32_t j = 0; j < S.nNumLogs; ++j)
 		{
 			MicroProfileThreadLog* pLog = S.Pool[j];
@@ -2899,27 +2928,53 @@ void MicroProfileDumpStateInternal()
 			uint32_t nLogEnd = S.Frames[nFrameIndexNext].nLogStart[j];
 
 			float fToMs = MicroProfileTickToMsMultiplier(pLog->nGpu ? MicroProfileTicksPerSecondGpu() : MicroProfileTicksPerSecondCpu());
-			fprintf(F, "var ts_%d_%d = [\n", i, j);
-			for(uint32_t k = nLogStart; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
+			fprintf(F, "var ts_%d_%d = [", i, j);
+			if(nLogStart != nLogEnd)
 			{
-				if(i && 0 == i % 20)
+				uint32_t k = nLogStart;
+				uint32_t nLogType = MicroProfileLogType(pLog->Log[k]);
+				//uint64_t nDiff = MicroProfileLogTickDifference(nStartTick, pLog->Log[k]);
+				float fTime = nLogType == MP_LOG_META ? 0.f : MicroProfileLogTickDifference(nStartTick, pLog->Log[k]) * fToMs;
+				MP_ASSERT(fTime < 10000.f);
+				fprintf(F, "%f", fTime);
+				//fprintf(F, "%d", MicroProfileLogType(pLog->Log[k]));
+				for(k = (k+1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 				{
-					fprintf(F,"\n");
-				}
-				fprintf(F, "%f,", MicroProfileLogTickDifference(nStartTick, pLog->Log[k]) * fToMs);
-			}
-			fprintf(F, "]\n");
+					uint32_t nLogType = MicroProfileLogType(pLog->Log[k]);
+				//	uint64_t nDiff = MicroProfileLogTickDifference(nStartTick, pLog->Log[k]);
+					float fTime = nLogType == MP_LOG_META ? 0.f : MicroProfileLogTickDifference(nStartTick, pLog->Log[k]) * fToMs;
+					MP_ASSERT(fTime < 10000.f);
+					MP_ASSERT(fTime >= 0.f);
 
-			fprintf(F, "var tt_%d_%d = [\n", i, j);
-			for(uint32_t k = nLogStart; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
-			{
-				if(i && 0 == i % 20)
-				{
-					fprintf(F,"\n");
+					fprintf(F, ",%f", fTime);
 				}
-				fprintf(F, "%d,", MicroProfileLogType(pLog->Log[k]));
 			}
-			fprintf(F, "]\n");
+			fprintf(F, "];\n");
+
+			fprintf(F, "var tt_%d_%d = [", i, j);
+			if(nLogStart != nLogEnd)
+			{
+				uint32_t k = nLogStart;
+				fprintf(F, "%d", MicroProfileLogType(pLog->Log[k]));
+				for(k = (k+1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
+				{
+					fprintf(F, ",%d", MicroProfileLogType(pLog->Log[k]));
+				}
+			}
+			fprintf(F, "];\n");
+
+			fprintf(F, "var ti_%d_%d = [", i, j);
+			if(nLogStart != nLogEnd)
+			{
+				uint32_t k = nLogStart;
+				fprintf(F, "%d", (uint32_t)MicroProfileLogTimerIndex(pLog->Log[k]));
+				for(k = (k+1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
+				{
+					fprintf(F, ",%d", (uint32_t)MicroProfileLogTimerIndex(pLog->Log[k]));
+				}
+			}
+			fprintf(F, "];\n");
+
 		}
 
 		fprintf(F, "var ts%d = [", i);
@@ -2927,15 +2982,30 @@ void MicroProfileDumpStateInternal()
 		{
 			fprintf(F, "ts_%d_%d,", i, j);
 		}
-		fprintf(F, "]\n");
+		fprintf(F, "];\n");
 		fprintf(F, "var tt%d = [", i);
 		for(uint32_t j = 0; j < S.nNumLogs; ++j)
 		{
 			fprintf(F, "tt_%d_%d,", i, j);
 		}
-		fprintf(F, "]\n");
+		fprintf(F, "];\n");
 
-		fprintf(F, "Frames[%d] = MakeFrame(%d, ts%d, tt%d);\n", i, nFirstFrameIndex, i, i);
+		fprintf(F, "var ti%d = [", i);
+		for(uint32_t j = 0; j < S.nNumLogs; ++j)
+		{
+			fprintf(F, "ti_%d_%d,", i, j);
+		}
+		fprintf(F, "];\n");
+
+
+		int64_t nFrameStart = S.Frames[nFrameIndex].nFrameStartCpu;
+		int64_t nFrameEnd = S.Frames[nFrameIndexNext].nFrameStartCpu;
+
+		float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+		float fFrameMs = MicroProfileLogTickDifference(nTickStart, nFrameStart) * fToMs;
+		float fFrameEndMs = MicroProfileLogTickDifference(nTickStart, nFrameEnd) * fToMs;
+
+		fprintf(F, "Frames[%d] = MakeFrame(%d, %f, %f, ts%d, tt%d, ti%d);\n", i, nFirstFrameIndex, fFrameMs,fFrameEndMs, i, i, i);
 	}
 
 	// int64_t nTickStart = S.Frames[S.nFrameCurrent].nFrameStartCpu;
