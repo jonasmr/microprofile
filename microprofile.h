@@ -2903,9 +2903,9 @@ void MicroProfileDumpStateInternal()
 	uint32_t nNumFrames = (MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY - 1);
 	if(S.nFrameCurrentIndex < nNumFrames)
 		nNumFrames = S.nFrameCurrentIndex;
-	if(nNumFrames > 20) 
+	if(nNumFrames > 50) 
 	{
-		nNumFrames = 20;
+		nNumFrames = 50;
 	}
 	uint32_t nFirstFrame = (S.nFrameCurrent + MICROPROFILE_MAX_FRAME_HISTORY - nNumFrames) % MICROPROFILE_MAX_FRAME_HISTORY;
 	uint32_t nFirstFrameIndex = S.nFrameCurrentIndex - nNumFrames;
