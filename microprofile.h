@@ -522,6 +522,7 @@ struct MicroProfileTimerInfo
 	const char* pName;
 	uint32_t nNameLen;
 	uint32_t nColor;
+	bool bGraph;
 };
 
 struct MicroProfileGraphState
@@ -2662,13 +2663,16 @@ uint32_t MicroProfileDrawBarMetaCount(int32_t nX, int32_t nY, uint64_t* pCounter
 	return 5 + nTextWidth;
 }
 
-
 uint32_t MicroProfileDrawBarLegend(int32_t nX, int32_t nY, uint32_t nTotalHeight)
 {
 	MicroProfileDrawLineVertical(nX-5, nY, nTotalHeight, S.nOpacityBackground | g_nMicroProfileBackColors[0]|g_nMicroProfileBackColors[1]);
 	MicroProfileLoopActiveGroupsDraw(nX, nY, 0, 
 		[](uint32_t nTimer, uint32_t nIdx, uint64_t nGroupMask, uint32_t nX, uint32_t nY){
-			MicroProfileDrawText(nX, nY, S.TimerInfo[nTimer].nColor, S.TimerInfo[nTimer].pName, (uint32_t)strlen(S.TimerInfo[nTimer].pName));
+			if (S.TimerInfo[nTimer].bGraph)
+			{
+				MicroProfileDrawText(nX, nY, S.TimerInfo[nTimer].nColor, ">", 1);
+			}
+			MicroProfileDrawText(nX + (MICROPROFILE_TEXT_WIDTH+1), nY, S.TimerInfo[nTimer].nColor, S.TimerInfo[nTimer].pName, (uint32_t)strlen(S.TimerInfo[nTimer].pName));
 			if(S.nMouseY >= nY && S.nMouseY < nY + MICROPROFILE_TEXT_HEIGHT+1  && S.nMouseX < nX + 20 * (MICROPROFILE_TEXT_WIDTH+1))
 			{
 				S.nHoverToken = nTimer;
@@ -3690,6 +3694,7 @@ void MicroProfileSetState(MicroProfileState* pStateOut)
 
 void MicroProfileToggleGraph(MicroProfileToken nToken)
 {
+	uint32_t nTimerId = MicroProfileGetTimerIndex(nToken);
 	nToken &= 0xffff;
 	int32_t nMinSort = 0x7fffffff;
 	int32_t nFreeIndex = -1;
@@ -3702,6 +3707,7 @@ void MicroProfileToggleGraph(MicroProfileToken nToken)
 		if(S.Graph[i].nToken == nToken)
 		{
 			S.Graph[i].nToken = MICROPROFILE_INVALID_TOKEN;
+			S.TimerInfo[nTimerId].bGraph = false;
 			return;
 		}
 		if(S.Graph[i].nKey < nMinSort)
@@ -3715,9 +3721,15 @@ void MicroProfileToggleGraph(MicroProfileToken nToken)
 		}
 	}
 	int nIndex = nFreeIndex > -1 ? nFreeIndex : nMinIndex;
+	if (nFreeIndex == -1)
+	{
+		uint32_t idx = MicroProfileGetTimerIndex(S.Graph[nIndex].nToken);
+		S.TimerInfo[idx].bGraph = false;
+	}
 	S.Graph[nIndex].nToken = nToken;
 	S.Graph[nIndex].nKey = nMaxSort+1;
 	memset(&S.Graph[nIndex].nHistory[0], 0, sizeof(S.Graph[nIndex].nHistory));
+	S.TimerInfo[nTimerId].bGraph = true;
 }
 void MicroProfileMouseButton(uint32_t nLeft, uint32_t nRight)
 {
@@ -3933,7 +3945,8 @@ void MicroProfileLoadPreset(const char* pSuffix)
 				if(0 == MP_STRCASECMP(pGraphName, S.TimerInfo[j].pName) && 0 == MP_STRCASECMP(pGraphGroupName, S.GroupInfo[nGroupIndex].pName))
 				{
 					MicroProfileToken nToken = MicroProfileMakeToken(1ll << nGroupIndex, (uint16_t)j);
-					S.Graph[i].nToken = nToken;
+					S.Graph[i].nToken = nToken;			// note: group index is stored here but is checked without in MicroProfileToggleGraph()!
+					S.TimerInfo[j].bGraph = true;
 					if(nToken != nPrevToken)
 					{
 						memset(&S.Graph[i].nHistory, 0, sizeof(S.Graph[i].nHistory));
