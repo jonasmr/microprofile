@@ -1968,6 +1968,9 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
 		var FRAME_HISTORY_COLOR_GPU = '#ffff00';
         var ZOOM_TIME = 0.5;
         var AnimationActive = false;
+        var nHoverToken = -1;
+        var nHoverCounter = 0;
+        var nHoverCounterDelta = 8;
 
 		var fFrameScale = 33.33;
 		var fRangeBegin = 0;
@@ -2012,9 +2015,6 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
 				fX += fWidth;
 			}
 
-
-			//MicroProfileDrawDetailed();
-
 		}
 
 		function MicroProfileDrawDetailed(Animation)
@@ -2033,6 +2033,19 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
 
 			var fScaleX = nWidth / fDetailedRange; 
 			var fOffsetY = -nOffsetY;
+            var nHoverTokenNext = -1;
+            nHoverCounter += nHoverCounterDelta;
+            if(nHoverCounter >= 255) 
+            {
+                nHoverCounter = 255;
+                nHoverCounterDelta = -nHoverCounterDelta;
+            }
+            if(nHoverCounter < 128) 
+            {
+                nHoverCounter = 128;
+                nHoverCounterDelta = -nHoverCounterDelta;
+            }
+            var nHoverColor = '#' + nHoverCounter.toString(16) +'00' +(127+255-nHoverCounter).toString(16);
 
             context.fillStyle = 'black';
             context.font = Font;
@@ -2086,8 +2099,17 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
 								var X = (timestart - fDetailedOffset) * fScaleX;
 								var Y = fOffsetY + StackPos * BoxHeight;
 								var W = (timeend-timestart)*fScaleX;
-								context.fillStyle = TimerInfo[index].color;
-								context.fillRect(X, Y, W, BoxHeight-1);
+                                if(index == nHoverToken)
+                                {
+                                    context.fillStyle = nHoverColor;
+                                    context.fillRect(X, Y, W, BoxHeight-1);
+                                }
+                                else
+                                {
+                                    context.fillStyle = TimerInfo[index].color;
+                                    context.fillRect(X, Y, W, BoxHeight-1);
+                                }
+
 								var name = TimerInfo[index].name;
 								var len = TimerInfo[index].len;
 								var sublen = Math.floor(W/7);
@@ -2104,6 +2126,7 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
                                 {
                                     fRangeBegin = timestart;
                                     fRangeEnd = timeend;
+                                    nHoverTokenNext = index;
 
                                 }
 
@@ -2140,28 +2163,7 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
                 context.fillText('' + fRangeEnd, X + W, 9);
             }
 
-
-			// {
-			// 	if(fRangeBegin < fRangeEnd)
-			// 	{
-			// 		var X = (fRangeBegin - fDetailedOffset) * fScaleX;
-			// 		var Y = 0;
-			// 		var W = (fRangeEnd - fRangeBegin) * fScaleX;
-			// 		context.globalAlpha = 0.3;
-			// 		context.fillStyle = '#009900';
-			// 		context.fillRect(X, Y, W, nHeight);
-			// 		context.globalAlpha = 1;
-			// 		context.strokeStyle = '#00ff00';
-			// 		context.beginPath();
-			// 		context.moveTo(X, Y);
-			// 		context.lineTo(X, Y+nHeight);
-			// 		context.moveTo(X+W, Y);
-			// 		context.lineTo(X+W, Y+nHeight);
-			// 		context.stroke();
-
-			// 	}
-
-			// }
+            nHoverToken = nHoverTokenNext;
 
 
 			var end = new Date();
@@ -2169,7 +2171,7 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
 			var timeTaken = 'TIME ' + time + 'ms ';
 			context.fillStyle = 'black';
 			context.font = 'italic 40pt Calibri';
-			context.fillText(timeTaken+" " + nDrawCount + "..." + g_MSG, 100, 100);
+			context.fillText(timeTaken+" " + nDrawCount + "..." + g_MSG + '..' + nHoverColor, 100, 100);
 			g_MSG = '';
 		}
 		function MicroProfileMoveGraph(X, Y)
@@ -2186,6 +2188,7 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
 		}
         function MicroProfileZoomTo(fZoomBegin, fZoomEnd)
         {
+        	//return;
             if(fZoomBegin < fZoomEnd)
             {
                 var requestAnimationFrame = 
@@ -2224,8 +2227,18 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
                 }
                 requestAnimationFrame(ZoomFunc);
             }
-
         }
+
+        function MicroProfileStartDrawing(Timestamp)
+        {
+            if(!AnimationActive)
+            {
+                MicroProfileDrawDetailed(false);
+            }
+			requestAnimationFrame(MicroProfileStartDrawing);
+        }
+
+
 		function MicroProfileZoomGraph(nZoom)
 		{
 			var fOldRange = fDetailedRange;
@@ -2379,6 +2392,9 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
 
         ResizeCanvas();
     	MicroProfileDrawDetailedFrameHistory();
+
+        MicroProfileStartDrawing();
+
     	//mousewheel
     	//zoom
     	//mouse over range
