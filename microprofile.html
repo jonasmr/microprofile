@@ -8,10 +8,21 @@
       }
     </style>
   </head>
-  <body>
+  <body style="background-color:#474747;">
     <canvas id="History" width="100%" height="70" style="background-color:#474747;"></canvas>
     <canvas id="DetailedView" width="100%" height="1024"></canvas>
     <script>
+    function InvertColor(hexTripletColor) {
+        var color = hexTripletColor;
+        color = color.substring(1); // remove #
+        color = parseInt(color, 16); // convert to integer
+        color = 0xFFFFFF ^ color; // invert three bytes
+        color = color.toString(16); // convert to hex
+        color = ("000000" + color).slice(-6); // pad with leading zeros
+        color = "#" + color; // prepend #
+//        return 
+        return color;
+    }
 
     function MakeGroup(id, name, numtimers, isgpu)
     {
@@ -19,10 +30,11 @@
     	return group;
     }
 
-    function MakeTimer(id, name, numtimers, color)
+    function MakeTimer(id, name, group, color, timer)
     {
-    	var group = {"id":id, "name":name, "len":name.length, "numtimers":numtimers, "color":color};
-    	return group;
+        console.log("group is " + group);
+    	var timer = {"id":id, "name":name, "len":name.length, "color":color, "textcolor":InvertColor(color), "group":group};
+    	return timer;
     }
     function MakeFrame(id, framestart, frameend, ts, tt, ti)
     {
@@ -1958,8 +1970,8 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
         var HistoryViewMouseY = -1;
         var MouseHistory = 0;
         var MouseDetailed = 0;
-        var BoxHeight = 10;
-        var Font = '8pt courier new';
+        var BoxHeight = 11;
+        var Font = '10px courier';
 		var nModDown = 0;
 		var g_MSG = 'no';
 		var nDrawCount = 0;
@@ -1975,9 +1987,107 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
 		var fFrameScale = 33.33;
 		var fRangeBegin = 0;
 		var fRangeEnd = -1;
-// #define MICROPROFILE_FRAME_HISTORY_COLOR_CPU 0xffff7f27 //255 127 39
-// #define MICROPROFILE_FRAME_HISTORY_COLOR_GPU 0xff37a0ee //55 160 238
 
+        var totalpreparez = 0;
+
+
+
+        function MicroProfileCalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast)
+        {
+            //var Result = new Object();
+            if(!nFrameFirst || nFrameFirst < 0)
+                nFrameFirst = 0;
+            if(!nFrameLast || nFrameLast > Frames.length)
+                nFrameLast = Frames.length;
+            var FrameCount = nFrameLast - nFrameFirst;
+            if(0 == FrameCount)
+                return;
+            var CallCount = 0;
+            var Sum = 0;
+            var Max = 0;
+            var FrameMax = 0;
+
+            var nNumLogs = Frames[0].ts.length;
+            var StackPosArray = Array(nNumLogs);
+            var StackArray = Array(nNumLogs);
+            for(var i = 0; i < nNumLogs; ++i)
+            {
+                StackPosArray[i] = 0;
+                StackArray[i] = Array(20);
+            }
+
+            for(var i = nFrameFirst; i < nFrameLast; i++)
+            {
+                var FrameSum = 0;
+                var fr = Frames[i];
+                for(nLog = 0; nLog < nNumLogs; nLog++)
+                {
+                    var StackPos = StackPosArray[nLog];
+                    var Stack = StackArray[nLog];
+                    var ts = fr.ts[nLog];
+                    var ti = fr.ti[nLog];
+                    var tt = fr.tt[nLog];
+                    var count = ts.length;
+                    for(j = 0; j < count; j++)
+                    {
+                        var type = tt[j];
+                        var index = ti[j];
+                        var time = ts[j];
+                        if(type == 2) //enter
+                        {
+                            //push
+                            Stack[StackPos] = time;
+                            if(StackArray[nLog][StackPos] != time)
+                            {
+                                console.log('fail fail fail');
+                            }
+                            StackPos++;
+                        }
+                        else if(type == 1) // meta
+                        {
+                        }
+                        else if(type == 0) // leave
+                        {
+                            var timestart;
+                            var timeend = time;
+                            if(StackPos>0)
+                            {
+                                StackPos--;
+                                timestart = Stack[StackPos];
+                            }
+                            else
+                            {
+                                timestart = Frames[nFrameFirst].framestart;
+                            }
+                            if(index == TimerIndex)
+                            {
+                                var TimeDelta = timeend - timestart;
+                                CallCount++;
+                                FrameSum += TimeDelta;
+                                Sum += TimeDelta;
+                                if(TimeDelta > Max)
+                                    Max = TimeDelta;
+                            }
+                        }
+                    }
+                    if(FrameSum > FrameMax)
+                    {
+                        FrameMax = FrameSum;
+                    }
+                    StackPosArray[nLog] = StackPos;
+                }
+            }
+
+            Result.CallCount = CallCount;
+            Result.Sum = Sum.toFixed(3);
+            Result.Max = Max.toFixed(3);
+            Result.Average = (Sum / CallCount).toFixed(3);
+            Result.FrameAverage = (Sum / FrameCount).toFixed(3);
+            Result.FrameCallAverage = (CallCount / FrameCount).toFixed(3);
+            Result.FrameMax = FrameMax.toFixed(3);
+            return Result;
+
+        } 
 
 		function MicroProfileDrawDetailedFrameHistory()
 		{
@@ -2017,6 +2127,80 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
 
 		}
 
+        function MicroProfileDrawDetailedBackground()
+        {
+        	var context = CanvasDetailedView.getContext('2d');
+            var fMs = fDetailedRange;
+            var fMsEnd = fMs + fDetailedOffset;
+            var fMsToScreen = nWidth / fMs;
+            var fRate = Math.floor(2*((Math.log(fMs)/Math.log(10))-1))/2;
+            var fStep = Math.pow(10, fRate);
+            var fRcpStep = 1.0 / fStep;
+            var nColorIndex = Math.floor(fDetailedOffset * fRcpStep) % 2;
+            if(nColorIndex < 0)
+            	nColorIndex =-nColorIndex;
+            var fStart = Math.floor(fDetailedOffset * fRcpStep) * fStep;
+            var fHeight = CanvasDetailedView.height;
+            var fScaleX = nWidth / fDetailedRange; 
+            for(f = fStart; f < fMsEnd; )
+            {
+                var fNext = f + fStep;
+				var X = (f - fDetailedOffset) * fScaleX;
+				var W = (fNext-f)*fScaleX;
+                context.fillStyle = nMicroProfileBackColors[nColorIndex];
+                context.fillRect(X, 0, W+2, fHeight);
+                nColorIndex = 1 - nColorIndex;
+                f = fNext;
+            }
+
+        }
+        function MicroProfileDrawToolTip(StringArray, context, x, y)
+        {
+			var WidthArray = Array(StringArray.length);
+        	var nMaxWidth = 0;
+        	var nHeight = 0;
+        	for(i = 0; i < StringArray.length; i += 2)
+        	{
+        		var nWidth0 = context.measureText(StringArray[i]).width;
+        		var nWidth1 = context.measureText(StringArray[i+1]).width;
+        		var nSum = nWidth0 + nWidth1;
+        		WidthArray[i] = nWidth0;
+        		WidthArray[i+1] = nWidth1;
+        		if(nSum > nMaxWidth)
+        		{
+        			nMaxWidth = nSum;
+        		}
+        		nHeight += BoxHeight;
+        	}
+        	nMaxWidth += 15;
+            //bounds check.
+            var CanvasRect = CanvasDetailedView.getBoundingClientRect();
+            if(y + nHeight > window.innerHeight - CanvasRect.top)
+            {
+                y = window.innerHeight - CanvasRect.top - nHeight;
+                x += 20;
+            }
+            if(x + nMaxWidth > CanvasRect.left + window.innerWidth)
+            {
+                x = window.innerWidth - CanvasRect.left- nMaxWidth;
+            }
+
+            context.fillStyle = 'black';
+            context.fillRect(x, y, nMaxWidth, nHeight);
+            context.fillStyle = 'white';
+
+
+        	var XPos = x;
+        	var XPosRight = x + nMaxWidth;
+        	var YPos = y + BoxHeight-2;
+        	for(i = 0; i < StringArray.length; i += 2)
+        	{
+        		context.fillText(StringArray[i], XPos, YPos);
+        		context.fillText(StringArray[i+1], XPosRight - WidthArray[i+1], YPos);
+        		YPos += BoxHeight;
+        	}
+        }
+
 		function MicroProfileDrawDetailed(Animation)
 		{
             if(AnimationActive != Animation)
@@ -2028,6 +2212,8 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
 
 			var context = CanvasDetailedView.getContext('2d');
 			context.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
+
+            MicroProfileDrawDetailedBackground();
 
 			var colors = [ '#ff0000', '#ff00ff', '#ffff00'];
 
@@ -2045,7 +2231,9 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
                 nHoverCounter = 128;
                 nHoverCounterDelta = -nHoverCounterDelta;
             }
-            var nHoverColor = '#' + nHoverCounter.toString(16) +'00' +(127+255-nHoverCounter).toString(16);
+            var nHoverHigh = nHoverCounter.toString(16);
+            var nHoverLow = (127+255-nHoverCounter).toString(16);
+            var nHoverColor = '#' + nHoverHigh + nHoverHigh + nHoverHigh;
 
             context.fillStyle = 'black';
             context.font = Font;
@@ -2054,7 +2242,7 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
 			var nNumLogs = Frames[0].ts.length;
 			for(nLog = 0; nLog < nNumLogs; nLog++)
 			{
-                context.fillStyle = 'black';
+                context.fillStyle = 'white';
 				context.fillText(ThreadNames[nLog], 0, fOffsetY);
 				fOffsetY += BoxHeight;
 
@@ -2062,7 +2250,7 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
 				var StackPos = 0;
 				var Stack = Array(20);
 
-				for(i = 0; i < Frames.length; i++)
+				for(var i = 0; i < Frames.length; i++)
 				{
 					var frfr = Frames[i];
 					if(frfr.frameend < fDetailedOffset || frfr.framestart > fDetailedOffset + fDetailedRange)
@@ -2117,26 +2305,36 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
 								{
 									if(sublen < len)
 										name = name.substr(0, sublen);
-									context.fillStyle = 'black';
-									context.fillText(name, Math.floor(X+1), Math.floor(Y+7));
-									context.fillStyle = 'white';
-									context.fillText(name, Math.floor(X), Math.floor(Y+8));
+									context.fillStyle = InvertColor(TimerInfo[index].color);//'black';
+									// context.fillText(name, Math.floor(X+1), Math.floor(Y+7));
+									// context.fillStyle = 'white';
+									context.fillText(name, Math.floor(X), Math.floor(Y+BoxHeight-2));
 								}
                                 if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
                                 {
                                     fRangeBegin = timestart;
                                     fRangeEnd = timeend;
                                     nHoverTokenNext = index;
+                                    nHoverFrame = i;
 
                                 }
-
-
 							}
 						}
 					}
 				}
-				fOffsetY += (1+MaxDepth) * 10;
+				fOffsetY += (1+MaxDepth) * BoxHeight;
 			}
+            if(MouseDrag || MouseZoom)
+            {
+                nHoverToken = -1;
+                fRangeBegin = fRangeEnd = -1;
+            }
+            else
+            {
+                nHoverToken = nHoverTokenNext;
+            }
+
+
 
             if(fRangeBegin < fRangeEnd)
             {
@@ -2156,22 +2354,71 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
                 context.stroke();
                 var tRangeBeginWidth = context.measureText('' + fRangeBegin).width;
 
-                context.fillStyle = 'black';
-                // context.fillText('' + fRangeBegin, X - tRangeBeginWidth+1, 7);
-                // context.fillStyle = 'white';
+                context.fillStyle = 'white';
                 context.fillText('' + fRangeBegin, X - tRangeBeginWidth-2, 9);
                 context.fillText('' + fRangeEnd, X + W, 9);
             }
 
-            nHoverToken = nHoverTokenNext;
+            if(nHoverToken != -1)
+            {
+            	var StringArray = [];
+            	var groupid = TimerInfo[nHoverToken].group;
+        		StringArray.push(GroupInfo[groupid].name);
+            	StringArray.push(TimerInfo[nHoverToken].name);
+            	StringArray.push("");
+            	StringArray.push("");
+            	StringArray.push("Time");
+            	StringArray.push((fRangeEnd-fRangeBegin).toFixed(3));
+                StringArray.push("");
+                StringArray.push("");
+                StringArray.push("Total");
+                StringArray.push("" + TimerInfo[nHoverToken].Sum);
+                StringArray.push("Max");
+                StringArray.push("" + TimerInfo[nHoverToken].Max);
+                StringArray.push("Average");
+                StringArray.push("" + TimerInfo[nHoverToken].Average);
+                StringArray.push("Count");
+                StringArray.push("" + TimerInfo[nHoverToken].CallCount);
+
+                StringArray.push("");
+                StringArray.push("");
+ 
+                StringArray.push("Max/Frame");
+                StringArray.push("" + TimerInfo[nHoverToken].FrameMax);
+
+                StringArray.push("Average Time/Frame");
+                StringArray.push("" + TimerInfo[nHoverToken].FrameAverage);
+
+                StringArray.push("Average Count/Frame");
+                StringArray.push("" + TimerInfo[nHoverToken].FrameCallAverage);
+                StringArray.push("");
+                StringArray.push("");
+
+                StringArray.push("Frame " + nHoverFrame);
+                StringArray.push("");
+            
+                var FrameTime = new Object();
+                MicroProfileCalculateTimers(FrameTime, nHoverToken, nHoverFrame, nHoverFrame+1);
+                StringArray.push("Total");
+                StringArray.push("" + FrameTime.Sum);
+                StringArray.push("Count");
+                StringArray.push("" + FrameTime.CallCount);
+                StringArray.push("Average");
+                StringArray.push("" + FrameTime.Average);
+                StringArray.push("Max");
+                StringArray.push("" + FrameTime.Max);
+            	MicroProfileDrawToolTip(StringArray, context, DetailedViewMouseX, DetailedViewMouseY+20);
+
+            }
+
 
 
 			var end = new Date();
 			var time = end - start;
 			var timeTaken = 'TIME ' + time + 'ms ';
-			context.fillStyle = 'black';
-			context.font = 'italic 40pt Calibri';
-			context.fillText(timeTaken+" " + nDrawCount + "..." + g_MSG + '..' + nHoverColor, 100, 100);
+			context.fillStyle = 'white';
+			context.font = 'italic 12pt Calibri';
+			context.fillText(timeTaken+" " + nDrawCount + "..." + g_MSG, 20, 20);
 			g_MSG = '';
 		}
 		function MicroProfileMoveGraph(X, Y)
@@ -2231,7 +2478,7 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
 
         function MicroProfileStartDrawing(Timestamp)
         {
-            if(!AnimationActive)
+            if(nHoverToken != -1 && !MouseZoom && !MouseDrag)
             {
                 MicroProfileDrawDetailed(false);
             }
@@ -2347,6 +2594,8 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
     	{
     		MouseZoom = 0;
     		MouseDrag = 0;
+            nHoverToken = -1;
+            fRangeBegin = fRangeEnd = -1;
     	}
 
     	function KeyUp(evt)
@@ -2380,9 +2629,13 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
 		CanvasDetailedView.addEventListener('mousemove', MouseMove, false);
 		CanvasDetailedView.addEventListener('mousedown', function(evt) { MouseButton(true, evt); });
 		CanvasDetailedView.addEventListener('mouseup', function(evt) { MouseButton(false, evt); } );
+        CanvasDetailedView.addEventListener('mouseout', MouseOut);
 		CanvasHistory.addEventListener('mousemove', MouseMove);
         CanvasHistory.addEventListener('mousedown', function(evt) { MouseButton(true, evt); });
         CanvasHistory.addEventListener('mouseup', function(evt) { MouseButton(false, evt); } );
+        CanvasHistory.addEventListener('mouseout', MouseOut);
+        
+
 
 		
         window.addEventListener('keydown', KeyDown);
@@ -2390,9 +2643,39 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
 		window.addEventListener('resize', ResizeCanvas, false);
     	
 
-        ResizeCanvas();
-    	MicroProfileDrawDetailedFrameHistory();
+        var start = new Date();
+        console.log("len is " + TimerInfo.length);
+        for(var i = 0; i < TimerInfo.length; i++)
+        {
+            var v = MicroProfileCalculateTimers(TimerInfo[i], i);
 
+        }
+
+            var end = new Date();
+            var time = end - start;
+            var timeTaken = 'TIME ' + time + 'ms ';
+        console.log('setup :: ' + timeTaken);
+
+        var f = Array(20);
+        f[0] = Array(20);
+        var b = f[0];
+        b[0] = 42;
+        if(f[0][0] == 42)
+        {
+            console.log('ITS OK');
+        }
+        else
+        {
+            console.log('ITS NOT OK');
+
+        }
+        ResizeCanvas();
+
+
+
+                // function MicroProfileCalculateTimers(Out, TimerIndex, nFrameFirst, nFrameLast)
+
+    	MicroProfileDrawDetailedFrameHistory();
         MicroProfileStartDrawing();
 
     	//mousewheel
