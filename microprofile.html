@@ -1988,6 +1988,9 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
 		var fRangeBegin = 0;
 		var fRangeEnd = -1;
 
+        var DebugDrawQuadCount = 0;
+        var DebugDrawTextCount = 0;
+
         var totalpreparez = 0;
 
 
@@ -2207,6 +2210,10 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
             {
                 return;
             }
+            DebugDrawQuadCount = 0;
+            DebugDrawTextCount = 0;
+
+
 			var start = new Date();
 			nDrawCount++;
 
@@ -2297,6 +2304,7 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
                                     context.fillStyle = TimerInfo[index].color;
                                     context.fillRect(X, Y, W, BoxHeight-1);
                                 }
+                                DebugDrawQuadCount++;
 
 								var name = TimerInfo[index].name;
 								var len = TimerInfo[index].len;
@@ -2306,9 +2314,8 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
 									if(sublen < len)
 										name = name.substr(0, sublen);
 									context.fillStyle = InvertColor(TimerInfo[index].color);//'black';
-									// context.fillText(name, Math.floor(X+1), Math.floor(Y+7));
-									// context.fillStyle = 'white';
 									context.fillText(name, Math.floor(X), Math.floor(Y+BoxHeight-2));
+                                    DebugDrawTextCount++;
 								}
                                 if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
                                 {
@@ -2418,7 +2425,7 @@ Frames[49] = MakeFrame(184, 820.187134, 836.924622, ts49, tt49, ti49);
 			var timeTaken = 'TIME ' + time + 'ms ';
 			context.fillStyle = 'white';
 			context.font = 'italic 12pt Calibri';
-			context.fillText(timeTaken+" " + nDrawCount + "..." + g_MSG, 20, 20);
+			context.fillText(timeTaken+" " + nDrawCount + "..." + g_MSG + " Q:" + DebugDrawQuadCount + " T:" + DebugDrawTextCount, 20, 20);
 			g_MSG = '';
 		}
 		function MicroProfileMoveGraph(X, Y)
