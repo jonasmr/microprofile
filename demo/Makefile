@@ -47,3 +47,10 @@ clean: depend
 depend: $(CPP_SOURCES) $(C_SOURCES)
 	$(CC) -MM $(CFLAGS) $(C_SOURCES) > .depend
 	$(CPP) -MM $(CPPFLAGS) $(CPP_SOURCES) >> .depend
+
+embed_target:
+	cd ../src && make
+
+embed: embed_target all
+	
+

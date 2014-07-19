@@ -2853,13 +2853,51 @@ void MicroProfileDumpState()
 {
 	S.nDumpNextFrame = 1;
 }
+
+#define MICROPROFILE_EMBED_HTML
+extern const char g_MicroProfileHtml_begin[];
+extern const char g_MicroProfileHtml_end[];
+extern const size_t g_MicroProfileHtml_begin_size;
+extern const size_t g_MicroProfileHtml_end_size;
+
+
+typedef void MicroProfileWriteCallback(void* Handle, size_t size, char* pData);
+
+
+void MicroProfilePrintf(MicroProfileWriteCallback CB, void* Handle, const char* pFmt, ...)
+{
+	char buffer[32*1024];
+	va_list args;
+	va_start (args, fmt);
+	size_t size = vsprintf_s(buffer, fmt, args);
+	CB(Handle, size, &buffer[0]);
+	va_end (args);
+}
+
+void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle)
+{
+}
+
+
+
+// void uprintf(const char* fmt, ...)
+// {
+// 	char buffer[32*1024];
+// 	va_list args;
+// 	va_start (args, fmt);
+// 	vsprintf_s(buffer, fmt, args);
+// 	OutputDebugString(&buffer[0]);
+// 	va_end (args);
+// }
+
 void MicroProfileDumpStateInternal()
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 	printf("dumping stuff\n");
 
-	FILE* F = fopen("../dump.txt", "w");
+	FILE* F = fopen("../dump.html", "w");
 
+	fwrite(&g_MicroProfileHtml_begin, g_MicroProfileHtml_begin_size-1, 1, F);
 	//groups
 	fprintf(F, "var GroupInfo = Array(%d);\n\n",S.nGroupCount);
 	for(uint32_t i = 0; i < S.nGroupCount; ++i)
@@ -2903,9 +2941,9 @@ void MicroProfileDumpStateInternal()
 	uint32_t nNumFrames = (MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY - 1);
 	if(S.nFrameCurrentIndex < nNumFrames)
 		nNumFrames = S.nFrameCurrentIndex;
-	if(nNumFrames > 50) 
+	if(nNumFrames > 100) 
 	{
-		nNumFrames = 50;
+		nNumFrames = 100;
 	}
 	uint32_t nFirstFrame = (S.nFrameCurrent + MICROPROFILE_MAX_FRAME_HISTORY - nNumFrames) % MICROPROFILE_MAX_FRAME_HISTORY;
 	uint32_t nFirstFrameIndex = S.nFrameCurrentIndex - nNumFrames;
@@ -2941,7 +2979,6 @@ void MicroProfileDumpStateInternal()
 				for(k = (k+1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 				{
 					uint32_t nLogType = MicroProfileLogType(pLog->Log[k]);
-				//	uint64_t nDiff = MicroProfileLogTickDifference(nStartTick, pLog->Log[k]);
 					float fTime = nLogType == MP_LOG_META ? 0.f : MicroProfileLogTickDifference(nStartTick, pLog->Log[k]) * fToMs;
 					MP_ASSERT(fTime < 10000.f);
 					MP_ASSERT(fTime >= 0.f);
@@ -3004,54 +3041,10 @@ void MicroProfileDumpStateInternal()
 		float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
 		float fFrameMs = MicroProfileLogTickDifference(nTickStart, nFrameStart) * fToMs;
 		float fFrameEndMs = MicroProfileLogTickDifference(nTickStart, nFrameEnd) * fToMs;
-
 		fprintf(F, "Frames[%d] = MakeFrame(%d, %f, %f, ts%d, tt%d, ti%d);\n", i, nFirstFrameIndex, fFrameMs,fFrameEndMs, i, i, i);
 	}
 
-	// int64_t nTickStart = S.Frames[S.nFrameCurrent].nFrameStartCpu;
-	// int64_t nTickStartGpu = S.Frames[S.nFrameCurrent].nFrameStartGpu;
-
-	// // int64_t nStart = ;
-	// // float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
-	// // float fCenter = MicroProfileLogTickDifference(nStart, nTickStartCenter) * fToMs;
-
-
-
-	// for(uint32_t i = 0; i < S.nNumLogs; ++i)
-	// {
-	// 	MicroProfileThreadLog* pLog = S.Pool[i];
-	// 	int64_t nStart = pLog->nGpu ? nTickStartGpu : nTickStart;
-	// 	float fToMs = MicroProfileTickToMsMultiplier(pLog->nGpu ? MicroProfileTicksPerSecondGpu() : MicroProfileTicksPerSecondCpu());
-
-	// 	//timestamps
-	// 	fprintf(F, "var TimeStamp%d = [\n", i);
-	// 	for(uint32_t j = 0; j < MICROPROFILE_BUFFER_SIZE; ++j)
-	// 	{
-	// 		if(j && 0 == (j%10))
-	// 		{
-	// 			fprintf(F, "%f,\n", MicroProfileLogTickDifference(nStart, pLog->Log[j]) * fToMs);
-	// 		}
-	// 		else
-	// 		{
-	// 			fprintf(F, "%f,", MicroProfileLogTickDifference(nStart, pLog->Log[j]) * fToMs);
-	// 		}
-	// 	}
-	// 	fprintf(F, "];\n\n");
-	// 	fprintf(F, "var Marker%d = [", i);
-	// 	for(uint32_t j = 0; j < MICROPROFILE_BUFFER_SIZE; ++j)
-	// 	{
-	// 		if(j&& (0 ==j%10))
-	// 		{
-	// 			fprintf(F, "%f,\n", MicroProfileLogType(pLog->Log[j]));
-	// 		}
-	// 		else
-	// 		{
-	// 			fprintf(F, "%f,", MicroProfileLogType(pLog->Log[j]));
-	// 			fprintf(F, "%f", MicroProfileLogTickDifference(nStart, pLog->Log[j]) * fToMs);
-	// 		}
-	// 	}
-	// 	fprintf(F, "];\n\n");
-	// }
+	fwrite(&g_MicroProfileHtml_end, g_MicroProfileHtml_end_size-1, 1, F);
 
 	fclose(F);
 }
