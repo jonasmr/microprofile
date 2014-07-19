@@ -282,7 +282,13 @@ typedef uint32_t ThreadIdType;
 #define MICROPROFILE_META_MAX 8
 #endif
 
+#ifndef MICROPROFILE_WEBSERVER_PORT
+#define MICROPROFILE_WEBSERVER_PORT 1338
+#endif
 
+#ifndef MICROPROFILE_WEBSERVER
+#define MICROPROFILE_WEBSERVER 1
+#endif
 
 #define MICROPROFILE_FORCEENABLECPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeCpu)
 #define MICROPROFILE_FORCEDISABLECPUGROUP(s) MicroProfileForceDisableGroup(s, MicroProfileTokenTypeCpu)
@@ -438,6 +444,32 @@ int64_t MicroProfileGetTick()
 }
 
 #endif
+
+#if MICROPROFILE_WEBSERVER
+
+#ifdef _WIN32
+typedef SOCKET MpSocket;
+#define MP_INVALID_SOCKET(f) (f == INVALID_SOCKET)
+#endif
+
+#if defined(__APPLE__)
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <fcntl.h>
+typedef int MpSocket;
+#define MP_INVALID_SOCKET(f) (f < 0)
+#endif
+
+void MicroProfileWebServerStart();
+void MicroProfileWebServerStop();
+void MicroProfileWebServerUpdate();
+
+#else
+#define MicroProfileWebServerStart() do{}while(0)
+#define MicroProfileWebServerStop() do{}while(0)
+#define MicroProfileWebServerUpdate() do{}while(0)
+#endif 
+
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -784,6 +816,9 @@ struct
 	uint32_t					nContextSwitchPut;	
 	MicroProfileContextSwitch 	ContextSwitch[MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE];
 
+
+	MpSocket 					ListenerSocket;
+
 } g_MicroProfile;
 
 MicroProfileThreadLog*			g_MicroProfileGpuLog = 0;
@@ -850,7 +885,7 @@ MICROPROFILE_DEFINE(g_MicroProfileContextSwitchSearch,"MicroProfile", "ContextSw
 void MicroProfileStartContextSwitchTrace();
 void MicroProfileStopContextSwitchTrace();
 bool MicroProfileIsLocalThread(uint32_t nThreadId);
-void MicroProfileDumpStateInternal();
+void MicroProfileDumpHtmlToFile();
 
 inline std::recursive_mutex& MicroProfileMutex()
 {
@@ -985,6 +1020,7 @@ void MicroProfileInit()
 		S.nOpacityForeground = 0xff<<24;
 
 		S.bShowSpikes = false;
+		MicroProfileWebServerStart();
 	}
 	if(bUseLock)
 		mutex.unlock();
@@ -994,6 +1030,7 @@ void MicroProfileShutdown()
 {
 #if MICROPROFILE_CONTEXT_SWITCH_TRACE
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+	MicroProfileWebServerStop();
 	if(S.pContextSwitchThread)
 	{
 		if(S.pContextSwitchThread->joinable())
@@ -1360,8 +1397,9 @@ void MicroProfileFlip()
 	if(S.nDumpNextFrame)
 	{
 		S.nDumpNextFrame = 0;
-		MicroProfileDumpStateInternal();
+		MicroProfileDumpHtmlToFile();
 	}
+	MicroProfileWebServerUpdate();
 
 	if(S.nRunning)
 	{
@@ -2861,79 +2899,60 @@ extern const size_t g_MicroProfileHtml_begin_size;
 extern const size_t g_MicroProfileHtml_end_size;
 
 
-typedef void MicroProfileWriteCallback(void* Handle, size_t size, char* pData);
+typedef void MicroProfileWriteCallback(void* Handle, size_t size, const char* pData);
 
 
 void MicroProfilePrintf(MicroProfileWriteCallback CB, void* Handle, const char* pFmt, ...)
 {
 	char buffer[32*1024];
 	va_list args;
-	va_start (args, fmt);
-	size_t size = vsprintf_s(buffer, fmt, args);
+	va_start (args, pFmt);
+#ifdef _WIN32
+	size_t size = vsprintf_s(buffer, pFmt, args);
+#else
+	size_t size = vsnprintf(buffer, sizeof(buffer)-1,  pFmt, args);
+#endif
 	CB(Handle, size, &buffer[0]);
 	va_end (args);
 }
 
 void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle)
 {
-}
-
-
-
-// void uprintf(const char* fmt, ...)
-// {
-// 	char buffer[32*1024];
-// 	va_list args;
-// 	va_start (args, fmt);
-// 	vsprintf_s(buffer, fmt, args);
-// 	OutputDebugString(&buffer[0]);
-// 	va_end (args);
-// }
-
-void MicroProfileDumpStateInternal()
-{
-	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
-	printf("dumping stuff\n");
-
-	FILE* F = fopen("../dump.html", "w");
-
-	fwrite(&g_MicroProfileHtml_begin, g_MicroProfileHtml_begin_size-1, 1, F);
+	CB(Handle, g_MicroProfileHtml_begin_size-1, &g_MicroProfileHtml_begin[0]);
 	//groups
-	fprintf(F, "var GroupInfo = Array(%d);\n\n",S.nGroupCount);
+	MicroProfilePrintf(CB, Handle, "var GroupInfo = Array(%d);\n\n",S.nGroupCount);
 	for(uint32_t i = 0; i < S.nGroupCount; ++i)
 	{
 		MP_ASSERT(i == S.GroupInfo[i].nGroupIndex);
-		fprintf(F, "GroupInfo[%d] = MakeGroup(%d, \"%s\", %d, %d);\n", S.GroupInfo[i].nGroupIndex, S.GroupInfo[i].nGroupIndex, S.GroupInfo[i].pName, S.GroupInfo[i].nNumTimers, S.GroupInfo[i].Type == MicroProfileTokenTypeGpu?1:0);
+		MicroProfilePrintf(CB, Handle, "GroupInfo[%d] = MakeGroup(%d, \"%s\", %d, %d);\n", S.GroupInfo[i].nGroupIndex, S.GroupInfo[i].nGroupIndex, S.GroupInfo[i].pName, S.GroupInfo[i].nNumTimers, S.GroupInfo[i].Type == MicroProfileTokenTypeGpu?1:0);
 	}
 	//timers
 
-	fprintf(F, "\nvar TimerInfo = Array(%d);\n\n", S.nTotalTimers);
+	MicroProfilePrintf(CB, Handle, "\nvar TimerInfo = Array(%d);\n\n", S.nTotalTimers);
 	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
 	{
 		MP_ASSERT(i == S.TimerInfo[i].nTimerIndex);
-		fprintf(F, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x');\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
+		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x');\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
 		(S.TimerInfo[i].nColor>>16) & 0xff,
 		(S.TimerInfo[i].nColor>>8) & 0xff,
 		S.TimerInfo[i].nColor & 0xff
 		);
 	}
 
-//		S.Pool[S.nNumLogs++] = pLog;	
-
-	fprintf(F, "\nvar ThreadNames = [");
+	MicroProfilePrintf(CB, Handle, "\nvar ThreadNames = [");
 	for(uint32_t i = 0; i < S.nNumLogs; ++i)
 	{
 		if(S.Pool[i])
 		{
-			fprintf(F, "'%s',", S.Pool[i]->ThreadName);
+			MicroProfilePrintf(CB, Handle, "'%s',", S.Pool[i]->ThreadName);
 
 		}
 		else
 		{
-			fprintf(F, "'Thread %d',", i);
+			MicroProfilePrintf(CB, Handle, "'Thread %d',", i);
 		}
 	}
-	fprintf(F, "];\n\n");
+	MicroProfilePrintf(CB, Handle, "];\n\n");
 
 
 
@@ -2952,7 +2971,7 @@ void MicroProfileDumpStateInternal()
 
 
 
-	fprintf(F, "var Frames = Array(%d);\n", nNumFrames);
+	MicroProfilePrintf(CB, Handle, "var Frames = Array(%d);\n", nNumFrames);
 	for(uint32_t i = 0; i < nNumFrames; ++i)
 	{
 		uint32_t nFrameIndex = (nFirstFrame + i) % MICROPROFILE_MAX_FRAME_HISTORY;
@@ -2966,7 +2985,7 @@ void MicroProfileDumpStateInternal()
 			uint32_t nLogEnd = S.Frames[nFrameIndexNext].nLogStart[j];
 
 			float fToMs = MicroProfileTickToMsMultiplier(pLog->nGpu ? MicroProfileTicksPerSecondGpu() : MicroProfileTicksPerSecondCpu());
-			fprintf(F, "var ts_%d_%d = [", i, j);
+			MicroProfilePrintf(CB, Handle, "var ts_%d_%d = [", i, j);
 			if(nLogStart != nLogEnd)
 			{
 				uint32_t k = nLogStart;
@@ -2974,65 +2993,65 @@ void MicroProfileDumpStateInternal()
 				//uint64_t nDiff = MicroProfileLogTickDifference(nStartTick, pLog->Log[k]);
 				float fTime = nLogType == MP_LOG_META ? 0.f : MicroProfileLogTickDifference(nStartTick, pLog->Log[k]) * fToMs;
 				MP_ASSERT(fTime < 10000.f);
-				fprintf(F, "%f", fTime);
-				//fprintf(F, "%d", MicroProfileLogType(pLog->Log[k]));
+				MicroProfilePrintf(CB, Handle, "%f", fTime);
+				//MicroProfilePrintf(CB, Handle, "%d", MicroProfileLogType(pLog->Log[k]));
 				for(k = (k+1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 				{
 					uint32_t nLogType = MicroProfileLogType(pLog->Log[k]);
 					float fTime = nLogType == MP_LOG_META ? 0.f : MicroProfileLogTickDifference(nStartTick, pLog->Log[k]) * fToMs;
-					MP_ASSERT(fTime < 10000.f);
+//					MP_ASSERT(fTime < 10000.f);
 					MP_ASSERT(fTime >= 0.f);
 
-					fprintf(F, ",%f", fTime);
+					MicroProfilePrintf(CB, Handle, ",%f", fTime);
 				}
 			}
-			fprintf(F, "];\n");
+			MicroProfilePrintf(CB, Handle, "];\n");
 
-			fprintf(F, "var tt_%d_%d = [", i, j);
+			MicroProfilePrintf(CB, Handle, "var tt_%d_%d = [", i, j);
 			if(nLogStart != nLogEnd)
 			{
 				uint32_t k = nLogStart;
-				fprintf(F, "%d", MicroProfileLogType(pLog->Log[k]));
+				MicroProfilePrintf(CB, Handle, "%d", MicroProfileLogType(pLog->Log[k]));
 				for(k = (k+1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 				{
-					fprintf(F, ",%d", MicroProfileLogType(pLog->Log[k]));
+					MicroProfilePrintf(CB, Handle, ",%d", MicroProfileLogType(pLog->Log[k]));
 				}
 			}
-			fprintf(F, "];\n");
+			MicroProfilePrintf(CB, Handle, "];\n");
 
-			fprintf(F, "var ti_%d_%d = [", i, j);
+			MicroProfilePrintf(CB, Handle, "var ti_%d_%d = [", i, j);
 			if(nLogStart != nLogEnd)
 			{
 				uint32_t k = nLogStart;
-				fprintf(F, "%d", (uint32_t)MicroProfileLogTimerIndex(pLog->Log[k]));
+				MicroProfilePrintf(CB, Handle, "%d", (uint32_t)MicroProfileLogTimerIndex(pLog->Log[k]));
 				for(k = (k+1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 				{
-					fprintf(F, ",%d", (uint32_t)MicroProfileLogTimerIndex(pLog->Log[k]));
+					MicroProfilePrintf(CB, Handle, ",%d", (uint32_t)MicroProfileLogTimerIndex(pLog->Log[k]));
 				}
 			}
-			fprintf(F, "];\n");
+			MicroProfilePrintf(CB, Handle, "];\n");
 
 		}
 
-		fprintf(F, "var ts%d = [", i);
+		MicroProfilePrintf(CB, Handle, "var ts%d = [", i);
 		for(uint32_t j = 0; j < S.nNumLogs; ++j)
 		{
-			fprintf(F, "ts_%d_%d,", i, j);
+			MicroProfilePrintf(CB, Handle, "ts_%d_%d,", i, j);
 		}
-		fprintf(F, "];\n");
-		fprintf(F, "var tt%d = [", i);
+		MicroProfilePrintf(CB, Handle, "];\n");
+		MicroProfilePrintf(CB, Handle, "var tt%d = [", i);
 		for(uint32_t j = 0; j < S.nNumLogs; ++j)
 		{
-			fprintf(F, "tt_%d_%d,", i, j);
+			MicroProfilePrintf(CB, Handle, "tt_%d_%d,", i, j);
 		}
-		fprintf(F, "];\n");
+		MicroProfilePrintf(CB, Handle, "];\n");
 
-		fprintf(F, "var ti%d = [", i);
+		MicroProfilePrintf(CB, Handle, "var ti%d = [", i);
 		for(uint32_t j = 0; j < S.nNumLogs; ++j)
 		{
-			fprintf(F, "ti_%d_%d,", i, j);
+			MicroProfilePrintf(CB, Handle, "ti_%d_%d,", i, j);
 		}
-		fprintf(F, "];\n");
+		MicroProfilePrintf(CB, Handle, "];\n");
 
 
 		int64_t nFrameStart = S.Frames[nFrameIndex].nFrameStartCpu;
@@ -3041,14 +3060,82 @@ void MicroProfileDumpStateInternal()
 		float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
 		float fFrameMs = MicroProfileLogTickDifference(nTickStart, nFrameStart) * fToMs;
 		float fFrameEndMs = MicroProfileLogTickDifference(nTickStart, nFrameEnd) * fToMs;
-		fprintf(F, "Frames[%d] = MakeFrame(%d, %f, %f, ts%d, tt%d, ti%d);\n", i, nFirstFrameIndex, fFrameMs,fFrameEndMs, i, i, i);
+		MicroProfilePrintf(CB, Handle, "Frames[%d] = MakeFrame(%d, %f, %f, ts%d, tt%d, ti%d);\n", i, nFirstFrameIndex, fFrameMs,fFrameEndMs, i, i, i);
 	}
 
-	fwrite(&g_MicroProfileHtml_end, g_MicroProfileHtml_end_size-1, 1, F);
+	CB(Handle, g_MicroProfileHtml_end_size-1, &g_MicroProfileHtml_end[0]);
 
-	fclose(F);
 }
 
+void MicroProfileWriteFile(void* Handle, size_t size, const char* pData)
+{
+	fwrite(pData, size, 1, (FILE*)Handle);
+}
+
+void MicroProfileDumpHtmlToFile()
+{
+	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+	printf("dumping stuff\n");
+	FILE* F = fopen("../dump.html", "w");
+	MicroProfileDumpHtml(MicroProfileWriteFile, F);
+	fclose(F);
+}
+void MicroProfileWriteSocket(void* Handle, size_t size, const char* pData)
+{
+	send(*(MpSocket*)Handle, pData, size, 0);
+}
+
+
+void MicroProfileWebServerStart()
+{
+	printf("starting webserver\n");
+	S.ListenerSocket = socket(PF_INET, SOCK_STREAM, 6);
+	MP_ASSERT(!MP_INVALID_SOCKET(S.ListenerSocket));
+#ifdef _WIN32
+	u_long nonBlocking = 1; 
+	ioctlsocket(S.ListenerSocket, FIONBIO, &nonBlocking);
+#else
+	fcntl(S.ListenerSocket, F_SETFL, O_NONBLOCK);
+#endif
+
+	struct sockaddr_in Addr; 
+	Addr.sin_family = AF_INET; 
+	Addr.sin_port = htons(MICROPROFILE_WEBSERVER_PORT); 
+	Addr.sin_addr.s_addr = INADDR_ANY; 
+	bind(S.ListenerSocket, (sockaddr*)&Addr, sizeof(Addr)); 
+	listen(S.ListenerSocket, 8);
+}
+
+void MicroProfilWebServerStop()
+{
+
+}
+void MicroProfileWebServerUpdate()
+{
+	MICROPROFILE_SCOPEI("MicroProfile", "Webserver-update", -1);
+	MpSocket Connection = accept(S.ListenerSocket, 0, 0);
+	if(!MP_INVALID_SOCKET(Connection))
+	{
+		std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+		printf("got connection\n");
+
+		char Req[8192];
+		int nReceived = recv(Connection, Req, 8192, 0);
+		if(nReceived > 0)
+		{
+			Req[nReceived] = '\0';
+			printf("got request %s\n", Req);
+#define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n"
+			if(strstr(Req, "GET / "))
+			{
+				printf("dumping...\n");
+				send(Connection, MICROPROFILE_HTML_HEADER, sizeof(MICROPROFILE_HTML_HEADER)-1, 0);
+				MicroProfileDumpHtml(MicroProfileWriteSocket, &Connection);
+			}
+		}
+		close(Connection);
+	}
+}
 void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 {
 	uint64_t nActiveGroup = S.nMenuAllGroups ? S.nGroupMask : S.nMenuActiveGroup;
