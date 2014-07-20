@@ -49,6 +49,7 @@ var fDetailedOffset = Frames[0].framestart;
 var fDetailedRange = Frames[0].frameend - fDetailedOffset;
 var nWidth = CanvasDetailedView.width;
 var nHeight = CanvasDetailedView.height;
+var nHistoryHeight = 70;
 var nOffsetY = 0;
 var MouseButtonState = [0,0,0,0,0,0,0,0];
 var MouseDrag = 0;
@@ -60,7 +61,7 @@ var HistoryViewMouseY = -1;
 var MouseHistory = 0;
 var MouseDetailed = 0;
 var BoxHeight = 11;
-var Font = '10px courier';
+var Font = '10px monospace';
 var nModDown = 0;
 var g_MSG = 'no';
 var nDrawCount = 0;
@@ -79,7 +80,8 @@ var fRangeEnd = -1;
 
 var DebugDrawQuadCount = 0;
 var DebugDrawTextCount = 0;
-
+var DPR;
+DPR = window.devicePixelRatio;
 var totalpreparez = 0;
 		function MicroProfileCalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast)
 		{
@@ -185,8 +187,8 @@ var totalpreparez = 0;
 			var context = CanvasHistory.getContext('2d');
 			context.clearRect(0, 0, CanvasHistory.width, CanvasHistory.height);
 
-			var fHeight = CanvasHistory.height;
-			var fWidth = CanvasHistory.width / Frames.length;
+			var fHeight = nHistoryHeight;
+			var fWidth = nWidth / Frames.length;
 			var fHeightScale = fHeight / fFrameScale;
 			var fX = 0;
 			var FrameIndex = -1;
@@ -618,9 +620,27 @@ var totalpreparez = 0;
 			nWidth = window.innerWidth;
 			nHeight = window.innerHeight - CanvasHistory.height-2;
 			console.log('setting height to ' + nHeight);
-			CanvasDetailedView.width = nWidth;
-			CanvasDetailedView.height = nHeight;
-			CanvasHistory.width = window.innerWidth;
+			if(DPR)
+			{
+				CanvasDetailedView.style.width = nWidth + 'px'; 
+				CanvasDetailedView.style.height = nHeight + 'px';
+				CanvasDetailedView.width = nWidth * DPR;
+				CanvasDetailedView.height = nHeight * DPR;
+				CanvasHistory.style.width = window.innerWidth + 'px';
+				CanvasHistory.style.height = 70 + 'px';
+				CanvasHistory.width = window.innerWidth * DPR;
+				CanvasHistory.height = 70 * DPR
+				CanvasHistory.getContext('2d').scale(DPR,DPR);
+				CanvasDetailedView.getContext('2d').scale(DPR,DPR);
+
+
+			}
+			else
+			{
+				CanvasDetailedView.width = nWidth;
+				CanvasDetailedView.height = nHeight;
+				CanvasHistory.width = window.innerWidth;
+			}
 			MicroProfileDrawDetailed(false);
 		}
 
