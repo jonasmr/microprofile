@@ -290,6 +290,10 @@ typedef uint32_t ThreadIdType;
 #define MICROPROFILE_WEBSERVER 1
 #endif
 
+#ifndef MICROPROFILE_WEBSERVER_MAXFRAMES
+#define MICROPROFILE_WEBSERVER_MAXFRAMES 5
+#endif
+
 #define MICROPROFILE_FORCEENABLECPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeCpu)
 #define MICROPROFILE_FORCEDISABLECPUGROUP(s) MicroProfileForceDisableGroup(s, MicroProfileTokenTypeCpu)
 #define MICROPROFILE_FORCEENABLEGPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeGpu)
@@ -2916,7 +2920,7 @@ void MicroProfilePrintf(MicroProfileWriteCallback CB, void* Handle, const char* 
 	va_end (args);
 }
 
-void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle)
+void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFrames)
 {
 	CB(Handle, g_MicroProfileHtml_begin_size-1, &g_MicroProfileHtml_begin[0]);
 	//groups
@@ -2960,10 +2964,11 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle)
 	uint32_t nNumFrames = (MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY - 1);
 	if(S.nFrameCurrentIndex < nNumFrames)
 		nNumFrames = S.nFrameCurrentIndex;
-	if(nNumFrames > 100) 
+	if(nNumFrames > nMaxFrames) 
 	{
-		nNumFrames = 100;
+		nNumFrames = nMaxFrames;
 	}
+	printf("dumping %d frames\n", nNumFrames);
 	uint32_t nFirstFrame = (S.nFrameCurrent + MICROPROFILE_MAX_FRAME_HISTORY - nNumFrames) % MICROPROFILE_MAX_FRAME_HISTORY;
 	uint32_t nFirstFrameIndex = S.nFrameCurrentIndex - nNumFrames;
 	int64_t nTickStart = S.Frames[nFirstFrame].nFrameStartCpu;
@@ -3067,9 +3072,9 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle)
 
 }
 
-void MicroProfileWriteFile(void* Handle, size_t size, const char* pData)
+void MicroProfileWriteFile(void* Handle, size_t nSize, const char* pData)
 {
-	fwrite(pData, size, 1, (FILE*)Handle);
+	fwrite(pData, nSize, 1, (FILE*)Handle);
 }
 
 void MicroProfileDumpHtmlToFile()
@@ -3077,18 +3082,20 @@ void MicroProfileDumpHtmlToFile()
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 	printf("dumping stuff\n");
 	FILE* F = fopen("../dump.html", "w");
-	MicroProfileDumpHtml(MicroProfileWriteFile, F);
+	MicroProfileDumpHtml(MicroProfileWriteFile, F, MICROPROFILE_WEBSERVER_MAXFRAMES);
 	fclose(F);
 }
-void MicroProfileWriteSocket(void* Handle, size_t size, const char* pData)
+
+static uint64_t g_nMicroProfileDataSent = 0;
+void MicroProfileWriteSocket(void* Handle, size_t nSize, const char* pData)
 {
-	send(*(MpSocket*)Handle, pData, size, 0);
+	g_nMicroProfileDataSent += nSize;
+	send(*(MpSocket*)Handle, pData, nSize, 0);
 }
 
 
 void MicroProfileWebServerStart()
 {
-	printf("starting webserver\n");
 	S.ListenerSocket = socket(PF_INET, SOCK_STREAM, 6);
 	MP_ASSERT(!MP_INVALID_SOCKET(S.ListenerSocket));
 #ifdef _WIN32
@@ -3097,18 +3104,24 @@ void MicroProfileWebServerStart()
 #else
 	fcntl(S.ListenerSocket, F_SETFL, O_NONBLOCK);
 #endif
-
 	struct sockaddr_in Addr; 
 	Addr.sin_family = AF_INET; 
-	Addr.sin_port = htons(MICROPROFILE_WEBSERVER_PORT); 
 	Addr.sin_addr.s_addr = INADDR_ANY; 
-	bind(S.ListenerSocket, (sockaddr*)&Addr, sizeof(Addr)); 
+	for(int i = 0; i < 20; ++i)
+	{
+		Addr.sin_port = htons(MICROPROFILE_WEBSERVER_PORT+i); 
+		if(0 == bind(S.ListenerSocket, (sockaddr*)&Addr, sizeof(Addr)))
+		{
+			printf("MicroProfile Webserver Port %d\n", MICROPROFILE_WEBSERVER_PORT + i);
+			break;
+		}
+	}
 	listen(S.ListenerSocket, 8);
 }
 
 void MicroProfilWebServerStop()
 {
-
+	close(S.ListenerSocket);
 }
 void MicroProfileWebServerUpdate()
 {
@@ -3117,20 +3130,54 @@ void MicroProfileWebServerUpdate()
 	if(!MP_INVALID_SOCKET(Connection))
 	{
 		std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
-		printf("got connection\n");
-
 		char Req[8192];
 		int nReceived = recv(Connection, Req, 8192, 0);
 		if(nReceived > 0)
 		{
 			Req[nReceived] = '\0';
-			printf("got request %s\n", Req);
+			printf("got request \n%s\n", Req);
 #define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n"
-			if(strstr(Req, "GET / "))
+			char* pHttp = strstr(Req, "HTTP/");
+			char* pGet = strstr(Req, "GET / ");
+			char* pGetParam = strstr(Req, "GET /?");
+			if(pHttp && (pGet || pGetParam))
 			{
-				printf("dumping...\n");
+				int nMaxFrames = MICROPROFILE_WEBSERVER_MAXFRAMES;
+				if(pGetParam)
+				{
+					*pHttp = '\0';
+					pGetParam += sizeof("GET /?")-1;
+					while(pGetParam) //split url pairs foo=bar&lala=lele etc
+					{
+						char* pSplit = strstr(pGetParam, "&");
+						if(pSplit)
+						{
+							*pSplit++ = '\0';
+						}
+						char* pKey = pGetParam;
+						char* pValue = strstr(pGetParam, "=");
+						if(pValue)
+						{
+							*pValue++ = '\0';
+						}
+						if(0 == MP_STRCASECMP(pKey, "frames"))
+						{
+							if(pValue)
+							{
+								nMaxFrames = atoi(pValue);
+							}
+						}
+						pGetParam = pSplit;
+					}
+				}
+				uint64_t nTickStart = MP_TICK();
 				send(Connection, MICROPROFILE_HTML_HEADER, sizeof(MICROPROFILE_HTML_HEADER)-1, 0);
-				MicroProfileDumpHtml(MicroProfileWriteSocket, &Connection);
+				uint64_t nDataStart = g_nMicroProfileDataSent;
+				MicroProfileDumpHtml(MicroProfileWriteSocket, &Connection, nMaxFrames);
+				uint64_t nDataEnd = g_nMicroProfileDataSent;
+				uint64_t nTickEnd = MP_TICK();
+				float fMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu()) * (nTickEnd - nTickStart);
+				printf("Sent %lldkb, in %6.3fms\n", ((nDataEnd-nDataStart)>>10) + 1, fMs);
 			}
 		}
 		close(Connection);

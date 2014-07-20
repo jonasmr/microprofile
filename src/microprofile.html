@@ -6,8 +6,8 @@ body {margin: 0px;padding: 0px;}
 </style>
 </head>
 <body style="background-color:#474747;">
-<canvas id="History" width="100%" height="70" style="background-color:#474747;"></canvas>
-<canvas id="DetailedView" width="100%" height="1024"></canvas>
+<canvas id="History" width="100%" height="70" style="background-color:#474747;margin:0px;padding:0px;"></canvas>
+<canvas id="DetailedView" width="100%" height="200" style="background-color:#474747;margin:0px;padding:0px;"></canvas>
 <script>
 function InvertColor(hexTripletColor) {
 	var color = hexTripletColor;
@@ -181,11 +181,6 @@ var totalpreparez = 0;
 		function MicroProfileDrawDetailedFrameHistory()
 		{
 			var x = HistoryViewMouseX;
-			// if(Evt)
-			// {
-			// 	var Rect = CanvasHistory.getBoundingClientRect();
-			// 	x = Evt.clientX - Rect.left;
-			// }
 
 			var context = CanvasHistory.getContext('2d');
 			context.clearRect(0, 0, CanvasHistory.width, CanvasHistory.height);
@@ -194,6 +189,7 @@ var totalpreparez = 0;
 			var fWidth = CanvasHistory.width / Frames.length;
 			var fHeightScale = fHeight / fFrameScale;
 			var fX = 0;
+			var FrameIndex = -1;
 
 			for(i = 0; i < Frames.length; i++)
 			{
@@ -205,6 +201,7 @@ var totalpreparez = 0;
 					context.fillStyle = FRAME_HISTORY_COLOR_GPU;
 					fRangeBegin = Frames[i].framestart;
 					fRangeEnd = Frames[i].frameend;
+					FrameIndex = i;
 				}
 				else
 				{
@@ -212,6 +209,18 @@ var totalpreparez = 0;
 				}
 				context.fillRect(fX, fHeight - fH, fWidth-1, fH);
 				fX += fWidth;
+			}
+
+			if(FrameIndex>=0)
+			{
+				var StringArray = [];
+				StringArray.push("Frame");
+				StringArray.push("" + FrameIndex);
+				StringArray.push("Time");
+				StringArray.push("" + (Frames[FrameIndex].frameend - Frames[FrameIndex].framestart).toFixed(3));
+
+				MicroProfileDrawToolTip(StringArray, CanvasHistory, HistoryViewMouseX, HistoryViewMouseY+20);
+
 			}
 
 		}
@@ -243,8 +252,9 @@ var totalpreparez = 0;
 			}
 
 		}
-		function MicroProfileDrawToolTip(StringArray, context, x, y)
+		function MicroProfileDrawToolTip(StringArray, Canvas, x, y)
 		{
+			var context = Canvas.getContext('2d');
 			var WidthArray = Array(StringArray.length);
 			var nMaxWidth = 0;
 			var nHeight = 0;
@@ -263,22 +273,22 @@ var totalpreparez = 0;
 			}
 			nMaxWidth += 15;
 			//bounds check.
-			var CanvasRect = CanvasDetailedView.getBoundingClientRect();
-			if(y + nHeight > window.innerHeight - CanvasRect.top)
+			var CanvasRect = Canvas.getBoundingClientRect();
+			if(y + nHeight > CanvasRect.height)
 			{
-				y = window.innerHeight - CanvasRect.top - nHeight;
+				y = CanvasRect.height - nHeight;
 				x += 20;
 			}
-			if(x + nMaxWidth > CanvasRect.left + window.innerWidth)
+			if(x + nMaxWidth > CanvasRect.width)
 			{
-				x = window.innerWidth - CanvasRect.left- nMaxWidth;
+				x = CanvasRect.width - nMaxWidth;
 			}
 
 			context.fillStyle = 'black';
 			context.fillRect(x, y, nMaxWidth, nHeight);
 			context.fillStyle = 'white';
 
-
+			console.log("tooltip at " + x + ", " + y);
 			var XPos = x;
 			var XPosRight = x + nMaxWidth;
 			var YPos = y + BoxHeight-2;
@@ -500,7 +510,7 @@ var totalpreparez = 0;
 				StringArray.push("" + FrameTime.Average);
 				StringArray.push("Max");
 				StringArray.push("" + FrameTime.Max);
-				MicroProfileDrawToolTip(StringArray, context, DetailedViewMouseX, DetailedViewMouseY+20);
+				MicroProfileDrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20);
 
 			}
 
@@ -605,7 +615,11 @@ var totalpreparez = 0;
 		}
 
 		function ResizeCanvas() {
-			nWidth = CanvasDetailedView.width = window.innerWidth;
+			nWidth = window.innerWidth;
+			nHeight = window.innerHeight - CanvasHistory.height-2;
+			console.log('setting height to ' + nHeight);
+			CanvasDetailedView.width = nWidth;
+			CanvasDetailedView.height = nHeight;
 			CanvasHistory.width = window.innerWidth;
 			MicroProfileDrawDetailed(false);
 		}
@@ -764,25 +778,21 @@ var totalpreparez = 0;
 		}
 		ResizeCanvas();
 
-
-
-				// function MicroProfileCalculateTimers(Out, TimerIndex, nFrameFirst, nFrameLast)
-
 		MicroProfileDrawDetailedFrameHistory();
 		MicroProfileStartDrawing();
-//sdf
-		//mousewheel
-		//zoom
-		//mouse over range
-
-		// names
-
-		// tooltips
-
-		//frame overview
-		//toggles i frame overview
 
 
+		//thread enable
+		//context switch trace
+		//meta counters
+		//timers view
+		//forceenable
+		//forceenableallgroups
+		//prettier fonts
+		//measure font for offsets
+		//test gpu
+		//--resize canvas to be proper fullscreen
+		//--history tooltips
 
 
 
