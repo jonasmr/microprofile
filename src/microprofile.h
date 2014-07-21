@@ -582,8 +582,8 @@ struct MicroProfileContextSwitch
 #define MP_LOG_TICK_MASK  0x0000ffffffffffff
 #define MP_LOG_INDEX_MASK 0x3fff000000000000
 #define MP_LOG_BEGIN_MASK 0xc000000000000000
-#define MP_LOG_META 0x1
-#define MP_LOG_ENTER 0x2
+#define MP_LOG_META 0x2
+#define MP_LOG_ENTER 0x1
 #define MP_LOG_LEAVE 0x0
 typedef uint64_t MicroProfileLogEntry;
 
@@ -2961,6 +2961,19 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 		}
 	}
 	MicroProfilePrintf(CB, Handle, "];\n\n");
+	MicroProfilePrintf(CB, Handle, "\nvar MetaNames = [");
+	for(int i = 0; i < MICROPROFILE_META_MAX; ++i)
+	{
+		if(S.MetaCounters[i].pName)
+		{
+			MicroProfilePrintf(CB, Handle, "'%s',", S.MetaCounters[i].pName);
+		}
+	}
+
+
+	MicroProfilePrintf(CB, Handle, "];\n\n");
+
+
 
 
 
@@ -2999,7 +3012,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 			{
 				uint32_t k = nLogStart;
 				uint32_t nLogType = MicroProfileLogType(pLog->Log[k]);
-				//uint64_t nDiff = MicroProfileLogTickDifference(nStartTick, pLog->Log[k]);
 				float fTime = nLogType == MP_LOG_META ? 0.f : MicroProfileLogTickDifference(nStartTick, pLog->Log[k]) * fToMs;
 				MP_ASSERT(fTime < 10000.f);
 				MicroProfilePrintf(CB, Handle, "%f", fTime);
@@ -3008,14 +3020,10 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 				{
 					uint32_t nLogType = MicroProfileLogType(pLog->Log[k]);
 					float fTime = nLogType == MP_LOG_META ? 0.f : MicroProfileLogTickDifference(nStartTick, pLog->Log[k]) * fToMs;
-//					MP_ASSERT(fTime < 10000.f);
-					MP_ASSERT(fTime >= 0.f);
-
 					MicroProfilePrintf(CB, Handle, ",%f", fTime);
 				}
 			}
 			MicroProfilePrintf(CB, Handle, "];\n");
-
 			MicroProfilePrintf(CB, Handle, "var tt_%d_%d = [", i, j);
 			if(nLogStart != nLogEnd)
 			{
@@ -3023,7 +3031,13 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 				MicroProfilePrintf(CB, Handle, "%d", MicroProfileLogType(pLog->Log[k]));
 				for(k = (k+1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 				{
-					MicroProfilePrintf(CB, Handle, ",%d", MicroProfileLogType(pLog->Log[k]));
+					uint32_t nLogType = MicroProfileLogType(pLog->Log[k]);
+					if(nLogType == MP_LOG_META)
+					{
+						//for meta, store the count + 2, which is the tick part
+						nLogType = 2 + MicroProfileLogGetTick(pLog->Log[k]);
+					}
+					MicroProfilePrintf(CB, Handle, ",%d", nLogType);
 				}
 			}
 			MicroProfilePrintf(CB, Handle, "];\n");

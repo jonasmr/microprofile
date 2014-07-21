@@ -99,10 +99,12 @@ void WorkerThreadLong(int threadId)
 	while(!g_nQuit)
 	{
 		MICROPROFILE_SCOPEI("long", "outer 150ms", c0); 
+		MICROPROFILE_META_CPU("Sleep",100);
 		usleep(100*1000);
 		for(int i = 0; i < 10; ++i)
 		{
 			MICROPROFILE_SCOPEI("long", "inner 5ms", c1); 
+			MICROPROFILE_META_CPU("Sleep",5);
 			usleep(5000);
 		}
 	}
