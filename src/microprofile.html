@@ -27,7 +27,6 @@ function MakeGroup(id, name, numtimers, isgpu)
 
 function MakeTimer(id, name, group, color, timer)
 {
-	console.log("group is " + group);
 	var timer = {"id":id, "name":name, "len":name.length, "color":color, "textcolor":InvertColor(color), "group":group};
 	return timer;
 }
@@ -62,8 +61,12 @@ var HistoryViewMouseX = -1;
 var HistoryViewMouseY = -1;
 var MouseHistory = 0;
 var MouseDetailed = 0;
-var BoxHeight = 11;
-var Font = '10px monospace';
+var FontHeight = 10;
+var FontWidth = 1;
+var FontAscent = 3; //Set manually
+var Font = 'Bold ' + FontHeight + 'px Courier New';
+var BoxHeight = FontHeight + 2;
+
 var nModDown = 0;
 var g_MSG = 'no';
 var nDrawCount = 0;
@@ -99,7 +102,7 @@ function MicroProfileGatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFram
 		var ti = fr.ti[nLog];
 		var tt = fr.tt[nLog];
 		var start = i == nFrameLast ? StartIndex-1 : ts.length-1;
-		console.log('start ' + start + ' tslen ' + ts.length + ' tilen ' + ti.length + ' ttlen ' + tt.length);
+
 		for(var j = start; j >= 0; j--)
 		{
 			var type = tt[j];
@@ -121,7 +124,6 @@ function MicroProfileGatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFram
 			{
 				var nMetaCount = type - 2;
 				var nMetaIndex = MetaNames[index];
-				console.log('add ' + nMetaCount);
 				if(nMetaIndex in HoverInfo)
 				{
 					HoverInfo[nMetaIndex] += nMetaCount;
@@ -130,8 +132,6 @@ function MicroProfileGatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFram
 				{
 					HoverInfo[nMetaIndex] = nMetaCount;
 				}
-				console.log('meta ' + nMetaIndex + ' val ' + HoverInfo[nMetaIndex]);
-
 			}
 		}
 	}
@@ -312,6 +312,7 @@ function MicroProfileDrawDetailedBackground()
 function MicroProfileDrawToolTip(StringArray, Canvas, x, y)
 {
 	var context = Canvas.getContext('2d');
+	context.font = Font;
 	var WidthArray = Array(StringArray.length);
 	var nMaxWidth = 0;
 	var nHeight = 0;
@@ -342,10 +343,9 @@ function MicroProfileDrawToolTip(StringArray, Canvas, x, y)
 	}
 
 	context.fillStyle = 'black';
-	context.fillRect(x, y, nMaxWidth, nHeight);
+	context.fillRect(x-1, y, nMaxWidth+2, nHeight);
 	context.fillStyle = 'white';
 
-	console.log("tooltip at " + x + ", " + y);
 	var XPos = x;
 	var XPosRight = x + nMaxWidth;
 	var YPos = y + BoxHeight-2;
@@ -398,8 +398,6 @@ function MicroProfileDrawDetailed(Animation)
 	var nHoverColor = '#' + nHoverHigh + nHoverHigh + nHoverHigh;
 
 	context.fillStyle = 'black';
-	context.font = Font;
-
 	context.font = Font;
 	var nNumLogs = Frames[0].ts.length;
 	for(nLog = 0; nLog < nNumLogs; nLog++)
@@ -463,13 +461,13 @@ function MicroProfileDrawDetailed(Animation)
 
 						var name = TimerInfo[index].name;
 						var len = TimerInfo[index].len;
-						var sublen = Math.floor(W/7);
+						var sublen = Math.floor((W-2)/FontWidth);
 						if(sublen >= 2)
 						{
 							if(sublen < len)
 								name = name.substr(0, sublen);
-							context.fillStyle = InvertColor(TimerInfo[index].color);//'black';
-							context.fillText(name, Math.floor(X), Math.floor(Y+BoxHeight-2));
+							context.fillStyle = InvertColor(TimerInfo[index].color);
+							context.fillText(name, X+1, Y+BoxHeight-FontAscent);
 							DebugDrawTextCount++;
 						}
 						if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
@@ -622,7 +620,6 @@ function MicroProfileMoveGraph(X, Y)
 }
 function MicroProfileZoomTo(fZoomBegin, fZoomEnd)
 {
-	//return;
 	if(fZoomBegin < fZoomEnd)
 	{
 		var requestAnimationFrame = 
@@ -698,7 +695,8 @@ function MicroProfileZoomGraph(nZoom)
 
 }
 
-function ResizeCanvas() {
+function ResizeCanvas() 
+{
 	nWidth = window.innerWidth;
 	nHeight = window.innerHeight - CanvasHistory.height-2;
 	console.log('setting height to ' + nHeight);
@@ -723,7 +721,33 @@ function ResizeCanvas() {
 		CanvasDetailedView.height = nHeight;
 		CanvasHistory.width = window.innerWidth;
 	}
+	var context = CanvasDetailedView.getContext('2d');
+	context.font = Font;
+	FontWidth = context.measureText('W').width;
 	MicroProfileDrawDetailed(false);
+
+
+	// var characters = 'ABCDEFGHIJKLMNOPQRSTYVWXYZabc';
+	// for(var c in characters)
+	// {
+	// 	var BB = context.measureText(characters[c]);
+	// 	console.log('character ' + characters[c] + '=' + BB.width );
+
+
+	// }
+	// {characters = "AA";var BB = context.measureText(characters);
+	// console.log('character ' + characters + '=' + BB.width + ' avg ' + BB.Width / characters.length);}
+	// {characters = "AAA";var BB = context.measureText(characters);
+	// console.log('character ' + characters + '=' + BB.width + ' avg ' + BB.Width / characters.length);}
+	// {characters = "AAAA";var BB = context.measureText(characters);
+	// console.log('character ' + characters + '=' + BB.width + ' avg ' + BB.Width / characters.length);}
+	// {characters = "AAAAA";var BB = context.measureText(characters);
+	// console.log('character ' + characters + '=' + BB.width + ' avg ' + BB.Width / characters.length);}
+	// {characters = "AAAAAA";var BB = context.measureText(characters);
+	// console.log('character ' + characters + '=' + BB.width + ' avg ' + BB.Width / characters.length);}
+
+			
+
 }
 
 function MouseMove(evt)
@@ -756,7 +780,7 @@ function MouseMove(evt)
 		var Rect = CanvasHistory.getBoundingClientRect();
 		HistoryViewMouseX = evt.clientX - Rect.left;
 		HistoryViewMouseY = evt.clientY - Rect.top;
-		console.log('his x ' + HistoryViewMouseX);
+		//console.log('his x ' + HistoryViewMouseX);
 	}
 
 	MicroProfileDrawDetailed(false);
@@ -859,6 +883,8 @@ var time = end - start;
 console.log('setup :: ' + time + 'ms ');
 
 ResizeCanvas();
+console.log('startup FW ' + FontWidth);
+MicroProfileDrawDetailed(false);
 MicroProfileDrawDetailedFrameHistory();
 MicroProfileStartDrawing();
 
