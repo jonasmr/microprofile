@@ -6,18 +6,20 @@ ifeq ($(UNAME_S),Darwin)
 	LDFLAGS=-framework OpenGL `sdl2-config --static-libs` -lpthread
 endif
 
-CFLAGS=`sdl2-config --cflags` -I.. -Iglew -DGLEW_STATIC -Wno-c++11-extensions
+CFLAGS=`sdl2-config --cflags` -I../.. -I../glew -DGLEW_STATIC -Wno-c++11-extensions
 #CFLAGS+=-fsanitize=undefined-trap -fsanitize-undefined-trap-on-error
-CFLAGS+=-Wall
-
+CFLAGS+=-Wall -DMICROPROFILE_UI=1 
+CFLAGS+=-DMICROPROFILE_WEBSERVER=1
+#CFLAGS+=-DMICROPROFILE_ENABLED=0
 
 CFLAGS+=-g -O0 -Wno-invalid-offsetof
 
 CPPFLAGS=$(CFLAGS)
 CPPFLAGS+=-stdlib=libc++ -std=c++11
 
-CPP_SOURCES = demo.cpp microprofile.cpp
-C_SOURCES = glew/glew.c
+
+CPP_SOURCES = microprofile.cpp fakework.cpp demo.cpp
+C_SOURCES = ../glew/glew.c
 
 TARGET=demo
 CC=clang
@@ -49,7 +51,7 @@ depend: $(CPP_SOURCES) $(C_SOURCES)
 	$(CPP) -MM $(CPPFLAGS) $(CPP_SOURCES) >> .depend
 
 embed_target:
-	cd ../src && make
+	cd ../../src && make
 
 embed: embed_target all
 	

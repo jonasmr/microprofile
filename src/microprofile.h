@@ -116,8 +116,14 @@
 #define MicroProfileToggleDisplayMode() do{}while(0)
 #define MicroProfileSetDisplayMode() do{}while(0)
 #define MicroProfileTogglePause() do{}while(0)
+#define MicroProfileToggleAllGroups() do{} while(0)
 #define MicroProfileDumpTimers() do{}while(0)
 #define MicroProfileShutdown() do{}while(0)
+#define MicroProfileSetForceEnable(a) do{} while(0)
+#define MicroProfileGetForceEnable() false
+#define MicroProfileSetEnableAllGroups(a) do{} while(0)
+#define MicroProfileGetEnableAllGroups() false
+#define MicroProfileDumpHtml() do{} while(0)
 
 #else
 
@@ -287,11 +293,19 @@ typedef uint32_t ThreadIdType;
 #endif
 
 #ifndef MICROPROFILE_WEBSERVER
-#define MICROPROFILE_WEBSERVER 1
+#define MICROPROFILE_WEBSERVER 0
 #endif
 
 #ifndef MICROPROFILE_WEBSERVER_MAXFRAMES
 #define MICROPROFILE_WEBSERVER_MAXFRAMES 5
+#endif
+
+#ifndef MICROPROFILE_UI
+#define MICROPROFILE_UI 0
+#endif
+
+#ifndef MICROPROFILE_GPU_TIMERS
+#define MICROPROFILE_GPU_TIMERS 1
 #endif
 
 #define MICROPROFILE_FORCEENABLECPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeCpu)
@@ -346,41 +360,58 @@ inline uint64_t MicroProfileGetGroupMask(MicroProfileToken t){ return ((t>>16)&M
 inline MicroProfileToken MicroProfileMakeToken(uint64_t nGroupMask, uint16_t nTimer){ return (nGroupMask<<16) | nTimer;}
 
 MICROPROFILE_API void MicroProfileFlip(); //! called once per frame.
-MICROPROFILE_API void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight); //! call if drawing microprofilers
-MICROPROFILE_API bool MicroProfileIsDrawing();
-MICROPROFILE_API void MicroProfileToggleGraph(MicroProfileToken nToken);
-MICROPROFILE_API bool MicroProfileDrawGraph(uint32_t nScreenWidth, uint32_t nScreenHeight);
-MICROPROFILE_API void MicroProfileSetAggregateCount(uint32_t nCount); //!Set no. of frames to aggregate over. 0 for infinite
-MICROPROFILE_API void MicroProfileToggleDisplayMode(); //switch between off, bars, detailed
-MICROPROFILE_API void MicroProfileSetDisplayMode(int); //switch between off, bars, detailed
-MICROPROFILE_API void MicroProfileClearGraph();
 MICROPROFILE_API void MicroProfileTogglePause();
 MICROPROFILE_API void MicroProfileGetState(MicroProfileState* pStateOut);
 MICROPROFILE_API void MicroProfileSetState(MicroProfileState* pStateIn);
 MICROPROFILE_API void MicroProfileForceEnableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API float MicroProfileGetTime(const char* pGroup, const char* pName);
-MICROPROFILE_API void MicroProfileMousePosition(uint32_t nX, uint32_t nY, int nWheelDelta);
-MICROPROFILE_API void MicroProfileModKey(uint32_t nKeyState);
-MICROPROFILE_API void MicroProfileMouseButton(uint32_t nLeft, uint32_t nRight);
 MICROPROFILE_API void MicroProfileOnThreadCreate(const char* pThreadName); //should be called from newly created threads
 MICROPROFILE_API void MicroProfileOnThreadExit(); //call on exit to reuse log
 MICROPROFILE_API void MicroProfileInitThreadLog();
+MICROPROFILE_API void MicroProfileSetForceEnable(bool bForceEnable);
+MICROPROFILE_API bool MicroProfileGetForceEnable();
+MICROPROFILE_API void MicroProfileSetEnableAllGroups(bool bEnable); 
+MICROPROFILE_API bool MicroProfileGetEnableAllGroups();
+
+#if MICROPROFILE_WEBSERVER
+MICROPROFILE_API void MicroProfileDumpHtml();
+#else
+#define MicroProfileDumpHtml() do{} while(0)
+#endif
+
+
+#if MICROPROFILE_UI
+MICROPROFILE_API void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight); //! call if drawing microprofilers
+MICROPROFILE_API bool MicroProfileIsDrawing();
+MICROPROFILE_API void MicroProfileToggleGraph(MicroProfileToken nToken);
+MICROPROFILE_API bool MicroProfileDrawGraph(uint32_t nScreenWidth, uint32_t nScreenHeight);
+MICROPROFILE_API void MicroProfileToggleDisplayMode(); //switch between off, bars, detailed
+MICROPROFILE_API void MicroProfileSetDisplayMode(int); //switch between off, bars, detailed
+MICROPROFILE_API void MicroProfileClearGraph();
+MICROPROFILE_API void MicroProfileMousePosition(uint32_t nX, uint32_t nY, int nWheelDelta);
+MICROPROFILE_API void MicroProfileModKey(uint32_t nKeyState);
+MICROPROFILE_API void MicroProfileMouseButton(uint32_t nLeft, uint32_t nRight);
 MICROPROFILE_API void MicroProfileDrawLineVertical(int nX, int nTop, int nBottom, uint32_t nColor);
 MICROPROFILE_API void MicroProfileDrawLineHorizontal(int nLeft, int nRight, int nY, uint32_t nColor);
-MICROPROFILE_API void MicroProfileDumpTimers();
-MICROPROFILE_API void MicroProfileDumpState();
 
-
-
-
-//UNDEFINED: MUST BE IMPLEMENTED ELSEWHERE
 MICROPROFILE_API void MicroProfileDrawText(int nX, int nY, uint32_t nColor, const char* pText, uint32_t nNumCharacters);
 MICROPROFILE_API void MicroProfileDrawBox(int nX, int nY, int nX1, int nY1, uint32_t nColor, MicroProfileBoxType = MicroProfileBoxTypeFlat);
 MICROPROFILE_API void MicroProfileDrawLine2D(uint32_t nVertices, float* pVertices, uint32_t nColor);
+MICROPROFILE_API void MicroProfileDumpTimers();
+#endif
+
+#if MICROPROFILE_GPU_TIMERS
 MICROPROFILE_API uint32_t MicroProfileGpuInsertTimeStamp();
 MICROPROFILE_API uint64_t MicroProfileGpuGetTimeStamp(uint32_t nKey);
 MICROPROFILE_API uint64_t MicroProfileTicksPerSecondGpu();
+#else
+#define MicroProfileGpuInsertTimeStamp() 1
+#define MicroProfileGpuGetTimeStamp(a) 0
+#define MicroProfileTicksPerSecondGpu() 1
+#endif
+
+
 #if MICROPROFILE_USE_THREAD_NAME_CALLBACK
 MICROPROFILE_API const char* MicroProfileGetThreadName();
 #else
@@ -467,11 +498,16 @@ typedef int MpSocket;
 void MicroProfileWebServerStart();
 void MicroProfileWebServerStop();
 void MicroProfileWebServerUpdate();
+void MicroProfileDumpHtmlToFile();
 
 #else
+
 #define MicroProfileWebServerStart() do{}while(0)
 #define MicroProfileWebServerStop() do{}while(0)
 #define MicroProfileWebServerUpdate() do{}while(0)
+#define MicroProfileDumpHtmlToFile() do{} while(0)
+
+typedef int MpSocket;
 #endif 
 
 
@@ -680,6 +716,7 @@ struct
 	uint32_t nActiveBars;
 
 	uint64_t nForceGroup;
+	uint32_t nForceEnable;
 
 	//menu/mouse over stuff
 	uint64_t nMenuActiveGroup;
@@ -698,7 +735,7 @@ struct
 	uint32_t nRunning;
 	uint32_t nToggleRunning;
 	uint32_t nMaxGroupSize;
-	uint32_t nDumpNextFrame;
+	uint32_t nDumpHtmlNextFrame;
 
 	int64_t nPauseTicks;
 
@@ -890,7 +927,6 @@ MICROPROFILE_DEFINE(g_MicroProfileContextSwitchSearch,"MicroProfile", "ContextSw
 void MicroProfileStartContextSwitchTrace();
 void MicroProfileStopContextSwitchTrace();
 bool MicroProfileIsLocalThread(uint32_t nThreadId);
-void MicroProfileDumpHtmlToFile();
 
 inline std::recursive_mutex& MicroProfileMutex()
 {
@@ -1399,14 +1435,14 @@ void MicroProfileFlip()
 			}
 		}
 	}
-	if(S.nDumpNextFrame)
+	if(S.nDumpHtmlNextFrame)
 	{
-		S.nDumpNextFrame = 0;
+		S.nDumpHtmlNextFrame = 0;
 		MicroProfileDumpHtmlToFile();
 	}
 	MicroProfileWebServerUpdate();
 
-	if(S.nRunning)
+	if(S.nRunning || S.nForceEnable)
 	{
 		S.nFramePutIndex++;
 		S.nFramePut = (S.nFramePut+1) % MICROPROFILE_MAX_FRAME_HISTORY;
@@ -1617,7 +1653,7 @@ void MicroProfileFlip()
 		}
 	}
 	uint64_t nNewActiveGroup = 0;
-	if(S.nDisplay && S.nRunning)
+	if(S.nForceEnable || (S.nDisplay && S.nRunning))
 		nNewActiveGroup = S.nMenuAllGroups ? S.nGroupMask : S.nMenuActiveGroup;
 	nNewActiveGroup |= S.nForceGroup;
 	if(S.nActiveGroup != nNewActiveGroup)
@@ -1633,6 +1669,272 @@ void MicroProfileFlip()
 
 }
 
+void MicroProfileSetForceEnable(bool bEnable)
+{
+	S.nForceEnable = bEnable ? 1 : 0;
+}
+bool MicroProfileGetForceEnable()
+{
+	return S.nForceEnable != 0;
+}
+
+void MicroProfileSetEnableAllGroups(bool bEnableAllGroups)
+{
+	S.nMenuAllGroups = bEnableAllGroups ? 1 : 0;
+}
+
+bool MicroProfileGetEnableAllGroups()
+{
+	return 0 != S.nMenuAllGroups;
+}
+
+
+void MicroProfileGetState(MicroProfileState* pStateOut)
+{
+	pStateOut->nDisplay = S.nDisplay;
+	pStateOut->nMenuAllGroups = S.nMenuAllGroups;
+	pStateOut->nMenuActiveGroup = S.nMenuActiveGroup;
+	pStateOut->nMenuAllThreads = S.nMenuAllThreads;
+	pStateOut->nAggregateFlip = S.nAggregateFlip;
+	pStateOut->nBars = S.nBars;
+	pStateOut->fReferenceTime = S.fReferenceTime;
+}
+
+void MicroProfileSetState(MicroProfileState* pStateOut)
+{
+	MicroProfileScopeLock L(MicroProfileMutex());
+	S.nDisplay = pStateOut->nDisplay;
+	S.nMenuAllGroups = pStateOut->nMenuAllGroups;
+	S.nMenuActiveGroup = pStateOut->nMenuActiveGroup;
+	S.nMenuAllThreads = pStateOut->nMenuAllThreads;
+	S.nAggregateFlip = pStateOut->nAggregateFlip;
+	S.nBars = pStateOut->nBars;
+	S.fReferenceTime = pStateOut->fReferenceTime;
+	S.fRcpReferenceTime = 1.f / S.fReferenceTime;
+}
+
+
+#include <stdio.h>
+
+#define MICROPROFILE_PRESET_HEADER_MAGIC 0x28586813
+#define MICROPROFILE_PRESET_HEADER_VERSION 0x00000102
+struct MicroProfilePresetHeader
+{
+	uint32_t nMagic;
+	uint32_t nVersion;
+	//groups, threads, aggregate, reference frame, graphs timers
+	uint32_t nGroups[MICROPROFILE_MAX_GROUPS];
+	uint32_t nThreads[MICROPROFILE_MAX_THREADS];
+	uint32_t nGraphName[MICROPROFILE_MAX_GRAPHS];
+	uint32_t nGraphGroupName[MICROPROFILE_MAX_GRAPHS];
+	uint32_t nMenuAllGroups;
+	uint32_t nMenuAllThreads;
+	uint32_t nAggregateFlip;
+	float fReferenceTime;
+	uint32_t nBars;
+	uint32_t nDisplay;
+	uint32_t nOpacityBackground;
+	uint32_t nOpacityForeground;
+	uint32_t nShowSpikes;
+};
+
+#ifndef MICROPROFILE_PRESET_FILENAME_FUNC
+#define MICROPROFILE_PRESET_FILENAME_FUNC MicroProfilePresetFilename
+static const char* MicroProfilePresetFilename(const char* pSuffix)
+{
+	static char filename[512];
+	snprintf(filename, sizeof(filename)-1, ".microprofilepreset.%s", pSuffix);
+	return filename;
+}
+#endif
+
+void MicroProfileSavePreset(const char* pPresetName)
+{
+	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+	FILE* F = fopen(MICROPROFILE_PRESET_FILENAME_FUNC(pPresetName), "wb");
+	if(!F) return;
+
+	MicroProfilePresetHeader Header;
+	memset(&Header, 0, sizeof(Header));
+	Header.nAggregateFlip = S.nAggregateFlip;
+	Header.nBars = S.nBars;
+	Header.fReferenceTime = S.fReferenceTime;
+	Header.nMenuAllGroups = S.nMenuAllGroups;
+	Header.nMenuAllThreads = S.nMenuAllThreads;
+	Header.nMagic = MICROPROFILE_PRESET_HEADER_MAGIC;
+	Header.nVersion = MICROPROFILE_PRESET_HEADER_VERSION;
+	Header.nDisplay = S.nDisplay;
+	Header.nOpacityBackground = S.nOpacityBackground;
+	Header.nOpacityForeground = S.nOpacityForeground;
+	Header.nShowSpikes = S.bShowSpikes ? 1 : 0;
+	fwrite(&Header, sizeof(Header), 1, F);
+	uint64_t nMask = 1;
+	for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
+	{
+		if(S.nMenuActiveGroup & nMask)
+		{
+			uint32_t offset = ftell(F);
+			const char* pName = S.GroupInfo[i].pName;
+			int nLen = (int)strlen(pName)+1;
+			fwrite(pName, nLen, 1, F);
+			Header.nGroups[i] = offset;
+		}
+		nMask <<= 1;
+	}
+	for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
+	{
+		MicroProfileThreadLog* pLog = S.Pool[i];
+		if(pLog && S.nThreadActive[i])
+		{
+			uint32_t nOffset = ftell(F);
+			const char* pName = &pLog->ThreadName[0];
+			int nLen = (int)strlen(pName)+1;
+			fwrite(pName, nLen, 1, F);
+			Header.nThreads[i] = nOffset;
+		}
+	}
+	for(uint32_t i = 0; i < MICROPROFILE_MAX_GRAPHS; ++i)
+	{
+		MicroProfileToken nToken = S.Graph[i].nToken;
+		if(nToken != MICROPROFILE_INVALID_TOKEN)
+		{
+			uint32_t nGroupIndex = MicroProfileGetGroupIndex(nToken);
+			uint32_t nTimerIndex = MicroProfileGetTimerIndex(nToken);
+			const char* pGroupName = S.GroupInfo[nGroupIndex].pName;
+			const char* pTimerName = S.TimerInfo[nTimerIndex].pName;
+			MP_ASSERT(pGroupName);
+			MP_ASSERT(pTimerName);
+			int nGroupLen = (int)strlen(pGroupName)+1;
+			int nTimerLen = (int)strlen(pTimerName)+1;
+
+			uint32_t nOffsetGroup = ftell(F);
+			fwrite(pGroupName, nGroupLen, 1, F);
+			uint32_t nOffsetTimer = ftell(F);
+			fwrite(pTimerName, nTimerLen, 1, F);
+			Header.nGraphName[i] = nOffsetTimer;
+			Header.nGraphGroupName[i] = nOffsetGroup;
+		}
+	}
+	fseek(F, 0, SEEK_SET);
+	fwrite(&Header, sizeof(Header), 1, F);
+
+	fclose(F);
+
+}
+
+
+
+void MicroProfileLoadPreset(const char* pSuffix)
+{
+	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+	FILE* F = fopen(MICROPROFILE_PRESET_FILENAME_FUNC(pSuffix), "rb");
+	if(!F)
+	{
+	 	return;
+	}
+	fseek(F, 0, SEEK_END);
+	int nSize = ftell(F);
+	char* const pBuffer = (char*)alloca(nSize);
+	fseek(F, 0, SEEK_SET);
+	int nRead = (int)fread(pBuffer, nSize, 1, F);
+	fclose(F);
+	if(1 != nRead)
+		return;
+	
+	MicroProfilePresetHeader& Header = *(MicroProfilePresetHeader*)pBuffer;
+
+	if(Header.nMagic != MICROPROFILE_PRESET_HEADER_MAGIC || Header.nVersion != MICROPROFILE_PRESET_HEADER_VERSION)
+	{
+		return;
+	}
+
+	S.nAggregateFlip = Header.nAggregateFlip;
+	S.nBars = Header.nBars;
+	S.fReferenceTime = Header.fReferenceTime;
+	S.fRcpReferenceTime = 1.f / Header.fReferenceTime;
+	S.nMenuAllGroups = Header.nMenuAllGroups;
+	S.nMenuAllThreads = Header.nMenuAllThreads;
+	S.nDisplay = Header.nDisplay;
+	S.nMenuActiveGroup = 0;
+	S.nOpacityBackground = Header.nOpacityBackground;
+	S.nOpacityForeground = Header.nOpacityForeground;
+	S.bShowSpikes = Header.nShowSpikes == 1;
+
+	memset(&S.nThreadActive[0], 0, sizeof(S.nThreadActive));
+
+	for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
+	{
+		if(Header.nGroups[i])
+		{
+			const char* pGroupName = pBuffer + Header.nGroups[i];	
+			for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
+			{
+				if(S.GroupInfo[j].pName && 0 == MP_STRCASECMP(pGroupName, S.GroupInfo[j].pName))
+				{
+					S.nMenuActiveGroup |= (1ll << j);
+				}
+			}
+		}
+	}
+	for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
+	{
+		if(Header.nThreads[i])
+		{
+			const char* pThreadName = pBuffer + Header.nThreads[i];
+			for(uint32_t j = 0; j < MICROPROFILE_MAX_THREADS; ++j)
+			{
+				MicroProfileThreadLog* pLog = S.Pool[j];
+				if(pLog && 0 == MP_STRCASECMP(pThreadName, &pLog->ThreadName[0]))
+				{
+					S.nThreadActive[j] = 1;
+				}
+			}
+		}
+	}
+	for(uint32_t i = 0; i < MICROPROFILE_MAX_GRAPHS; ++i)
+	{
+		MicroProfileToken nPrevToken = S.Graph[i].nToken;
+		S.Graph[i].nToken = MICROPROFILE_INVALID_TOKEN;
+		if(Header.nGraphName[i] && Header.nGraphGroupName[i])
+		{
+			const char* pGraphName = pBuffer + Header.nGraphName[i];
+			const char* pGraphGroupName = pBuffer + Header.nGraphGroupName[i];
+			for(uint32_t j = 0; j < S.nTotalTimers; ++j)
+			{
+				uint64_t nGroupIndex = S.TimerInfo[j].nGroupIndex;
+				if(0 == MP_STRCASECMP(pGraphName, S.TimerInfo[j].pName) && 0 == MP_STRCASECMP(pGraphGroupName, S.GroupInfo[nGroupIndex].pName))
+				{
+					MicroProfileToken nToken = MicroProfileMakeToken(1ll << nGroupIndex, (uint16_t)j);
+					S.Graph[i].nToken = nToken;			// note: group index is stored here but is checked without in MicroProfileToggleGraph()!
+					S.TimerInfo[j].bGraph = true;
+					if(nToken != nPrevToken)
+					{
+						memset(&S.Graph[i].nHistory, 0, sizeof(S.Graph[i].nHistory));
+					}
+					break;
+				}
+			}
+		}
+	}
+}
+
+void MicroProfileForceEnableGroup(const char* pGroup, MicroProfileTokenType Type)
+{
+	MicroProfileInit();
+	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+	uint16_t nGroup = MicroProfileGetGroup(pGroup, Type);
+	S.nForceGroup |= (1ll << nGroup);
+}
+
+void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Type)
+{
+	MicroProfileInit();
+	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+	uint16_t nGroup = MicroProfileGetGroup(pGroup, Type);
+	S.nForceGroup &= ~(1ll << nGroup);
+}
+
+#if MICROPROFILE_UI
 void MicroProfileSetDisplayMode(int nValue)
 {
 	nValue = nValue >= 0 && nValue < 4 ? nValue : S.nDisplay;
@@ -2895,10 +3197,939 @@ void MicroProfileDumpTimers()
 	}
 }
 
-void MicroProfileDumpState()
+void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 {
-	S.nDumpNextFrame = 1;
+	uint64_t nActiveGroup = S.nMenuAllGroups ? S.nGroupMask : S.nMenuActiveGroup;
+	if(!nActiveGroup)
+		return;
+	MICROPROFILE_SCOPE(g_MicroProfileDrawBarView);
+
+	const uint32_t nHeight = S.nBarHeight;
+	int nColorIndex = 0;
+	uint32_t nX = 0;
+	uint32_t nY = nHeight + 1 - S.nOffsetY;	
+	uint32_t nNumTimers = 0;
+	uint32_t nNumGroups = 0;
+	uint32_t nMaxTimerNameLen = 1;
+	for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
+	{
+		if(nActiveGroup & (1ll << j))
+		{
+			nNumTimers += S.GroupInfo[j].nNumTimers;
+			nNumGroups += 1;
+			nMaxTimerNameLen = MicroProfileMax(nMaxTimerNameLen, S.GroupInfo[j].nMaxTimerNameLen);
+		}
+	}
+	uint32_t nBlockSize = 2 * nNumTimers;
+	float* pTimers = (float*)alloca(nBlockSize * 7 * sizeof(float));
+	float* pAverage = pTimers + nBlockSize;
+	float* pMax = pTimers + 2 * nBlockSize;
+	float* pCallAverage = pTimers + 3 * nBlockSize;
+	float* pTimersExclusive = pTimers + 4 * nBlockSize;
+	float* pAverageExclusive = pTimers + 5 * nBlockSize;
+	float* pMaxExclusive = pTimers + 6 * nBlockSize;
+	MicroProfileCalcTimers(pTimers, pAverage, pMax, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, nActiveGroup, nNumTimers);
+	{
+		uint32_t nWidth = 0;
+		for(uint32_t i = 1; i ; i <<= 1)
+		{
+			if(S.nBars & i)
+			{
+				nWidth += S.nBarWidth + 5 + 6 * (1+MICROPROFILE_TEXT_WIDTH);
+				if(i & MP_DRAW_CALL_COUNT)
+					nWidth += 5 + 6 * MICROPROFILE_TEXT_WIDTH;
+			}
+		}
+		nWidth += (1+nMaxTimerNameLen) * (MICROPROFILE_TEXT_WIDTH+1);
+		for(uint32_t i = 0; i < nNumTimers+nNumGroups+1; ++i)
+		{
+			uint32_t nY0 = nY + i * (nHeight + 1);
+			bool bInside = (S.nActiveMenu == -1) && ((S.nMouseY >= nY0) && (S.nMouseY < (nY0 + nHeight + 1)));
+			MicroProfileDrawBox(nX, nY0, nWidth, nY0 + (nHeight+1)+1, S.nOpacityBackground | (g_nMicroProfileBackColors[nColorIndex++ & 1] + ((bInside) ? 0x002c2c2c : 0)));
+		}
+	}
+	int nTotalHeight = (nNumTimers+nNumGroups+2) * (nHeight+1);
+	uint32_t nLegendOffset = 1;
+	for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
+	{
+		if(nActiveGroup & (1ll << j))
+		{
+			MicroProfileDrawText(nX, nY + (1+nHeight) * nLegendOffset, (uint32_t)-1, S.GroupInfo[j].pName, S.GroupInfo[j].nNameLen);
+			nLegendOffset += S.GroupInfo[j].nNumTimers+1;
+		}
+	}
+	if(S.nBars & MP_DRAW_TIMERS)		
+		nX += MicroProfileDrawBarArray(nX, nY, pTimers, "Time", nTotalHeight) + 1;
+	if(S.nBars & MP_DRAW_AVERAGE)		
+		nX += MicroProfileDrawBarArray(nX, nY, pAverage, "Average", nTotalHeight) + 1;
+	if(S.nBars & MP_DRAW_MAX)		
+		nX += MicroProfileDrawBarArray(nX, nY, pMax, (!S.bShowSpikes) ? "Max Time" : "Max Time, Spike", nTotalHeight, S.bShowSpikes ? pAverage : NULL) + 1;
+	if(S.nBars & MP_DRAW_CALL_COUNT)		
+	{
+		nX += MicroProfileDrawBarArray(nX, nY, pCallAverage, "Call Average", nTotalHeight) + 1;
+		nX += MicroProfileDrawBarCallCount(nX, nY, "Count") + 1; 
+	}
+	if(S.nBars & MP_DRAW_TIMERS_EXCLUSIVE)		
+		nX += MicroProfileDrawBarArray(nX, nY, pTimersExclusive, "Exclusive Time", nTotalHeight) + 1;
+	if(S.nBars & MP_DRAW_AVERAGE_EXCLUSIVE)		
+		nX += MicroProfileDrawBarArray(nX, nY, pAverageExclusive, "Exclusive Average", nTotalHeight) + 1;
+	if(S.nBars & MP_DRAW_MAX_EXCLUSIVE)		
+		nX += MicroProfileDrawBarArray(nX, nY, pMaxExclusive, (!S.bShowSpikes) ? "Exclusive Max Time" :"Excl Max Time, Spike", nTotalHeight, S.bShowSpikes ? pAverageExclusive : NULL) + 1;
+
+	for(int i = 0; i < MICROPROFILE_META_MAX; ++i)
+	{
+		if(S.nBars & (MP_DRAW_META_FIRST<<i))
+		{
+			nX += MicroProfileDrawBarMetaCount(nX, nY, &S.MetaCounters[i].nCounters[0], S.MetaCounters[i].pName, nTotalHeight) + 1; 
+		}
+	}
+	nX += MicroProfileDrawBarLegend(nX, nY, nTotalHeight) + 1;
 }
+
+void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
+{
+	uint32_t nX = 0;
+	uint32_t nY = 0;
+	bool bMouseOver = S.nMouseY < MICROPROFILE_TEXT_HEIGHT + 1;
+#define SBUF_SIZE 256
+	char buffer[256];
+	MicroProfileDrawBox(nX, nY, nX + nWidth, nY + (S.nBarHeight+1)+1, 0xff000000|g_nMicroProfileBackColors[1]);
+
+#define MICROPROFILE_MENU_MAX 16
+	const char* pMenuText[MICROPROFILE_MENU_MAX] = {0};
+	uint32_t 	nMenuX[MICROPROFILE_MENU_MAX] = {0};
+	uint32_t nNumMenuItems = 0;
+
+	int nLen = snprintf(buffer, 127, "MicroProfile");
+	MicroProfileDrawText(nX, nY, (uint32_t)-1, buffer, nLen);
+	nX += (sizeof("MicroProfile")+2) * (MICROPROFILE_TEXT_WIDTH+1);
+	pMenuText[nNumMenuItems++] = "Mode";
+	pMenuText[nNumMenuItems++] = "Groups";
+	char AggregateText[64];
+	snprintf(AggregateText, sizeof(AggregateText)-1, "Aggregate[%d]", S.nAggregateFlip ? S.nAggregateFlip : S.nAggregateFlipCount);
+	pMenuText[nNumMenuItems++] = &AggregateText[0];
+	pMenuText[nNumMenuItems++] = "Timers";
+	pMenuText[nNumMenuItems++] = "Options";
+	pMenuText[nNumMenuItems++] = "Preset";
+	const int nPauseIndex = nNumMenuItems;
+	pMenuText[nNumMenuItems++] = S.nRunning ? "Pause" : "Unpause";
+	pMenuText[nNumMenuItems++] = "Help";
+
+	if(S.nOverflow)
+	{
+		pMenuText[nNumMenuItems++] = "!BUFFERSFULL!";
+	}
+
+
+	struct SOptionDesc
+	{
+		SOptionDesc(){}
+		SOptionDesc(uint8_t nSubType, uint8_t nIndex, const char* fmt, ...):nSubType(nSubType), nIndex(nIndex)
+		{
+			va_list args;
+			va_start (args, fmt);
+			vsprintf(Text, fmt, args);
+			va_end(args);
+		}
+		char Text[32];
+		uint8_t nSubType;
+		uint8_t nIndex;
+		bool bSelected;
+	};
+	static const int nNumReferencePresets = sizeof(g_MicroProfileReferenceTimePresets)/sizeof(g_MicroProfileReferenceTimePresets[0]);
+	static const int nNumOpacityPresets = sizeof(g_MicroProfileOpacityPresets)/sizeof(g_MicroProfileOpacityPresets[0]);
+
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+	static const int nOptionSize = nNumReferencePresets + nNumOpacityPresets * 2 + 2 + 7;
+#else
+	static const int nOptionSize = nNumReferencePresets + nNumOpacityPresets * 2 + 2 + 3;
+#endif
+
+	static SOptionDesc Options[nOptionSize];
+	static bool bOptionInit = false;
+	if(!bOptionInit)
+	{
+		bOptionInit = true;
+		int nIndex = 0;
+		Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "Reference");
+		for(int i = 0; i < nNumReferencePresets; ++i)
+		{
+			Options[nIndex++] = SOptionDesc(0, i, "  %6.2fms", g_MicroProfileReferenceTimePresets[i]);
+		}
+		Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "BG Opacity");		
+		for(int i = 0; i < nNumOpacityPresets; ++i)
+		{
+			Options[nIndex++] = SOptionDesc(1, i, "  %7d%%", (i+1)*25);
+		}
+		Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "FG Opacity");		
+		for(int i = 0; i < nNumOpacityPresets; ++i)
+		{
+			Options[nIndex++] = SOptionDesc(2, i, "  %7d%%", (i+1)*25);
+		}
+		Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "Spike Display");		
+		Options[nIndex++] = SOptionDesc(3, 0, "%s", "  Enable");
+
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+		Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "CSwitch Trace");		
+		Options[nIndex++] = SOptionDesc(4, 0, "%s", "  Enable");
+		Options[nIndex++] = SOptionDesc(4, 1, "%s", "  All Threads");
+		Options[nIndex++] = SOptionDesc(4, 2, "%s", "  No Bars");
+#endif
+
+
+		MP_ASSERT(nIndex == nOptionSize);
+	}
+
+
+
+	typedef std::function<const char* (int, bool&)> SubmenuCallback; 
+	typedef std::function<void(int)> ClickCallback;
+	SubmenuCallback GroupCallback[] = 
+	{	[] (int index, bool& bSelected) -> const char*{
+			switch(index)
+			{
+				case 0: 
+					bSelected = S.nDisplay == MP_DRAW_DETAILED;
+					return "Detailed";
+				case 1:
+					bSelected = S.nDisplay == MP_DRAW_BARS; 
+					return "Timers";
+				case 2:
+					bSelected = S.nDisplay == MP_DRAW_HIDDEN; 
+					return "Hidden";
+				case 3:
+					bSelected = false; 
+					return "Off";
+				case 4:
+					bSelected = false;
+					return "------";
+				case 5:
+					bSelected = S.nForceEnable != 0;
+					return "Force Enable";
+
+				default: return 0;
+			}
+		},
+		[] (int index, bool& bSelected) -> const char*{
+			if(index == 0)
+			{
+				bSelected = S.nMenuAllGroups != 0;
+				return "ALL";
+			}
+			else
+			{
+				index = index-1;
+				bSelected = 0 != (S.nMenuActiveGroup & (1ll << index));
+				if(index < MICROPROFILE_MAX_GROUPS && S.GroupInfo[index].pName)
+					return S.GroupInfo[index].pName;
+				else
+					return 0;
+			}
+		},
+		[] (int index, bool& bSelected) -> const char*{
+			if(index < sizeof(g_MicroProfileAggregatePresets)/sizeof(g_MicroProfileAggregatePresets[0]))
+			{
+				int val = g_MicroProfileAggregatePresets[index];
+				bSelected = (int)S.nAggregateFlip == val;
+				if(0 == val)
+					return "Infinite";
+				else
+				{
+					static char buf[128];
+					snprintf(buf, sizeof(buf)-1, "%7d", val);
+					return buf;
+				}
+			}
+			return 0;
+		},
+		[] (int index, bool& bSelected) -> const char*{
+			bSelected = 0 != (S.nBars & (1 << index));
+			switch(index)
+			{
+				case 0: return "Time";				
+				case 1: return "Average";				
+				case 2: return "Max";
+				case 3: return "Call Count";
+				case 4: return "Exclusive Timers";
+				case 5: return "Exclusive Average";
+				case 6: return "Exclusive Max";
+			}
+			int nMetaIndex = index - 7;
+			if(nMetaIndex < MICROPROFILE_META_MAX)
+			{
+				return S.MetaCounters[nMetaIndex].pName;
+			}
+			return 0;
+		},
+		[] (int index, bool& bSelected) -> const char*{
+			if(index >= nOptionSize) return 0;
+			switch(Options[index].nSubType)
+			{
+			case 0:
+				bSelected = S.fReferenceTime == g_MicroProfileReferenceTimePresets[Options[index].nIndex];
+				break;
+			case 1:
+				bSelected = S.nOpacityBackground>>24 == g_MicroProfileOpacityPresets[Options[index].nIndex];
+				break;
+			case 2:
+				bSelected = S.nOpacityForeground>>24 == g_MicroProfileOpacityPresets[Options[index].nIndex];				
+				break;
+			case 3:
+				bSelected = S.bShowSpikes;
+				break;
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+			case 4:
+				{
+					switch(Options[index].nIndex)
+					{
+					case 0:
+						bSelected = S.bContextSwitchRunning;
+						break;
+					case 1:
+						bSelected = S.bContextSwitchAllThreads;
+						break;
+					case 2: 
+						bSelected = S.bContextSwitchNoBars;
+						break;
+					}
+				}
+				break;
+#endif
+			}
+			return Options[index].Text;
+		},
+
+		[] (int index, bool& bSelected) -> const char*{
+			static char buf[128];
+			bSelected = false;
+			int nNumPresets = sizeof(g_MicroProfilePresetNames) / sizeof(g_MicroProfilePresetNames[0]);
+			int nIndexSave = index - nNumPresets - 1;
+			if(index == nNumPresets)
+				return "--";
+			else if(nIndexSave >=0 && nIndexSave <nNumPresets)
+			{
+				snprintf(buf, sizeof(buf)-1, "Save '%s'", g_MicroProfilePresetNames[nIndexSave]);
+				return buf;
+			}
+			else if(index < nNumPresets)
+			{
+				snprintf(buf, sizeof(buf)-1, "Load '%s'", g_MicroProfilePresetNames[index]);
+				return buf;
+			}
+			else
+			{
+				return 0;
+			}
+		},
+
+		[] (int index, bool& bSelected) -> const char*{
+			return 0;
+		},
+		[] (int index, bool& bSelected) -> const char*{
+			return 0;
+		},
+		[] (int index, bool& bSelected) -> const char*{
+			return 0;
+		},
+
+
+	};
+	ClickCallback CBClick[] = 
+	{
+		[](int nIndex)
+		{
+			switch(nIndex)
+			{
+				case 0:
+					S.nDisplay = MP_DRAW_DETAILED;
+					break;
+				case 1:
+					S.nDisplay = MP_DRAW_BARS;
+					break;
+				case 2:
+					S.nDisplay = MP_DRAW_HIDDEN;
+					break;
+				case 3:
+					S.nDisplay = 0;
+					break;
+				case 4:
+					break;
+				case 5:
+					S.nForceEnable = !S.nForceEnable;
+					break;
+			}
+		},
+		[](int nIndex)
+		{
+			if(nIndex == 0)
+				S.nMenuAllGroups = 1-S.nMenuAllGroups;
+			else
+				S.nMenuActiveGroup ^= (1ll << (nIndex-1));
+		},
+		[](int nIndex)
+		{
+			S.nAggregateFlip = g_MicroProfileAggregatePresets[nIndex];
+			if(0 == S.nAggregateFlip)
+			{
+				memset(S.AggregateTimers, 0, sizeof(S.AggregateTimers));
+				memset(S.MaxTimers, 0, sizeof(S.MaxTimers));
+				memset(S.AggregateTimersExclusive, 0, sizeof(S.AggregateTimersExclusive));
+				memset(S.MaxTimersExclusive, 0, sizeof(S.MaxTimersExclusive));
+				S.nFlipAggregate = 0;
+				S.nFlipMax = 0;
+				S.nAggregateFlipCount = 0;
+			}
+		},
+		[](int nIndex)
+		{
+			S.nBars ^= (1 << nIndex);
+		},
+		[](int nIndex)
+		{
+			switch(Options[nIndex].nSubType)
+			{
+			case 0:
+				S.fReferenceTime = g_MicroProfileReferenceTimePresets[Options[nIndex].nIndex];
+				S.fRcpReferenceTime = 1.f / S.fReferenceTime;
+				break;
+			case 1:
+				S.nOpacityBackground = g_MicroProfileOpacityPresets[Options[nIndex].nIndex]<<24;
+				break;
+			case 2:
+				S.nOpacityForeground = g_MicroProfileOpacityPresets[Options[nIndex].nIndex]<<24;
+				break;
+			case 3:
+				S.bShowSpikes = !S.bShowSpikes;
+				break;
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+			case 4:
+				{
+					switch(Options[nIndex].nIndex)
+					{
+					case 0:
+						if(S.bContextSwitchRunning)
+						{
+							MicroProfileStopContextSwitchTrace();
+						}
+						else
+						{
+							MicroProfileStartContextSwitchTrace();
+						}
+						break;
+					case 1:
+						S.bContextSwitchAllThreads = !S.bContextSwitchAllThreads;
+						break;
+					case 2:
+						S.bContextSwitchNoBars= !S.bContextSwitchNoBars;
+						break;
+
+					}
+				}
+				break;
+#endif
+			}
+		},
+		[](int nIndex)
+		{
+			int nNumPresets = sizeof(g_MicroProfilePresetNames) / sizeof(g_MicroProfilePresetNames[0]);
+			int nIndexSave = nIndex - nNumPresets - 1;
+			if(nIndexSave >= 0 && nIndexSave < nNumPresets)
+			{
+				MicroProfileSavePreset(g_MicroProfilePresetNames[nIndexSave]);
+			}
+			else if(nIndex >= 0 && nIndex < nNumPresets)
+			{
+				MicroProfileLoadPreset(g_MicroProfilePresetNames[nIndex]);
+			}
+		},
+		[](int nIndex)
+		{
+		},
+		[](int nIndex)
+		{
+		},
+		[](int nIndex)
+		{
+		},
+	};
+
+	uint32_t nSelectMenu = (uint32_t)-1;
+	for(uint32_t i = 0; i < nNumMenuItems; ++i)
+	{
+		nMenuX[i] = nX;
+		uint32_t nLen = (uint32_t)strlen(pMenuText[i]);
+		uint32_t nEnd = nX + nLen * (MICROPROFILE_TEXT_WIDTH+1);
+		if(S.nMouseY <= MICROPROFILE_TEXT_HEIGHT && S.nMouseX <= nEnd && S.nMouseX >= nX)
+		{
+			MicroProfileDrawBox(nX-1, nY, nX + nLen * (MICROPROFILE_TEXT_WIDTH+1), nY +(S.nBarHeight+1)+1, 0xff888888);
+			nSelectMenu = i;
+			if((S.nMouseLeft || S.nMouseRight) && i == (int)nPauseIndex)
+			{
+				S.nToggleRunning = 1;
+			}
+		}
+		MicroProfileDrawText(nX, nY, (uint32_t)-1, pMenuText[i], (uint32_t)strlen(pMenuText[i]));
+		nX += (nLen+1) * (MICROPROFILE_TEXT_WIDTH+1);
+	}
+	uint32_t nMenu = nSelectMenu != (uint32_t)-1 ? nSelectMenu : S.nActiveMenu;
+	S.nActiveMenu = nMenu;
+	if((uint32_t)-1 != nMenu)
+	{
+		nX = nMenuX[nMenu];
+		nY += MICROPROFILE_TEXT_HEIGHT+1;
+		SubmenuCallback CB = GroupCallback[nMenu];
+		int nNumLines = 0;
+		bool bSelected = false;
+		const char* pString = CB(nNumLines, bSelected);
+		uint32_t nWidth = 0, nHeight = 0;
+		while(pString)
+		{
+			nWidth = MicroProfileMax<int>(nWidth, (int)strlen(pString));
+			nNumLines++;
+			pString = CB(nNumLines, bSelected);
+		}
+		nWidth = (2+nWidth) * (MICROPROFILE_TEXT_WIDTH+1);
+		nHeight = nNumLines * (MICROPROFILE_TEXT_HEIGHT+1);
+		if(S.nMouseY <= nY + nHeight+0 && S.nMouseY >= nY-0 && S.nMouseX <= nX + nWidth + 0 && S.nMouseX >= nX - 0)
+		{
+			S.nActiveMenu = nMenu;
+		}
+		else if(nSelectMenu == (uint32_t)-1)
+		{
+			S.nActiveMenu = (uint32_t)-1;
+		}
+		MicroProfileDrawBox(nX, nY, nX + nWidth, nY + nHeight, 0xff000000|g_nMicroProfileBackColors[1]);
+		for(int i = 0; i < nNumLines; ++i)
+		{
+			bool bSelected = false;
+			const char* pString = CB(i, bSelected);
+			if(S.nMouseY >= nY && S.nMouseY < nY + MICROPROFILE_TEXT_HEIGHT + 1)
+			{
+				bMouseOver = true;
+				if(S.nMouseLeft || S.nMouseRight)
+				{
+					CBClick[nMenu](i);
+				}
+				MicroProfileDrawBox(nX, nY, nX + nWidth, nY + MICROPROFILE_TEXT_HEIGHT + 1, 0xff888888);
+			}
+			int nLen = snprintf(buffer, SBUF_SIZE-1, "%c %s", bSelected ? '*' : ' ' ,pString);
+			MicroProfileDrawText(nX, nY, (uint32_t)-1, buffer, nLen);
+			nY += MICROPROFILE_TEXT_HEIGHT+1;
+		}
+	}
+
+
+	{
+		static char FrameTimeMessage[64];
+		float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+		uint32_t nAggregateFrames = S.nAggregateFrames ? S.nAggregateFrames : 1;
+		float fMs = fToMs * (S.nFlipTicks);
+		float fAverageMs = fToMs * (S.nFlipAggregateDisplay / nAggregateFrames);
+		float fMaxMs = fToMs * S.nFlipMaxDisplay;
+		int nLen = snprintf(FrameTimeMessage, sizeof(FrameTimeMessage)-1, "Time[%6.2f] Avg[%6.2f] Max[%6.2f]", fMs, fAverageMs, fMaxMs);
+		pMenuText[nNumMenuItems++] = &FrameTimeMessage[0];
+		MicroProfileDrawText(nWidth - nLen * (MICROPROFILE_TEXT_WIDTH+1), 0, -1, FrameTimeMessage, nLen);
+	}
+}
+
+
+void MicroProfileMoveGraph()
+{
+	int nZoom = S.nMouseWheelDelta;
+	int nPanX = 0;
+	int nPanY = 0;
+	static int X = 0, Y = 0;
+	if(S.nMouseDownLeft && !S.nModDown)
+	{
+		nPanX = S.nMouseX - X;
+		nPanY = S.nMouseY - Y;
+	}
+	X = S.nMouseX;
+	Y = S.nMouseY;
+
+	if(nZoom)
+	{
+		float fOldRange = S.fDetailedRange;
+		if(nZoom>0)
+		{
+			S.fDetailedRangeTarget = S.fDetailedRange *= S.nModDown ? 1.40 : 1.05f;
+		}
+		else
+		{
+			float fNewDetailedRange = S.fDetailedRange / (S.nModDown ? 1.40 : 1.05f);
+			if(fNewDetailedRange < 1e-4f) //100ns
+				fNewDetailedRange = 1e-4f;
+			S.fDetailedRangeTarget = S.fDetailedRange = fNewDetailedRange;
+		}
+
+		float fDiff = fOldRange - S.fDetailedRange;
+		float fMousePrc = MicroProfileMax((float)S.nMouseX / S.nWidth ,0.f);
+		S.fDetailedOffsetTarget = S.fDetailedOffset += fDiff * fMousePrc;
+
+	}
+	if(nPanX)
+	{
+		S.fDetailedOffsetTarget = S.fDetailedOffset += -nPanX * S.fDetailedRange / S.nWidth;
+	}
+	S.nOffsetY -= nPanY;
+	if(S.nOffsetY<0)
+		S.nOffsetY = 0;
+}
+
+void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
+{
+	MICROPROFILE_SCOPE(g_MicroProfileDraw);
+
+	if(S.nDisplay)
+	{
+		MicroProfileScopeLock L(MicroProfileMutex());
+		S.nWidth = nWidth;
+		S.nHeight = nHeight;
+		S.nHoverToken = MICROPROFILE_INVALID_TOKEN;
+		S.nHoverTime = 0;
+		S.nHoverFrame = -1;
+		if(S.nDisplay != MP_DRAW_DETAILED)
+			S.nContextSwitchHoverThread = S.nContextSwitchHoverThreadAfter = S.nContextSwitchHoverThreadBefore = -1;
+		MicroProfileMoveGraph();
+
+
+		if(S.nDisplay == MP_DRAW_DETAILED)
+		{
+			MicroProfileDrawDetailedView(nWidth, nHeight);
+		}
+		else if(S.nDisplay == MP_DRAW_BARS && S.nBars)
+		{
+			MicroProfileDrawBarView(nWidth, nHeight);
+		}
+		
+		MicroProfileDrawMenu(nWidth, nHeight);
+		bool bMouseOverGraph = MicroProfileDrawGraph(nWidth, nHeight);
+		bool bHidden = S.nDisplay == MP_DRAW_HIDDEN;
+		if(!bHidden)
+		{
+			uint32_t nLockedToolTipX = 3;
+			bool bDeleted = false;
+			for(int i = 0; i < MICROPROFILE_TOOLTIP_MAX_LOCKED; ++i)
+			{
+				int nIndex = (S.LockedToolTipFront + i) % MICROPROFILE_TOOLTIP_MAX_LOCKED;
+				if(S.LockedToolTips[nIndex].ppStrings[0])
+				{
+					uint32_t nToolTipWidth = 0, nToolTipHeight = 0;
+					MicroProfileFloatWindowSize(S.LockedToolTips[nIndex].ppStrings, S.LockedToolTips[nIndex].nNumStrings, 0, nToolTipWidth, nToolTipHeight, 0);
+					uint32_t nStartY = nHeight - nToolTipHeight - 2;
+					if(!bDeleted && S.nMouseY > nStartY && S.nMouseX > nLockedToolTipX && S.nMouseX <= nLockedToolTipX + nToolTipWidth && (S.nMouseLeft || S.nMouseRight) )
+					{
+						bDeleted = true;
+						int j = i;
+						for(; j < MICROPROFILE_TOOLTIP_MAX_LOCKED-1; ++j)
+						{
+							int nIndex0 = (S.LockedToolTipFront + j) % MICROPROFILE_TOOLTIP_MAX_LOCKED;
+							int nIndex1 = (S.LockedToolTipFront + j+1) % MICROPROFILE_TOOLTIP_MAX_LOCKED;
+							MicroProfileStringArrayCopy(&S.LockedToolTips[nIndex0], &S.LockedToolTips[nIndex1]);
+						}
+						MicroProfileStringArrayClear(&S.LockedToolTips[(S.LockedToolTipFront + j) % MICROPROFILE_TOOLTIP_MAX_LOCKED]);
+					}
+					else
+					{
+						MicroProfileDrawFloatWindow(nLockedToolTipX, nHeight-nToolTipHeight-2, &S.LockedToolTips[nIndex].ppStrings[0], S.LockedToolTips[nIndex].nNumStrings, S.nLockedToolTipColor[nIndex]);
+						nLockedToolTipX += nToolTipWidth + 4;
+					}
+				}
+			}
+
+			if(S.nActiveMenu == 7)
+			{
+				if(S.nDisplay & MP_DRAW_DETAILED)
+				{
+					MicroProfileStringArray DetailedHelp;
+					MicroProfileStringArrayClear(&DetailedHelp);
+					MicroProfileStringArrayFormat(&DetailedHelp, "%s", MICROPROFILE_HELP_LEFT);
+					MicroProfileStringArrayAddLiteral(&DetailedHelp, "Toggle Graph");
+					MicroProfileStringArrayFormat(&DetailedHelp, "%s", MICROPROFILE_HELP_ALT);
+					MicroProfileStringArrayAddLiteral(&DetailedHelp, "Zoom");
+					MicroProfileStringArrayFormat(&DetailedHelp, "%s + %s", MICROPROFILE_HELP_MOD, MICROPROFILE_HELP_LEFT);
+					MicroProfileStringArrayAddLiteral(&DetailedHelp, "Lock Tooltip");
+					MicroProfileStringArrayAddLiteral(&DetailedHelp, "Drag");
+					MicroProfileStringArrayAddLiteral(&DetailedHelp, "Pan View");
+					MicroProfileStringArrayAddLiteral(&DetailedHelp, "Mouse Wheel");
+					MicroProfileStringArrayAddLiteral(&DetailedHelp, "Zoom");
+					MicroProfileDrawFloatWindow(nWidth, MICROPROFILE_FRAME_HISTORY_HEIGHT+20, DetailedHelp.ppStrings, DetailedHelp.nNumStrings, 0xff777777);
+
+					MicroProfileStringArray DetailedHistoryHelp;
+					MicroProfileStringArrayClear(&DetailedHistoryHelp);
+					MicroProfileStringArrayFormat(&DetailedHistoryHelp, "%s", MICROPROFILE_HELP_LEFT);
+					MicroProfileStringArrayAddLiteral(&DetailedHistoryHelp, "Center View");
+					MicroProfileStringArrayFormat(&DetailedHistoryHelp, "%s", MICROPROFILE_HELP_ALT);
+					MicroProfileStringArrayAddLiteral(&DetailedHistoryHelp, "Zoom to frame");
+					MicroProfileDrawFloatWindow(nWidth, 20, DetailedHistoryHelp.ppStrings, DetailedHistoryHelp.nNumStrings, 0xff777777);
+
+
+
+				}
+				else if(0 != (S.nDisplay & MP_DRAW_BARS) && S.nBars)
+				{
+					MicroProfileStringArray BarHelp;
+					MicroProfileStringArrayClear(&BarHelp);
+					MicroProfileStringArrayFormat(&BarHelp, "%s", MICROPROFILE_HELP_LEFT);
+					MicroProfileStringArrayAddLiteral(&BarHelp, "Toggle Graph");
+					MicroProfileStringArrayFormat(&BarHelp, "%s + %s", MICROPROFILE_HELP_MOD, MICROPROFILE_HELP_LEFT);
+					MicroProfileStringArrayAddLiteral(&BarHelp, "Lock Tooltip");
+					MicroProfileStringArrayAddLiteral(&BarHelp, "Drag");
+					MicroProfileStringArrayAddLiteral(&BarHelp, "Pan View");
+					MicroProfileDrawFloatWindow(nWidth, MICROPROFILE_FRAME_HISTORY_HEIGHT+20, BarHelp.ppStrings, BarHelp.nNumStrings, 0xff777777);
+
+				}
+				MicroProfileStringArray Debug;
+				MicroProfileStringArrayClear(&Debug);
+				MicroProfileStringArrayAddLiteral(&Debug, "Memory Usage");
+				MicroProfileStringArrayFormat(&Debug, "%4.2fmb", S.nMemUsage / (1024.f * 1024.f));
+				uint32_t nFrameNext = (S.nFrameCurrent+1) % MICROPROFILE_MAX_FRAME_HISTORY;
+				MicroProfileFrameState* pFrameCurrent = &S.Frames[S.nFrameCurrent];
+				MicroProfileFrameState* pFrameNext = &S.Frames[nFrameNext];
+
+
+				MicroProfileStringArrayAddLiteral(&Debug, "");
+				MicroProfileStringArrayAddLiteral(&Debug, "");
+				MicroProfileStringArrayAddLiteral(&Debug, "Usage");
+				MicroProfileStringArrayAddLiteral(&Debug, "markers [frames] ");
+
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+				MicroProfileStringArrayAddLiteral(&Debug, "Context Switch");
+				MicroProfileStringArrayFormat(&Debug, "%9d [%7d]", S.nContextSwitchUsage, MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE / S.nContextSwitchUsage );
+#endif
+
+				for(int i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
+				{
+					if(pFrameCurrent->nLogStart[i] && S.Pool[i])
+					{
+						uint32_t nEnd = pFrameNext->nLogStart[i];
+						uint32_t nStart = pFrameCurrent->nLogStart[i];
+						uint32_t nUsage = nStart < nEnd ? (nEnd - nStart) : (nEnd + MICROPROFILE_BUFFER_SIZE - nStart);
+						uint32_t nFrameSupport = MICROPROFILE_BUFFER_SIZE / nUsage;
+						MicroProfileStringArrayFormat(&Debug, "%s", &S.Pool[i]->ThreadName[0]);
+						MicroProfileStringArrayFormat(&Debug, "%9d [%7d]", nUsage, nFrameSupport);
+					}
+				}
+
+				MicroProfileDrawFloatWindow(0, nHeight-10, Debug.ppStrings, Debug.nNumStrings, 0xff777777);
+			}
+
+
+
+			if(S.nActiveMenu == -1 && !bMouseOverGraph)
+			{
+				if(S.nHoverToken != MICROPROFILE_INVALID_TOKEN)
+				{
+					MicroProfileDrawFloatTooltip(S.nMouseX, S.nMouseY, S.nHoverToken, S.nHoverTime);
+				}
+				else if(S.nContextSwitchHoverThreadAfter != -1 && S.nContextSwitchHoverThreadBefore != -1)
+				{
+					float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+					MicroProfileStringArray ToolTip;
+					MicroProfileStringArrayClear(&ToolTip);
+					MicroProfileStringArrayAddLiteral(&ToolTip, "Context Switch");
+					MicroProfileStringArrayFormat(&ToolTip, "%04x", S.nContextSwitchHoverThread);					
+					MicroProfileStringArrayAddLiteral(&ToolTip, "Before");
+					MicroProfileStringArrayFormat(&ToolTip, "%04x", S.nContextSwitchHoverThreadBefore);
+					MicroProfileStringArrayAddLiteral(&ToolTip, "After");
+					MicroProfileStringArrayFormat(&ToolTip, "%04x", S.nContextSwitchHoverThreadAfter);					
+					MicroProfileStringArrayAddLiteral(&ToolTip, "Duration");
+					int64_t nDifference = MicroProfileLogTickDifference(S.nContextSwitchHoverTickIn, S.nContextSwitchHoverTickOut);
+					MicroProfileStringArrayFormat(&ToolTip, "%6.2fms", fToMs * nDifference );
+					MicroProfileStringArrayAddLiteral(&ToolTip, "CPU");
+					MicroProfileStringArrayFormat(&ToolTip, "%d", S.nContextSwitchHoverCpu);
+					MicroProfileDrawFloatWindow(S.nMouseX, S.nMouseY+20, &ToolTip.ppStrings[0], ToolTip.nNumStrings, -1);
+
+
+				}
+				else if(S.nHoverFrame != -1)
+				{
+					uint32_t nNextFrame = (S.nHoverFrame+1)%MICROPROFILE_MAX_FRAME_HISTORY;
+					int64_t nTick = S.Frames[S.nHoverFrame].nFrameStartCpu;
+					int64_t nTickNext = S.Frames[nNextFrame].nFrameStartCpu;
+					int64_t nTickGpu = S.Frames[S.nHoverFrame].nFrameStartGpu;
+					int64_t nTickNextGpu = S.Frames[nNextFrame].nFrameStartGpu;
+
+					float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+					float fToMsGpu = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondGpu());
+					float fMs = fToMs * (nTickNext - nTick);
+					float fMsGpu = fToMsGpu * (nTickNextGpu - nTickGpu);
+					MicroProfileStringArray ToolTip;
+					MicroProfileStringArrayClear(&ToolTip);
+					MicroProfileStringArrayFormat(&ToolTip, "Frame %d", S.nHoverFrame);
+	#if MICROPROFILE_DEBUG
+					MicroProfileStringArrayFormat(&ToolTip, "%p", &S.Frames[S.nHoverFrame]);
+	#else
+					MicroProfileStringArrayAddLiteral(&ToolTip, "");
+	#endif
+					MicroProfileStringArrayAddLiteral(&ToolTip, "CPU Time");
+					MicroProfileStringArrayFormat(&ToolTip, "%6.2fms", fMs);
+					MicroProfileStringArrayAddLiteral(&ToolTip, "GPU Time");
+					MicroProfileStringArrayFormat(&ToolTip, "%6.2fms", fMsGpu);
+					#if MICROPROFILE_DEBUG
+					for(int i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
+					{
+						if(S.Frames[S.nHoverFrame].nLogStart[i])
+						{
+							MicroProfileStringArrayFormat(&ToolTip, "%d", i);
+							MicroProfileStringArrayFormat(&ToolTip, "%d", S.Frames[S.nHoverFrame].nLogStart[i]);
+						}
+					}
+					#endif
+					MicroProfileDrawFloatWindow(S.nMouseX, S.nMouseY+20, &ToolTip.ppStrings[0], ToolTip.nNumStrings, -1);
+				}
+				if(S.nMouseLeft)
+				{
+					if(S.nHoverToken != MICROPROFILE_INVALID_TOKEN)
+						MicroProfileToggleGraph(S.nHoverToken);
+				}
+			}
+		}
+#if MICROPROFILE_DRAWCURSOR
+		{
+			float fCursor[8] = 
+			{
+				MicroProfileMax(0, (int)S.nMouseX-3), S.nMouseY,
+				MicroProfileMin(nWidth, S.nMouseX+3), S.nMouseY,
+				S.nMouseX, MicroProfileMax((int)S.nMouseY-3, 0),
+				S.nMouseX, MicroProfileMin(nHeight, S.nMouseY+3),
+			};
+			MicroProfileDrawLine2D(2, &fCursor[0], 0xff00ff00);
+			MicroProfileDrawLine2D(2, &fCursor[4], 0xff00ff00);
+		}
+#endif
+
+	}
+	S.nMouseLeft = S.nMouseRight = 0;
+	S.nMouseLeftMod = S.nMouseRightMod = 0;
+	S.nMouseWheelDelta = 0;
+	if(S.nOverflow)
+		S.nOverflow--;
+
+}
+
+bool MicroProfileIsDrawing()
+{
+	return S.nDisplay != 0;
+}
+
+void MicroProfileToggleGraph(MicroProfileToken nToken)
+{
+	uint32_t nTimerId = MicroProfileGetTimerIndex(nToken);
+	nToken &= 0xffff;
+	int32_t nMinSort = 0x7fffffff;
+	int32_t nFreeIndex = -1;
+	int32_t nMinIndex = 0;
+	int32_t nMaxSort = 0x80000000;
+	for(uint32_t i = 0; i < MICROPROFILE_MAX_GRAPHS; ++i)
+	{
+		if(S.Graph[i].nToken == MICROPROFILE_INVALID_TOKEN)
+			nFreeIndex = i;
+		if(S.Graph[i].nToken == nToken)
+		{
+			S.Graph[i].nToken = MICROPROFILE_INVALID_TOKEN;
+			S.TimerInfo[nTimerId].bGraph = false;
+			return;
+		}
+		if(S.Graph[i].nKey < nMinSort)
+		{
+			nMinSort = S.Graph[i].nKey;
+			nMinIndex = i;
+		}
+		if(S.Graph[i].nKey > nMaxSort)
+		{
+			nMaxSort = S.Graph[i].nKey;
+		}
+	}
+	int nIndex = nFreeIndex > -1 ? nFreeIndex : nMinIndex;
+	if (nFreeIndex == -1)
+	{
+		uint32_t idx = MicroProfileGetTimerIndex(S.Graph[nIndex].nToken);
+		S.TimerInfo[idx].bGraph = false;
+	}
+	S.Graph[nIndex].nToken = nToken;
+	S.Graph[nIndex].nKey = nMaxSort+1;
+	memset(&S.Graph[nIndex].nHistory[0], 0, sizeof(S.Graph[nIndex].nHistory));
+	S.TimerInfo[nTimerId].bGraph = true;
+}
+
+
+void MicroProfileMousePosition(uint32_t nX, uint32_t nY, int nWheelDelta)
+{
+	S.nMouseX = nX;
+	S.nMouseY = nY;
+	S.nMouseWheelDelta = nWheelDelta;
+}
+
+void MicroProfileModKey(uint32_t nKeyState)
+{
+	S.nModDown = nKeyState ? 1 : 0;
+}
+
+void MicroProfileClearGraph()
+{
+	for(uint32_t i = 0; i < MICROPROFILE_MAX_GRAPHS; ++i)
+	{
+		if(S.Graph[i].nToken != 0)
+		{
+			S.Graph[i].nToken = MICROPROFILE_INVALID_TOKEN;
+		}
+	}
+}
+
+void MicroProfileTogglePause()
+{
+	S.nToggleRunning = 1;
+}
+
+void MicroProfileMouseButton(uint32_t nLeft, uint32_t nRight)
+{
+	if(0 == nLeft && S.nMouseDownLeft)
+	{
+		if(S.nModDown)
+			S.nMouseLeftMod = 1;
+		else
+			S.nMouseLeft = 1;
+	}
+
+	if(0 == nRight && S.nMouseDownRight)
+	{
+		if(S.nModDown)
+			S.nMouseRightMod = 1;
+		else
+			S.nMouseRight = 1;
+	}
+
+	S.nMouseDownLeft = nLeft;
+	S.nMouseDownRight = nRight;
+	
+}
+
+void MicroProfileDrawLineVertical(int nX, int nTop, int nBottom, uint32_t nColor)
+{
+	MicroProfileDrawBox(nX, nTop, nX + 1, nBottom, nColor);
+}
+
+void MicroProfileDrawLineHorizontal(int nLeft, int nRight, int nY, uint32_t nColor)
+{
+	MicroProfileDrawBox(nLeft, nY, nRight, nY + 1, nColor);
+}
+
+float MicroProfileGetTime(const char* pGroup, const char* pName)
+{
+	MicroProfileToken nToken = MicroProfileFindToken(pGroup, pName);
+	if(nToken == MICROPROFILE_INVALID_TOKEN)
+	{
+		return 0.f;
+	}
+	uint32_t nTimerIndex = MicroProfileGetTimerIndex(nToken);
+	uint32_t nGroupIndex = MicroProfileGetGroupIndex(nToken);
+	float fToMs = MicroProfileTickToMsMultiplier(S.GroupInfo[nGroupIndex].Type == MicroProfileTokenTypeGpu ? MicroProfileTicksPerSecondGpu() : MicroProfileTicksPerSecondCpu());
+	return S.Frame[nTimerIndex].nTicks * fToMs;
+}
+#endif
+
+#if MICROPROFILE_WEBSERVER
 
 #define MICROPROFILE_EMBED_HTML
 extern const char g_MicroProfileHtml_begin[];
@@ -2909,6 +4140,10 @@ extern const size_t g_MicroProfileHtml_end_size;
 
 typedef void MicroProfileWriteCallback(void* Handle, size_t size, const char* pData);
 
+void MicroProfileDumpHtml()
+{
+	S.nDumpHtmlNextFrame = 1;
+}
 
 void MicroProfilePrintf(MicroProfileWriteCallback CB, void* Handle, const char* pFmt, ...)
 {
@@ -3201,1163 +4436,8 @@ void MicroProfileWebServerUpdate()
 		close(Connection);
 	}
 }
-void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
-{
-	uint64_t nActiveGroup = S.nMenuAllGroups ? S.nGroupMask : S.nMenuActiveGroup;
-	if(!nActiveGroup)
-		return;
-	MICROPROFILE_SCOPE(g_MicroProfileDrawBarView);
-
-	const uint32_t nHeight = S.nBarHeight;
-	int nColorIndex = 0;
-	uint32_t nX = 0;
-	uint32_t nY = nHeight + 1 - S.nOffsetY;	
-	uint32_t nNumTimers = 0;
-	uint32_t nNumGroups = 0;
-	uint32_t nMaxTimerNameLen = 1;
-	for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
-	{
-		if(nActiveGroup & (1ll << j))
-		{
-			nNumTimers += S.GroupInfo[j].nNumTimers;
-			nNumGroups += 1;
-			nMaxTimerNameLen = MicroProfileMax(nMaxTimerNameLen, S.GroupInfo[j].nMaxTimerNameLen);
-		}
-	}
-	uint32_t nBlockSize = 2 * nNumTimers;
-	float* pTimers = (float*)alloca(nBlockSize * 7 * sizeof(float));
-	float* pAverage = pTimers + nBlockSize;
-	float* pMax = pTimers + 2 * nBlockSize;
-	float* pCallAverage = pTimers + 3 * nBlockSize;
-	float* pTimersExclusive = pTimers + 4 * nBlockSize;
-	float* pAverageExclusive = pTimers + 5 * nBlockSize;
-	float* pMaxExclusive = pTimers + 6 * nBlockSize;
-	MicroProfileCalcTimers(pTimers, pAverage, pMax, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, nActiveGroup, nNumTimers);
-	{
-		uint32_t nWidth = 0;
-		for(uint32_t i = 1; i ; i <<= 1)
-		{
-			if(S.nBars & i)
-			{
-				nWidth += S.nBarWidth + 5 + 6 * (1+MICROPROFILE_TEXT_WIDTH);
-				if(i & MP_DRAW_CALL_COUNT)
-					nWidth += 5 + 6 * MICROPROFILE_TEXT_WIDTH;
-			}
-		}
-		nWidth += (1+nMaxTimerNameLen) * (MICROPROFILE_TEXT_WIDTH+1);
-		for(uint32_t i = 0; i < nNumTimers+nNumGroups+1; ++i)
-		{
-			uint32_t nY0 = nY + i * (nHeight + 1);
-			bool bInside = (S.nActiveMenu == -1) && ((S.nMouseY >= nY0) && (S.nMouseY < (nY0 + nHeight + 1)));
-			MicroProfileDrawBox(nX, nY0, nWidth, nY0 + (nHeight+1)+1, S.nOpacityBackground | (g_nMicroProfileBackColors[nColorIndex++ & 1] + ((bInside) ? 0x002c2c2c : 0)));
-		}
-	}
-	int nTotalHeight = (nNumTimers+nNumGroups+2) * (nHeight+1);
-	uint32_t nLegendOffset = 1;
-	for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
-	{
-		if(nActiveGroup & (1ll << j))
-		{
-			MicroProfileDrawText(nX, nY + (1+nHeight) * nLegendOffset, (uint32_t)-1, S.GroupInfo[j].pName, S.GroupInfo[j].nNameLen);
-			nLegendOffset += S.GroupInfo[j].nNumTimers+1;
-		}
-	}
-	if(S.nBars & MP_DRAW_TIMERS)		
-		nX += MicroProfileDrawBarArray(nX, nY, pTimers, "Time", nTotalHeight) + 1;
-	if(S.nBars & MP_DRAW_AVERAGE)		
-		nX += MicroProfileDrawBarArray(nX, nY, pAverage, "Average", nTotalHeight) + 1;
-	if(S.nBars & MP_DRAW_MAX)		
-		nX += MicroProfileDrawBarArray(nX, nY, pMax, (!S.bShowSpikes) ? "Max Time" : "Max Time, Spike", nTotalHeight, S.bShowSpikes ? pAverage : NULL) + 1;
-	if(S.nBars & MP_DRAW_CALL_COUNT)		
-	{
-		nX += MicroProfileDrawBarArray(nX, nY, pCallAverage, "Call Average", nTotalHeight) + 1;
-		nX += MicroProfileDrawBarCallCount(nX, nY, "Count") + 1; 
-	}
-	if(S.nBars & MP_DRAW_TIMERS_EXCLUSIVE)		
-		nX += MicroProfileDrawBarArray(nX, nY, pTimersExclusive, "Exclusive Time", nTotalHeight) + 1;
-	if(S.nBars & MP_DRAW_AVERAGE_EXCLUSIVE)		
-		nX += MicroProfileDrawBarArray(nX, nY, pAverageExclusive, "Exclusive Average", nTotalHeight) + 1;
-	if(S.nBars & MP_DRAW_MAX_EXCLUSIVE)		
-		nX += MicroProfileDrawBarArray(nX, nY, pMaxExclusive, (!S.bShowSpikes) ? "Exclusive Max Time" :"Excl Max Time, Spike", nTotalHeight, S.bShowSpikes ? pAverageExclusive : NULL) + 1;
-
-	for(int i = 0; i < MICROPROFILE_META_MAX; ++i)
-	{
-		if(S.nBars & (MP_DRAW_META_FIRST<<i))
-		{
-			nX += MicroProfileDrawBarMetaCount(nX, nY, &S.MetaCounters[i].nCounters[0], S.MetaCounters[i].pName, nTotalHeight) + 1; 
-		}
-	}
-	nX += MicroProfileDrawBarLegend(nX, nY, nTotalHeight) + 1;
-}
-
-void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
-{
-	uint32_t nX = 0;
-	uint32_t nY = 0;
-	bool bMouseOver = S.nMouseY < MICROPROFILE_TEXT_HEIGHT + 1;
-#define SBUF_SIZE 256
-	char buffer[256];
-	MicroProfileDrawBox(nX, nY, nX + nWidth, nY + (S.nBarHeight+1)+1, 0xff000000|g_nMicroProfileBackColors[1]);
-
-#define MICROPROFILE_MENU_MAX 16
-	const char* pMenuText[MICROPROFILE_MENU_MAX] = {0};
-	uint32_t 	nMenuX[MICROPROFILE_MENU_MAX] = {0};
-	uint32_t nNumMenuItems = 0;
-
-	int nLen = snprintf(buffer, 127, "MicroProfile");
-	MicroProfileDrawText(nX, nY, (uint32_t)-1, buffer, nLen);
-	nX += (sizeof("MicroProfile")+2) * (MICROPROFILE_TEXT_WIDTH+1);
-	pMenuText[nNumMenuItems++] = "Mode";
-	pMenuText[nNumMenuItems++] = "Groups";
-	char AggregateText[64];
-	snprintf(AggregateText, sizeof(AggregateText)-1, "Aggregate[%d]", S.nAggregateFlip ? S.nAggregateFlip : S.nAggregateFlipCount);
-	pMenuText[nNumMenuItems++] = &AggregateText[0];
-	pMenuText[nNumMenuItems++] = "Timers";
-	pMenuText[nNumMenuItems++] = "Options";
-	pMenuText[nNumMenuItems++] = "Preset";
-	const int nPauseIndex = nNumMenuItems;
-	pMenuText[nNumMenuItems++] = S.nRunning ? "Pause" : "Unpause";
-	pMenuText[nNumMenuItems++] = "Help";
-
-	if(S.nOverflow)
-	{
-		pMenuText[nNumMenuItems++] = "!BUFFERSFULL!";
-	}
-
-
-	struct SOptionDesc
-	{
-		SOptionDesc(){}
-		SOptionDesc(uint8_t nSubType, uint8_t nIndex, const char* fmt, ...):nSubType(nSubType), nIndex(nIndex)
-		{
-			va_list args;
-			va_start (args, fmt);
-			vsprintf(Text, fmt, args);
-			va_end(args);
-		}
-		char Text[32];
-		uint8_t nSubType;
-		uint8_t nIndex;
-		bool bSelected;
-	};
-	static const int nNumReferencePresets = sizeof(g_MicroProfileReferenceTimePresets)/sizeof(g_MicroProfileReferenceTimePresets[0]);
-	static const int nNumOpacityPresets = sizeof(g_MicroProfileOpacityPresets)/sizeof(g_MicroProfileOpacityPresets[0]);
-
-#if MICROPROFILE_CONTEXT_SWITCH_TRACE
-	static const int nOptionSize = nNumReferencePresets + nNumOpacityPresets * 2 + 2 + 7;
-#else
-	static const int nOptionSize = nNumReferencePresets + nNumOpacityPresets * 2 + 2 + 3;
 #endif
 
-	static SOptionDesc Options[nOptionSize];
-	static bool bOptionInit = false;
-	if(!bOptionInit)
-	{
-		bOptionInit = true;
-		int nIndex = 0;
-		Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "Reference");
-		for(int i = 0; i < nNumReferencePresets; ++i)
-		{
-			Options[nIndex++] = SOptionDesc(0, i, "  %6.2fms", g_MicroProfileReferenceTimePresets[i]);
-		}
-		Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "BG Opacity");		
-		for(int i = 0; i < nNumOpacityPresets; ++i)
-		{
-			Options[nIndex++] = SOptionDesc(1, i, "  %7d%%", (i+1)*25);
-		}
-		Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "FG Opacity");		
-		for(int i = 0; i < nNumOpacityPresets; ++i)
-		{
-			Options[nIndex++] = SOptionDesc(2, i, "  %7d%%", (i+1)*25);
-		}
-		Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "Spike Display");		
-		Options[nIndex++] = SOptionDesc(3, 0, "%s", "  Enable");
-
-#if MICROPROFILE_CONTEXT_SWITCH_TRACE
-		Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "CSwitch Trace");		
-		Options[nIndex++] = SOptionDesc(4, 0, "%s", "  Enable");
-		Options[nIndex++] = SOptionDesc(4, 1, "%s", "  All Threads");
-		Options[nIndex++] = SOptionDesc(4, 2, "%s", "  No Bars");
-#endif
-
-
-		MP_ASSERT(nIndex == nOptionSize);
-	}
-
-
-
-	typedef std::function<const char* (int, bool&)> SubmenuCallback; 
-	typedef std::function<void(int)> ClickCallback;
-	SubmenuCallback GroupCallback[] = 
-	{	[] (int index, bool& bSelected) -> const char*{
-			switch(index)
-			{
-				case 0: 
-					bSelected = S.nDisplay == MP_DRAW_DETAILED;
-					return "Detailed";
-				case 1:
-					bSelected = S.nDisplay == MP_DRAW_BARS; 
-					return "Timers";
-				case 2:
-					bSelected = S.nDisplay == MP_DRAW_HIDDEN; 
-					return "Hidden";
-				case 3:
-					bSelected = false; 
-					return "Off";
-
-				default: return 0;
-			}
-		},
-		[] (int index, bool& bSelected) -> const char*{
-			if(index == 0)
-			{
-				bSelected = S.nMenuAllGroups != 0;
-				return "ALL";
-			}
-			else
-			{
-				index = index-1;
-				bSelected = 0 != (S.nMenuActiveGroup & (1ll << index));
-				if(index < MICROPROFILE_MAX_GROUPS && S.GroupInfo[index].pName)
-					return S.GroupInfo[index].pName;
-				else
-					return 0;
-			}
-		},
-		[] (int index, bool& bSelected) -> const char*{
-			if(index < sizeof(g_MicroProfileAggregatePresets)/sizeof(g_MicroProfileAggregatePresets[0]))
-			{
-				int val = g_MicroProfileAggregatePresets[index];
-				bSelected = (int)S.nAggregateFlip == val;
-				if(0 == val)
-					return "Infinite";
-				else
-				{
-					static char buf[128];
-					snprintf(buf, sizeof(buf)-1, "%7d", val);
-					return buf;
-				}
-			}
-			return 0;
-		},
-		[] (int index, bool& bSelected) -> const char*{
-			bSelected = 0 != (S.nBars & (1 << index));
-			switch(index)
-			{
-				case 0: return "Time";				
-				case 1: return "Average";				
-				case 2: return "Max";
-				case 3: return "Call Count";
-				case 4: return "Exclusive Timers";
-				case 5: return "Exclusive Average";
-				case 6: return "Exclusive Max";
-			}
-			int nMetaIndex = index - 7;
-			if(nMetaIndex < MICROPROFILE_META_MAX)
-			{
-				return S.MetaCounters[nMetaIndex].pName;
-			}
-			return 0;
-		},
-		[] (int index, bool& bSelected) -> const char*{
-			if(index >= nOptionSize) return 0;
-			switch(Options[index].nSubType)
-			{
-			case 0:
-				bSelected = S.fReferenceTime == g_MicroProfileReferenceTimePresets[Options[index].nIndex];
-				break;
-			case 1:
-				bSelected = S.nOpacityBackground>>24 == g_MicroProfileOpacityPresets[Options[index].nIndex];
-				break;
-			case 2:
-				bSelected = S.nOpacityForeground>>24 == g_MicroProfileOpacityPresets[Options[index].nIndex];				
-				break;
-			case 3:
-				bSelected = S.bShowSpikes;
-				break;
-#if MICROPROFILE_CONTEXT_SWITCH_TRACE
-			case 4:
-				{
-					switch(Options[index].nIndex)
-					{
-					case 0:
-						bSelected = S.bContextSwitchRunning;
-						break;
-					case 1:
-						bSelected = S.bContextSwitchAllThreads;
-						break;
-					case 2: 
-						bSelected = S.bContextSwitchNoBars;
-						break;
-					}
-				}
-				break;
-#endif
-			}
-			return Options[index].Text;
-		},
-
-		[] (int index, bool& bSelected) -> const char*{
-			static char buf[128];
-			bSelected = false;
-			int nNumPresets = sizeof(g_MicroProfilePresetNames) / sizeof(g_MicroProfilePresetNames[0]);
-			int nIndexSave = index - nNumPresets - 1;
-			if(index == nNumPresets)
-				return "--";
-			else if(nIndexSave >=0 && nIndexSave <nNumPresets)
-			{
-				snprintf(buf, sizeof(buf)-1, "Save '%s'", g_MicroProfilePresetNames[nIndexSave]);
-				return buf;
-			}
-			else if(index < nNumPresets)
-			{
-				snprintf(buf, sizeof(buf)-1, "Load '%s'", g_MicroProfilePresetNames[index]);
-				return buf;
-			}
-			else
-			{
-				return 0;
-			}
-		},
-
-		[] (int index, bool& bSelected) -> const char*{
-			return 0;
-		},
-		[] (int index, bool& bSelected) -> const char*{
-			return 0;
-		},
-		[] (int index, bool& bSelected) -> const char*{
-			return 0;
-		},
-
-
-	};
-	ClickCallback CBClick[] = 
-	{
-		[](int nIndex)
-		{
-			switch(nIndex)
-			{
-				case 0:
-					S.nDisplay = MP_DRAW_DETAILED;
-					break;
-				case 1:
-					S.nDisplay = MP_DRAW_BARS;
-					break;
-				case 2:
-					S.nDisplay = MP_DRAW_HIDDEN;
-					break;
-				case 3:
-					S.nDisplay = 0;
-					break;
-			}
-		},
-		[](int nIndex)
-		{
-			if(nIndex == 0)
-				S.nMenuAllGroups = 1-S.nMenuAllGroups;
-			else
-				S.nMenuActiveGroup ^= (1ll << (nIndex-1));
-		},
-		[](int nIndex)
-		{
-			S.nAggregateFlip = g_MicroProfileAggregatePresets[nIndex];
-			if(0 == S.nAggregateFlip)
-			{
-				memset(S.AggregateTimers, 0, sizeof(S.AggregateTimers));
-				memset(S.MaxTimers, 0, sizeof(S.MaxTimers));
-				memset(S.AggregateTimersExclusive, 0, sizeof(S.AggregateTimersExclusive));
-				memset(S.MaxTimersExclusive, 0, sizeof(S.MaxTimersExclusive));
-				S.nFlipAggregate = 0;
-				S.nFlipMax = 0;
-				S.nAggregateFlipCount = 0;
-			}
-		},
-		[](int nIndex)
-		{
-			S.nBars ^= (1 << nIndex);
-		},
-		[](int nIndex)
-		{
-			switch(Options[nIndex].nSubType)
-			{
-			case 0:
-				S.fReferenceTime = g_MicroProfileReferenceTimePresets[Options[nIndex].nIndex];
-				S.fRcpReferenceTime = 1.f / S.fReferenceTime;
-				break;
-			case 1:
-				S.nOpacityBackground = g_MicroProfileOpacityPresets[Options[nIndex].nIndex]<<24;
-				break;
-			case 2:
-				S.nOpacityForeground = g_MicroProfileOpacityPresets[Options[nIndex].nIndex]<<24;
-				break;
-			case 3:
-				S.bShowSpikes = !S.bShowSpikes;
-				break;
-#if MICROPROFILE_CONTEXT_SWITCH_TRACE
-			case 4:
-				{
-					switch(Options[nIndex].nIndex)
-					{
-					case 0:
-						if(S.bContextSwitchRunning)
-						{
-							MicroProfileStopContextSwitchTrace();
-						}
-						else
-						{
-							MicroProfileStartContextSwitchTrace();
-						}
-						break;
-					case 1:
-						S.bContextSwitchAllThreads = !S.bContextSwitchAllThreads;
-						break;
-					case 2:
-						S.bContextSwitchNoBars= !S.bContextSwitchNoBars;
-						break;
-
-					}
-				}
-				break;
-#endif
-			}
-		},
-		[](int nIndex)
-		{
-			int nNumPresets = sizeof(g_MicroProfilePresetNames) / sizeof(g_MicroProfilePresetNames[0]);
-			int nIndexSave = nIndex - nNumPresets - 1;
-			if(nIndexSave >= 0 && nIndexSave < nNumPresets)
-			{
-				MicroProfileSavePreset(g_MicroProfilePresetNames[nIndexSave]);
-			}
-			else if(nIndex >= 0 && nIndex < nNumPresets)
-			{
-				MicroProfileLoadPreset(g_MicroProfilePresetNames[nIndex]);
-			}
-		},
-		[](int nIndex)
-		{
-		},
-		[](int nIndex)
-		{
-		},
-		[](int nIndex)
-		{
-		},
-	};
-
-	uint32_t nSelectMenu = (uint32_t)-1;
-	for(uint32_t i = 0; i < nNumMenuItems; ++i)
-	{
-		nMenuX[i] = nX;
-		uint32_t nLen = (uint32_t)strlen(pMenuText[i]);
-		uint32_t nEnd = nX + nLen * (MICROPROFILE_TEXT_WIDTH+1);
-		if(S.nMouseY <= MICROPROFILE_TEXT_HEIGHT && S.nMouseX <= nEnd && S.nMouseX >= nX)
-		{
-			MicroProfileDrawBox(nX-1, nY, nX + nLen * (MICROPROFILE_TEXT_WIDTH+1), nY +(S.nBarHeight+1)+1, 0xff888888);
-			nSelectMenu = i;
-			if((S.nMouseLeft || S.nMouseRight) && i == (int)nPauseIndex)
-			{
-				S.nToggleRunning = 1;
-			}
-		}
-		MicroProfileDrawText(nX, nY, (uint32_t)-1, pMenuText[i], (uint32_t)strlen(pMenuText[i]));
-		nX += (nLen+1) * (MICROPROFILE_TEXT_WIDTH+1);
-	}
-	uint32_t nMenu = nSelectMenu != (uint32_t)-1 ? nSelectMenu : S.nActiveMenu;
-	S.nActiveMenu = nMenu;
-	if((uint32_t)-1 != nMenu)
-	{
-		nX = nMenuX[nMenu];
-		nY += MICROPROFILE_TEXT_HEIGHT+1;
-		SubmenuCallback CB = GroupCallback[nMenu];
-		int nNumLines = 0;
-		bool bSelected = false;
-		const char* pString = CB(nNumLines, bSelected);
-		uint32_t nWidth = 0, nHeight = 0;
-		while(pString)
-		{
-			nWidth = MicroProfileMax<int>(nWidth, (int)strlen(pString));
-			nNumLines++;
-			pString = CB(nNumLines, bSelected);
-		}
-		nWidth = (2+nWidth) * (MICROPROFILE_TEXT_WIDTH+1);
-		nHeight = nNumLines * (MICROPROFILE_TEXT_HEIGHT+1);
-		if(S.nMouseY <= nY + nHeight+0 && S.nMouseY >= nY-0 && S.nMouseX <= nX + nWidth + 0 && S.nMouseX >= nX - 0)
-		{
-			S.nActiveMenu = nMenu;
-		}
-		else if(nSelectMenu == (uint32_t)-1)
-		{
-			S.nActiveMenu = (uint32_t)-1;
-		}
-		MicroProfileDrawBox(nX, nY, nX + nWidth, nY + nHeight, 0xff000000|g_nMicroProfileBackColors[1]);
-		for(int i = 0; i < nNumLines; ++i)
-		{
-			bool bSelected = false;
-			const char* pString = CB(i, bSelected);
-			if(S.nMouseY >= nY && S.nMouseY < nY + MICROPROFILE_TEXT_HEIGHT + 1)
-			{
-				bMouseOver = true;
-				if(S.nMouseLeft || S.nMouseRight)
-				{
-					CBClick[nMenu](i);
-				}
-				MicroProfileDrawBox(nX, nY, nX + nWidth, nY + MICROPROFILE_TEXT_HEIGHT + 1, 0xff888888);
-			}
-			int nLen = snprintf(buffer, SBUF_SIZE-1, "%c %s", bSelected ? '*' : ' ' ,pString);
-			MicroProfileDrawText(nX, nY, (uint32_t)-1, buffer, nLen);
-			nY += MICROPROFILE_TEXT_HEIGHT+1;
-		}
-	}
-
-
-	{
-		static char FrameTimeMessage[64];
-		float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
-		uint32_t nAggregateFrames = S.nAggregateFrames ? S.nAggregateFrames : 1;
-		float fMs = fToMs * (S.nFlipTicks);
-		float fAverageMs = fToMs * (S.nFlipAggregateDisplay / nAggregateFrames);
-		float fMaxMs = fToMs * S.nFlipMaxDisplay;
-		int nLen = snprintf(FrameTimeMessage, sizeof(FrameTimeMessage)-1, "Time[%6.2f] Avg[%6.2f] Max[%6.2f]", fMs, fAverageMs, fMaxMs);
-		pMenuText[nNumMenuItems++] = &FrameTimeMessage[0];
-		MicroProfileDrawText(nWidth - nLen * (MICROPROFILE_TEXT_WIDTH+1), 0, -1, FrameTimeMessage, nLen);
-	}
-}
-
-
-void MicroProfileMoveGraph()
-{
-	int nZoom = S.nMouseWheelDelta;
-	int nPanX = 0;
-	int nPanY = 0;
-	static int X = 0, Y = 0;
-	if(S.nMouseDownLeft && !S.nModDown)
-	{
-		nPanX = S.nMouseX - X;
-		nPanY = S.nMouseY - Y;
-	}
-	X = S.nMouseX;
-	Y = S.nMouseY;
-
-	if(nZoom)
-	{
-		float fOldRange = S.fDetailedRange;
-		if(nZoom>0)
-		{
-			S.fDetailedRangeTarget = S.fDetailedRange *= S.nModDown ? 1.40 : 1.05f;
-		}
-		else
-		{
-			float fNewDetailedRange = S.fDetailedRange / (S.nModDown ? 1.40 : 1.05f);
-			if(fNewDetailedRange < 1e-4f) //100ns
-				fNewDetailedRange = 1e-4f;
-			S.fDetailedRangeTarget = S.fDetailedRange = fNewDetailedRange;
-		}
-
-		float fDiff = fOldRange - S.fDetailedRange;
-		float fMousePrc = MicroProfileMax((float)S.nMouseX / S.nWidth ,0.f);
-		S.fDetailedOffsetTarget = S.fDetailedOffset += fDiff * fMousePrc;
-
-	}
-	if(nPanX)
-	{
-		S.fDetailedOffsetTarget = S.fDetailedOffset += -nPanX * S.fDetailedRange / S.nWidth;
-	}
-	S.nOffsetY -= nPanY;
-	if(S.nOffsetY<0)
-		S.nOffsetY = 0;
-}
-
-bool MicroProfileIsDrawing()
-{
-	return S.nDisplay != 0;
-}
-void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
-{
-	MICROPROFILE_SCOPE(g_MicroProfileDraw);
-
-	if(S.nDisplay)
-	{
-		MicroProfileScopeLock L(MicroProfileMutex());
-		S.nWidth = nWidth;
-		S.nHeight = nHeight;
-		S.nHoverToken = MICROPROFILE_INVALID_TOKEN;
-		S.nHoverTime = 0;
-		S.nHoverFrame = -1;
-		if(S.nDisplay != MP_DRAW_DETAILED)
-			S.nContextSwitchHoverThread = S.nContextSwitchHoverThreadAfter = S.nContextSwitchHoverThreadBefore = -1;
-		MicroProfileMoveGraph();
-
-
-		if(S.nDisplay == MP_DRAW_DETAILED)
-		{
-			MicroProfileDrawDetailedView(nWidth, nHeight);
-		}
-		else if(S.nDisplay == MP_DRAW_BARS && S.nBars)
-		{
-			MicroProfileDrawBarView(nWidth, nHeight);
-		}
-		
-		MicroProfileDrawMenu(nWidth, nHeight);
-		bool bMouseOverGraph = MicroProfileDrawGraph(nWidth, nHeight);
-		bool bHidden = S.nDisplay == MP_DRAW_HIDDEN;
-		if(!bHidden)
-		{
-			uint32_t nLockedToolTipX = 3;
-			bool bDeleted = false;
-			for(int i = 0; i < MICROPROFILE_TOOLTIP_MAX_LOCKED; ++i)
-			{
-				int nIndex = (S.LockedToolTipFront + i) % MICROPROFILE_TOOLTIP_MAX_LOCKED;
-				if(S.LockedToolTips[nIndex].ppStrings[0])
-				{
-					uint32_t nToolTipWidth = 0, nToolTipHeight = 0;
-					MicroProfileFloatWindowSize(S.LockedToolTips[nIndex].ppStrings, S.LockedToolTips[nIndex].nNumStrings, 0, nToolTipWidth, nToolTipHeight, 0);
-					uint32_t nStartY = nHeight - nToolTipHeight - 2;
-					if(!bDeleted && S.nMouseY > nStartY && S.nMouseX > nLockedToolTipX && S.nMouseX <= nLockedToolTipX + nToolTipWidth && (S.nMouseLeft || S.nMouseRight) )
-					{
-						bDeleted = true;
-						int j = i;
-						for(; j < MICROPROFILE_TOOLTIP_MAX_LOCKED-1; ++j)
-						{
-							int nIndex0 = (S.LockedToolTipFront + j) % MICROPROFILE_TOOLTIP_MAX_LOCKED;
-							int nIndex1 = (S.LockedToolTipFront + j+1) % MICROPROFILE_TOOLTIP_MAX_LOCKED;
-							MicroProfileStringArrayCopy(&S.LockedToolTips[nIndex0], &S.LockedToolTips[nIndex1]);
-						}
-						MicroProfileStringArrayClear(&S.LockedToolTips[(S.LockedToolTipFront + j) % MICROPROFILE_TOOLTIP_MAX_LOCKED]);
-					}
-					else
-					{
-						MicroProfileDrawFloatWindow(nLockedToolTipX, nHeight-nToolTipHeight-2, &S.LockedToolTips[nIndex].ppStrings[0], S.LockedToolTips[nIndex].nNumStrings, S.nLockedToolTipColor[nIndex]);
-						nLockedToolTipX += nToolTipWidth + 4;
-					}
-				}
-			}
-
-			if(S.nActiveMenu == 7)
-			{
-				if(S.nDisplay & MP_DRAW_DETAILED)
-				{
-					MicroProfileStringArray DetailedHelp;
-					MicroProfileStringArrayClear(&DetailedHelp);
-					MicroProfileStringArrayFormat(&DetailedHelp, "%s", MICROPROFILE_HELP_LEFT);
-					MicroProfileStringArrayAddLiteral(&DetailedHelp, "Toggle Graph");
-					MicroProfileStringArrayFormat(&DetailedHelp, "%s", MICROPROFILE_HELP_ALT);
-					MicroProfileStringArrayAddLiteral(&DetailedHelp, "Zoom");
-					MicroProfileStringArrayFormat(&DetailedHelp, "%s + %s", MICROPROFILE_HELP_MOD, MICROPROFILE_HELP_LEFT);
-					MicroProfileStringArrayAddLiteral(&DetailedHelp, "Lock Tooltip");
-					MicroProfileStringArrayAddLiteral(&DetailedHelp, "Drag");
-					MicroProfileStringArrayAddLiteral(&DetailedHelp, "Pan View");
-					MicroProfileStringArrayAddLiteral(&DetailedHelp, "Mouse Wheel");
-					MicroProfileStringArrayAddLiteral(&DetailedHelp, "Zoom");
-					MicroProfileDrawFloatWindow(nWidth, MICROPROFILE_FRAME_HISTORY_HEIGHT+20, DetailedHelp.ppStrings, DetailedHelp.nNumStrings, 0xff777777);
-
-					MicroProfileStringArray DetailedHistoryHelp;
-					MicroProfileStringArrayClear(&DetailedHistoryHelp);
-					MicroProfileStringArrayFormat(&DetailedHistoryHelp, "%s", MICROPROFILE_HELP_LEFT);
-					MicroProfileStringArrayAddLiteral(&DetailedHistoryHelp, "Center View");
-					MicroProfileStringArrayFormat(&DetailedHistoryHelp, "%s", MICROPROFILE_HELP_ALT);
-					MicroProfileStringArrayAddLiteral(&DetailedHistoryHelp, "Zoom to frame");
-					MicroProfileDrawFloatWindow(nWidth, 20, DetailedHistoryHelp.ppStrings, DetailedHistoryHelp.nNumStrings, 0xff777777);
-
-
-
-				}
-				else if(0 != (S.nDisplay & MP_DRAW_BARS) && S.nBars)
-				{
-					MicroProfileStringArray BarHelp;
-					MicroProfileStringArrayClear(&BarHelp);
-					MicroProfileStringArrayFormat(&BarHelp, "%s", MICROPROFILE_HELP_LEFT);
-					MicroProfileStringArrayAddLiteral(&BarHelp, "Toggle Graph");
-					MicroProfileStringArrayFormat(&BarHelp, "%s + %s", MICROPROFILE_HELP_MOD, MICROPROFILE_HELP_LEFT);
-					MicroProfileStringArrayAddLiteral(&BarHelp, "Lock Tooltip");
-					MicroProfileStringArrayAddLiteral(&BarHelp, "Drag");
-					MicroProfileStringArrayAddLiteral(&BarHelp, "Pan View");
-					MicroProfileDrawFloatWindow(nWidth, MICROPROFILE_FRAME_HISTORY_HEIGHT+20, BarHelp.ppStrings, BarHelp.nNumStrings, 0xff777777);
-
-				}
-				MicroProfileStringArray Debug;
-				MicroProfileStringArrayClear(&Debug);
-				MicroProfileStringArrayAddLiteral(&Debug, "Memory Usage");
-				MicroProfileStringArrayFormat(&Debug, "%4.2fmb", S.nMemUsage / (1024.f * 1024.f));
-				uint32_t nFrameNext = (S.nFrameCurrent+1) % MICROPROFILE_MAX_FRAME_HISTORY;
-				MicroProfileFrameState* pFrameCurrent = &S.Frames[S.nFrameCurrent];
-				MicroProfileFrameState* pFrameNext = &S.Frames[nFrameNext];
-
-
-				MicroProfileStringArrayAddLiteral(&Debug, "");
-				MicroProfileStringArrayAddLiteral(&Debug, "");
-				MicroProfileStringArrayAddLiteral(&Debug, "Usage");
-				MicroProfileStringArrayAddLiteral(&Debug, "markers [frames] ");
-
-#if MICROPROFILE_CONTEXT_SWITCH_TRACE
-				MicroProfileStringArrayAddLiteral(&Debug, "Context Switch");
-				MicroProfileStringArrayFormat(&Debug, "%9d [%7d]", S.nContextSwitchUsage, MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE / S.nContextSwitchUsage );
-#endif
-
-				for(int i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
-				{
-					if(pFrameCurrent->nLogStart[i] && S.Pool[i])
-					{
-						uint32_t nEnd = pFrameNext->nLogStart[i];
-						uint32_t nStart = pFrameCurrent->nLogStart[i];
-						uint32_t nUsage = nStart < nEnd ? (nEnd - nStart) : (nEnd + MICROPROFILE_BUFFER_SIZE - nStart);
-						uint32_t nFrameSupport = MICROPROFILE_BUFFER_SIZE / nUsage;
-						MicroProfileStringArrayFormat(&Debug, "%s", &S.Pool[i]->ThreadName[0]);
-						MicroProfileStringArrayFormat(&Debug, "%9d [%7d]", nUsage, nFrameSupport);
-					}
-				}
-
-				MicroProfileDrawFloatWindow(0, nHeight-10, Debug.ppStrings, Debug.nNumStrings, 0xff777777);
-			}
-
-
-
-			if(S.nActiveMenu == -1 && !bMouseOverGraph)
-			{
-				if(S.nHoverToken != MICROPROFILE_INVALID_TOKEN)
-				{
-					MicroProfileDrawFloatTooltip(S.nMouseX, S.nMouseY, S.nHoverToken, S.nHoverTime);
-				}
-				else if(S.nContextSwitchHoverThreadAfter != -1 && S.nContextSwitchHoverThreadBefore != -1)
-				{
-					float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
-					MicroProfileStringArray ToolTip;
-					MicroProfileStringArrayClear(&ToolTip);
-					MicroProfileStringArrayAddLiteral(&ToolTip, "Context Switch");
-					MicroProfileStringArrayFormat(&ToolTip, "%04x", S.nContextSwitchHoverThread);					
-					MicroProfileStringArrayAddLiteral(&ToolTip, "Before");
-					MicroProfileStringArrayFormat(&ToolTip, "%04x", S.nContextSwitchHoverThreadBefore);
-					MicroProfileStringArrayAddLiteral(&ToolTip, "After");
-					MicroProfileStringArrayFormat(&ToolTip, "%04x", S.nContextSwitchHoverThreadAfter);					
-					MicroProfileStringArrayAddLiteral(&ToolTip, "Duration");
-					int64_t nDifference = MicroProfileLogTickDifference(S.nContextSwitchHoverTickIn, S.nContextSwitchHoverTickOut);
-					MicroProfileStringArrayFormat(&ToolTip, "%6.2fms", fToMs * nDifference );
-					MicroProfileStringArrayAddLiteral(&ToolTip, "CPU");
-					MicroProfileStringArrayFormat(&ToolTip, "%d", S.nContextSwitchHoverCpu);
-					MicroProfileDrawFloatWindow(S.nMouseX, S.nMouseY+20, &ToolTip.ppStrings[0], ToolTip.nNumStrings, -1);
-
-
-				}
-				else if(S.nHoverFrame != -1)
-				{
-					uint32_t nNextFrame = (S.nHoverFrame+1)%MICROPROFILE_MAX_FRAME_HISTORY;
-					int64_t nTick = S.Frames[S.nHoverFrame].nFrameStartCpu;
-					int64_t nTickNext = S.Frames[nNextFrame].nFrameStartCpu;
-					int64_t nTickGpu = S.Frames[S.nHoverFrame].nFrameStartGpu;
-					int64_t nTickNextGpu = S.Frames[nNextFrame].nFrameStartGpu;
-
-					float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
-					float fToMsGpu = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondGpu());
-					float fMs = fToMs * (nTickNext - nTick);
-					float fMsGpu = fToMsGpu * (nTickNextGpu - nTickGpu);
-					MicroProfileStringArray ToolTip;
-					MicroProfileStringArrayClear(&ToolTip);
-					MicroProfileStringArrayFormat(&ToolTip, "Frame %d", S.nHoverFrame);
-	#if MICROPROFILE_DEBUG
-					MicroProfileStringArrayFormat(&ToolTip, "%p", &S.Frames[S.nHoverFrame]);
-	#else
-					MicroProfileStringArrayAddLiteral(&ToolTip, "");
-	#endif
-					MicroProfileStringArrayAddLiteral(&ToolTip, "CPU Time");
-					MicroProfileStringArrayFormat(&ToolTip, "%6.2fms", fMs);
-					MicroProfileStringArrayAddLiteral(&ToolTip, "GPU Time");
-					MicroProfileStringArrayFormat(&ToolTip, "%6.2fms", fMsGpu);
-					#if MICROPROFILE_DEBUG
-					for(int i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
-					{
-						if(S.Frames[S.nHoverFrame].nLogStart[i])
-						{
-							MicroProfileStringArrayFormat(&ToolTip, "%d", i);
-							MicroProfileStringArrayFormat(&ToolTip, "%d", S.Frames[S.nHoverFrame].nLogStart[i]);
-						}
-					}
-					#endif
-					MicroProfileDrawFloatWindow(S.nMouseX, S.nMouseY+20, &ToolTip.ppStrings[0], ToolTip.nNumStrings, -1);
-				}
-				if(S.nMouseLeft)
-				{
-					if(S.nHoverToken != MICROPROFILE_INVALID_TOKEN)
-						MicroProfileToggleGraph(S.nHoverToken);
-				}
-			}
-		}
-#if MICROPROFILE_DRAWCURSOR
-		{
-			float fCursor[8] = 
-			{
-				MicroProfileMax(0, (int)S.nMouseX-3), S.nMouseY,
-				MicroProfileMin(nWidth, S.nMouseX+3), S.nMouseY,
-				S.nMouseX, MicroProfileMax((int)S.nMouseY-3, 0),
-				S.nMouseX, MicroProfileMin(nHeight, S.nMouseY+3),
-			};
-			MicroProfileDrawLine2D(2, &fCursor[0], 0xff00ff00);
-			MicroProfileDrawLine2D(2, &fCursor[4], 0xff00ff00);
-		}
-#endif
-
-	}
-	S.nMouseLeft = S.nMouseRight = 0;
-	S.nMouseLeftMod = S.nMouseRightMod = 0;
-	S.nMouseWheelDelta = 0;
-	if(S.nOverflow)
-		S.nOverflow--;
-
-}
-void MicroProfileMousePosition(uint32_t nX, uint32_t nY, int nWheelDelta)
-{
-	S.nMouseX = nX;
-	S.nMouseY = nY;
-	S.nMouseWheelDelta = nWheelDelta;
-}
-
-void MicroProfileModKey(uint32_t nKeyState)
-{
-	S.nModDown = nKeyState ? 1 : 0;
-}
-
-void MicroProfileClearGraph()
-{
-	for(uint32_t i = 0; i < MICROPROFILE_MAX_GRAPHS; ++i)
-	{
-		if(S.Graph[i].nToken != 0)
-		{
-			S.Graph[i].nToken = MICROPROFILE_INVALID_TOKEN;
-		}
-	}
-}
-void MicroProfileTogglePause()
-{
-	S.nToggleRunning = 1;
-}
-
-void MicroProfileGetState(MicroProfileState* pStateOut)
-{
-	pStateOut->nDisplay = S.nDisplay;
-	pStateOut->nMenuAllGroups = S.nMenuAllGroups;
-	pStateOut->nMenuActiveGroup = S.nMenuActiveGroup;
-	pStateOut->nMenuAllThreads = S.nMenuAllThreads;
-	pStateOut->nAggregateFlip = S.nAggregateFlip;
-	pStateOut->nBars = S.nBars;
-	pStateOut->fReferenceTime = S.fReferenceTime;
-}
-
-void MicroProfileSetState(MicroProfileState* pStateOut)
-{
-	MicroProfileScopeLock L(MicroProfileMutex());
-	S.nDisplay = pStateOut->nDisplay;
-	S.nMenuAllGroups = pStateOut->nMenuAllGroups;
-	S.nMenuActiveGroup = pStateOut->nMenuActiveGroup;
-	S.nMenuAllThreads = pStateOut->nMenuAllThreads;
-	S.nAggregateFlip = pStateOut->nAggregateFlip;
-	S.nBars = pStateOut->nBars;
-	S.fReferenceTime = pStateOut->fReferenceTime;
-	S.fRcpReferenceTime = 1.f / S.fReferenceTime;
-}
-
-void MicroProfileToggleGraph(MicroProfileToken nToken)
-{
-	uint32_t nTimerId = MicroProfileGetTimerIndex(nToken);
-	nToken &= 0xffff;
-	int32_t nMinSort = 0x7fffffff;
-	int32_t nFreeIndex = -1;
-	int32_t nMinIndex = 0;
-	int32_t nMaxSort = 0x80000000;
-	for(uint32_t i = 0; i < MICROPROFILE_MAX_GRAPHS; ++i)
-	{
-		if(S.Graph[i].nToken == MICROPROFILE_INVALID_TOKEN)
-			nFreeIndex = i;
-		if(S.Graph[i].nToken == nToken)
-		{
-			S.Graph[i].nToken = MICROPROFILE_INVALID_TOKEN;
-			S.TimerInfo[nTimerId].bGraph = false;
-			return;
-		}
-		if(S.Graph[i].nKey < nMinSort)
-		{
-			nMinSort = S.Graph[i].nKey;
-			nMinIndex = i;
-		}
-		if(S.Graph[i].nKey > nMaxSort)
-		{
-			nMaxSort = S.Graph[i].nKey;
-		}
-	}
-	int nIndex = nFreeIndex > -1 ? nFreeIndex : nMinIndex;
-	if (nFreeIndex == -1)
-	{
-		uint32_t idx = MicroProfileGetTimerIndex(S.Graph[nIndex].nToken);
-		S.TimerInfo[idx].bGraph = false;
-	}
-	S.Graph[nIndex].nToken = nToken;
-	S.Graph[nIndex].nKey = nMaxSort+1;
-	memset(&S.Graph[nIndex].nHistory[0], 0, sizeof(S.Graph[nIndex].nHistory));
-	S.TimerInfo[nTimerId].bGraph = true;
-}
-void MicroProfileMouseButton(uint32_t nLeft, uint32_t nRight)
-{
-	if(0 == nLeft && S.nMouseDownLeft)
-	{
-		if(S.nModDown)
-			S.nMouseLeftMod = 1;
-		else
-			S.nMouseLeft = 1;
-	}
-
-	if(0 == nRight && S.nMouseDownRight)
-	{
-		if(S.nModDown)
-			S.nMouseRightMod = 1;
-		else
-			S.nMouseRight = 1;
-	}
-
-	S.nMouseDownLeft = nLeft;
-	S.nMouseDownRight = nRight;
-	
-}
-
-#include <stdio.h>
-
-#define MICROPROFILE_PRESET_HEADER_MAGIC 0x28586813
-#define MICROPROFILE_PRESET_HEADER_VERSION 0x00000102
-struct MicroProfilePresetHeader
-{
-	uint32_t nMagic;
-	uint32_t nVersion;
-	//groups, threads, aggregate, reference frame, graphs timers
-	uint32_t nGroups[MICROPROFILE_MAX_GROUPS];
-	uint32_t nThreads[MICROPROFILE_MAX_THREADS];
-	uint32_t nGraphName[MICROPROFILE_MAX_GRAPHS];
-	uint32_t nGraphGroupName[MICROPROFILE_MAX_GRAPHS];
-	uint32_t nMenuAllGroups;
-	uint32_t nMenuAllThreads;
-	uint32_t nAggregateFlip;
-	float fReferenceTime;
-	uint32_t nBars;
-	uint32_t nDisplay;
-	uint32_t nOpacityBackground;
-	uint32_t nOpacityForeground;
-	uint32_t nShowSpikes;
-};
-
-#ifndef MICROPROFILE_PRESET_FILENAME_FUNC
-#define MICROPROFILE_PRESET_FILENAME_FUNC MicroProfilePresetFilename
-static const char* MicroProfilePresetFilename(const char* pSuffix)
-{
-	static char filename[512];
-	snprintf(filename, sizeof(filename)-1, ".microprofilepreset.%s", pSuffix);
-	return filename;
-}
-#endif
-
-void MicroProfileSavePreset(const char* pPresetName)
-{
-	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
-	FILE* F = fopen(MICROPROFILE_PRESET_FILENAME_FUNC(pPresetName), "wb");
-	if(!F) return;
-
-	MicroProfilePresetHeader Header;
-	memset(&Header, 0, sizeof(Header));
-	Header.nAggregateFlip = S.nAggregateFlip;
-	Header.nBars = S.nBars;
-	Header.fReferenceTime = S.fReferenceTime;
-	Header.nMenuAllGroups = S.nMenuAllGroups;
-	Header.nMenuAllThreads = S.nMenuAllThreads;
-	Header.nMagic = MICROPROFILE_PRESET_HEADER_MAGIC;
-	Header.nVersion = MICROPROFILE_PRESET_HEADER_VERSION;
-	Header.nDisplay = S.nDisplay;
-	Header.nOpacityBackground = S.nOpacityBackground;
-	Header.nOpacityForeground = S.nOpacityForeground;
-	Header.nShowSpikes = S.bShowSpikes ? 1 : 0;
-	fwrite(&Header, sizeof(Header), 1, F);
-	uint64_t nMask = 1;
-	for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
-	{
-		if(S.nMenuActiveGroup & nMask)
-		{
-			uint32_t offset = ftell(F);
-			const char* pName = S.GroupInfo[i].pName;
-			int nLen = (int)strlen(pName)+1;
-			fwrite(pName, nLen, 1, F);
-			Header.nGroups[i] = offset;
-		}
-		nMask <<= 1;
-	}
-	for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
-	{
-		MicroProfileThreadLog* pLog = S.Pool[i];
-		if(pLog && S.nThreadActive[i])
-		{
-			uint32_t nOffset = ftell(F);
-			const char* pName = &pLog->ThreadName[0];
-			int nLen = (int)strlen(pName)+1;
-			fwrite(pName, nLen, 1, F);
-			Header.nThreads[i] = nOffset;
-		}
-	}
-	for(uint32_t i = 0; i < MICROPROFILE_MAX_GRAPHS; ++i)
-	{
-		MicroProfileToken nToken = S.Graph[i].nToken;
-		if(nToken != MICROPROFILE_INVALID_TOKEN)
-		{
-			uint32_t nGroupIndex = MicroProfileGetGroupIndex(nToken);
-			uint32_t nTimerIndex = MicroProfileGetTimerIndex(nToken);
-			const char* pGroupName = S.GroupInfo[nGroupIndex].pName;
-			const char* pTimerName = S.TimerInfo[nTimerIndex].pName;
-			MP_ASSERT(pGroupName);
-			MP_ASSERT(pTimerName);
-			int nGroupLen = (int)strlen(pGroupName)+1;
-			int nTimerLen = (int)strlen(pTimerName)+1;
-
-			uint32_t nOffsetGroup = ftell(F);
-			fwrite(pGroupName, nGroupLen, 1, F);
-			uint32_t nOffsetTimer = ftell(F);
-			fwrite(pTimerName, nTimerLen, 1, F);
-			Header.nGraphName[i] = nOffsetTimer;
-			Header.nGraphGroupName[i] = nOffsetGroup;
-		}
-	}
-	fseek(F, 0, SEEK_SET);
-	fwrite(&Header, sizeof(Header), 1, F);
-
-	fclose(F);
-
-}
-
-
-
-void MicroProfileLoadPreset(const char* pSuffix)
-{
-	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
-	FILE* F = fopen(MICROPROFILE_PRESET_FILENAME_FUNC(pSuffix), "rb");
-	if(!F)
-	{
-	 	return;
-	}
-	fseek(F, 0, SEEK_END);
-	int nSize = ftell(F);
-	char* const pBuffer = (char*)alloca(nSize);
-	fseek(F, 0, SEEK_SET);
-	int nRead = (int)fread(pBuffer, nSize, 1, F);
-	fclose(F);
-	if(1 != nRead)
-		return;
-	
-	MicroProfilePresetHeader& Header = *(MicroProfilePresetHeader*)pBuffer;
-
-	if(Header.nMagic != MICROPROFILE_PRESET_HEADER_MAGIC || Header.nVersion != MICROPROFILE_PRESET_HEADER_VERSION)
-	{
-		return;
-	}
-
-	S.nAggregateFlip = Header.nAggregateFlip;
-	S.nBars = Header.nBars;
-	S.fReferenceTime = Header.fReferenceTime;
-	S.fRcpReferenceTime = 1.f / Header.fReferenceTime;
-	S.nMenuAllGroups = Header.nMenuAllGroups;
-	S.nMenuAllThreads = Header.nMenuAllThreads;
-	S.nDisplay = Header.nDisplay;
-	S.nMenuActiveGroup = 0;
-	S.nOpacityBackground = Header.nOpacityBackground;
-	S.nOpacityForeground = Header.nOpacityForeground;
-	S.bShowSpikes = Header.nShowSpikes == 1;
-
-	memset(&S.nThreadActive[0], 0, sizeof(S.nThreadActive));
-
-	for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
-	{
-		if(Header.nGroups[i])
-		{
-			const char* pGroupName = pBuffer + Header.nGroups[i];	
-			for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
-			{
-				if(S.GroupInfo[j].pName && 0 == MP_STRCASECMP(pGroupName, S.GroupInfo[j].pName))
-				{
-					S.nMenuActiveGroup |= (1ll << j);
-				}
-			}
-		}
-	}
-	for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
-	{
-		if(Header.nThreads[i])
-		{
-			const char* pThreadName = pBuffer + Header.nThreads[i];
-			for(uint32_t j = 0; j < MICROPROFILE_MAX_THREADS; ++j)
-			{
-				MicroProfileThreadLog* pLog = S.Pool[j];
-				if(pLog && 0 == MP_STRCASECMP(pThreadName, &pLog->ThreadName[0]))
-				{
-					S.nThreadActive[j] = 1;
-				}
-			}
-		}
-	}
-	for(uint32_t i = 0; i < MICROPROFILE_MAX_GRAPHS; ++i)
-	{
-		MicroProfileToken nPrevToken = S.Graph[i].nToken;
-		S.Graph[i].nToken = MICROPROFILE_INVALID_TOKEN;
-		if(Header.nGraphName[i] && Header.nGraphGroupName[i])
-		{
-			const char* pGraphName = pBuffer + Header.nGraphName[i];
-			const char* pGraphGroupName = pBuffer + Header.nGraphGroupName[i];
-			for(uint32_t j = 0; j < S.nTotalTimers; ++j)
-			{
-				uint64_t nGroupIndex = S.TimerInfo[j].nGroupIndex;
-				if(0 == MP_STRCASECMP(pGraphName, S.TimerInfo[j].pName) && 0 == MP_STRCASECMP(pGraphGroupName, S.GroupInfo[nGroupIndex].pName))
-				{
-					MicroProfileToken nToken = MicroProfileMakeToken(1ll << nGroupIndex, (uint16_t)j);
-					S.Graph[i].nToken = nToken;			// note: group index is stored here but is checked without in MicroProfileToggleGraph()!
-					S.TimerInfo[j].bGraph = true;
-					if(nToken != nPrevToken)
-					{
-						memset(&S.Graph[i].nHistory, 0, sizeof(S.Graph[i].nHistory));
-					}
-					break;
-				}
-			}
-		}
-	}
-}
-
-void MicroProfileDrawLineVertical(int nX, int nTop, int nBottom, uint32_t nColor)
-{
-	MicroProfileDrawBox(nX, nTop, nX + 1, nBottom, nColor);
-}
-
-void MicroProfileDrawLineHorizontal(int nLeft, int nRight, int nY, uint32_t nColor)
-{
-	MicroProfileDrawBox(nLeft, nY, nRight, nY + 1, nColor);
-}
-
-float MicroProfileGetTime(const char* pGroup, const char* pName)
-{
-	MicroProfileToken nToken = MicroProfileFindToken(pGroup, pName);
-	if(nToken == MICROPROFILE_INVALID_TOKEN)
-	{
-		return 0.f;
-	}
-	uint32_t nTimerIndex = MicroProfileGetTimerIndex(nToken);
-	uint32_t nGroupIndex = MicroProfileGetGroupIndex(nToken);
-	float fToMs = MicroProfileTickToMsMultiplier(S.GroupInfo[nGroupIndex].Type == MicroProfileTokenTypeGpu ? MicroProfileTicksPerSecondGpu() : MicroProfileTicksPerSecondCpu());
-	return S.Frame[nTimerIndex].nTicks * fToMs;
-}
-void MicroProfileForceEnableGroup(const char* pGroup, MicroProfileTokenType Type)
-{
-	MicroProfileInit();
-	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
-	uint16_t nGroup = MicroProfileGetGroup(pGroup, Type);
-	S.nForceGroup |= (1ll << nGroup);
-}
-
-void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Type)
-{
-	MicroProfileInit();
-	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
-	uint16_t nGroup = MicroProfileGetGroup(pGroup, Type);
-	S.nForceGroup &= ~(1ll << nGroup);
-}
 
 
 

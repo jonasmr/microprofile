@@ -26,6 +26,11 @@
 #include <thread>
 #include <atomic>
 
+#if defined(__APPLE__) || defined(__linux__)
+#include <unistd.h>
+#endif
+
+
 #include "microprofile.h"
 #include "glinc.h"
 
@@ -74,167 +79,8 @@ uint32_t g_MouseDown0 = 0;
 uint32_t g_MouseDown1 = 0;
 int g_MouseDelta = 0;
 
-
-MICROPROFILE_DECLARE(ThreadSafeMain);
-MICROPROFILE_DECLARE(ThreadSafeInner0);
-MICROPROFILE_DECLARE(ThreadSafeInner1);
-MICROPROFILE_DECLARE(ThreadSafeInner2);
-MICROPROFILE_DECLARE(ThreadSafeInner3);
-MICROPROFILE_DECLARE(ThreadSafeInner4);
-MICROPROFILE_DEFINE(ThreadSafeInner4,"ThreadSafe", "Inner4", 0xff00ff00);
-MICROPROFILE_DEFINE(ThreadSafeInner3,"ThreadSafe", "Inner3", 0xff773744);
-MICROPROFILE_DEFINE(ThreadSafeInner2,"ThreadSafe", "Inner2", 0xff990055);
-MICROPROFILE_DEFINE(ThreadSafeInner1,"ThreadSafe", "Inner1", 0xffaa00aa);
-MICROPROFILE_DEFINE(ThreadSafeInner0,"ThreadSafe", "Inner0", 0xff00bbee);
-MICROPROFILE_DEFINE(ThreadSafeMain,"ThreadSafe", "Main", 0xffdd3355);
 MICROPROFILE_DEFINE(MAIN, "MAIN", "Main", 0xff0000);
 
-void WorkerThreadLong(int threadId)
-{
-	uint32_t c0 = 0xff3399ff;
-	uint32_t c1 = 0xffff99ff;
-	char name[100];
-	snprintf(name, 99, "Worker_long%d", threadId);
-	MicroProfileOnThreadCreate(&name[0]);
-	while(!g_nQuit)
-	{
-		MICROPROFILE_SCOPEI("long", "outer 150ms", c0); 
-		MICROPROFILE_META_CPU("Sleep",100);
-		usleep(100*1000);
-		for(int i = 0; i < 10; ++i)
-		{
-			MICROPROFILE_SCOPEI("long", "inner 5ms", c1); 
-			MICROPROFILE_META_CPU("Sleep",5);
-			usleep(5000);
-		}
-	}
-}
-
-void WorkerThread(int threadId)
-{
-	char name[100];
-	snprintf(name, 99, "Worker%d", threadId);
-	MicroProfileOnThreadCreate(&name[0]);
-	uint32_t c0 = 0xff3399ff;
-	uint32_t c1 = 0xffff99ff;
-	uint32_t c2 = 0xff33ff00;
-	uint32_t c3 = 0xff3399ff;
-	uint32_t c4 = 0xff33ff33;
-
-	while(!g_nQuit)
-	{
-		switch(threadId)
-		{
-		case 0:
-		{
-			usleep(100);
-			{
-				MICROPROFILE_SCOPEI("Thread0", "Work Thread0", c4); 
-				MICROPROFILE_META_CPU("Sleep",10);
-				usleep(200);
-				{
-					MICROPROFILE_SCOPEI("Thread0", "Work Thread1", c3); 
-					MICROPROFILE_META_CPU("DrawCalls", 1);
-					MICROPROFILE_META_CPU("DrawCalls", 1);
-					MICROPROFILE_META_CPU("DrawCalls", 1);
-					usleep(200);
-					{
-						MICROPROFILE_SCOPEI("Thread0", "Work Thread2", c2); 
-						MICROPROFILE_META_CPU("DrawCalls", 1);
-						usleep(200);
-						{
-							MICROPROFILE_SCOPEI("Thread0", "Work Thread3", c1); 
-							MICROPROFILE_META_CPU("DrawCalls", 4);
-							MICROPROFILE_META_CPU("Triangles",1000);
-							usleep(200);
-						}
-					}
-				}
-			}
-		}
-		break;
-		
-		case 1:
-			{
-				usleep(100);
-				MICROPROFILE_SCOPEI("Thread1", "Work Thread 1", c1);
-				usleep(2000);
-			}
-			break;
-
-		case 2:
-			{
-				usleep(1000);
-				{
-					MICROPROFILE_SCOPEI("Thread2", "Worker2", c0); 
-					usleep(200);
-					{
-						MICROPROFILE_SCOPEI("Thread2", "InnerWork0", c1); 
-						usleep(100);
-						{
-							MICROPROFILE_SCOPEI("Thread2", "InnerWork1", c2); 
-							usleep(100);
-							{
-								MICROPROFILE_SCOPEI("Thread2", "InnerWork2", c3); 
-								usleep(100);
-								{
-									MICROPROFILE_SCOPEI("Thread2", "InnerWork3", c4); 
-									usleep(100);
-								}
-							}
-						}
-					}
-				}
-			}
-			break;
-		case 3:
-			{
-				MICROPROFILE_SCOPEI("ThreadWork", "MAIN", c0);
-				usleep(1000);;
-				for(uint32_t i = 0; i < 10; ++i)
-				{
-					MICROPROFILE_SCOPEI("ThreadWork", "Inner0", c1);
-					usleep(100);
-					for(uint32_t j = 0; j < 4; ++j)
-					{
-						MICROPROFILE_SCOPEI("ThreadWork", "Inner1", c4);
-						usleep(50);
-						MICROPROFILE_SCOPEI("ThreadWork", "Inner2", c2);
-						usleep(50);
-						MICROPROFILE_SCOPEI("ThreadWork", "Inner3", c3);
-						usleep(50);
-						MICROPROFILE_SCOPEI("ThreadWork", "Inner4", c3);
-						usleep(50);
-					}
-				}
-
-
-			}
-			break;
-		default:
-			
-			MICROPROFILE_SCOPE(ThreadSafeMain);
-			usleep(1000);;
-			for(uint32_t i = 0; i < 5; ++i)
-			{
-				MICROPROFILE_SCOPE(ThreadSafeInner0);
-				usleep(1000);
-				for(uint32_t j = 0; j < 4; ++j)
-				{
-					MICROPROFILE_SCOPE(ThreadSafeInner1);
-					usleep(500);
-					MICROPROFILE_SCOPE(ThreadSafeInner2);
-					usleep(150);
-					MICROPROFILE_SCOPE(ThreadSafeInner3);
-					usleep(150);
-					MICROPROFILE_SCOPE(ThreadSafeInner4);
-					usleep(150);
-				}
-			}
-			break;
-		}
-	}
-}
 
 
 void HandleEvent(SDL_Event* pEvt)
@@ -253,6 +99,18 @@ void HandleEvent(SDL_Event* pEvt)
 		{
 			MicroProfileToggleDisplayMode();
 		}
+		if(pEvt->key.keysym.sym == 'x')
+		{
+			bool bForceEnable = MicroProfileGetForceEnable();
+			MicroProfileSetForceEnable(!bForceEnable);
+			printf("force enable is %d\n", !bForceEnable);
+		}
+		if(pEvt->key.keysym.sym == 'c')
+		{
+			bool bEnable = MicroProfileGetEnableAllGroups();
+			MicroProfileSetEnableAllGroups(!bEnable);
+			printf("enable all groups is %d\n", !bEnable);
+		}
 		if(pEvt->key.keysym.scancode == SDL_SCANCODE_RSHIFT)
 		{
 			MicroProfileTogglePause();
@@ -267,7 +125,7 @@ void HandleEvent(SDL_Event* pEvt)
 		}
 		if(pEvt->key.keysym.sym == 'd')
 		{
-			MicroProfileDumpState();
+			MicroProfileDumpHtml();
 		}
 		break;
 
@@ -313,6 +171,10 @@ void MicroProfileDrawInit();
 void MicroProfileBeginDraw(uint32_t nWidth, uint32_t nHeight, float* prj);
 void MicroProfileEndDraw();
 
+void StartFakeWork();
+void StopFakeWork();
+
+
 #ifdef _WIN32
 #define __BREAK() __debugbreak()
 #else
@@ -322,6 +184,8 @@ int main(int argc, char* argv[])
 {
 	printf("press 'z' to toggle microprofile drawing\n");
 	printf("press 'right shift' to pause microprofile update\n");
+	printf("press 'x' to toggle profiling\n");
+	printf("press 'c' to toggle enable of all profiler groups\n");
 	MicroProfileOnThreadCreate("Main");
 
 	if(SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -363,19 +227,8 @@ int main(int argc, char* argv[])
 	MicroProfileDrawInit();
 	MP_ASSERT(glGetError() == 0);
 #endif
-#define FAKE_WORK 1
-#if FAKE_WORK
-	std::thread t0(WorkerThread, 0);
-	std::thread t1(WorkerThread, 1);
-	std::thread t2(WorkerThread, 2);
-	std::thread t3(WorkerThread, 3);
-	std::thread t42(WorkerThread, 42);
-	std::thread t43(WorkerThread, 43);
-	std::thread t44(WorkerThread, 44);
-	std::thread t45(WorkerThread, 45);
-	std::thread tlong(WorkerThreadLong, 0);
-#endif
 
+	StartFakeWork();
 	while(!g_nQuit)
 	{
 		MICROPROFILE_SCOPE(MAIN);
@@ -446,18 +299,8 @@ int main(int argc, char* argv[])
 		MICROPROFILE_SCOPEI("MAIN", "Flip", 0xffee00);
 		SDL_GL_SwapWindow(pWindow);
 	}
+	StopFakeWork();
 
-	#if FAKE_WORK
-	t0.join();
-	t1.join();
-	t2.join();
-	t3.join();
-	t42.join();
-	t43.join();
-	t44.join();
-	t45.join();
-	tlong.join();
-	#endif
 	MicroProfileShutdown();
 
   	SDL_GL_DeleteContext(glcontext);  
