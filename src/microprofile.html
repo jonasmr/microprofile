@@ -2,12 +2,92 @@
 <html>
 <head>
 <style>
-body {margin: 0px;padding: 0px;}
+/* http://bit.ly/1eMQ42U */
+body {margin: 0px;padding: 0px; font: 12px Courier New;background-color:#474747; color:white;}
+ul {list-style-type: none;margin: 0;padding: 0;}
+li{display: inline; float:left;border:5px; position:relative;text-align:center;}
+a {
+    float:left;
+    text-decoration:none;
+    display: inline;
+    text-align: center;
+	padding:5px;
+	padding-bottom:0px;
+	padding-top:0px;
+    color: #FFFFFF;
+    background-color: #474747;
+}
+a:hover, a:active{
+	background-color: #000000;
+}
+
+ul ul {
+    position:absolute;
+    left:0;
+    top:100%;
+    margin-left:-999em;
+}
+li:hover ul {
+    margin-left:0;
+}
+ul li ul{ display:block;float:none;width:100%;}
+ul li ul li{ display:block;float:none;width:100%;}
+li li a{ display:block;float:none;width:100%;}
+#nav li:hover div {margin-left:0;}
+#help
+{
+	position:absolute;
+	z-index:5;
+	left:20px;
+	top:20px;
+	width:220px;
+	text-align:left;
+	padding:2px;
+	border-color:black;
+	margin-left:-999em;
+	background-color: #474747;
+}
+.root {z-index:1;position:absolute; top:0px;left:0px;}
 </style>
 </head>
-<body style="background-color:#474747;">
+<body style="">
 <canvas id="History" width="100%" height="70" style="background-color:#474747;margin:0px;padding:0px;"></canvas>
 <canvas id="DetailedView" width="100%" height="200" style="background-color:#474747;margin:0px;padding:0px;"></canvas>
+<div id="root" class="root">
+<ul id="nav">
+<li><a href="#">?</a>
+<div id="help">
+Use Cursor to Inspect<br>
+Shift-Drag to Pan view<br>
+Ctrl-Drag to Zoom view<br>
+Click to Zoom to selected range<br>
+</div>
+</li>
+<li><a href="#">Timers</a> 
+<li><a href="#">Detailed</a> 
+</li>
+<li><a href="#">Reference</a>
+    <ul>
+        <li><a href="#">5ms</a></li>
+        <li><a href="#">10ms</a></li>
+        <li><a href="#">15ms</a></li>
+        <li><a href="#">20ms</a></li>
+        <li><a href="#">33ms</a></li>
+        <li><a href="#">50ms</a></li>
+        <li><a href="#">100ms</a></li>
+    </ul>
+</li>
+<li><a href="#">Threads</a>
+    <ul>
+        <li><a href="#">All</a></li>
+        <li><a href="#">Invert</a></li>
+        <li><a href="#">------</a></li>
+    </ul>
+</li>
+</ul>
+
+</div>
+
 <script>
 function InvertColor(hexTripletColor) {
 	var color = hexTripletColor;
@@ -892,7 +972,7 @@ MicroProfileStartDrawing();
 //thread enable
 //context switch trace
 //--meta counters
-//timers view
+//--timers view
 //forceenable
 //forceenableallgroups
 //--prettier fonts
