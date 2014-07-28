@@ -4767,6 +4767,13 @@ const char g_MicroProfileHtml_end[] ="\
 //embed section end\n\
 \n\
 \n\
+var requestAnimationFrame = \n\
+	window.requestAnimationFrame || \n\
+	window.mozRequestAnimationFrame ||\n\
+	window.webkitRequestAnimationFrame || \n\
+	window.msRequestAnimationFrame;\n\
+\n\
+\n\
 var CanvasDetailedView = document.getElementById('DetailedView');\n\
 var CanvasHistory = document.getElementById('History');\n\
 \n\
@@ -4811,7 +4818,6 @@ var fRangeEnd = -1;\n\
 \n\
 var DebugDrawQuadCount = 0;\n\
 var DebugDrawTextCount = 0;\n\
-var DPR = window.devicePixelRatio;\n\
 \n\
 \n\
 function MicroProfileGatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)\n\
@@ -5346,11 +5352,6 @@ function MicroProfileZoomTo(fZoomBegin, fZoomEnd)\n\
 {\n\
 	if(fZoomBegin < fZoomEnd)\n\
 	{\n\
-		var requestAnimationFrame = \n\
-			window.requestAnimationFrame || \n\
-			window.mozRequestAnimationFrame ||\n\
-			window.webkitRequestAnimationFrame || \n\
-			window.msRequestAnimationFrame;\n\
 		AnimationActive = true;\n\
 		var fDetailedOffsetOriginal = fDetailedOffset;\n\
 		var fDetailedRangeOriginal = fDetailedRange;\n\
@@ -5383,14 +5384,18 @@ function MicroProfileZoomTo(fZoomBegin, fZoomEnd)\n\
 		requestAnimationFrame(ZoomFunc);\n\
 	}\n\
 }\n\
-\n\
-function MicroProfileStartDrawing(Timestamp)\n\
+function MicroProfileDraw()\n\
+{\n\
+	MicroProfileDrawDetailed(false);\n\
+	MicroProfileDrawDetailedFrameHistory();\n\
+}\n\
+function MicroProfileAutoRedraw(Timestamp)\n\
 {\n\
 	if(nHoverToken != -1 && !MouseZoom && !MouseDrag)\n\
 	{\n\
 		MicroProfileDrawDetailed(false);\n\
 	}\n\
-	requestAnimationFrame(MicroProfileStartDrawing);\n\
+	requestAnimationFrame(MicroProfileAutoRedraw);\n\
 }\n\
 \n\
 \n\
@@ -5423,7 +5428,7 @@ function ResizeCanvas() \n\
 {\n\
 	nWidth = window.innerWidth;\n\
 	nHeight = window.innerHeight - CanvasHistory.height-2;\n\
-	console.log('setting height to ' + nHeight);\n\
+	var DPR = window.devicePixelRatio;\n\
 	if(DPR)\n\
 	{\n\
 		CanvasDetailedView.style.width = nWidth + 'px'; \n\
@@ -5433,7 +5438,7 @@ function ResizeCanvas() \n\
 		CanvasHistory.style.width = window.innerWidth + 'px';\n\
 		CanvasHistory.style.height = 70 + 'px';\n\
 		CanvasHistory.width = window.innerWidth * DPR;\n\
-		CanvasHistory.height = 70 * DPR\n\
+		CanvasHistory.height = 70 * DPR;\n\
 		CanvasHistory.getContext('2d').scale(DPR,DPR);\n\
 		CanvasDetailedView.getContext('2d').scale(DPR,DPR);\n\
 \n\
@@ -5448,30 +5453,7 @@ function ResizeCanvas() \n\
 	var context = CanvasDetailedView.getContext('2d');\n\
 	context.font = Font;\n\
 	FontWidth = context.measureText('W').width;\n\
-	MicroProfileDrawDetailed(false);\n\
-\n\
-\n\
-	// var characters = 'ABCDEFGHIJKLMNOPQRSTYVWXYZabc';\n\
-	// for(var c in characters)\n\
-	// {\n\
-	// 	var BB = context.measureText(characters[c]);\n\
-	// 	console.log('character ' + characters[c] + '=' + BB.width );\n\
-\n\
-\n\
-	// }\n\
-	// {characters = \"AA\";var BB = context.measureText(characters);\n\
-	// console.log('character ' + characters + '=' + BB.width + ' avg ' + BB.Width / characters.length);}\n\
-	// {characters = \"AAA\";var BB = context.measureText(characters);\n\
-	// console.log('character ' + characters + '=' + BB.width + ' avg ' + BB.Width / characters.length);}\n\
-	// {characters = \"AAAA\";var BB = context.measureText(characters);\n\
-	// console.log('character ' + characters + '=' + BB.width + ' avg ' + BB.Width / characters.length);}\n\
-	// {characters = \"AAAAA\";var BB = context.measureText(characters);\n\
-	// console.log('character ' + characters + '=' + BB.width + ' avg ' + BB.Width / characters.length);}\n\
-	// {characters = \"AAAAAA\";var BB = context.measureText(characters);\n\
-	// console.log('character ' + characters + '=' + BB.width + ' avg ' + BB.Width / characters.length);}\n\
-\n\
-			\n\
-\n\
+	MicroProfileDraw();\n\
 }\n\
 \n\
 function MouseMove(evt)\n\
@@ -5504,12 +5486,8 @@ function MouseMove(evt)\n\
 		var Rect = CanvasHistory.getBoundingClientRect();\n\
 		HistoryViewMouseX = evt.clientX - Rect.left;\n\
 		HistoryViewMouseY = evt.clientY - Rect.top;\n\
-		//console.log('his x ' + HistoryViewMouseX);\n\
 	}\n\
-\n\
-	MicroProfileDrawDetailed(false);\n\
-	MicroProfileDrawDetailedFrameHistory();\n\
-\n\
+	MicroProfileDraw();\n\
 }\n\
 function MouseButton(bPressed, evt)\n\
 {\n\
@@ -5608,9 +5586,8 @@ console.log('setup :: ' + time + 'ms ');\n\
 \n\
 ResizeCanvas();\n\
 console.log('startup FW ' + FontWidth);\n\
-MicroProfileDrawDetailed(false);\n\
-MicroProfileDrawDetailedFrameHistory();\n\
-MicroProfileStartDrawing();\n\
+MicroProfileDraw();\n\
+MicroProfileAutoRedraw();\n\
 \n\
 //config menu\n\
 //thread enable\n\

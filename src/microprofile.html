@@ -123,6 +123,13 @@ function MakeFrame(id, framestart, frameend, ts, tt, ti)
 //embed section end
 
 
+var requestAnimationFrame = 
+	window.requestAnimationFrame || 
+	window.mozRequestAnimationFrame ||
+	window.webkitRequestAnimationFrame || 
+	window.msRequestAnimationFrame;
+
+
 var CanvasDetailedView = document.getElementById('DetailedView');
 var CanvasHistory = document.getElementById('History');
 
@@ -167,7 +174,6 @@ var fRangeEnd = -1;
 
 var DebugDrawQuadCount = 0;
 var DebugDrawTextCount = 0;
-var DPR = window.devicePixelRatio;
 
 
 function MicroProfileGatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)
@@ -702,11 +708,6 @@ function MicroProfileZoomTo(fZoomBegin, fZoomEnd)
 {
 	if(fZoomBegin < fZoomEnd)
 	{
-		var requestAnimationFrame = 
-			window.requestAnimationFrame || 
-			window.mozRequestAnimationFrame ||
-			window.webkitRequestAnimationFrame || 
-			window.msRequestAnimationFrame;
 		AnimationActive = true;
 		var fDetailedOffsetOriginal = fDetailedOffset;
 		var fDetailedRangeOriginal = fDetailedRange;
@@ -739,14 +740,18 @@ function MicroProfileZoomTo(fZoomBegin, fZoomEnd)
 		requestAnimationFrame(ZoomFunc);
 	}
 }
-
-function MicroProfileStartDrawing(Timestamp)
+function MicroProfileDraw()
+{
+	MicroProfileDrawDetailed(false);
+	MicroProfileDrawDetailedFrameHistory();
+}
+function MicroProfileAutoRedraw(Timestamp)
 {
 	if(nHoverToken != -1 && !MouseZoom && !MouseDrag)
 	{
 		MicroProfileDrawDetailed(false);
 	}
-	requestAnimationFrame(MicroProfileStartDrawing);
+	requestAnimationFrame(MicroProfileAutoRedraw);
 }
 
 
@@ -779,7 +784,7 @@ function ResizeCanvas()
 {
 	nWidth = window.innerWidth;
 	nHeight = window.innerHeight - CanvasHistory.height-2;
-	console.log('setting height to ' + nHeight);
+	var DPR = window.devicePixelRatio;
 	if(DPR)
 	{
 		CanvasDetailedView.style.width = nWidth + 'px'; 
@@ -789,7 +794,7 @@ function ResizeCanvas()
 		CanvasHistory.style.width = window.innerWidth + 'px';
 		CanvasHistory.style.height = 70 + 'px';
 		CanvasHistory.width = window.innerWidth * DPR;
-		CanvasHistory.height = 70 * DPR
+		CanvasHistory.height = 70 * DPR;
 		CanvasHistory.getContext('2d').scale(DPR,DPR);
 		CanvasDetailedView.getContext('2d').scale(DPR,DPR);
 
@@ -804,30 +809,7 @@ function ResizeCanvas()
 	var context = CanvasDetailedView.getContext('2d');
 	context.font = Font;
 	FontWidth = context.measureText('W').width;
-	MicroProfileDrawDetailed(false);
-
-
-	// var characters = 'ABCDEFGHIJKLMNOPQRSTYVWXYZabc';
-	// for(var c in characters)
-	// {
-	// 	var BB = context.measureText(characters[c]);
-	// 	console.log('character ' + characters[c] + '=' + BB.width );
-
-
-	// }
-	// {characters = "AA";var BB = context.measureText(characters);
-	// console.log('character ' + characters + '=' + BB.width + ' avg ' + BB.Width / characters.length);}
-	// {characters = "AAA";var BB = context.measureText(characters);
-	// console.log('character ' + characters + '=' + BB.width + ' avg ' + BB.Width / characters.length);}
-	// {characters = "AAAA";var BB = context.measureText(characters);
-	// console.log('character ' + characters + '=' + BB.width + ' avg ' + BB.Width / characters.length);}
-	// {characters = "AAAAA";var BB = context.measureText(characters);
-	// console.log('character ' + characters + '=' + BB.width + ' avg ' + BB.Width / characters.length);}
-	// {characters = "AAAAAA";var BB = context.measureText(characters);
-	// console.log('character ' + characters + '=' + BB.width + ' avg ' + BB.Width / characters.length);}
-
-			
-
+	MicroProfileDraw();
 }
 
 function MouseMove(evt)
@@ -860,12 +842,8 @@ function MouseMove(evt)
 		var Rect = CanvasHistory.getBoundingClientRect();
 		HistoryViewMouseX = evt.clientX - Rect.left;
 		HistoryViewMouseY = evt.clientY - Rect.top;
-		//console.log('his x ' + HistoryViewMouseX);
 	}
-
-	MicroProfileDrawDetailed(false);
-	MicroProfileDrawDetailedFrameHistory();
-
+	MicroProfileDraw();
 }
 function MouseButton(bPressed, evt)
 {
@@ -964,9 +942,8 @@ console.log('setup :: ' + time + 'ms ');
 
 ResizeCanvas();
 console.log('startup FW ' + FontWidth);
-MicroProfileDrawDetailed(false);
-MicroProfileDrawDetailedFrameHistory();
-MicroProfileStartDrawing();
+MicroProfileDraw();
+MicroProfileAutoRedraw();
 
 //config menu
 //thread enable
