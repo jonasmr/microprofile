@@ -4231,14 +4231,17 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	{
 		uint32_t nIdx = i * 2;
 		MP_ASSERT(i == S.TimerInfo[i].nTimerIndex);
-		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x', %f, %f, %f, %f);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
+		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x', %f, %f, %f, %f, %f, %d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
 		(S.TimerInfo[i].nColor>>16) & 0xff,
 		(S.TimerInfo[i].nColor>>8) & 0xff,
 		S.TimerInfo[i].nColor & 0xff,
 		pAverage[nIdx],
 		pMax[nIdx],
 		pAverageExclusive[nIdx],
-		pMaxExclusive[nIdx]
+		pMaxExclusive[nIdx],
+		pCallAverage[nIdx],
+		S.Aggregate[i].nCount
+
 		);
 	}
 
@@ -4793,9 +4796,9 @@ function MakeGroup(id, name, numtimers, isgpu)\n\
 	return group;\n\
 }\n\
 \n\
-function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax)\n\
+function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax, callaverage, callcount)\n\
 {\n\
-	var timer = {\"id\":id, \"name\":name, \"len\":name.length, \"color\":color, \"textcolor\":InvertColor(color), \"group\":group, \"average\":average, \"max\":max, \"exclaverage\":exclaverage, \"exclmax\":exclmax};\n\
+	var timer = {\"id\":id, \"name\":name, \"len\":name.length, \"color\":color, \"textcolor\":InvertColor(color), \"group\":group, \"average\":average, \"max\":max, \"exclaverage\":exclaverage, \"exclmax\":exclmax, \"callaverage\":callaverage, \"callcount\":callcount};\n\
 	return timer;\n\
 }\n\
 function MakeFrame(id, framestart, frameend, ts, tt, ti)\n\
@@ -5284,6 +5287,7 @@ function MicroProfileDrawBarView()\n\
 	context.font = Font;\n\
 	var bMouseIn = 0;\n\
 	var RcpReferenceTime = 1.0 / ReferenceTime;\n\
+	var CountWidth = 8 * FontWidth;\n\
 	for(var groupid in GroupInfo)\n\
 	{\n\
 		var Group = GroupInfo[groupid];\n\
@@ -5324,6 +5328,8 @@ function MicroProfileDrawBarView()\n\
 			var Max = Timer.max;\n\
 			var ExclusiveMax = Timer.exclmax;\n\
 			var ExclusiveAverage = Timer.exclaverage;\n\
+			var CallAverage = Timer.callaverage;\n\
+			var CallCount = Timer.callcount;\n\
 			var YText = Y+Height-FontAscent;\n\
 			function DrawTimer(Value)\n\
 			{\n\
@@ -5341,6 +5347,10 @@ function MicroProfileDrawBarView()\n\
 			}\n\
 			DrawTimer(Average);\n\
 			DrawTimer(Max);\n\
+			DrawTimer(CallAverage);\n\
+			context.fillStyle = 'white';\n\
+			context.fillText(CallCount, X, YText);\n\
+			X += CountWidth;\n\
 			DrawTimer(ExclusiveAverage);\n\
 			DrawTimer(ExclusiveMax);\n\
 			context.fillStyle = Timer.color;\n\
@@ -5364,12 +5374,23 @@ function MicroProfileDrawBarView()\n\
 		X += nWidthMs;\n\
 		context.fillRect(X-3, 0, 1, nHeight);\n\
 	}\n\
+	function DrawHeaderSplitSingle(Header, Width)\n\
+	{\n\
+		context.fillStyle = 'white';\n\
+		context.fillText(Header, X, Height-FontAscent);\n\
+		X += Width;\n\
+		context.fillStyle = nBackColorOffset;\n\
+		context.fillRect(X-3, 0, 1, nHeight);\n\
+	}\n\
 \n\
 \n\
 	DrawHeaderSplit('Average');\n\
 	DrawHeaderSplit('Max');\n\
+	DrawHeaderSplit('Call Average');\n\
+	DrawHeaderSplitSingle('Count', CountWidth);\n\
 	DrawHeaderSplit('Excl Average');\n\
 	DrawHeaderSplit('Excl Max');\n\
+	DrawHeaderSplit('Call Average');\n\
 \n\
 \n\
 }\n\

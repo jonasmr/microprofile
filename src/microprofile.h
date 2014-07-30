@@ -4231,14 +4231,17 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	{
 		uint32_t nIdx = i * 2;
 		MP_ASSERT(i == S.TimerInfo[i].nTimerIndex);
-		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x', %f, %f, %f, %f);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
+		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x', %f, %f, %f, %f, %f, %d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
 		(S.TimerInfo[i].nColor>>16) & 0xff,
 		(S.TimerInfo[i].nColor>>8) & 0xff,
 		S.TimerInfo[i].nColor & 0xff,
 		pAverage[nIdx],
 		pMax[nIdx],
 		pAverageExclusive[nIdx],
-		pMaxExclusive[nIdx]
+		pMaxExclusive[nIdx],
+		pCallAverage[nIdx],
+		S.Aggregate[i].nCount
+
 		);
 	}
 

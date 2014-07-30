@@ -93,9 +93,9 @@ function MakeGroup(id, name, numtimers, isgpu)
 	return group;
 }
 
-function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax)
+function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax, callaverage, callcount)
 {
-	var timer = {"id":id, "name":name, "len":name.length, "color":color, "textcolor":InvertColor(color), "group":group, "average":average, "max":max, "exclaverage":exclaverage, "exclmax":exclmax};
+	var timer = {"id":id, "name":name, "len":name.length, "color":color, "textcolor":InvertColor(color), "group":group, "average":average, "max":max, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount};
 	return timer;
 }
 function MakeFrame(id, framestart, frameend, ts, tt, ti)
@@ -580,6 +580,7 @@ function MicroProfileDrawBarView()
 	context.font = Font;
 	var bMouseIn = 0;
 	var RcpReferenceTime = 1.0 / ReferenceTime;
+	var CountWidth = 8 * FontWidth;
 	for(var groupid in GroupInfo)
 	{
 		var Group = GroupInfo[groupid];
@@ -620,6 +621,8 @@ function MicroProfileDrawBarView()
 			var Max = Timer.max;
 			var ExclusiveMax = Timer.exclmax;
 			var ExclusiveAverage = Timer.exclaverage;
+			var CallAverage = Timer.callaverage;
+			var CallCount = Timer.callcount;
 			var YText = Y+Height-FontAscent;
 			function DrawTimer(Value)
 			{
@@ -637,6 +640,10 @@ function MicroProfileDrawBarView()
 			}
 			DrawTimer(Average);
 			DrawTimer(Max);
+			DrawTimer(CallAverage);
+			context.fillStyle = 'white';
+			context.fillText(CallCount, X, YText);
+			X += CountWidth;
 			DrawTimer(ExclusiveAverage);
 			DrawTimer(ExclusiveMax);
 			context.fillStyle = Timer.color;
@@ -660,12 +667,23 @@ function MicroProfileDrawBarView()
 		X += nWidthMs;
 		context.fillRect(X-3, 0, 1, nHeight);
 	}
+	function DrawHeaderSplitSingle(Header, Width)
+	{
+		context.fillStyle = 'white';
+		context.fillText(Header, X, Height-FontAscent);
+		X += Width;
+		context.fillStyle = nBackColorOffset;
+		context.fillRect(X-3, 0, 1, nHeight);
+	}
 
 
 	DrawHeaderSplit('Average');
 	DrawHeaderSplit('Max');
+	DrawHeaderSplit('Call Average');
+	DrawHeaderSplitSingle('Count', CountWidth);
 	DrawHeaderSplit('Excl Average');
 	DrawHeaderSplit('Excl Max');
+	DrawHeaderSplit('Call Average');
 
 
 }
