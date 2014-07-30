@@ -1934,6 +1934,49 @@ void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Typ
 	S.nForceGroup &= ~(1ll << nGroup);
 }
 
+
+void MicroProfileCalcAllTimers(float* pTimers, float* pAverage, float* pMax, float* pCallAverage, float* pExclusive, float* pAverageExclusive, float* pMaxExclusive, uint32_t nSize)
+{
+	for(uint32_t i = 0; i < S.nTotalTimers && i < nSize; ++i)
+	{
+		const uint32_t nGroupId = S.TimerInfo[i].nGroupIndex;
+		const float fToMs = MicroProfileTickToMsMultiplier(S.GroupInfo[nGroupId].Type == MicroProfileTokenTypeGpu ? MicroProfileTicksPerSecondGpu() : MicroProfileTicksPerSecondCpu());
+		uint32_t nTimer = i;
+		uint32_t nIdx = i * 2;
+		uint32_t nAggregateFrames = S.nAggregateFrames ? S.nAggregateFrames : 1;
+		uint32_t nAggregateCount = S.Aggregate[nTimer].nCount ? S.Aggregate[nTimer].nCount : 1;
+		float fToPrc = S.fRcpReferenceTime;
+		float fMs = fToMs * (S.Frame[nTimer].nTicks);
+		float fPrc = MicroProfileMin(fMs * fToPrc, 1.f);
+		float fAverageMs = fToMs * (S.Aggregate[nTimer].nTicks / nAggregateFrames);
+		float fAveragePrc = MicroProfileMin(fAverageMs * fToPrc, 1.f);
+		float fMaxMs = fToMs * (S.AggregateMax[nTimer]);
+		float fMaxPrc = MicroProfileMin(fMaxMs * fToPrc, 1.f);
+		float fCallAverageMs = fToMs * (S.Aggregate[nTimer].nTicks / nAggregateCount);
+		float fCallAveragePrc = MicroProfileMin(fCallAverageMs * fToPrc, 1.f);
+		float fMsExclusive = fToMs * (S.FrameExclusive[nTimer]);
+		float fPrcExclusive = MicroProfileMin(fMsExclusive * fToPrc, 1.f);
+		float fAverageMsExclusive = fToMs * (S.AggregateExclusive[nTimer] / nAggregateFrames);
+		float fAveragePrcExclusive = MicroProfileMin(fAverageMsExclusive * fToPrc, 1.f);
+		float fMaxMsExclusive = fToMs * (S.AggregateMaxExclusive[nTimer]);
+		float fMaxPrcExclusive = MicroProfileMin(fMaxMsExclusive * fToPrc, 1.f);
+		pTimers[nIdx] = fMs;
+		pTimers[nIdx+1] = fPrc;
+		pAverage[nIdx] = fAverageMs;
+		pAverage[nIdx+1] = fAveragePrc;
+		pMax[nIdx] = fMaxMs;
+		pMax[nIdx+1] = fMaxPrc;
+		pCallAverage[nIdx] = fCallAverageMs;
+		pCallAverage[nIdx+1] = fCallAveragePrc;
+		pExclusive[nIdx] = fMsExclusive;
+		pExclusive[nIdx+1] = fPrcExclusive;
+		pAverageExclusive[nIdx] = fAverageMsExclusive;
+		pAverageExclusive[nIdx+1] = fAveragePrcExclusive;
+		pMaxExclusive[nIdx] = fMaxMsExclusive;
+		pMaxExclusive[nIdx+1] = fMaxPrcExclusive;
+	}
+}
+
 #if MICROPROFILE_UI
 void MicroProfileSetDisplayMode(int nValue)
 {
@@ -4171,14 +4214,31 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	}
 	//timers
 
+	uint32_t nNumTimers = S.nTotalTimers;
+	uint32_t nBlockSize = 2 * nNumTimers;
+	float* pTimers = (float*)alloca(nBlockSize * 7 * sizeof(float));
+	float* pAverage = pTimers + nBlockSize;
+	float* pMax = pTimers + 2 * nBlockSize;
+	float* pCallAverage = pTimers + 3 * nBlockSize;
+	float* pTimersExclusive = pTimers + 4 * nBlockSize;
+	float* pAverageExclusive = pTimers + 5 * nBlockSize;
+	float* pMaxExclusive = pTimers + 6 * nBlockSize;
+
+	MicroProfileCalcAllTimers(pTimers, pAverage, pMax, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, nNumTimers);
+
 	MicroProfilePrintf(CB, Handle, "\nvar TimerInfo = Array(%d);\n\n", S.nTotalTimers);
 	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
 	{
+		uint32_t nIdx = i * 2;
 		MP_ASSERT(i == S.TimerInfo[i].nTimerIndex);
-		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x');\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
+		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x', %f, %f, %f, %f);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
 		(S.TimerInfo[i].nColor>>16) & 0xff,
 		(S.TimerInfo[i].nColor>>8) & 0xff,
-		S.TimerInfo[i].nColor & 0xff
+		S.TimerInfo[i].nColor & 0xff,
+		pAverage[nIdx],
+		pMax[nIdx],
+		pAverageExclusive[nIdx],
+		pMaxExclusive[nIdx]
 		);
 	}
 

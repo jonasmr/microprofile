@@ -34,20 +34,8 @@ ul li ul{ display:block;float:none;width:100%;}
 ul li ul li{ display:block;float:none;width:100%;}
 li li a{ display:block;float:none;width:100%;}
 #nav li:hover div {margin-left:0;}
-#help
-{
-	position:absolute;
-	z-index:5;
-	left:20px;
-	top:20px;
-	width:220px;
-	text-align:left;
-	padding:2px;
-	border-color:black;
-	margin-left:-999em;
-	background-color: #474747;
-}
-.root {z-index:1;position:absolute; top:0px;left:0px;}
+.help {position:absolute;z-index:5;text-align:left;padding:2px;margin-left:-999em;background-color: #474747;}
+.root {z-index:1;position:absolute;top:0px;left:0px;}
 </style>
 </head>
 <body style="">
@@ -56,15 +44,15 @@ li li a{ display:block;float:none;width:100%;}
 <div id="root" class="root">
 <ul id="nav">
 <li><a href="#">?</a>
-<div id="help">
+<div class="help" style="left:20px;top:20px;width:220px;">
 Use Cursor to Inspect<br>
 Shift-Drag to Pan view<br>
 Ctrl-Drag to Zoom view<br>
 Click to Zoom to selected range<br>
 </div>
 </li>
-<li><a href="#">Timers</a> 
-<li><a href="#">Detailed</a> 
+<li><a href="#" onclick="MicroProfileSetMode('timers');">Timers</a> 
+<li><a href="#" onclick="MicroProfileSetMode('detailed');">Detailed</a> 
 </li>
 <li><a href="#">Reference</a>
     <ul>
@@ -105,9 +93,9 @@ function MakeGroup(id, name, numtimers, isgpu)
 	return group;
 }
 
-function MakeTimer(id, name, group, color, timer)
+function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax)
 {
-	var timer = {"id":id, "name":name, "len":name.length, "color":color, "textcolor":InvertColor(color), "group":group};
+	var timer = {"id":id, "name":name, "len":name.length, "color":color, "textcolor":InvertColor(color), "group":group, "average":average, "max":max, "exclaverage":exclaverage, "exclmax":exclmax};
 	return timer;
 }
 function MakeFrame(id, framestart, frameend, ts, tt, ti)
@@ -123,13 +111,6 @@ function MakeFrame(id, framestart, frameend, ts, tt, ti)
 //embed section end
 
 
-var requestAnimationFrame = 
-	window.requestAnimationFrame || 
-	window.mozRequestAnimationFrame ||
-	window.webkitRequestAnimationFrame || 
-	window.msRequestAnimationFrame;
-
-
 var CanvasDetailedView = document.getElementById('DetailedView');
 var CanvasHistory = document.getElementById('History');
 
@@ -137,8 +118,11 @@ var fDetailedOffset = Frames[0].framestart;
 var fDetailedRange = Frames[0].frameend - fDetailedOffset;
 var nWidth = CanvasDetailedView.width;
 var nHeight = CanvasDetailedView.height;
+var ReferenceTime = 33;
 var nHistoryHeight = 70;
 var nOffsetY = 0;
+var nOffsetBarsY = 0;
+var nBarsWidth = 80;
 var MouseButtonState = [0,0,0,0,0,0,0,0];
 var MouseDrag = 0;
 var MouseZoom = 0;
@@ -158,11 +142,13 @@ var nModDown = 0;
 var g_MSG = 'no';
 var nDrawCount = 0;
 var nMicroProfileBackColors = ['#474747', '#313131' ];
+var nBackColorOffset = '#606060';
 var FRAME_HISTORY_COLOR_CPU = '#ff7f27';
 var FRAME_HISTORY_COLOR_GPU = '#ffff00';
 var ZOOM_TIME = 0.5;
 var AnimationActive = false;
 var nHoverToken = -1;
+var nHoverFrame = -1;
 var nHoverTokenIndex = -1;
 var nHoverTokenLogIndex = -1;
 var nHoverCounter = 0;
@@ -172,8 +158,40 @@ var fFrameScale = 33.33;
 var fRangeBegin = 0;
 var fRangeEnd = -1;
 
+var MicroProfileModeDetailed = 0;
+var MicroProfileModeTimers = 1;
+var MicroProfileMode = MicroProfileModeDetailed;
+
 var DebugDrawQuadCount = 0;
 var DebugDrawTextCount = 0;
+
+function MicroProfileInitGroups()
+{
+	for(groupid in GroupInfo)
+	{
+		var TimerArray = Array();
+		for(timerid in TimerInfo)
+		{
+			if(TimerInfo[timerid].group == groupid)
+			{
+				TimerArray.push(timerid);
+			}
+		}
+		GroupInfo[groupid].TimerArray = TimerArray;
+	}
+}
+function MicroProfileSetMode(Mode)
+{
+	if(Mode == 'timers')
+	{
+		MicroProfileMode = MicroProfileModeTimers;
+	}
+	else if(Mode == 'detailed')
+	{
+		MicroProfileMode = MicroProfileModeDetailed;
+	}
+	MicroProfileDraw();
+}
 
 
 function MicroProfileGatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)
@@ -379,7 +397,7 @@ function MicroProfileDrawDetailedBackground()
 	var fRcpStep = 1.0 / fStep;
 	var nColorIndex = Math.floor(fDetailedOffset * fRcpStep) % 2;
 	if(nColorIndex < 0)
-		nColorIndex =-nColorIndex;
+		nColorIndex = -nColorIndex;
 	var fStart = Math.floor(fDetailedOffset * fRcpStep) * fStep;
 	var fHeight = CanvasDetailedView.height;
 	var fScaleX = nWidth / fDetailedRange; 
@@ -441,6 +459,215 @@ function MicroProfileDrawToolTip(StringArray, Canvas, x, y)
 		context.fillText(StringArray[i+1], XPosRight - WidthArray[i+1], YPos);
 		YPos += BoxHeight;
 	}
+}
+function MicroProfileDrawHoverToolTip()
+{
+	if(nHoverToken != -1)
+	{
+		var StringArray = [];
+		var groupid = TimerInfo[nHoverToken].group;
+		StringArray.push(GroupInfo[groupid].name);
+		StringArray.push(TimerInfo[nHoverToken].name);
+		StringArray.push("");
+		StringArray.push("");
+		StringArray.push("Time");
+		StringArray.push((fRangeEnd-fRangeBegin).toFixed(3));
+		StringArray.push("");
+		StringArray.push("");
+		StringArray.push("Total");
+		StringArray.push("" + TimerInfo[nHoverToken].Sum);
+		StringArray.push("Max");
+		StringArray.push("" + TimerInfo[nHoverToken].Max);
+		StringArray.push("Average");
+		StringArray.push("" + TimerInfo[nHoverToken].Average);
+		StringArray.push("Count");
+		StringArray.push("" + TimerInfo[nHoverToken].CallCount);
+
+		StringArray.push("");
+		StringArray.push("");
+
+		StringArray.push("Max/Frame");
+		StringArray.push("" + TimerInfo[nHoverToken].FrameMax);
+
+		StringArray.push("Average Time/Frame");
+		StringArray.push("" + TimerInfo[nHoverToken].FrameAverage);
+
+		StringArray.push("Average Count/Frame");
+		StringArray.push("" + TimerInfo[nHoverToken].FrameCallAverage);
+
+	
+		if(nHoverFrame != -1)
+		{
+			StringArray.push("");
+			StringArray.push("");
+			StringArray.push("Frame " + nHoverFrame);
+			StringArray.push("");
+
+			var FrameTime = new Object();
+			MicroProfileCalculateTimers(FrameTime, nHoverToken, nHoverFrame, nHoverFrame+1);
+			StringArray.push("Total");
+			StringArray.push("" + FrameTime.Sum);
+			StringArray.push("Count");
+			StringArray.push("" + FrameTime.CallCount);
+			StringArray.push("Average");
+			StringArray.push("" + FrameTime.Average);
+			StringArray.push("Max");
+			StringArray.push("" + FrameTime.Max);
+		}
+
+		var HoverInfo = MicroProfileGatherHoverMetaCounters(nHoverToken, nHoverTokenIndex, nHoverTokenLogIndex, nHoverFrame);
+		var Header = 0;
+		for(index in HoverInfo)
+		{
+			if(0 == Header)
+			{
+				Header = 1;
+				StringArray.push("");
+				StringArray.push("");
+				StringArray.push("Meta");
+				StringArray.push("");
+
+			}
+			StringArray.push(""+index);
+			StringArray.push(""+HoverInfo[index]);
+		}
+		MicroProfileDrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20);
+
+	}
+}
+
+
+function MicroProfileDrawBarView()
+{
+	nHoverToken = -1;
+	nHoverFrame = -1;
+	var context = CanvasDetailedView.getContext('2d');
+	context.clearRect(0, 0, nWidth, nHeight);
+
+	var Height = BoxHeight;
+	var Width = nWidth;
+
+	//clamp offset to prevent scrolling into the void
+	var nTotalRows = 0;
+	for(var groupid in GroupInfo)
+	{
+		nTotalRows += GroupInfo[groupid].TimerArray.length + 1;
+	}
+	var nTotalRowPixels = nTotalRows * Height;
+	var nFrameRows = nHeight - BoxHeight;
+	if(nOffsetBarsY + nFrameRows > nTotalRowPixels)
+	{
+		nOffsetBarsY = nTotalRowPixels - nFrameRows;
+	}
+
+
+	var Y = -nOffsetBarsY + BoxHeight;
+
+
+	//draw bg
+	//draw group headings
+	//draw avg, max times
+	//draw bars
+	//draw names
+	//draw call count
+	//draw column headers
+	//make hover support
+	//make configurable
+	//make reference time
+	var nColorIndex = 0;
+
+	context.fillStyle = 'white';
+	context.font = Font;
+	var bMouseIn = 0;
+	var RcpReferenceTime = 1.0 / ReferenceTime;
+	for(var groupid in GroupInfo)
+	{
+		var Group = GroupInfo[groupid];
+		//write header
+		nColorIndex = 1-nColorIndex;
+		bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
+		context.fillStyle = bMouseIn ? nBackColorOffset : nMicroProfileBackColors[nColorIndex];
+		context.fillRect(0, Y, Width, Height);
+		context.fillStyle = 'white';
+		context.fillText(Group.name, 1, Y+Height-FontAscent);
+
+
+		Y += Height;
+		var TimerArray = Group.TimerArray;
+		var InnerBoxHeight = BoxHeight-2;
+		var TimerLen = 6;
+		var TimerWidth = TimerLen * FontWidth;
+		var nWidthBars = nBarsWidth+2;
+		var nWidthMs = TimerWidth + 2 + 10;
+
+
+		for(var timerindex in TimerArray)
+		{
+			var timerid = TimerArray[timerindex];
+			var X = 0;
+			nColorIndex = 1-nColorIndex;
+			bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
+			if(bMouseIn)
+			{
+				nHoverToken = timerid;
+			}
+			context.fillStyle = bMouseIn ? nBackColorOffset : nMicroProfileBackColors[nColorIndex];
+			context.fillRect(X, Y, Width, Height);
+
+			var Timer = TimerInfo[timerid];
+
+			var Average = Timer.average;
+			var Max = Timer.max;
+			var ExclusiveMax = Timer.exclmax;
+			var ExclusiveAverage = Timer.exclaverage;
+			var YText = Y+Height-FontAscent;
+			function DrawTimer(Value)
+			{
+				var Prc = Value * RcpReferenceTime;
+				if(Prc > 1)
+				{
+					Prc = 1;
+				}
+				context.fillStyle = Timer.color;
+				context.fillRect(X+1, Y+1, Prc * nBarsWidth, InnerBoxHeight);
+				X += nWidthBars;
+				context.fillStyle = 'white';
+				context.fillText(("      " + Value.toFixed(2)).slice(-TimerLen), X, YText);
+				X += nWidthMs;
+			}
+			DrawTimer(Average);
+			DrawTimer(Max);
+			DrawTimer(ExclusiveAverage);
+			DrawTimer(ExclusiveMax);
+			context.fillStyle = Timer.color;
+			context.fillText(Timer.name, X+1, YText);
+			Y += Height;
+
+		}
+	}
+	X = 0;
+	context.fillStyle = nBackColorOffset;
+	context.fillRect(0, 0, Width, Height);
+	context.fillStyle = 'white';
+
+
+	function DrawHeaderSplit(Header)
+	{
+		context.fillStyle = 'white';
+		context.fillText(Header, X, Height-FontAscent);
+		X += nWidthBars;
+		context.fillStyle = nBackColorOffset;
+		X += nWidthMs;
+		context.fillRect(X-3, 0, 1, nHeight);
+	}
+
+
+	DrawHeaderSplit('Average');
+	DrawHeaderSplit('Max');
+	DrawHeaderSplit('Excl Average');
+	DrawHeaderSplit('Excl Max');
+
+
 }
 
 function MicroProfileDrawDetailed(Animation)
@@ -613,74 +840,7 @@ function MicroProfileDrawDetailed(Animation)
 		context.fillText('' + fRangeEnd, X + W, 9);
 	}
 
-	if(nHoverToken != -1)
-	{
-		var StringArray = [];
-		var groupid = TimerInfo[nHoverToken].group;
-		StringArray.push(GroupInfo[groupid].name);
-		StringArray.push(TimerInfo[nHoverToken].name);
-		StringArray.push("");
-		StringArray.push("");
-		StringArray.push("Time");
-		StringArray.push((fRangeEnd-fRangeBegin).toFixed(3));
-		StringArray.push("");
-		StringArray.push("");
-		StringArray.push("Total");
-		StringArray.push("" + TimerInfo[nHoverToken].Sum);
-		StringArray.push("Max");
-		StringArray.push("" + TimerInfo[nHoverToken].Max);
-		StringArray.push("Average");
-		StringArray.push("" + TimerInfo[nHoverToken].Average);
-		StringArray.push("Count");
-		StringArray.push("" + TimerInfo[nHoverToken].CallCount);
 
-		StringArray.push("");
-		StringArray.push("");
-
-		StringArray.push("Max/Frame");
-		StringArray.push("" + TimerInfo[nHoverToken].FrameMax);
-
-		StringArray.push("Average Time/Frame");
-		StringArray.push("" + TimerInfo[nHoverToken].FrameAverage);
-
-		StringArray.push("Average Count/Frame");
-		StringArray.push("" + TimerInfo[nHoverToken].FrameCallAverage);
-		StringArray.push("");
-		StringArray.push("");
-
-		StringArray.push("Frame " + nHoverFrame);
-		StringArray.push("");
-	
-		var FrameTime = new Object();
-		MicroProfileCalculateTimers(FrameTime, nHoverToken, nHoverFrame, nHoverFrame+1);
-		StringArray.push("Total");
-		StringArray.push("" + FrameTime.Sum);
-		StringArray.push("Count");
-		StringArray.push("" + FrameTime.CallCount);
-		StringArray.push("Average");
-		StringArray.push("" + FrameTime.Average);
-		StringArray.push("Max");
-		StringArray.push("" + FrameTime.Max);
-
-		var HoverInfo = MicroProfileGatherHoverMetaCounters(nHoverToken, nHoverTokenIndex, nHoverTokenLogIndex, nHoverFrame);
-		var Header = 0;
-		for(index in HoverInfo)
-		{
-			if(0 == Header)
-			{
-				Header = 1;
-				StringArray.push("");
-				StringArray.push("");
-				StringArray.push("Meta");
-				StringArray.push("");
-
-			}
-			StringArray.push(""+index);
-			StringArray.push(""+HoverInfo[index]);
-		}
-		MicroProfileDrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20);
-
-	}
 
 
 
@@ -694,15 +854,6 @@ function MicroProfileDrawDetailed(Animation)
 }
 function MicroProfileMoveGraph(X, Y)
 {
-	if(X)
-	{
-		fDetailedOffset += -X * fDetailedRange / nWidth;
-	}
-	nOffsetY -= Y;
-	if(nOffsetY < 0)
-	{
-		nOffsetY = 0;
-	}
 }
 function MicroProfileZoomTo(fZoomBegin, fZoomEnd)
 {
@@ -742,14 +893,26 @@ function MicroProfileZoomTo(fZoomBegin, fZoomEnd)
 }
 function MicroProfileDraw()
 {
-	MicroProfileDrawDetailed(false);
+	if(MicroProfileMode == MicroProfileModeTimers)
+	{
+		MicroProfileDrawBarView();
+	}
+	else if(MicroProfileMode == MicroProfileModeDetailed)
+	{
+		MicroProfileDrawDetailed(false);
+		MicroProfileDrawHoverToolTip();
+	}
 	MicroProfileDrawDetailedFrameHistory();
 }
 function MicroProfileAutoRedraw(Timestamp)
 {
-	if(nHoverToken != -1 && !MouseZoom && !MouseDrag)
+	if(MicroProfileMode == MicroProfileModeDetailed)
 	{
-		MicroProfileDrawDetailed(false);
+		if(nHoverToken != -1 && !MouseZoom && !MouseDrag)
+		{
+			MicroProfileDrawDetailed(false);
+			MicroProfileDrawHoverToolTip();
+		}
 	}
 	requestAnimationFrame(MicroProfileAutoRedraw);
 }
@@ -823,15 +986,41 @@ function MouseMove(evt)
 		var rect = CanvasDetailedView.getBoundingClientRect();
 		var x = evt.clientX - rect.left;
 		var y = evt.clientY - rect.top;
-		if(MouseDrag)
+		if(MicroProfileMode == MicroProfileModeDetailed)
 		{
-			MicroProfileMoveGraph(x - DetailedViewMouseX, y - DetailedViewMouseY);
-		}
-		if(MouseZoom)
-		{
-			if(y != DetailedViewMouseY)
+			if(MouseDrag)
 			{
-				MicroProfileZoomGraph(y - DetailedViewMouseY);
+				var X = x - DetailedViewMouseX;
+				var Y = y - DetailedViewMouseY;
+				if(X)
+				{
+					fDetailedOffset += -X * fDetailedRange / nWidth;
+				}
+				nOffsetY -= Y;
+				if(nOffsetY < 0)
+				{
+					nOffsetY = 0;
+				}
+			}
+			if(MouseZoom)
+			{
+				if(y != DetailedViewMouseY)
+				{
+					MicroProfileZoomGraph(y - DetailedViewMouseY);
+				}
+			}
+		}
+		else if(MicroProfileMode == MicroProfileModeTimers)
+		{
+			if(MouseDrag)
+			{
+				var X = x - DetailedViewMouseX;
+				var Y = y - DetailedViewMouseY;
+				nOffsetBarsY -= Y;
+				if(nOffsetBarsY < 0)
+				{
+					nOffsetBarsY = 0;
+				}
 			}
 		}
 		DetailedViewMouseX = x;
@@ -862,8 +1051,6 @@ function MouseButton(bPressed, evt)
 		var rect = CanvasDetailedView.getBoundingClientRect();
 		var x = evt.clientX - rect.left;
 		var y = evt.clientY - rect.top;
-		//MicroProfileDrawDetailed(x, y, "MouseButton");
-
 		if(bPressed)
 		{
 			MouseButtonState[evt.button]=1;
@@ -939,31 +1126,10 @@ for(var i = 0; i < TimerInfo.length; i++)
 var end = new Date();
 var time = end - start;
 console.log('setup :: ' + time + 'ms ');
-
+MicroProfileInitGroups();
 ResizeCanvas();
-console.log('startup FW ' + FontWidth);
 MicroProfileDraw();
 MicroProfileAutoRedraw();
-
-//config menu
-//thread enable
-//context switch trace
-//--meta counters
-//--timers view
-//forceenable
-//forceenableallgroups
-//--prettier fonts
-//--measure font for offsets
-//test gpu
-//--resize canvas to be proper fullscreen
-//--history tooltips
-
-
-
-
-
-
-
 </script>
 </body>
 </html>      

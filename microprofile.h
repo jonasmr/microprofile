@@ -1934,6 +1934,49 @@ void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Typ
 	S.nForceGroup &= ~(1ll << nGroup);
 }
 
+
+void MicroProfileCalcAllTimers(float* pTimers, float* pAverage, float* pMax, float* pCallAverage, float* pExclusive, float* pAverageExclusive, float* pMaxExclusive, uint32_t nSize)
+{
+	for(uint32_t i = 0; i < S.nTotalTimers && i < nSize; ++i)
+	{
+		const uint32_t nGroupId = S.TimerInfo[i].nGroupIndex;
+		const float fToMs = MicroProfileTickToMsMultiplier(S.GroupInfo[nGroupId].Type == MicroProfileTokenTypeGpu ? MicroProfileTicksPerSecondGpu() : MicroProfileTicksPerSecondCpu());
+		uint32_t nTimer = i;
+		uint32_t nIdx = i * 2;
+		uint32_t nAggregateFrames = S.nAggregateFrames ? S.nAggregateFrames : 1;
+		uint32_t nAggregateCount = S.Aggregate[nTimer].nCount ? S.Aggregate[nTimer].nCount : 1;
+		float fToPrc = S.fRcpReferenceTime;
+		float fMs = fToMs * (S.Frame[nTimer].nTicks);
+		float fPrc = MicroProfileMin(fMs * fToPrc, 1.f);
+		float fAverageMs = fToMs * (S.Aggregate[nTimer].nTicks / nAggregateFrames);
+		float fAveragePrc = MicroProfileMin(fAverageMs * fToPrc, 1.f);
+		float fMaxMs = fToMs * (S.AggregateMax[nTimer]);
+		float fMaxPrc = MicroProfileMin(fMaxMs * fToPrc, 1.f);
+		float fCallAverageMs = fToMs * (S.Aggregate[nTimer].nTicks / nAggregateCount);
+		float fCallAveragePrc = MicroProfileMin(fCallAverageMs * fToPrc, 1.f);
+		float fMsExclusive = fToMs * (S.FrameExclusive[nTimer]);
+		float fPrcExclusive = MicroProfileMin(fMsExclusive * fToPrc, 1.f);
+		float fAverageMsExclusive = fToMs * (S.AggregateExclusive[nTimer] / nAggregateFrames);
+		float fAveragePrcExclusive = MicroProfileMin(fAverageMsExclusive * fToPrc, 1.f);
+		float fMaxMsExclusive = fToMs * (S.AggregateMaxExclusive[nTimer]);
+		float fMaxPrcExclusive = MicroProfileMin(fMaxMsExclusive * fToPrc, 1.f);
+		pTimers[nIdx] = fMs;
+		pTimers[nIdx+1] = fPrc;
+		pAverage[nIdx] = fAverageMs;
+		pAverage[nIdx+1] = fAveragePrc;
+		pMax[nIdx] = fMaxMs;
+		pMax[nIdx+1] = fMaxPrc;
+		pCallAverage[nIdx] = fCallAverageMs;
+		pCallAverage[nIdx+1] = fCallAveragePrc;
+		pExclusive[nIdx] = fMsExclusive;
+		pExclusive[nIdx+1] = fPrcExclusive;
+		pAverageExclusive[nIdx] = fAverageMsExclusive;
+		pAverageExclusive[nIdx+1] = fAveragePrcExclusive;
+		pMaxExclusive[nIdx] = fMaxMsExclusive;
+		pMaxExclusive[nIdx+1] = fMaxPrcExclusive;
+	}
+}
+
 #if MICROPROFILE_UI
 void MicroProfileSetDisplayMode(int nValue)
 {
@@ -4171,14 +4214,31 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	}
 	//timers
 
+	uint32_t nNumTimers = S.nTotalTimers;
+	uint32_t nBlockSize = 2 * nNumTimers;
+	float* pTimers = (float*)alloca(nBlockSize * 7 * sizeof(float));
+	float* pAverage = pTimers + nBlockSize;
+	float* pMax = pTimers + 2 * nBlockSize;
+	float* pCallAverage = pTimers + 3 * nBlockSize;
+	float* pTimersExclusive = pTimers + 4 * nBlockSize;
+	float* pAverageExclusive = pTimers + 5 * nBlockSize;
+	float* pMaxExclusive = pTimers + 6 * nBlockSize;
+
+	MicroProfileCalcAllTimers(pTimers, pAverage, pMax, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, nNumTimers);
+
 	MicroProfilePrintf(CB, Handle, "\nvar TimerInfo = Array(%d);\n\n", S.nTotalTimers);
 	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
 	{
+		uint32_t nIdx = i * 2;
 		MP_ASSERT(i == S.TimerInfo[i].nTimerIndex);
-		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x');\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
+		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x', %f, %f, %f, %f);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
 		(S.TimerInfo[i].nColor>>16) & 0xff,
 		(S.TimerInfo[i].nColor>>8) & 0xff,
-		S.TimerInfo[i].nColor & 0xff
+		S.TimerInfo[i].nColor & 0xff,
+		pAverage[nIdx],
+		pMax[nIdx],
+		pAverageExclusive[nIdx],
+		pMaxExclusive[nIdx]
 		);
 	}
 
@@ -4674,20 +4734,8 @@ ul li ul{ display:block;float:none;width:100%;}\n\
 ul li ul li{ display:block;float:none;width:100%;}\n\
 li li a{ display:block;float:none;width:100%;}\n\
 #nav li:hover div {margin-left:0;}\n\
-#help\n\
-{\n\
-	position:absolute;\n\
-	z-index:5;\n\
-	left:20px;\n\
-	top:20px;\n\
-	width:220px;\n\
-	text-align:left;\n\
-	padding:2px;\n\
-	border-color:black;\n\
-	margin-left:-999em;\n\
-	background-color: #474747;\n\
-}\n\
-.root {z-index:1;position:absolute; top:0px;left:0px;}\n\
+.help {position:absolute;z-index:5;text-align:left;padding:2px;margin-left:-999em;background-color: #474747;}\n\
+.root {z-index:1;position:absolute;top:0px;left:0px;}\n\
 </style>\n\
 </head>\n\
 <body style=\"\">\n\
@@ -4696,15 +4744,15 @@ li li a{ display:block;float:none;width:100%;}\n\
 <div id=\"root\" class=\"root\">\n\
 <ul id=\"nav\">\n\
 <li><a href=\"#\">?</a>\n\
-<div id=\"help\">\n\
+<div class=\"help\" style=\"left:20px;top:20px;width:220px;\">\n\
 Use Cursor to Inspect<br>\n\
 Shift-Drag to Pan view<br>\n\
 Ctrl-Drag to Zoom view<br>\n\
 Click to Zoom to selected range<br>\n\
 </div>\n\
 </li>\n\
-<li><a href=\"#\">Timers</a> \n\
-<li><a href=\"#\">Detailed</a> \n\
+<li><a href=\"#\" onclick=\"MicroProfileSetMode('timers');\">Timers</a> \n\
+<li><a href=\"#\" onclick=\"MicroProfileSetMode('detailed');\">Detailed</a> \n\
 </li>\n\
 <li><a href=\"#\">Reference</a>\n\
     <ul>\n\
@@ -4745,9 +4793,9 @@ function MakeGroup(id, name, numtimers, isgpu)\n\
 	return group;\n\
 }\n\
 \n\
-function MakeTimer(id, name, group, color, timer)\n\
+function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax)\n\
 {\n\
-	var timer = {\"id\":id, \"name\":name, \"len\":name.length, \"color\":color, \"textcolor\":InvertColor(color), \"group\":group};\n\
+	var timer = {\"id\":id, \"name\":name, \"len\":name.length, \"color\":color, \"textcolor\":InvertColor(color), \"group\":group, \"average\":average, \"max\":max, \"exclaverage\":exclaverage, \"exclmax\":exclmax};\n\
 	return timer;\n\
 }\n\
 function MakeFrame(id, framestart, frameend, ts, tt, ti)\n\
@@ -4767,13 +4815,6 @@ const char g_MicroProfileHtml_end[] ="\
 //embed section end\n\
 \n\
 \n\
-var requestAnimationFrame = \n\
-	window.requestAnimationFrame || \n\
-	window.mozRequestAnimationFrame ||\n\
-	window.webkitRequestAnimationFrame || \n\
-	window.msRequestAnimationFrame;\n\
-\n\
-\n\
 var CanvasDetailedView = document.getElementById('DetailedView');\n\
 var CanvasHistory = document.getElementById('History');\n\
 \n\
@@ -4781,8 +4822,11 @@ var fDetailedOffset = Frames[0].framestart;\n\
 var fDetailedRange = Frames[0].frameend - fDetailedOffset;\n\
 var nWidth = CanvasDetailedView.width;\n\
 var nHeight = CanvasDetailedView.height;\n\
+var ReferenceTime = 33;\n\
 var nHistoryHeight = 70;\n\
 var nOffsetY = 0;\n\
+var nOffsetBarsY = 0;\n\
+var nBarsWidth = 80;\n\
 var MouseButtonState = [0,0,0,0,0,0,0,0];\n\
 var MouseDrag = 0;\n\
 var MouseZoom = 0;\n\
@@ -4802,11 +4846,13 @@ var nModDown = 0;\n\
 var g_MSG = 'no';\n\
 var nDrawCount = 0;\n\
 var nMicroProfileBackColors = ['#474747', '#313131' ];\n\
+var nBackColorOffset = '#606060';\n\
 var FRAME_HISTORY_COLOR_CPU = '#ff7f27';\n\
 var FRAME_HISTORY_COLOR_GPU = '#ffff00';\n\
 var ZOOM_TIME = 0.5;\n\
 var AnimationActive = false;\n\
 var nHoverToken = -1;\n\
+var nHoverFrame = -1;\n\
 var nHoverTokenIndex = -1;\n\
 var nHoverTokenLogIndex = -1;\n\
 var nHoverCounter = 0;\n\
@@ -4816,8 +4862,40 @@ var fFrameScale = 33.33;\n\
 var fRangeBegin = 0;\n\
 var fRangeEnd = -1;\n\
 \n\
+var MicroProfileModeDetailed = 0;\n\
+var MicroProfileModeTimers = 1;\n\
+var MicroProfileMode = MicroProfileModeDetailed;\n\
+\n\
 var DebugDrawQuadCount = 0;\n\
 var DebugDrawTextCount = 0;\n\
+\n\
+function MicroProfileInitGroups()\n\
+{\n\
+	for(groupid in GroupInfo)\n\
+	{\n\
+		var TimerArray = Array();\n\
+		for(timerid in TimerInfo)\n\
+		{\n\
+			if(TimerInfo[timerid].group == groupid)\n\
+			{\n\
+				TimerArray.push(timerid);\n\
+			}\n\
+		}\n\
+		GroupInfo[groupid].TimerArray = TimerArray;\n\
+	}\n\
+}\n\
+function MicroProfileSetMode(Mode)\n\
+{\n\
+	if(Mode == 'timers')\n\
+	{\n\
+		MicroProfileMode = MicroProfileModeTimers;\n\
+	}\n\
+	else if(Mode == 'detailed')\n\
+	{\n\
+		MicroProfileMode = MicroProfileModeDetailed;\n\
+	}\n\
+	MicroProfileDraw();\n\
+}\n\
 \n\
 \n\
 function MicroProfileGatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)\n\
@@ -5023,7 +5101,7 @@ function MicroProfileDrawDetailedBackground()\n\
 	var fRcpStep = 1.0 / fStep;\n\
 	var nColorIndex = Math.floor(fDetailedOffset * fRcpStep) % 2;\n\
 	if(nColorIndex < 0)\n\
-		nColorIndex =-nColorIndex;\n\
+		nColorIndex = -nColorIndex;\n\
 	var fStart = Math.floor(fDetailedOffset * fRcpStep) * fStep;\n\
 	var fHeight = CanvasDetailedView.height;\n\
 	var fScaleX = nWidth / fDetailedRange; \n\
@@ -5085,6 +5163,215 @@ function MicroProfileDrawToolTip(StringArray, Canvas, x, y)\n\
 		context.fillText(StringArray[i+1], XPosRight - WidthArray[i+1], YPos);\n\
 		YPos += BoxHeight;\n\
 	}\n\
+}\n\
+function MicroProfileDrawHoverToolTip()\n\
+{\n\
+	if(nHoverToken != -1)\n\
+	{\n\
+		var StringArray = [];\n\
+		var groupid = TimerInfo[nHoverToken].group;\n\
+		StringArray.push(GroupInfo[groupid].name);\n\
+		StringArray.push(TimerInfo[nHoverToken].name);\n\
+		StringArray.push(\"\");\n\
+		StringArray.push(\"\");\n\
+		StringArray.push(\"Time\");\n\
+		StringArray.push((fRangeEnd-fRangeBegin).toFixed(3));\n\
+		StringArray.push(\"\");\n\
+		StringArray.push(\"\");\n\
+		StringArray.push(\"Total\");\n\
+		StringArray.push(\"\" + TimerInfo[nHoverToken].Sum);\n\
+		StringArray.push(\"Max\");\n\
+		StringArray.push(\"\" + TimerInfo[nHoverToken].Max);\n\
+		StringArray.push(\"Average\");\n\
+		StringArray.push(\"\" + TimerInfo[nHoverToken].Average);\n\
+		StringArray.push(\"Count\");\n\
+		StringArray.push(\"\" + TimerInfo[nHoverToken].CallCount);\n\
+\n\
+		StringArray.push(\"\");\n\
+		StringArray.push(\"\");\n\
+\n\
+		StringArray.push(\"Max/Frame\");\n\
+		StringArray.push(\"\" + TimerInfo[nHoverToken].FrameMax);\n\
+\n\
+		StringArray.push(\"Average Time/Frame\");\n\
+		StringArray.push(\"\" + TimerInfo[nHoverToken].FrameAverage);\n\
+\n\
+		StringArray.push(\"Average Count/Frame\");\n\
+		StringArray.push(\"\" + TimerInfo[nHoverToken].FrameCallAverage);\n\
+\n\
+	\n\
+		if(nHoverFrame != -1)\n\
+		{\n\
+			StringArray.push(\"\");\n\
+			StringArray.push(\"\");\n\
+			StringArray.push(\"Frame \" + nHoverFrame);\n\
+			StringArray.push(\"\");\n\
+\n\
+			var FrameTime = new Object();\n\
+			MicroProfileCalculateTimers(FrameTime, nHoverToken, nHoverFrame, nHoverFrame+1);\n\
+			StringArray.push(\"Total\");\n\
+			StringArray.push(\"\" + FrameTime.Sum);\n\
+			StringArray.push(\"Count\");\n\
+			StringArray.push(\"\" + FrameTime.CallCount);\n\
+			StringArray.push(\"Average\");\n\
+			StringArray.push(\"\" + FrameTime.Average);\n\
+			StringArray.push(\"Max\");\n\
+			StringArray.push(\"\" + FrameTime.Max);\n\
+		}\n\
+\n\
+		var HoverInfo = MicroProfileGatherHoverMetaCounters(nHoverToken, nHoverTokenIndex, nHoverTokenLogIndex, nHoverFrame);\n\
+		var Header = 0;\n\
+		for(index in HoverInfo)\n\
+		{\n\
+			if(0 == Header)\n\
+			{\n\
+				Header = 1;\n\
+				StringArray.push(\"\");\n\
+				StringArray.push(\"\");\n\
+				StringArray.push(\"Meta\");\n\
+				StringArray.push(\"\");\n\
+\n\
+			}\n\
+			StringArray.push(\"\"+index);\n\
+			StringArray.push(\"\"+HoverInfo[index]);\n\
+		}\n\
+		MicroProfileDrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20);\n\
+\n\
+	}\n\
+}\n\
+\n\
+\n\
+function MicroProfileDrawBarView()\n\
+{\n\
+	nHoverToken = -1;\n\
+	nHoverFrame = -1;\n\
+	var context = CanvasDetailedView.getContext('2d');\n\
+	context.clearRect(0, 0, nWidth, nHeight);\n\
+\n\
+	var Height = BoxHeight;\n\
+	var Width = nWidth;\n\
+\n\
+	//clamp offset to prevent scrolling into the void\n\
+	var nTotalRows = 0;\n\
+	for(var groupid in GroupInfo)\n\
+	{\n\
+		nTotalRows += GroupInfo[groupid].TimerArray.length + 1;\n\
+	}\n\
+	var nTotalRowPixels = nTotalRows * Height;\n\
+	var nFrameRows = nHeight - BoxHeight;\n\
+	if(nOffsetBarsY + nFrameRows > nTotalRowPixels)\n\
+	{\n\
+		nOffsetBarsY = nTotalRowPixels - nFrameRows;\n\
+	}\n\
+\n\
+\n\
+	var Y = -nOffsetBarsY + BoxHeight;\n\
+\n\
+\n\
+	//draw bg\n\
+	//draw group headings\n\
+	//draw avg, max times\n\
+	//draw bars\n\
+	//draw names\n\
+	//draw call count\n\
+	//draw column headers\n\
+	//make hover support\n\
+	//make configurable\n\
+	//make reference time\n\
+	var nColorIndex = 0;\n\
+\n\
+	context.fillStyle = 'white';\n\
+	context.font = Font;\n\
+	var bMouseIn = 0;\n\
+	var RcpReferenceTime = 1.0 / ReferenceTime;\n\
+	for(var groupid in GroupInfo)\n\
+	{\n\
+		var Group = GroupInfo[groupid];\n\
+		//write header\n\
+		nColorIndex = 1-nColorIndex;\n\
+		bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;\n\
+		context.fillStyle = bMouseIn ? nBackColorOffset : nMicroProfileBackColors[nColorIndex];\n\
+		context.fillRect(0, Y, Width, Height);\n\
+		context.fillStyle = 'white';\n\
+		context.fillText(Group.name, 1, Y+Height-FontAscent);\n\
+\n\
+\n\
+		Y += Height;\n\
+		var TimerArray = Group.TimerArray;\n\
+		var InnerBoxHeight = BoxHeight-2;\n\
+		var TimerLen = 6;\n\
+		var TimerWidth = TimerLen * FontWidth;\n\
+		var nWidthBars = nBarsWidth+2;\n\
+		var nWidthMs = TimerWidth + 2 + 10;\n\
+\n\
+\n\
+		for(var timerindex in TimerArray)\n\
+		{\n\
+			var timerid = TimerArray[timerindex];\n\
+			var X = 0;\n\
+			nColorIndex = 1-nColorIndex;\n\
+			bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;\n\
+			if(bMouseIn)\n\
+			{\n\
+				nHoverToken = timerid;\n\
+			}\n\
+			context.fillStyle = bMouseIn ? nBackColorOffset : nMicroProfileBackColors[nColorIndex];\n\
+			context.fillRect(X, Y, Width, Height);\n\
+\n\
+			var Timer = TimerInfo[timerid];\n\
+\n\
+			var Average = Timer.average;\n\
+			var Max = Timer.max;\n\
+			var ExclusiveMax = Timer.exclmax;\n\
+			var ExclusiveAverage = Timer.exclaverage;\n\
+			var YText = Y+Height-FontAscent;\n\
+			function DrawTimer(Value)\n\
+			{\n\
+				var Prc = Value * RcpReferenceTime;\n\
+				if(Prc > 1)\n\
+				{\n\
+					Prc = 1;\n\
+				}\n\
+				context.fillStyle = Timer.color;\n\
+				context.fillRect(X+1, Y+1, Prc * nBarsWidth, InnerBoxHeight);\n\
+				X += nWidthBars;\n\
+				context.fillStyle = 'white';\n\
+				context.fillText((\"      \" + Value.toFixed(2)).slice(-TimerLen), X, YText);\n\
+				X += nWidthMs;\n\
+			}\n\
+			DrawTimer(Average);\n\
+			DrawTimer(Max);\n\
+			DrawTimer(ExclusiveAverage);\n\
+			DrawTimer(ExclusiveMax);\n\
+			context.fillStyle = Timer.color;\n\
+			context.fillText(Timer.name, X+1, YText);\n\
+			Y += Height;\n\
+\n\
+		}\n\
+	}\n\
+	X = 0;\n\
+	context.fillStyle = nBackColorOffset;\n\
+	context.fillRect(0, 0, Width, Height);\n\
+	context.fillStyle = 'white';\n\
+\n\
+\n\
+	function DrawHeaderSplit(Header)\n\
+	{\n\
+		context.fillStyle = 'white';\n\
+		context.fillText(Header, X, Height-FontAscent);\n\
+		X += nWidthBars;\n\
+		context.fillStyle = nBackColorOffset;\n\
+		X += nWidthMs;\n\
+		context.fillRect(X-3, 0, 1, nHeight);\n\
+	}\n\
+\n\
+\n\
+	DrawHeaderSplit('Average');\n\
+	DrawHeaderSplit('Max');\n\
+	DrawHeaderSplit('Excl Average');\n\
+	DrawHeaderSplit('Excl Max');\n\
+\n\
+\n\
 }\n\
 \n\
 function MicroProfileDrawDetailed(Animation)\n\
@@ -5257,74 +5544,7 @@ function MicroProfileDrawDetailed(Animation)\n\
 		context.fillText('' + fRangeEnd, X + W, 9);\n\
 	}\n\
 \n\
-	if(nHoverToken != -1)\n\
-	{\n\
-		var StringArray = [];\n\
-		var groupid = TimerInfo[nHoverToken].group;\n\
-		StringArray.push(GroupInfo[groupid].name);\n\
-		StringArray.push(TimerInfo[nHoverToken].name);\n\
-		StringArray.push(\"\");\n\
-		StringArray.push(\"\");\n\
-		StringArray.push(\"Time\");\n\
-		StringArray.push((fRangeEnd-fRangeBegin).toFixed(3));\n\
-		StringArray.push(\"\");\n\
-		StringArray.push(\"\");\n\
-		StringArray.push(\"Total\");\n\
-		StringArray.push(\"\" + TimerInfo[nHoverToken].Sum);\n\
-		StringArray.push(\"Max\");\n\
-		StringArray.push(\"\" + TimerInfo[nHoverToken].Max);\n\
-		StringArray.push(\"Average\");\n\
-		StringArray.push(\"\" + TimerInfo[nHoverToken].Average);\n\
-		StringArray.push(\"Count\");\n\
-		StringArray.push(\"\" + TimerInfo[nHoverToken].CallCount);\n\
 \n\
-		StringArray.push(\"\");\n\
-		StringArray.push(\"\");\n\
-\n\
-		StringArray.push(\"Max/Frame\");\n\
-		StringArray.push(\"\" + TimerInfo[nHoverToken].FrameMax);\n\
-\n\
-		StringArray.push(\"Average Time/Frame\");\n\
-		StringArray.push(\"\" + TimerInfo[nHoverToken].FrameAverage);\n\
-\n\
-		StringArray.push(\"Average Count/Frame\");\n\
-		StringArray.push(\"\" + TimerInfo[nHoverToken].FrameCallAverage);\n\
-		StringArray.push(\"\");\n\
-		StringArray.push(\"\");\n\
-\n\
-		StringArray.push(\"Frame \" + nHoverFrame);\n\
-		StringArray.push(\"\");\n\
-	\n\
-		var FrameTime = new Object();\n\
-		MicroProfileCalculateTimers(FrameTime, nHoverToken, nHoverFrame, nHoverFrame+1);\n\
-		StringArray.push(\"Total\");\n\
-		StringArray.push(\"\" + FrameTime.Sum);\n\
-		StringArray.push(\"Count\");\n\
-		StringArray.push(\"\" + FrameTime.CallCount);\n\
-		StringArray.push(\"Average\");\n\
-		StringArray.push(\"\" + FrameTime.Average);\n\
-		StringArray.push(\"Max\");\n\
-		StringArray.push(\"\" + FrameTime.Max);\n\
-\n\
-		var HoverInfo = MicroProfileGatherHoverMetaCounters(nHoverToken, nHoverTokenIndex, nHoverTokenLogIndex, nHoverFrame);\n\
-		var Header = 0;\n\
-		for(index in HoverInfo)\n\
-		{\n\
-			if(0 == Header)\n\
-			{\n\
-				Header = 1;\n\
-				StringArray.push(\"\");\n\
-				StringArray.push(\"\");\n\
-				StringArray.push(\"Meta\");\n\
-				StringArray.push(\"\");\n\
-\n\
-			}\n\
-			StringArray.push(\"\"+index);\n\
-			StringArray.push(\"\"+HoverInfo[index]);\n\
-		}\n\
-		MicroProfileDrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20);\n\
-\n\
-	}\n\
 \n\
 \n\
 \n\
@@ -5338,15 +5558,6 @@ function MicroProfileDrawDetailed(Animation)\n\
 }\n\
 function MicroProfileMoveGraph(X, Y)\n\
 {\n\
-	if(X)\n\
-	{\n\
-		fDetailedOffset += -X * fDetailedRange / nWidth;\n\
-	}\n\
-	nOffsetY -= Y;\n\
-	if(nOffsetY < 0)\n\
-	{\n\
-		nOffsetY = 0;\n\
-	}\n\
 }\n\
 function MicroProfileZoomTo(fZoomBegin, fZoomEnd)\n\
 {\n\
@@ -5386,14 +5597,26 @@ function MicroProfileZoomTo(fZoomBegin, fZoomEnd)\n\
 }\n\
 function MicroProfileDraw()\n\
 {\n\
-	MicroProfileDrawDetailed(false);\n\
+	if(MicroProfileMode == MicroProfileModeTimers)\n\
+	{\n\
+		MicroProfileDrawBarView();\n\
+	}\n\
+	else if(MicroProfileMode == MicroProfileModeDetailed)\n\
+	{\n\
+		MicroProfileDrawDetailed(false);\n\
+		MicroProfileDrawHoverToolTip();\n\
+	}\n\
 	MicroProfileDrawDetailedFrameHistory();\n\
 }\n\
 function MicroProfileAutoRedraw(Timestamp)\n\
 {\n\
-	if(nHoverToken != -1 && !MouseZoom && !MouseDrag)\n\
+	if(MicroProfileMode == MicroProfileModeDetailed)\n\
 	{\n\
-		MicroProfileDrawDetailed(false);\n\
+		if(nHoverToken != -1 && !MouseZoom && !MouseDrag)\n\
+		{\n\
+			MicroProfileDrawDetailed(false);\n\
+			MicroProfileDrawHoverToolTip();\n\
+		}\n\
 	}\n\
 	requestAnimationFrame(MicroProfileAutoRedraw);\n\
 }\n\
@@ -5467,15 +5690,41 @@ function MouseMove(evt)\n\
 		var rect = CanvasDetailedView.getBoundingClientRect();\n\
 		var x = evt.clientX - rect.left;\n\
 		var y = evt.clientY - rect.top;\n\
-		if(MouseDrag)\n\
+		if(MicroProfileMode == MicroProfileModeDetailed)\n\
 		{\n\
-			MicroProfileMoveGraph(x - DetailedViewMouseX, y - DetailedViewMouseY);\n\
-		}\n\
-		if(MouseZoom)\n\
-		{\n\
-			if(y != DetailedViewMouseY)\n\
+			if(MouseDrag)\n\
 			{\n\
-				MicroProfileZoomGraph(y - DetailedViewMouseY);\n\
+				var X = x - DetailedViewMouseX;\n\
+				var Y = y - DetailedViewMouseY;\n\
+				if(X)\n\
+				{\n\
+					fDetailedOffset += -X * fDetailedRange / nWidth;\n\
+				}\n\
+				nOffsetY -= Y;\n\
+				if(nOffsetY < 0)\n\
+				{\n\
+					nOffsetY = 0;\n\
+				}\n\
+			}\n\
+			if(MouseZoom)\n\
+			{\n\
+				if(y != DetailedViewMouseY)\n\
+				{\n\
+					MicroProfileZoomGraph(y - DetailedViewMouseY);\n\
+				}\n\
+			}\n\
+		}\n\
+		else if(MicroProfileMode == MicroProfileModeTimers)\n\
+		{\n\
+			if(MouseDrag)\n\
+			{\n\
+				var X = x - DetailedViewMouseX;\n\
+				var Y = y - DetailedViewMouseY;\n\
+				nOffsetBarsY -= Y;\n\
+				if(nOffsetBarsY < 0)\n\
+				{\n\
+					nOffsetBarsY = 0;\n\
+				}\n\
 			}\n\
 		}\n\
 		DetailedViewMouseX = x;\n\
@@ -5506,8 +5755,6 @@ function MouseButton(bPressed, evt)\n\
 		var rect = CanvasDetailedView.getBoundingClientRect();\n\
 		var x = evt.clientX - rect.left;\n\
 		var y = evt.clientY - rect.top;\n\
-		//MicroProfileDrawDetailed(x, y, \"MouseButton\");\n\
-\n\
 		if(bPressed)\n\
 		{\n\
 			MouseButtonState[evt.button]=1;\n\
@@ -5583,31 +5830,10 @@ for(var i = 0; i < TimerInfo.length; i++)\n\
 var end = new Date();\n\
 var time = end - start;\n\
 console.log('setup :: ' + time + 'ms ');\n\
-\n\
+MicroProfileInitGroups();\n\
 ResizeCanvas();\n\
-console.log('startup FW ' + FontWidth);\n\
 MicroProfileDraw();\n\
 MicroProfileAutoRedraw();\n\
-\n\
-//config menu\n\
-//thread enable\n\
-//context switch trace\n\
-//--meta counters\n\
-//--timers view\n\
-//forceenable\n\
-//forceenableallgroups\n\
-//--prettier fonts\n\
-//--measure font for offsets\n\
-//test gpu\n\
-//--resize canvas to be proper fullscreen\n\
-//--history tooltips\n\
-\n\
-\n\
-\n\
-\n\
-\n\
-\n\
-\n\
 </script>\n\
 </body>\n\
 </html>      ";
