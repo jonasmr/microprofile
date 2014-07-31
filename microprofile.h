@@ -4750,15 +4750,14 @@ li:hover ul {\n\
 }\n\
 ul li ul{ display:block;float:none;width:100%;}\n\
 ul li ul li{ display:block;float:none;width:100%;}\n\
-li li a{ display:block;float:none;width:100%;}\n\
+li li a{ display:block;float:none;width:100%;text-align:left;}\n\
 #nav li:hover div {margin-left:0;}\n\
 .help {position:absolute;z-index:5;text-align:left;padding:2px;margin-left:-999em;background-color: #474747;}\n\
 .root {z-index:1;position:absolute;top:0px;left:0px;}\n\
 </style>\n\
 </head>\n\
 <body style=\"\">\n\
-<canvas id=\"History\" width=\"100%\" height=\"70\" style=\"background-color:#474747;margin:0px;padding:0px;\"></canvas>\n\
-<canvas id=\"DetailedView\" width=\"100%\" height=\"200\" style=\"background-color:#474747;margin:0px;padding:0px;\"></canvas>\n\
+<canvas id=\"History\" width=\"100%\" height=\"70\" style=\"background-color:#474747;margin:0px;padding:0px;\"></canvas><canvas id=\"DetailedView\" width=\"100%\" height=\"200\" style=\"background-color:#474747;margin:0px;padding:0px;\"></canvas>\n\
 <div id=\"root\" class=\"root\">\n\
 <ul id=\"nav\">\n\
 <li><a href=\"#\">?</a>\n\
@@ -4769,25 +4768,24 @@ Ctrl-Drag to Zoom view<br>\n\
 Click to Zoom to selected range<br>\n\
 </div>\n\
 </li>\n\
-<li><a href=\"#\" onclick=\"MicroProfileSetMode('timers');\">Timers</a> \n\
-<li><a href=\"#\" onclick=\"MicroProfileSetMode('detailed');\">Detailed</a> \n\
+<li><a href=\"#\" onclick=\"MicroProfileSetMode(\'timers\');\" id=\"buttonTimers\">Timers</a> \n\
+<li><a href=\"#\" onclick=\"MicroProfileSetMode(\'detailed\');\" id=\"buttonDetailed\">Detailed</a> \n\
 </li>\n\
 <li><a href=\"#\">Reference</a>\n\
-    <ul>\n\
-        <li><a href=\"#\">5ms</a></li>\n\
-        <li><a href=\"#\">10ms</a></li>\n\
-        <li><a href=\"#\">15ms</a></li>\n\
-        <li><a href=\"#\">20ms</a></li>\n\
-        <li><a href=\"#\">33ms</a></li>\n\
-        <li><a href=\"#\">50ms</a></li>\n\
-        <li><a href=\"#\">100ms</a></li>\n\
+    <ul id=\'ReferenceSubMenu\'>\n\
+        <li><a href=\"#\" onclick=\"MicroProfileSetReferenceTime(\'5ms\');\">5ms</a></li>\n\
+        <li><a href=\"#\" onclick=\"MicroProfileSetReferenceTime(\'10ms\');\">10ms</a></li>\n\
+        <li><a href=\"#\" onclick=\"MicroProfileSetReferenceTime(\'15ms\');\">15ms</a></li>\n\
+        <li><a href=\"#\" onclick=\"MicroProfileSetReferenceTime(\'20ms\');\">20ms</a></li>\n\
+        <li><a href=\"#\" onclick=\"MicroProfileSetReferenceTime(\'33ms\');\">33ms</a></li>\n\
+        <li><a href=\"#\" onclick=\"MicroProfileSetReferenceTime(\'50ms\');\">50ms</a></li>\n\
+        <li><a href=\"#\" onclick=\"MicroProfileSetReferenceTime(\'100ms\');\">100ms</a></li>\n\
     </ul>\n\
 </li>\n\
 <li><a href=\"#\">Threads</a>\n\
-    <ul>\n\
-        <li><a href=\"#\">All</a></li>\n\
-        <li><a href=\"#\">Invert</a></li>\n\
-        <li><a href=\"#\">------</a></li>\n\
+    <ul id=\"ThreadSubMenu\">\n\
+        <li><a href=\"#\" onclick=\"MicroProfileToggleThread();\">All</a></li>\n\
+        <li><a href=\"#\">---</a></li>\n\
     </ul>\n\
 </li>\n\
 </ul>\n\
@@ -4833,8 +4831,8 @@ const char g_MicroProfileHtml_end[] ="\
 //embed section end\n\
 \n\
 \n\
-var CanvasDetailedView = document.getElementById('DetailedView');\n\
-var CanvasHistory = document.getElementById('History');\n\
+var CanvasDetailedView = document.getElementById(\'DetailedView\');\n\
+var CanvasHistory = document.getElementById(\'History\');\n\
 \n\
 var fDetailedOffset = Frames[0].framestart;\n\
 var fDetailedRange = Frames[0].frameend - fDetailedOffset;\n\
@@ -4857,16 +4855,18 @@ var MouseDetailed = 0;\n\
 var FontHeight = 10;\n\
 var FontWidth = 1;\n\
 var FontAscent = 3; //Set manually\n\
-var Font = 'Bold ' + FontHeight + 'px Courier New';\n\
+var Font = \'Bold \' + FontHeight + \'px Courier New\';\n\
 var BoxHeight = FontHeight + 2;\n\
+var ThreadsActive = new Object();\n\
+var ThreadsAllActive = 1;\n\
 \n\
 var nModDown = 0;\n\
-var g_MSG = 'no';\n\
+var g_MSG = \'no\';\n\
 var nDrawCount = 0;\n\
-var nMicroProfileBackColors = ['#474747', '#313131' ];\n\
-var nBackColorOffset = '#606060';\n\
-var FRAME_HISTORY_COLOR_CPU = '#ff7f27';\n\
-var FRAME_HISTORY_COLOR_GPU = '#ffff00';\n\
+var nMicroProfileBackColors = [\'#474747\', \'#313131\' ];\n\
+var nBackColorOffset = \'#606060\';\n\
+var FRAME_HISTORY_COLOR_CPU = \'#ff7f27\';\n\
+var FRAME_HISTORY_COLOR_GPU = \'#ffffff\';\n\
 var ZOOM_TIME = 0.5;\n\
 var AnimationActive = false;\n\
 var nHoverToken = -1;\n\
@@ -4902,19 +4902,132 @@ function MicroProfileInitGroups()\n\
 		GroupInfo[groupid].TimerArray = TimerArray;\n\
 	}\n\
 }\n\
+\n\
+function MicroProfileInitThreadMenu()\n\
+{\n\
+	var ulThreadMenu = document.getElementById(\'ThreadSubMenu\');\n\
+	var MaxLen = 7;\n\
+	for(var idx in ThreadNames)\n\
+	{\n\
+		var name = ThreadNames[idx];\n\
+		var li = document.createElement(\'li\');\n\
+		if(name.length > MaxLen)\n\
+		{\n\
+			MaxLen = name.length;\n\
+			console.log(\'new maxlen \' + MaxLen);\n\
+		}\n\
+		var html = \'<a href=\"#\" onclick=\"MicroProfileToggleThread(\\'\' + name + \'\\');\">\' + name + \'</a>\';\n\
+		li.innerHTML = html;\n\
+		ulThreadMenu.appendChild(li);\n\
+	}\n\
+	var LenStr = (5+(1+MaxLen) * FontWidth) + \'px\';\n\
+	var Lis = ulThreadMenu.getElementsByTagName(\'li\');\n\
+	for(var i = 0; i < Lis.length; ++i)\n\
+	{\n\
+		Lis[i].style[\'width\'] = LenStr;\n\
+	}\n\
+}\n\
+\n\
+function MicroProfileUpdateThreadMenu()\n\
+{\n\
+	var ulThreadMenu = document.getElementById(\'ThreadSubMenu\');\n\
+	var as = ulThreadMenu.getElementsByTagName(\'a\');\n\
+	for(var i = 0; i < as.length; ++i)\n\
+	{\n\
+		var elem = as[i];\n\
+		var inner = elem.innerHTML;\n\
+		var bActive = false;\n\
+		if(i < 2)\n\
+		{\n\
+			if(inner == \'All\')\n\
+			{\n\
+				bActive = ThreadsAllActive;\n\
+			}\n\
+		}\n\
+		else\n\
+		{\n\
+			bActive = ThreadsActive[inner];\n\
+		}\n\
+		if(bActive)\n\
+		{\n\
+			elem.style[\'font-weight\'] = \'bold\';\n\
+		}\n\
+		else\n\
+		{\n\
+			elem.style[\'font-weight\'] = \'normal\';\n\
+		}\n\
+	}\n\
+\n\
+}\n\
+\n\
+function MicroProfileToggleThread(ThreadName)\n\
+{\n\
+	if(ThreadName)\n\
+	{\n\
+		if(ThreadsActive[ThreadName])\n\
+		{\n\
+			ThreadsActive[ThreadName] = false;\n\
+		}\n\
+		else\n\
+		{\n\
+			ThreadsActive[ThreadName] = true;\n\
+		}\n\
+	}\n\
+	else\n\
+	{\n\
+		if(ThreadsAllActive)\n\
+		{\n\
+			ThreadsAllActive = 0;\n\
+		}\n\
+		else\n\
+		{\n\
+			ThreadsAllActive = 1;\n\
+		}\n\
+	}\n\
+	MicroProfileUpdateThreadMenu();\n\
+	WriteCookie();\n\
+	MicroProfileDraw();\n\
+}\n\
 function MicroProfileSetMode(Mode)\n\
 {\n\
-	if(Mode == 'timers')\n\
+	var buttonTimers = document.getElementById(\'buttonTimers\');\n\
+	var buttonDetailed = document.getElementById(\'buttonDetailed\');\n\
+	if(Mode == \'timers\' || Mode == MicroProfileModeTimers)\n\
 	{\n\
+		buttonTimers.style[\'font-weight\'] = \'bold\';\n\
+		buttonDetailed.style[\'font-weight\'] = \'normal\';\n\
 		MicroProfileMode = MicroProfileModeTimers;\n\
 	}\n\
-	else if(Mode == 'detailed')\n\
+	else if(Mode == \'detailed\' || Mode == MicroProfileModeDetailed)\n\
 	{\n\
+		buttonTimers.style[\'font-weight\'] = \'normal\';\n\
+		buttonDetailed.style[\'font-weight\'] = \'bold\';\n\
 		MicroProfileMode = MicroProfileModeDetailed;\n\
 	}\n\
+	WriteCookie();\n\
 	MicroProfileDraw();\n\
 }\n\
 \n\
+function MicroProfileSetReferenceTime(TimeString)\n\
+{\n\
+	ReferenceTime = parseInt(TimeString);\n\
+	console.log(\'reference Time is \' + ReferenceTime);\n\
+	var ReferenceMenu = document.getElementById(\'ReferenceSubMenu\');\n\
+	var Links = ReferenceMenu.getElementsByTagName(\'a\');\n\
+	for(var i = 0; i < Links.length; ++i)\n\
+	{\n\
+		if(Links[i].innerHTML.match(\'^\' + TimeString))\n\
+		{\n\
+			Links[i].style[\'font-weight\'] = \'bold\';\n\
+		}\n\
+		else\n\
+		{\n\
+			Links[i].style[\'font-weight\'] = \'normal\';\n\
+		}\n\
+	}\n\
+	WriteCookie();\n\
+	MicroProfileDraw();\n\
+}\n\
 \n\
 function MicroProfileGatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)\n\
 {\n\
@@ -5010,7 +5123,7 @@ function MicroProfileCalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast
 					Stack[StackPos] = time;\n\
 					if(StackArray[nLog][StackPos] != time)\n\
 					{\n\
-						console.log('fail fail fail');\n\
+						console.log(\'fail fail fail\');\n\
 					}\n\
 					StackPos++;\n\
 				}\n\
@@ -5065,12 +5178,12 @@ function MicroProfileDrawDetailedFrameHistory()\n\
 {\n\
 	var x = HistoryViewMouseX;\n\
 \n\
-	var context = CanvasHistory.getContext('2d');\n\
+	var context = CanvasHistory.getContext(\'2d\');\n\
 	context.clearRect(0, 0, CanvasHistory.width, CanvasHistory.height);\n\
 \n\
 	var fHeight = nHistoryHeight;\n\
 	var fWidth = nWidth / Frames.length;\n\
-	var fHeightScale = fHeight / fFrameScale;\n\
+	var fHeightScale = fHeight / ReferenceTime;\n\
 	var fX = 0;\n\
 	var FrameIndex = -1;\n\
 \n\
@@ -5110,7 +5223,7 @@ function MicroProfileDrawDetailedFrameHistory()\n\
 \n\
 function MicroProfileDrawDetailedBackground()\n\
 {\n\
-	var context = CanvasDetailedView.getContext('2d');\n\
+	var context = CanvasDetailedView.getContext(\'2d\');\n\
 	var fMs = fDetailedRange;\n\
 	var fMsEnd = fMs + fDetailedOffset;\n\
 	var fMsToScreen = nWidth / fMs;\n\
@@ -5137,7 +5250,7 @@ function MicroProfileDrawDetailedBackground()\n\
 }\n\
 function MicroProfileDrawToolTip(StringArray, Canvas, x, y)\n\
 {\n\
-	var context = Canvas.getContext('2d');\n\
+	var context = Canvas.getContext(\'2d\');\n\
 	context.font = Font;\n\
 	var WidthArray = Array(StringArray.length);\n\
 	var nMaxWidth = 0;\n\
@@ -5168,9 +5281,9 @@ function MicroProfileDrawToolTip(StringArray, Canvas, x, y)\n\
 		x = CanvasRect.width - nMaxWidth;\n\
 	}\n\
 \n\
-	context.fillStyle = 'black';\n\
+	context.fillStyle = \'black\';\n\
 	context.fillRect(x-1, y, nMaxWidth+2, nHeight);\n\
-	context.fillStyle = 'white';\n\
+	context.fillStyle = \'white\';\n\
 \n\
 	var XPos = x;\n\
 	var XPosRight = x + nMaxWidth;\n\
@@ -5263,7 +5376,7 @@ function MicroProfileDrawBarView()\n\
 {\n\
 	nHoverToken = -1;\n\
 	nHoverFrame = -1;\n\
-	var context = CanvasDetailedView.getContext('2d');\n\
+	var context = CanvasDetailedView.getContext(\'2d\');\n\
 	context.clearRect(0, 0, nWidth, nHeight);\n\
 \n\
 	var Height = BoxHeight;\n\
@@ -5284,21 +5397,9 @@ function MicroProfileDrawBarView()\n\
 \n\
 \n\
 	var Y = -nOffsetBarsY + BoxHeight;\n\
-\n\
-\n\
-	//draw bg\n\
-	//draw group headings\n\
-	//draw avg, max times\n\
-	//draw bars\n\
-	//draw names\n\
-	//draw call count\n\
-	//draw column headers\n\
-	//make hover support\n\
-	//make configurable\n\
-	//make reference time\n\
 	var nColorIndex = 0;\n\
 \n\
-	context.fillStyle = 'white';\n\
+	context.fillStyle = \'white\';\n\
 	context.font = Font;\n\
 	var bMouseIn = 0;\n\
 	var RcpReferenceTime = 1.0 / ReferenceTime;\n\
@@ -5311,7 +5412,7 @@ function MicroProfileDrawBarView()\n\
 		bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;\n\
 		context.fillStyle = bMouseIn ? nBackColorOffset : nMicroProfileBackColors[nColorIndex];\n\
 		context.fillRect(0, Y, Width, Height);\n\
-		context.fillStyle = 'white';\n\
+		context.fillStyle = \'white\';\n\
 		context.fillText(Group.name, 1, Y+Height-FontAscent);\n\
 \n\
 \n\
@@ -5356,14 +5457,14 @@ function MicroProfileDrawBarView()\n\
 				context.fillStyle = Timer.color;\n\
 				context.fillRect(X+1, Y+1, Prc * nBarsWidth, InnerBoxHeight);\n\
 				X += nWidthBars;\n\
-				context.fillStyle = 'white';\n\
+				context.fillStyle = \'white\';\n\
 				context.fillText((\"      \" + Value.toFixed(2)).slice(-TimerLen), X, YText);\n\
 				X += nWidthMs;\n\
 			}\n\
 			DrawTimer(Average);\n\
 			DrawTimer(Max);\n\
 			DrawTimer(CallAverage);\n\
-			context.fillStyle = 'white';\n\
+			context.fillStyle = \'white\';\n\
 			context.fillText(CallCount, X, YText);\n\
 			X += CountWidth;\n\
 			DrawTimer(ExclusiveAverage);\n\
@@ -5377,12 +5478,12 @@ function MicroProfileDrawBarView()\n\
 	X = 0;\n\
 	context.fillStyle = nBackColorOffset;\n\
 	context.fillRect(0, 0, Width, Height);\n\
-	context.fillStyle = 'white';\n\
+	context.fillStyle = \'white\';\n\
 \n\
 \n\
 	function DrawHeaderSplit(Header)\n\
 	{\n\
-		context.fillStyle = 'white';\n\
+		context.fillStyle = \'white\';\n\
 		context.fillText(Header, X, Height-FontAscent);\n\
 		X += nWidthBars;\n\
 		context.fillStyle = nBackColorOffset;\n\
@@ -5391,7 +5492,7 @@ function MicroProfileDrawBarView()\n\
 	}\n\
 	function DrawHeaderSplitSingle(Header, Width)\n\
 	{\n\
-		context.fillStyle = 'white';\n\
+		context.fillStyle = \'white\';\n\
 		context.fillText(Header, X, Height-FontAscent);\n\
 		X += Width;\n\
 		context.fillStyle = nBackColorOffset;\n\
@@ -5399,13 +5500,13 @@ function MicroProfileDrawBarView()\n\
 	}\n\
 \n\
 \n\
-	DrawHeaderSplit('Average');\n\
-	DrawHeaderSplit('Max');\n\
-	DrawHeaderSplit('Call Average');\n\
-	DrawHeaderSplitSingle('Count', CountWidth);\n\
-	DrawHeaderSplit('Excl Average');\n\
-	DrawHeaderSplit('Excl Max');\n\
-	DrawHeaderSplit('Call Average');\n\
+	DrawHeaderSplit(\'Average\');\n\
+	DrawHeaderSplit(\'Max\');\n\
+	DrawHeaderSplit(\'Call Average\');\n\
+	DrawHeaderSplitSingle(\'Count\', CountWidth);\n\
+	DrawHeaderSplit(\'Excl Average\');\n\
+	DrawHeaderSplit(\'Excl Max\');\n\
+	DrawHeaderSplit(\'Call Average\');\n\
 \n\
 \n\
 }\n\
@@ -5423,15 +5524,15 @@ function MicroProfileDrawDetailed(Animation)\n\
 	var start = new Date();\n\
 	nDrawCount++;\n\
 \n\
-	var context = CanvasDetailedView.getContext('2d');\n\
+	var context = CanvasDetailedView.getContext(\'2d\');\n\
 	context.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);\n\
 \n\
 	MicroProfileDrawDetailedBackground();\n\
 \n\
-	var colors = [ '#ff0000', '#ff00ff', '#ffff00'];\n\
+	var colors = [ \'#ff0000\', \'#ff00ff\', \'#ffff00\'];\n\
 \n\
 	var fScaleX = nWidth / fDetailedRange; \n\
-	var fOffsetY = -nOffsetY;\n\
+	var fOffsetY = -nOffsetY + BoxHeight;\n\
 	var nHoverTokenNext = -1;\n\
 	var nHoverTokenLogIndexNext = -1;\n\
 	var nHoverTokenIndexNext = -1;\n\
@@ -5448,96 +5549,100 @@ function MicroProfileDrawDetailed(Animation)\n\
 	}\n\
 	var nHoverHigh = nHoverCounter.toString(16);\n\
 	var nHoverLow = (127+255-nHoverCounter).toString(16);\n\
-	var nHoverColor = '#' + nHoverHigh + nHoverHigh + nHoverHigh;\n\
+	var nHoverColor = \'#\' + nHoverHigh + nHoverHigh + nHoverHigh;\n\
 \n\
-	context.fillStyle = 'black';\n\
+	context.fillStyle = \'black\';\n\
 	context.font = Font;\n\
 	var nNumLogs = Frames[0].ts.length;\n\
 	for(nLog = 0; nLog < nNumLogs; nLog++)\n\
 	{\n\
-		context.fillStyle = 'white';\n\
-		context.fillText(ThreadNames[nLog], 0, fOffsetY);\n\
-		fOffsetY += BoxHeight;\n\
-\n\
-		var MaxDepth = 1;\n\
-		var StackPos = 0;\n\
-		var Stack = Array(20);\n\
-\n\
-		for(var i = 0; i < Frames.length; i++)\n\
+		var ThreadName = ThreadNames[nLog];\n\
+		if(ThreadsAllActive || ThreadsActive[ThreadName])\n\
 		{\n\
-			var frfr = Frames[i];\n\
-			if(frfr.frameend < fDetailedOffset || frfr.framestart > fDetailedOffset + fDetailedRange)\n\
-			{\n\
-				continue;\n\
-			}\n\
-			var ts = frfr.ts[nLog];\n\
-			var ti = frfr.ti[nLog];\n\
-			var tt = frfr.tt[nLog];\n\
-			var count = ts.length;\n\
+			context.fillStyle = \'white\';\n\
+			context.fillText(ThreadName, 0, fOffsetY);\n\
+			fOffsetY += BoxHeight;\n\
 \n\
-			for(j = 0; j < count; j++)\n\
+			var MaxDepth = 1;\n\
+			var StackPos = 0;\n\
+			var Stack = Array(20);\n\
+\n\
+			for(var i = 0; i < Frames.length; i++)\n\
 			{\n\
-				var type = tt[j];\n\
-				var index = ti[j];\n\
-				var time = ts[j];\n\
-				if(type == 1)\n\
+				var frfr = Frames[i];\n\
+				if(frfr.frameend < fDetailedOffset || frfr.framestart > fDetailedOffset + fDetailedRange)\n\
 				{\n\
-					//push\n\
-					Stack[StackPos] = time;\n\
-					StackPos++;\n\
-					if(StackPos > MaxDepth)\n\
-					{\n\
-						MaxDepth = StackPos;\n\
-					}\n\
+					continue;\n\
 				}\n\
-				else if(type == 0)\n\
+				var ts = frfr.ts[nLog];\n\
+				var ti = frfr.ti[nLog];\n\
+				var tt = frfr.tt[nLog];\n\
+				var count = ts.length;\n\
+\n\
+				for(j = 0; j < count; j++)\n\
 				{\n\
-					if(StackPos>0)\n\
+					var type = tt[j];\n\
+					var index = ti[j];\n\
+					var time = ts[j];\n\
+					if(type == 1)\n\
 					{\n\
-						StackPos--;\n\
-						var timestart = Stack[StackPos];\n\
-						var timeend = time;\n\
-						var X = (timestart - fDetailedOffset) * fScaleX;\n\
-						var Y = fOffsetY + StackPos * BoxHeight;\n\
-						var W = (timeend-timestart)*fScaleX;\n\
-						if(index == nHoverToken)\n\
+						//push\n\
+						Stack[StackPos] = time;\n\
+						StackPos++;\n\
+						if(StackPos > MaxDepth)\n\
 						{\n\
-							context.fillStyle = nHoverColor;\n\
-							context.fillRect(X, Y, W, BoxHeight-1);\n\
-						}\n\
-						else\n\
-						{\n\
-							context.fillStyle = TimerInfo[index].color;\n\
-							context.fillRect(X, Y, W, BoxHeight-1);\n\
-						}\n\
-						DebugDrawQuadCount++;\n\
-\n\
-						var name = TimerInfo[index].name;\n\
-						var len = TimerInfo[index].len;\n\
-						var sublen = Math.floor((W-2)/FontWidth);\n\
-						if(sublen >= 2)\n\
-						{\n\
-							if(sublen < len)\n\
-								name = name.substr(0, sublen);\n\
-							context.fillStyle = InvertColor(TimerInfo[index].color);\n\
-							context.fillText(name, X+1, Y+BoxHeight-FontAscent);\n\
-							DebugDrawTextCount++;\n\
-						}\n\
-						if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)\n\
-						{\n\
-							fRangeBegin = timestart;\n\
-							fRangeEnd = timeend;\n\
-							nHoverTokenNext = index;\n\
-							nHoverTokenIndexNext = j;\n\
-							nHoverTokenLogIndexNext = nLog;\n\
-							nHoverFrame = i;\n\
-\n\
+							MaxDepth = StackPos;\n\
 						}\n\
 					}\n\
+					else if(type == 0)\n\
+					{\n\
+						if(StackPos>0)\n\
+						{\n\
+							StackPos--;\n\
+							var timestart = Stack[StackPos];\n\
+							var timeend = time;\n\
+							var X = (timestart - fDetailedOffset) * fScaleX;\n\
+							var Y = fOffsetY + StackPos * BoxHeight;\n\
+							var W = (timeend-timestart)*fScaleX;\n\
+							if(index == nHoverToken)\n\
+							{\n\
+								context.fillStyle = nHoverColor;\n\
+								context.fillRect(X, Y, W, BoxHeight-1);\n\
+							}\n\
+							else\n\
+							{\n\
+								context.fillStyle = TimerInfo[index].color;\n\
+								context.fillRect(X, Y, W, BoxHeight-1);\n\
+							}\n\
+							DebugDrawQuadCount++;\n\
+\n\
+							var name = TimerInfo[index].name;\n\
+							var len = TimerInfo[index].len;\n\
+							var sublen = Math.floor((W-2)/FontWidth);\n\
+							if(sublen >= 2)\n\
+							{\n\
+								if(sublen < len)\n\
+									name = name.substr(0, sublen);\n\
+								context.fillStyle = InvertColor(TimerInfo[index].color);\n\
+								context.fillText(name, X+1, Y+BoxHeight-FontAscent);\n\
+								DebugDrawTextCount++;\n\
+							}\n\
+							if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)\n\
+							{\n\
+								fRangeBegin = timestart;\n\
+								fRangeEnd = timeend;\n\
+								nHoverTokenNext = index;\n\
+								nHoverTokenIndexNext = j;\n\
+								nHoverTokenLogIndexNext = nLog;\n\
+								nHoverFrame = i;\n\
+\n\
+							}\n\
+						}\n\
+					}\n\
 				}\n\
 			}\n\
+			fOffsetY += (1+MaxDepth) * BoxHeight;\n\
 		}\n\
-		fOffsetY += (1+MaxDepth) * BoxHeight;\n\
 	}\n\
 	if(MouseDrag || MouseZoom)\n\
 	{\n\
@@ -5563,21 +5668,21 @@ function MicroProfileDrawDetailed(Animation)\n\
 		var Y = 0;\n\
 		var W = (fRangeEnd - fRangeBegin) * fScaleX;\n\
 		context.globalAlpha = 0.1;\n\
-		context.fillStyle = '#009900';\n\
+		context.fillStyle = \'#009900\';\n\
 		context.fillRect(X, Y, W, nHeight);\n\
 		context.globalAlpha = 1;\n\
-		context.strokeStyle = '#00ff00';\n\
+		context.strokeStyle = \'#00ff00\';\n\
 		context.beginPath();\n\
 		context.moveTo(X, Y);\n\
 		context.lineTo(X, Y+nHeight);\n\
 		context.moveTo(X+W, Y);\n\
 		context.lineTo(X+W, Y+nHeight);\n\
 		context.stroke();\n\
-		var tRangeBeginWidth = context.measureText('' + fRangeBegin).width;\n\
+		var tRangeBeginWidth = context.measureText(\'\' + fRangeBegin).width;\n\
 \n\
-		context.fillStyle = 'white';\n\
-		context.fillText('' + fRangeBegin, X - tRangeBeginWidth-2, 9);\n\
-		context.fillText('' + fRangeEnd, X + W, 9);\n\
+		context.fillStyle = \'white\';\n\
+		context.fillText(\'\' + fRangeBegin, X - tRangeBeginWidth-2, 9);\n\
+		context.fillText(\'\' + fRangeEnd, X + W, 9);\n\
 	}\n\
 \n\
 \n\
@@ -5586,11 +5691,11 @@ function MicroProfileDrawDetailed(Animation)\n\
 \n\
 	var end = new Date();\n\
 	var time = end - start;\n\
-	var timeTaken = 'TIME ' + time + 'ms ';\n\
-	context.fillStyle = 'white';\n\
-	context.font = 'italic 12pt Calibri';\n\
+	var timeTaken = \'TIME \' + time + \'ms \';\n\
+	context.fillStyle = \'white\';\n\
+	context.font = \'italic 12pt Calibri\';\n\
 	context.fillText(timeTaken+\" \" + nDrawCount + \"...\" + g_MSG + \" Q:\" + DebugDrawQuadCount + \" T:\" + DebugDrawTextCount, 20, 20);\n\
-	g_MSG = '';\n\
+	g_MSG = \'\';\n\
 }\n\
 function MicroProfileMoveGraph(X, Y)\n\
 {\n\
@@ -5683,6 +5788,13 @@ function MicroProfileZoomGraph(nZoom)\n\
 \n\
 }\n\
 \n\
+function MicroProfileMeasureFont()\n\
+{\n\
+	var context = CanvasDetailedView.getContext(\'2d\');\n\
+	context.font = Font;\n\
+	FontWidth = context.measureText(\'W\').width;\n\
+\n\
+}\n\
 function ResizeCanvas() \n\
 {\n\
 	nWidth = window.innerWidth;\n\
@@ -5690,16 +5802,16 @@ function ResizeCanvas() \n\
 	var DPR = window.devicePixelRatio;\n\
 	if(DPR)\n\
 	{\n\
-		CanvasDetailedView.style.width = nWidth + 'px'; \n\
-		CanvasDetailedView.style.height = nHeight + 'px';\n\
+		CanvasDetailedView.style.width = nWidth + \'px\'; \n\
+		CanvasDetailedView.style.height = nHeight + \'px\';\n\
 		CanvasDetailedView.width = nWidth * DPR;\n\
 		CanvasDetailedView.height = nHeight * DPR;\n\
-		CanvasHistory.style.width = window.innerWidth + 'px';\n\
-		CanvasHistory.style.height = 70 + 'px';\n\
+		CanvasHistory.style.width = window.innerWidth + \'px\';\n\
+		CanvasHistory.style.height = 70 + \'px\';\n\
 		CanvasHistory.width = window.innerWidth * DPR;\n\
 		CanvasHistory.height = 70 * DPR;\n\
-		CanvasHistory.getContext('2d').scale(DPR,DPR);\n\
-		CanvasDetailedView.getContext('2d').scale(DPR,DPR);\n\
+		CanvasHistory.getContext(\'2d\').scale(DPR,DPR);\n\
+		CanvasDetailedView.getContext(\'2d\').scale(DPR,DPR);\n\
 \n\
 \n\
 	}\n\
@@ -5709,9 +5821,6 @@ function ResizeCanvas() \n\
 		CanvasDetailedView.height = nHeight;\n\
 		CanvasHistory.width = window.innerWidth;\n\
 	}\n\
-	var context = CanvasDetailedView.getContext('2d');\n\
-	context.font = Font;\n\
-	FontWidth = context.measureText('W').width;\n\
 	MicroProfileDraw();\n\
 }\n\
 \n\
@@ -5830,7 +5939,7 @@ function KeyUp(evt)\n\
 \n\
 function KeyDown(evt)\n\
 {\n\
-	g_MSG = ' keycode' + evt.keyCode;\n\
+	g_MSG = \' keycode\' + evt.keyCode;\n\
 	if(evt.keyCode == 17)\n\
 	{\n\
 		MouseDrag = 0;\n\
@@ -5840,21 +5949,61 @@ function KeyDown(evt)\n\
 	{\n\
 		MouseDrag = 1;\n\
 	}\n\
-\n\
-\n\
 }\n\
 \n\
-CanvasDetailedView.addEventListener('mousemove', MouseMove, false);\n\
-CanvasDetailedView.addEventListener('mousedown', function(evt) { MouseButton(true, evt); });\n\
-CanvasDetailedView.addEventListener('mouseup', function(evt) { MouseButton(false, evt); } );\n\
-CanvasDetailedView.addEventListener('mouseout', MouseOut);\n\
-CanvasHistory.addEventListener('mousemove', MouseMove);\n\
-CanvasHistory.addEventListener('mousedown', function(evt) { MouseButton(true, evt); });\n\
-CanvasHistory.addEventListener('mouseup', function(evt) { MouseButton(false, evt); } );\n\
-CanvasHistory.addEventListener('mouseout', MouseOut);\n\
-window.addEventListener('keydown', KeyDown);\n\
-window.addEventListener('keyup', KeyUp);\n\
-window.addEventListener('resize', ResizeCanvas, false);\n\
+function ReadCookie()\n\
+{\n\
+	var result = document.cookie.match(/fisk=([^;]+)/);\n\
+	var Mode = MicroProfileModeDetailed;\n\
+	var ReferenceTimeString = \'33ms\';\n\
+	if(result && result.length > 0)\n\
+	{\n\
+		var Obj = JSON.parse(result[1]);\n\
+		if(Obj.Mode)\n\
+		{\n\
+			Mode = Obj.Mode;\n\
+		}\n\
+		if(Obj.ReferenceTime)\n\
+		{\n\
+			ReferenceTimeString = Obj.ReferenceTime;\n\
+		}\n\
+		if(Obj.ThreadsAllActive || Obj.ThreadsAllActive == 0)\n\
+		{\n\
+			ThreadsAllActive = Obj.ThreadsAllActive;\n\
+		}\n\
+		if(Obj.ThreadsActive)\n\
+		{\n\
+			ThreadsActive = Obj.ThreadsActive;\n\
+		}\n\
+	}\n\
+	MicroProfileSetMode(Mode);\n\
+	MicroProfileSetReferenceTime(ReferenceTimeString);\n\
+\n\
+}\n\
+function WriteCookie()\n\
+{\n\
+	var Obj = new Object();\n\
+	Obj.Mode = MicroProfileMode;\n\
+	Obj.ReferenceTime = ReferenceTime + \'ms\';\n\
+	Obj.ThreadsActive = ThreadsActive;\n\
+	Obj.ThreadsAllActive = ThreadsAllActive;\n\
+	var date = new Date();\n\
+	date.setFullYear(2099);\n\
+  	var cookie = \'fisk=\' + JSON.stringify(Obj) + \';expires=\' + date;\n\
+  	document.cookie = cookie;\n\
+}\n\
+\n\
+CanvasDetailedView.addEventListener(\'mousemove\', MouseMove, false);\n\
+CanvasDetailedView.addEventListener(\'mousedown\', function(evt) { MouseButton(true, evt); });\n\
+CanvasDetailedView.addEventListener(\'mouseup\', function(evt) { MouseButton(false, evt); } );\n\
+CanvasDetailedView.addEventListener(\'mouseout\', MouseOut);\n\
+CanvasHistory.addEventListener(\'mousemove\', MouseMove);\n\
+CanvasHistory.addEventListener(\'mousedown\', function(evt) { MouseButton(true, evt); });\n\
+CanvasHistory.addEventListener(\'mouseup\', function(evt) { MouseButton(false, evt); } );\n\
+CanvasHistory.addEventListener(\'mouseout\', MouseOut);\n\
+window.addEventListener(\'keydown\', KeyDown);\n\
+window.addEventListener(\'keyup\', KeyUp);\n\
+window.addEventListener(\'resize\', ResizeCanvas, false);\n\
 \n\
 \n\
 var start = new Date();\n\
@@ -5865,11 +6014,17 @@ for(var i = 0; i < TimerInfo.length; i++)\n\
 }\n\
 var end = new Date();\n\
 var time = end - start;\n\
-console.log('setup :: ' + time + 'ms ');\n\
+console.log(\'setup :: \' + time + \'ms \');\n\
+\n\
 MicroProfileInitGroups();\n\
+ReadCookie();\n\
+MicroProfileMeasureFont()\n\
+MicroProfileInitThreadMenu();\n\
+MicroProfileUpdateThreadMenu();\n\
 ResizeCanvas();\n\
 MicroProfileDraw();\n\
 MicroProfileAutoRedraw();\n\
+\n\
 </script>\n\
 </body>\n\
 </html>      ";

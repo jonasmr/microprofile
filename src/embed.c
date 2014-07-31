@@ -39,7 +39,9 @@ void DumpFile(FILE* pOut, const char* pTest)
 			case '\"':
 				fprintf(pOut, "\\\""); 
 				break;
-
+			case '\'':
+				fprintf(pOut, "\\\'"); 
+				break;
 			default:
 				fprintf(pOut, "%c", c);
 		}

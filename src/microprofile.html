@@ -32,15 +32,14 @@ li:hover ul {
 }
 ul li ul{ display:block;float:none;width:100%;}
 ul li ul li{ display:block;float:none;width:100%;}
-li li a{ display:block;float:none;width:100%;}
+li li a{ display:block;float:none;width:100%;text-align:left;}
 #nav li:hover div {margin-left:0;}
 .help {position:absolute;z-index:5;text-align:left;padding:2px;margin-left:-999em;background-color: #474747;}
 .root {z-index:1;position:absolute;top:0px;left:0px;}
 </style>
 </head>
 <body style="">
-<canvas id="History" width="100%" height="70" style="background-color:#474747;margin:0px;padding:0px;"></canvas>
-<canvas id="DetailedView" width="100%" height="200" style="background-color:#474747;margin:0px;padding:0px;"></canvas>
+<canvas id="History" width="100%" height="70" style="background-color:#474747;margin:0px;padding:0px;"></canvas><canvas id="DetailedView" width="100%" height="200" style="background-color:#474747;margin:0px;padding:0px;"></canvas>
 <div id="root" class="root">
 <ul id="nav">
 <li><a href="#">?</a>
@@ -51,25 +50,24 @@ Ctrl-Drag to Zoom view<br>
 Click to Zoom to selected range<br>
 </div>
 </li>
-<li><a href="#" onclick="MicroProfileSetMode('timers');">Timers</a> 
-<li><a href="#" onclick="MicroProfileSetMode('detailed');">Detailed</a> 
+<li><a href="#" onclick="MicroProfileSetMode('timers');" id="buttonTimers">Timers</a> 
+<li><a href="#" onclick="MicroProfileSetMode('detailed');" id="buttonDetailed">Detailed</a> 
 </li>
 <li><a href="#">Reference</a>
-    <ul>
-        <li><a href="#">5ms</a></li>
-        <li><a href="#">10ms</a></li>
-        <li><a href="#">15ms</a></li>
-        <li><a href="#">20ms</a></li>
-        <li><a href="#">33ms</a></li>
-        <li><a href="#">50ms</a></li>
-        <li><a href="#">100ms</a></li>
+    <ul id='ReferenceSubMenu'>
+        <li><a href="#" onclick="MicroProfileSetReferenceTime('5ms');">5ms</a></li>
+        <li><a href="#" onclick="MicroProfileSetReferenceTime('10ms');">10ms</a></li>
+        <li><a href="#" onclick="MicroProfileSetReferenceTime('15ms');">15ms</a></li>
+        <li><a href="#" onclick="MicroProfileSetReferenceTime('20ms');">20ms</a></li>
+        <li><a href="#" onclick="MicroProfileSetReferenceTime('33ms');">33ms</a></li>
+        <li><a href="#" onclick="MicroProfileSetReferenceTime('50ms');">50ms</a></li>
+        <li><a href="#" onclick="MicroProfileSetReferenceTime('100ms');">100ms</a></li>
     </ul>
 </li>
 <li><a href="#">Threads</a>
-    <ul>
-        <li><a href="#">All</a></li>
-        <li><a href="#">Invert</a></li>
-        <li><a href="#">------</a></li>
+    <ul id="ThreadSubMenu">
+        <li><a href="#" onclick="MicroProfileToggleThread();">All</a></li>
+        <li><a href="#">---</a></li>
     </ul>
 </li>
 </ul>
@@ -137,6 +135,8 @@ var FontWidth = 1;
 var FontAscent = 3; //Set manually
 var Font = 'Bold ' + FontHeight + 'px Courier New';
 var BoxHeight = FontHeight + 2;
+var ThreadsActive = new Object();
+var ThreadsAllActive = 1;
 
 var nModDown = 0;
 var g_MSG = 'no';
@@ -144,7 +144,7 @@ var nDrawCount = 0;
 var nMicroProfileBackColors = ['#474747', '#313131' ];
 var nBackColorOffset = '#606060';
 var FRAME_HISTORY_COLOR_CPU = '#ff7f27';
-var FRAME_HISTORY_COLOR_GPU = '#ffff00';
+var FRAME_HISTORY_COLOR_GPU = '#ffffff';
 var ZOOM_TIME = 0.5;
 var AnimationActive = false;
 var nHoverToken = -1;
@@ -180,19 +180,132 @@ function MicroProfileInitGroups()
 		GroupInfo[groupid].TimerArray = TimerArray;
 	}
 }
+
+function MicroProfileInitThreadMenu()
+{
+	var ulThreadMenu = document.getElementById('ThreadSubMenu');
+	var MaxLen = 7;
+	for(var idx in ThreadNames)
+	{
+		var name = ThreadNames[idx];
+		var li = document.createElement('li');
+		if(name.length > MaxLen)
+		{
+			MaxLen = name.length;
+			console.log('new maxlen ' + MaxLen);
+		}
+		var html = '<a href="#" onclick="MicroProfileToggleThread(\'' + name + '\');">' + name + '</a>';
+		li.innerHTML = html;
+		ulThreadMenu.appendChild(li);
+	}
+	var LenStr = (5+(1+MaxLen) * FontWidth) + 'px';
+	var Lis = ulThreadMenu.getElementsByTagName('li');
+	for(var i = 0; i < Lis.length; ++i)
+	{
+		Lis[i].style['width'] = LenStr;
+	}
+}
+
+function MicroProfileUpdateThreadMenu()
+{
+	var ulThreadMenu = document.getElementById('ThreadSubMenu');
+	var as = ulThreadMenu.getElementsByTagName('a');
+	for(var i = 0; i < as.length; ++i)
+	{
+		var elem = as[i];
+		var inner = elem.innerHTML;
+		var bActive = false;
+		if(i < 2)
+		{
+			if(inner == 'All')
+			{
+				bActive = ThreadsAllActive;
+			}
+		}
+		else
+		{
+			bActive = ThreadsActive[inner];
+		}
+		if(bActive)
+		{
+			elem.style['font-weight'] = 'bold';
+		}
+		else
+		{
+			elem.style['font-weight'] = 'normal';
+		}
+	}
+
+}
+
+function MicroProfileToggleThread(ThreadName)
+{
+	if(ThreadName)
+	{
+		if(ThreadsActive[ThreadName])
+		{
+			ThreadsActive[ThreadName] = false;
+		}
+		else
+		{
+			ThreadsActive[ThreadName] = true;
+		}
+	}
+	else
+	{
+		if(ThreadsAllActive)
+		{
+			ThreadsAllActive = 0;
+		}
+		else
+		{
+			ThreadsAllActive = 1;
+		}
+	}
+	MicroProfileUpdateThreadMenu();
+	WriteCookie();
+	MicroProfileDraw();
+}
 function MicroProfileSetMode(Mode)
 {
-	if(Mode == 'timers')
+	var buttonTimers = document.getElementById('buttonTimers');
+	var buttonDetailed = document.getElementById('buttonDetailed');
+	if(Mode == 'timers' || Mode == MicroProfileModeTimers)
 	{
+		buttonTimers.style['font-weight'] = 'bold';
+		buttonDetailed.style['font-weight'] = 'normal';
 		MicroProfileMode = MicroProfileModeTimers;
 	}
-	else if(Mode == 'detailed')
+	else if(Mode == 'detailed' || Mode == MicroProfileModeDetailed)
 	{
+		buttonTimers.style['font-weight'] = 'normal';
+		buttonDetailed.style['font-weight'] = 'bold';
 		MicroProfileMode = MicroProfileModeDetailed;
 	}
+	WriteCookie();
 	MicroProfileDraw();
 }
 
+function MicroProfileSetReferenceTime(TimeString)
+{
+	ReferenceTime = parseInt(TimeString);
+	console.log('reference Time is ' + ReferenceTime);
+	var ReferenceMenu = document.getElementById('ReferenceSubMenu');
+	var Links = ReferenceMenu.getElementsByTagName('a');
+	for(var i = 0; i < Links.length; ++i)
+	{
+		if(Links[i].innerHTML.match('^' + TimeString))
+		{
+			Links[i].style['font-weight'] = 'bold';
+		}
+		else
+		{
+			Links[i].style['font-weight'] = 'normal';
+		}
+	}
+	WriteCookie();
+	MicroProfileDraw();
+}
 
 function MicroProfileGatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)
 {
@@ -348,7 +461,7 @@ function MicroProfileDrawDetailedFrameHistory()
 
 	var fHeight = nHistoryHeight;
 	var fWidth = nWidth / Frames.length;
-	var fHeightScale = fHeight / fFrameScale;
+	var fHeightScale = fHeight / ReferenceTime;
 	var fX = 0;
 	var FrameIndex = -1;
 
@@ -562,18 +675,6 @@ function MicroProfileDrawBarView()
 
 
 	var Y = -nOffsetBarsY + BoxHeight;
-
-
-	//draw bg
-	//draw group headings
-	//draw avg, max times
-	//draw bars
-	//draw names
-	//draw call count
-	//draw column headers
-	//make hover support
-	//make configurable
-	//make reference time
 	var nColorIndex = 0;
 
 	context.fillStyle = 'white';
@@ -709,7 +810,7 @@ function MicroProfileDrawDetailed(Animation)
 	var colors = [ '#ff0000', '#ff00ff', '#ffff00'];
 
 	var fScaleX = nWidth / fDetailedRange; 
-	var fOffsetY = -nOffsetY;
+	var fOffsetY = -nOffsetY + BoxHeight;
 	var nHoverTokenNext = -1;
 	var nHoverTokenLogIndexNext = -1;
 	var nHoverTokenIndexNext = -1;
@@ -733,89 +834,93 @@ function MicroProfileDrawDetailed(Animation)
 	var nNumLogs = Frames[0].ts.length;
 	for(nLog = 0; nLog < nNumLogs; nLog++)
 	{
-		context.fillStyle = 'white';
-		context.fillText(ThreadNames[nLog], 0, fOffsetY);
-		fOffsetY += BoxHeight;
-
-		var MaxDepth = 1;
-		var StackPos = 0;
-		var Stack = Array(20);
-
-		for(var i = 0; i < Frames.length; i++)
+		var ThreadName = ThreadNames[nLog];
+		if(ThreadsAllActive || ThreadsActive[ThreadName])
 		{
-			var frfr = Frames[i];
-			if(frfr.frameend < fDetailedOffset || frfr.framestart > fDetailedOffset + fDetailedRange)
-			{
-				continue;
-			}
-			var ts = frfr.ts[nLog];
-			var ti = frfr.ti[nLog];
-			var tt = frfr.tt[nLog];
-			var count = ts.length;
+			context.fillStyle = 'white';
+			context.fillText(ThreadName, 0, fOffsetY);
+			fOffsetY += BoxHeight;
 
-			for(j = 0; j < count; j++)
+			var MaxDepth = 1;
+			var StackPos = 0;
+			var Stack = Array(20);
+
+			for(var i = 0; i < Frames.length; i++)
 			{
-				var type = tt[j];
-				var index = ti[j];
-				var time = ts[j];
-				if(type == 1)
+				var frfr = Frames[i];
+				if(frfr.frameend < fDetailedOffset || frfr.framestart > fDetailedOffset + fDetailedRange)
 				{
-					//push
-					Stack[StackPos] = time;
-					StackPos++;
-					if(StackPos > MaxDepth)
-					{
-						MaxDepth = StackPos;
-					}
+					continue;
 				}
-				else if(type == 0)
+				var ts = frfr.ts[nLog];
+				var ti = frfr.ti[nLog];
+				var tt = frfr.tt[nLog];
+				var count = ts.length;
+
+				for(j = 0; j < count; j++)
 				{
-					if(StackPos>0)
+					var type = tt[j];
+					var index = ti[j];
+					var time = ts[j];
+					if(type == 1)
 					{
-						StackPos--;
-						var timestart = Stack[StackPos];
-						var timeend = time;
-						var X = (timestart - fDetailedOffset) * fScaleX;
-						var Y = fOffsetY + StackPos * BoxHeight;
-						var W = (timeend-timestart)*fScaleX;
-						if(index == nHoverToken)
+						//push
+						Stack[StackPos] = time;
+						StackPos++;
+						if(StackPos > MaxDepth)
 						{
-							context.fillStyle = nHoverColor;
-							context.fillRect(X, Y, W, BoxHeight-1);
-						}
-						else
-						{
-							context.fillStyle = TimerInfo[index].color;
-							context.fillRect(X, Y, W, BoxHeight-1);
-						}
-						DebugDrawQuadCount++;
-
-						var name = TimerInfo[index].name;
-						var len = TimerInfo[index].len;
-						var sublen = Math.floor((W-2)/FontWidth);
-						if(sublen >= 2)
-						{
-							if(sublen < len)
-								name = name.substr(0, sublen);
-							context.fillStyle = InvertColor(TimerInfo[index].color);
-							context.fillText(name, X+1, Y+BoxHeight-FontAscent);
-							DebugDrawTextCount++;
-						}
-						if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
-						{
-							fRangeBegin = timestart;
-							fRangeEnd = timeend;
-							nHoverTokenNext = index;
-							nHoverTokenIndexNext = j;
-							nHoverTokenLogIndexNext = nLog;
-							nHoverFrame = i;
-
+							MaxDepth = StackPos;
 						}
 					}
+					else if(type == 0)
+					{
+						if(StackPos>0)
+						{
+							StackPos--;
+							var timestart = Stack[StackPos];
+							var timeend = time;
+							var X = (timestart - fDetailedOffset) * fScaleX;
+							var Y = fOffsetY + StackPos * BoxHeight;
+							var W = (timeend-timestart)*fScaleX;
+							if(index == nHoverToken)
+							{
+								context.fillStyle = nHoverColor;
+								context.fillRect(X, Y, W, BoxHeight-1);
+							}
+							else
+							{
+								context.fillStyle = TimerInfo[index].color;
+								context.fillRect(X, Y, W, BoxHeight-1);
+							}
+							DebugDrawQuadCount++;
+
+							var name = TimerInfo[index].name;
+							var len = TimerInfo[index].len;
+							var sublen = Math.floor((W-2)/FontWidth);
+							if(sublen >= 2)
+							{
+								if(sublen < len)
+									name = name.substr(0, sublen);
+								context.fillStyle = InvertColor(TimerInfo[index].color);
+								context.fillText(name, X+1, Y+BoxHeight-FontAscent);
+								DebugDrawTextCount++;
+							}
+							if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
+							{
+								fRangeBegin = timestart;
+								fRangeEnd = timeend;
+								nHoverTokenNext = index;
+								nHoverTokenIndexNext = j;
+								nHoverTokenLogIndexNext = nLog;
+								nHoverFrame = i;
+
+							}
+						}
+					}
 				}
 			}
+			fOffsetY += (1+MaxDepth) * BoxHeight;
 		}
-		fOffsetY += (1+MaxDepth) * BoxHeight;
 	}
 	if(MouseDrag || MouseZoom)
 	{
@@ -961,6 +1066,13 @@ function MicroProfileZoomGraph(nZoom)
 
 }
 
+function MicroProfileMeasureFont()
+{
+	var context = CanvasDetailedView.getContext('2d');
+	context.font = Font;
+	FontWidth = context.measureText('W').width;
+
+}
 function ResizeCanvas() 
 {
 	nWidth = window.innerWidth;
@@ -987,9 +1099,6 @@ function ResizeCanvas()
 		CanvasDetailedView.height = nHeight;
 		CanvasHistory.width = window.innerWidth;
 	}
-	var context = CanvasDetailedView.getContext('2d');
-	context.font = Font;
-	FontWidth = context.measureText('W').width;
 	MicroProfileDraw();
 }
 
@@ -1118,8 +1227,48 @@ function KeyDown(evt)
 	{
 		MouseDrag = 1;
 	}
+}
 
+function ReadCookie()
+{
+	var result = document.cookie.match(/fisk=([^;]+)/);
+	var Mode = MicroProfileModeDetailed;
+	var ReferenceTimeString = '33ms';
+	if(result && result.length > 0)
+	{
+		var Obj = JSON.parse(result[1]);
+		if(Obj.Mode)
+		{
+			Mode = Obj.Mode;
+		}
+		if(Obj.ReferenceTime)
+		{
+			ReferenceTimeString = Obj.ReferenceTime;
+		}
+		if(Obj.ThreadsAllActive || Obj.ThreadsAllActive == 0)
+		{
+			ThreadsAllActive = Obj.ThreadsAllActive;
+		}
+		if(Obj.ThreadsActive)
+		{
+			ThreadsActive = Obj.ThreadsActive;
+		}
+	}
+	MicroProfileSetMode(Mode);
+	MicroProfileSetReferenceTime(ReferenceTimeString);
 
+}
+function WriteCookie()
+{
+	var Obj = new Object();
+	Obj.Mode = MicroProfileMode;
+	Obj.ReferenceTime = ReferenceTime + 'ms';
+	Obj.ThreadsActive = ThreadsActive;
+	Obj.ThreadsAllActive = ThreadsAllActive;
+	var date = new Date();
+	date.setFullYear(2099);
+	var cookie = 'fisk=' + JSON.stringify(Obj) + ';expires=' + date;
+	document.cookie = cookie;
 }
 
 CanvasDetailedView.addEventListener('mousemove', MouseMove, false);
@@ -1144,10 +1293,16 @@ for(var i = 0; i < TimerInfo.length; i++)
 var end = new Date();
 var time = end - start;
 console.log('setup :: ' + time + 'ms ');
+
 MicroProfileInitGroups();
+ReadCookie();
+MicroProfileMeasureFont()
+MicroProfileInitThreadMenu();
+MicroProfileUpdateThreadMenu();
 ResizeCanvas();
 MicroProfileDraw();
 MicroProfileAutoRedraw();
+
 </script>
 </body>
 </html>      
