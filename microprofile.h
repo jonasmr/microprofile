@@ -497,14 +497,14 @@ typedef int MpSocket;
 
 void MicroProfileWebServerStart();
 void MicroProfileWebServerStop();
-void MicroProfileWebServerUpdate();
+bool MicroProfileWebServerUpdate();
 void MicroProfileDumpHtmlToFile();
 
 #else
 
 #define MicroProfileWebServerStart() do{}while(0)
 #define MicroProfileWebServerStop() do{}while(0)
-#define MicroProfileWebServerUpdate() do{}while(0)
+#define MicroProfileWebServerUpdate() false
 #define MicroProfileDumpHtmlToFile() do{} while(0)
 
 typedef int MpSocket;
@@ -1025,7 +1025,7 @@ void MicroProfileInit()
 		S.nMenuAllGroups = 0;
 		S.nMenuActiveGroup = 0;
 		S.nMenuAllThreads = 1;
-		S.nAggregateFlip = 30;
+		S.nAggregateFlip = 0;
 		S.nTotalTimers = 0;
 		for(uint32_t i = 0; i < MICROPROFILE_MAX_GRAPHS; ++i)
 		{
@@ -1435,12 +1435,17 @@ void MicroProfileFlip()
 			}
 		}
 	}
+	uint32_t nAggregateClear = 0, nAggregateFlip = 0;
 	if(S.nDumpHtmlNextFrame)
 	{
 		S.nDumpHtmlNextFrame = 0;
 		MicroProfileDumpHtmlToFile();
 	}
-	MicroProfileWebServerUpdate();
+	if(MicroProfileWebServerUpdate())
+	{	
+		nAggregateClear = 1;
+		nAggregateFlip = 1;
+	}
 
 	if(S.nRunning || S.nForceEnable)
 	{
@@ -1630,28 +1635,35 @@ void MicroProfileFlip()
 
 		if(S.nRunning && S.nAggregateFlip <= ++S.nAggregateFlipCount)
 		{
-			memcpy(&S.Aggregate[0], &S.AggregateTimers[0], sizeof(S.Aggregate[0]) * S.nTotalTimers);
-			memcpy(&S.AggregateMax[0], &S.MaxTimers[0], sizeof(S.AggregateMax[0]) * S.nTotalTimers);
-			memcpy(&S.AggregateExclusive[0], &S.AggregateTimersExclusive[0], sizeof(S.AggregateExclusive[0]) * S.nTotalTimers);
-			memcpy(&S.AggregateMaxExclusive[0], &S.MaxTimersExclusive[0], sizeof(S.AggregateMaxExclusive[0]) * S.nTotalTimers);
-			
-			S.nAggregateFrames = S.nAggregateFlipCount;
-			S.nFlipAggregateDisplay = S.nFlipAggregate;
-			S.nFlipMaxDisplay = S.nFlipMax;
-
-
+			nAggregateFlip = 1;
 			if(S.nAggregateFlip) // if 0 accumulate indefinitely
 			{
-				memset(&S.AggregateTimers[0], 0, sizeof(S.Aggregate[0]) * S.nTotalTimers);
-				memset(&S.MaxTimers[0], 0, sizeof(S.MaxTimers[0]) * S.nTotalTimers);
-				memset(&S.AggregateTimersExclusive[0], 0, sizeof(S.AggregateExclusive[0]) * S.nTotalTimers);
-				memset(&S.MaxTimersExclusive[0], 0, sizeof(S.MaxTimersExclusive[0]) * S.nTotalTimers);
-				S.nAggregateFlipCount = 0;
-				S.nFlipAggregate = 0;
-				S.nFlipMax = 0;
+				nAggregateClear = 1;
 			}
 		}
 	}
+	if(nAggregateFlip)
+	{
+		memcpy(&S.Aggregate[0], &S.AggregateTimers[0], sizeof(S.Aggregate[0]) * S.nTotalTimers);
+		memcpy(&S.AggregateMax[0], &S.MaxTimers[0], sizeof(S.AggregateMax[0]) * S.nTotalTimers);
+		memcpy(&S.AggregateExclusive[0], &S.AggregateTimersExclusive[0], sizeof(S.AggregateExclusive[0]) * S.nTotalTimers);
+		memcpy(&S.AggregateMaxExclusive[0], &S.MaxTimersExclusive[0], sizeof(S.AggregateMaxExclusive[0]) * S.nTotalTimers);
+		
+		S.nAggregateFrames = S.nAggregateFlipCount;
+		S.nFlipAggregateDisplay = S.nFlipAggregate;
+		S.nFlipMaxDisplay = S.nFlipMax;
+		if(nAggregateClear)
+		{
+			memset(&S.AggregateTimers[0], 0, sizeof(S.Aggregate[0]) * S.nTotalTimers);
+			memset(&S.MaxTimers[0], 0, sizeof(S.MaxTimers[0]) * S.nTotalTimers);
+			memset(&S.AggregateTimersExclusive[0], 0, sizeof(S.AggregateExclusive[0]) * S.nTotalTimers);
+			memset(&S.MaxTimersExclusive[0], 0, sizeof(S.MaxTimersExclusive[0]) * S.nTotalTimers);
+			S.nAggregateFlipCount = 0;
+			S.nFlipAggregate = 0;
+			S.nFlipMax = 0;
+		}
+	}
+
 	uint64_t nNewActiveGroup = 0;
 	if(S.nForceEnable || (S.nDisplay && S.nRunning))
 		nNewActiveGroup = S.nMenuAllGroups ? S.nGroupMask : S.nMenuActiveGroup;
@@ -4241,8 +4253,8 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 		pMaxExclusive[nIdx],
 		pCallAverage[nIdx],
 		S.Aggregate[i].nCount
-
 		);
+
 	}
 
 	MicroProfilePrintf(CB, Handle, "\nvar ThreadNames = [");
@@ -4439,10 +4451,11 @@ void MicroProfilWebServerStop()
 {
 	close(S.ListenerSocket);
 }
-void MicroProfileWebServerUpdate()
+bool MicroProfileWebServerUpdate()
 {
 	MICROPROFILE_SCOPEI("MicroProfile", "Webserver-update", -1);
 	MpSocket Connection = accept(S.ListenerSocket, 0, 0);
+	bool bServed = false;
 	if(!MP_INVALID_SOCKET(Connection))
 	{
 		std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
@@ -4494,10 +4507,12 @@ void MicroProfileWebServerUpdate()
 				uint64_t nTickEnd = MP_TICK();
 				float fMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu()) * (nTickEnd - nTickStart);
 				printf("Sent %lldkb, in %6.3fms\n", ((nDataEnd-nDataStart)>>10) + 1, fMs);
+				bServed = true;
 			}
 		}
 		close(Connection);
 	}
+	return bServed;
 }
 #endif
 
