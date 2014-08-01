@@ -10,6 +10,6 @@ embed: embed.c
 	clang -g embed.c -o embed
 
 $(TARGET): embed microprofile.h microprofile.html
-	./embed $(TARGET) microprofile.h microprofile.html %%embed%% g_MicroProfileHtml MICROPROFILE_EMBED_HTML
+	./embed $(TARGET) microprofile.h microprofile.html ____embed____ g_MicroProfileHtml MICROPROFILE_EMBED_HTML
 
 

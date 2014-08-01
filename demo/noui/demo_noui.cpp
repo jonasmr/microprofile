@@ -35,6 +35,9 @@
 
 MICROPROFILE_DEFINE(MAIN, "MAIN", "Main", 0xff0000);
 
+#ifdef _WIN32
+void usleep(__int64);
+#endif
 uint32_t g_nQuit = 0;
 
 void StartFakeWork();

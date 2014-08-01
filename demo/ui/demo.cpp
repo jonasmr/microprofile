@@ -43,29 +43,7 @@
 #undef far
 #define snprintf _snprintf
 #include <windows.h>
-void usleep(__int64 usec) 
-{ 
-	if(usec > 20000)
-	{
-		Sleep((DWORD)(usec/1000));
-	}
-	else if(usec >= 1000)
-	{
-		timeBeginPeriod(1);
-		Sleep((DWORD)(usec/1000));
-		timeEndPeriod(1);
-	}
-	else
-	{
-		__int64 time1 = 0, time2 = 0, freq = 0;
-		QueryPerformanceCounter((LARGE_INTEGER *) &time1);
-		QueryPerformanceFrequency((LARGE_INTEGER *)&freq);
-
-		do {
-			QueryPerformanceCounter((LARGE_INTEGER *) &time2);
-		} while((time2-time1)*1000000ll/freq < usec);
-	}
-}
+void usleep(__int64 usec) ;
 #endif
 
 

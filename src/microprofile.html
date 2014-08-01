@@ -1,9 +1,10 @@
 <!DOCTYPE HTML>
 <html>
 <head>
+<title>MicroProfile Capture</title>
 <style>
-/* http://bit.ly/1eMQ42U */
-body {margin: 0px;padding: 0px; font: 12px Courier New;background-color:#474747; color:white;}
+/* about css: http://bit.ly/1eMQ42U */
+body {margin: 0px;padding: 0px; font: 12px Courier New;background-color:#474747; color:white;overflow:hidden;}
 ul {list-style-type: none;margin: 0;padding: 0;}
 li{display: inline; float:left;border:5px; position:relative;text-align:center;}
 a {
@@ -39,7 +40,7 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 </style>
 </head>
 <body style="">
-<canvas id="History" width="100%" height="70" style="background-color:#474747;margin:0px;padding:0px;"></canvas><canvas id="DetailedView" width="100%" height="200" style="background-color:#474747;margin:0px;padding:0px;"></canvas>
+<canvas id="History" height="70" style="background-color:#474747;margin:0px;padding:0px;"></canvas><canvas id="DetailedView" height="200" style="background-color:#474747;margin:0px;padding:0px;"></canvas>
 <div id="root" class="root">
 <ul id="nav">
 <li><a href="#">?</a>
@@ -102,11 +103,7 @@ function MakeFrame(id, framestart, frameend, ts, tt, ti)
 	return frame;
 }
 
-//embed section start
-
-%%embed%%
-
-//embed section end
+____embed____
 
 
 var CanvasDetailedView = document.getElementById('DetailedView');
@@ -192,7 +189,6 @@ function MicroProfileInitThreadMenu()
 		if(name.length > MaxLen)
 		{
 			MaxLen = name.length;
-			console.log('new maxlen ' + MaxLen);
 		}
 		var html = '<a href="#" onclick="MicroProfileToggleThread(\'' + name + '\');">' + name + '</a>';
 		li.innerHTML = html;
@@ -228,11 +224,11 @@ function MicroProfileUpdateThreadMenu()
 		}
 		if(bActive)
 		{
-			elem.style['font-weight'] = 'bold';
+			elem.style['text-decoration'] = 'underline';
 		}
 		else
 		{
-			elem.style['font-weight'] = 'normal';
+			elem.style['text-decoration'] = 'none';
 		}
 	}
 
@@ -272,14 +268,14 @@ function MicroProfileSetMode(Mode)
 	var buttonDetailed = document.getElementById('buttonDetailed');
 	if(Mode == 'timers' || Mode == MicroProfileModeTimers)
 	{
-		buttonTimers.style['font-weight'] = 'bold';
-		buttonDetailed.style['font-weight'] = 'normal';
+		buttonTimers.style['text-decoration'] = 'underline';
+		buttonDetailed.style['text-decoration'] = 'none';
 		MicroProfileMode = MicroProfileModeTimers;
 	}
 	else if(Mode == 'detailed' || Mode == MicroProfileModeDetailed)
 	{
-		buttonTimers.style['font-weight'] = 'normal';
-		buttonDetailed.style['font-weight'] = 'bold';
+		buttonTimers.style['text-decoration'] = 'none';
+		buttonDetailed.style['text-decoration'] = 'underline';
 		MicroProfileMode = MicroProfileModeDetailed;
 	}
 	WriteCookie();
@@ -296,11 +292,11 @@ function MicroProfileSetReferenceTime(TimeString)
 	{
 		if(Links[i].innerHTML.match('^' + TimeString))
 		{
-			Links[i].style['font-weight'] = 'bold';
+			Links[i].style['text-decoration'] = 'underline';
 		}
 		else
 		{
-			Links[i].style['font-weight'] = 'normal';
+			Links[i].style['text-decoration'] = 'none';
 		}
 	}
 	WriteCookie();
@@ -668,7 +664,7 @@ function MicroProfileDrawBarView()
 	}
 	var nTotalRowPixels = nTotalRows * Height;
 	var nFrameRows = nHeight - BoxHeight;
-	if(nOffsetBarsY + nFrameRows > nTotalRowPixels)
+	if(nOffsetBarsY + nFrameRows > nTotalRowPixels && nTotalRowPixels > nFrameRows)
 	{
 		nOffsetBarsY = nTotalRowPixels - nFrameRows;
 	}

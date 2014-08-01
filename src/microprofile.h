@@ -297,7 +297,7 @@ typedef uint32_t ThreadIdType;
 #endif
 
 #ifndef MICROPROFILE_WEBSERVER_MAXFRAMES
-#define MICROPROFILE_WEBSERVER_MAXFRAMES 5
+#define MICROPROFILE_WEBSERVER_MAXFRAMES 30
 #endif
 
 #ifndef MICROPROFILE_UI
@@ -1069,9 +1069,10 @@ void MicroProfileInit()
 
 void MicroProfileShutdown()
 {
-#if MICROPROFILE_CONTEXT_SWITCH_TRACE
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 	MicroProfileWebServerStop();
+
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
 	if(S.pContextSwitchThread)
 	{
 		if(S.pContextSwitchThread->joinable())
@@ -4291,11 +4292,13 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	uint32_t nNumFrames = (MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY - 1);
 	if(S.nFrameCurrentIndex < nNumFrames)
 		nNumFrames = S.nFrameCurrentIndex;
-	if(nNumFrames > nMaxFrames) 
+	if((int)nNumFrames > nMaxFrames) 
 	{
 		nNumFrames = nMaxFrames;
 	}
+#if MICROPROFILE_DEBUG
 	printf("dumping %d frames\n", nNumFrames);
+#endif
 	uint32_t nFirstFrame = (S.nFrameCurrent + MICROPROFILE_MAX_FRAME_HISTORY - nNumFrames) % MICROPROFILE_MAX_FRAME_HISTORY;
 	uint32_t nFirstFrameIndex = S.nFrameCurrentIndex - nNumFrames;
 	int64_t nTickStart = S.Frames[nFirstFrame].nFrameStartCpu;
@@ -4323,9 +4326,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 				uint32_t k = nLogStart;
 				uint32_t nLogType = MicroProfileLogType(pLog->Log[k]);
 				float fTime = nLogType == MP_LOG_META ? 0.f : MicroProfileLogTickDifference(nStartTick, pLog->Log[k]) * fToMs;
-				MP_ASSERT(fTime < 10000.f);
 				MicroProfilePrintf(CB, Handle, "%f", fTime);
-				//MicroProfilePrintf(CB, Handle, "%d", MicroProfileLogType(pLog->Log[k]));
 				for(k = (k+1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 				{
 					uint32_t nLogType = MicroProfileLogType(pLog->Log[k]);
@@ -4408,7 +4409,6 @@ void MicroProfileWriteFile(void* Handle, size_t nSize, const char* pData)
 void MicroProfileDumpHtmlToFile()
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
-	printf("dumping stuff\n");
 	FILE* F = fopen("../dump.html", "w");
 	MicroProfileDumpHtml(MicroProfileWriteFile, F, MICROPROFILE_WEBSERVER_MAXFRAMES);
 	fclose(F);
@@ -4424,9 +4424,16 @@ void MicroProfileWriteSocket(void* Handle, size_t nSize, const char* pData)
 
 void MicroProfileWebServerStart()
 {
+#ifdef _WIN32
+	WSADATA wsa;
+	if(WSAStartup(MAKEWORD(2, 2), &wsa))
+	{
+		S.ListenerSocket = -1;
+		return;
+	}
 	S.ListenerSocket = socket(PF_INET, SOCK_STREAM, 6);
 	MP_ASSERT(!MP_INVALID_SOCKET(S.ListenerSocket));
-#ifdef _WIN32
+
 	u_long nonBlocking = 1; 
 	ioctlsocket(S.ListenerSocket, FIONBIO, &nonBlocking);
 #else
@@ -4447,9 +4454,14 @@ void MicroProfileWebServerStart()
 	listen(S.ListenerSocket, 8);
 }
 
-void MicroProfilWebServerStop()
+void MicroProfileWebServerStop()
 {
+#ifdef _WIN32
+	closesocket(S.ListenerSocket);
+	WSACleanup();
+#else
 	close(S.ListenerSocket);
+#endif
 }
 bool MicroProfileWebServerUpdate()
 {
@@ -4464,7 +4476,9 @@ bool MicroProfileWebServerUpdate()
 		if(nReceived > 0)
 		{
 			Req[nReceived] = '\0';
+#if MICROPROFILE_DEBUG
 			printf("got request \n%s\n", Req);
+#endif
 #define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n"
 			char* pHttp = strstr(Req, "HTTP/");
 			char* pGet = strstr(Req, "GET / ");
@@ -4506,11 +4520,17 @@ bool MicroProfileWebServerUpdate()
 				uint64_t nDataEnd = g_nMicroProfileDataSent;
 				uint64_t nTickEnd = MP_TICK();
 				float fMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu()) * (nTickEnd - nTickStart);
+#if MICROPROFILE_DEBUG
 				printf("Sent %lldkb, in %6.3fms\n", ((nDataEnd-nDataStart)>>10) + 1, fMs);
+#endif
 				bServed = true;
 			}
 		}
+#ifdef _WIN32
+		closesocket(Connection);
+#else
 		close(Connection);
+#endif
 	}
 	return bServed;
 }
