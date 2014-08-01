@@ -4437,6 +4437,8 @@ void MicroProfileWebServerStart()
 	u_long nonBlocking = 1; 
 	ioctlsocket(S.ListenerSocket, FIONBIO, &nonBlocking);
 #else
+	S.ListenerSocket = socket(PF_INET, SOCK_STREAM, 6);
+	MP_ASSERT(!MP_INVALID_SOCKET(S.ListenerSocket));
 	fcntl(S.ListenerSocket, F_SETFL, O_NONBLOCK);
 #endif
 	struct sockaddr_in Addr; 

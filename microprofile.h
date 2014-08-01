@@ -4437,6 +4437,8 @@ void MicroProfileWebServerStart()
 	u_long nonBlocking = 1; 
 	ioctlsocket(S.ListenerSocket, FIONBIO, &nonBlocking);
 #else
+	S.ListenerSocket = socket(PF_INET, SOCK_STREAM, 6);
+	MP_ASSERT(!MP_INVALID_SOCKET(S.ListenerSocket));
 	fcntl(S.ListenerSocket, F_SETFL, O_NONBLOCK);
 #endif
 	struct sockaddr_in Addr; 
@@ -4733,7 +4735,7 @@ void MicroProfileStartContextSwitchTrace(){}
 
 
 
-///start embedded file from ../microprofile.html
+///start embedded file from microprofile.html
 #ifdef MICROPROFILE_EMBED_HTML
 const char g_MicroProfileHtml_begin[] =
 "<!DOCTYPE HTML>\n"
@@ -6049,4 +6051,4 @@ const size_t g_MicroProfileHtml_end_size = sizeof(g_MicroProfileHtml_end);
 #endif //MICROPROFILE_EMBED_HTML
 
 
-///end embedded file from ../microprofile.html
+///end embedded file from microprofile.html
