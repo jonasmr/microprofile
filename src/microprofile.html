@@ -553,6 +553,26 @@ function MicroProfileDrawDetailedBackground()
 		nColorIndex = 1 - nColorIndex;
 		f = fNext;
 	}
+	var fScaleX = nWidth / fDetailedRange; 
+	context.globalAlpha = 0.5;
+	context.strokeStyle = '#bbbbbb';
+	context.beginPath();
+	for(var i = 0; i < Frames.length; i++)
+	{
+		var frfr = Frames[i];
+		if(frfr.frameend < fDetailedOffset || frfr.framestart > fDetailedOffset + fDetailedRange)
+		{
+			continue;
+		}
+		var X = (frfr.framestart - fDetailedOffset) * fScaleX;
+		if(X >= 0 && X < nWidth)
+		{
+			context.moveTo(X, 0);
+			context.lineTo(X, nHeight);
+		}
+	}
+	context.stroke();
+	context.globalAlpha = 1;
 
 }
 function MicroProfileDrawToolTip(StringArray, Canvas, x, y)
@@ -877,7 +897,7 @@ function MicroProfileDrawDetailed(Animation)
 			for(var i = 0; i < Frames.length; i++)
 			{
 				var frfr = Frames[i];
-				if(frfr.frameend < fDetailedOffset || frfr.framestart > fDetailedOffset + fDetailedRange)
+				if(0 == StackPos && frfr.framestart > fDetailedOffset + fDetailedRange) 
 				{
 					continue;
 				}
