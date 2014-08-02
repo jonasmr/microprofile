@@ -4398,7 +4398,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	}
 
 	CB(Handle, g_MicroProfileHtml_end_size-1, &g_MicroProfileHtml_end[0]);
-
 }
 
 void MicroProfileWriteFile(void* Handle, size_t nSize, const char* pData)
@@ -4537,8 +4536,9 @@ bool MicroProfileWebServerUpdate()
 				uint64_t nDataEnd = g_nMicroProfileDataSent;
 				uint64_t nTickEnd = MP_TICK();
 				float fMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu()) * (nTickEnd - nTickStart);
+				MicroProfilePrintf(MicroProfileWriteSocket, &Connection, "\n<!-- Sent %dkb in %6.2fms-->\n\n",((nDataEnd-nDataStart)>>10) + 1, fMs);
 #if MICROPROFILE_DEBUG
-				printf("Sent %lldkb, in %6.3fms\n", ((nDataEnd-nDataStart)>>10) + 1, fMs);
+				printf("\nSent %lldkb, in %6.3fms\n\n", ((nDataEnd-nDataStart)>>10) + 1, fMs);
 #endif
 				bServed = true;
 			}
@@ -4750,7 +4750,7 @@ void MicroProfileStartContextSwitchTrace(){}
 
 
 
-///start embedded file from ../microprofile.html
+///start embedded file from microprofile.html
 #ifdef MICROPROFILE_EMBED_HTML
 const char g_MicroProfileHtml_begin[] =
 "<!DOCTYPE HTML>\n"
@@ -4826,6 +4826,17 @@ const char g_MicroProfileHtml_begin[] =
 "        <li><a href=\"#\">---</a></li>\n"
 "    </ul>\n"
 "</li>\n"
+"<li><a href=\"#\">Width</a>\n"
+"    <ul id=\'WidthMenu\'>\n"
+"        <li><a href=\"#\" onclick=\"MicroProfileSetMinWidth(\'1\');\">1</a></li>\n"
+"        <li><a href=\"#\" onclick=\"MicroProfileSetMinWidth(\'0.5\');\">0.5</a></li>\n"
+"        <li><a href=\"#\" onclick=\"MicroProfileSetMinWidth(\'0.25\');\">0.25</a></li>\n"
+"        <li><a href=\"#\" onclick=\"MicroProfileSetMinWidth(\'0.1\');\">0.1</a></li>\n"
+"        <li><a href=\"#\" onclick=\"MicroProfileSetMinWidth(\'0.05\');\">0.05</a></li>\n"
+"        <li><a href=\"#\" onclick=\"MicroProfileSetMinWidth(\'0.025\');\">0.025</a></li>\n"
+"        <li><a href=\"#\" onclick=\"MicroProfileSetMinWidth(\'0.01\');\">0.01</a></li>\n"
+"    </ul>\n"
+"</li>\n"
 "</ul>\n"
 "\n"
 "</div>\n"
@@ -4893,6 +4904,7 @@ const char g_MicroProfileHtml_end[] =
 "var BoxHeight = FontHeight + 2;\n"
 "var ThreadsActive = new Object();\n"
 "var ThreadsAllActive = 1;\n"
+"var nMinWidth = 0.5;\n"
 "\n"
 "var nModDown = 0;\n"
 "var g_MSG = \'no\';\n"
@@ -5046,8 +5058,27 @@ const char g_MicroProfileHtml_end[] =
 "function MicroProfileSetReferenceTime(TimeString)\n"
 "{\n"
 "	ReferenceTime = parseInt(TimeString);\n"
-"	console.log(\'reference Time is \' + ReferenceTime);\n"
 "	var ReferenceMenu = document.getElementById(\'ReferenceSubMenu\');\n"
+"	var Links = ReferenceMenu.getElementsByTagName(\'a\');\n"
+"	for(var i = 0; i < Links.length; ++i)\n"
+"	{\n"
+"		if(Links[i].innerHTML.match(\'^\' + TimeString))\n"
+"		{\n"
+"			Links[i].style[\'text-decoration\'] = \'underline\';\n"
+"		}\n"
+"		else\n"
+"		{\n"
+"			Links[i].style[\'text-decoration\'] = \'none\';\n"
+"		}\n"
+"	}\n"
+"	WriteCookie();\n"
+"	MicroProfileDraw();\n"
+"}\n"
+"\n"
+"function MicroProfileSetMinWidth(TimeString)\n"
+"{\n"
+"	nMinWidth = parseFloat(TimeString);\n"
+"	var ReferenceMenu = document.getElementById(\'WidthMenu\');\n"
 "	var Links = ReferenceMenu.getElementsByTagName(\'a\');\n"
 "	for(var i = 0; i < Links.length; ++i)\n"
 "	{\n"
@@ -5639,38 +5670,43 @@ const char g_MicroProfileHtml_end[] =
 "							var X = (timestart - fDetailedOffset) * fScaleX;\n"
 "							var Y = fOffsetY + StackPos * BoxHeight;\n"
 "							var W = (timeend-timestart)*fScaleX;\n"
-"							if(index == nHoverToken)\n"
-"							{\n"
-"								context.fillStyle = nHoverColor;\n"
-"								context.fillRect(X, Y, W, BoxHeight-1);\n"
-"							}\n"
-"							else\n"
-"							{\n"
-"								context.fillStyle = TimerInfo[index].color;\n"
-"								context.fillRect(X, Y, W, BoxHeight-1);\n"
-"							}\n"
-"							DebugDrawQuadCount++;\n"
 "\n"
-"							var name = TimerInfo[index].name;\n"
-"							var len = TimerInfo[index].len;\n"
-"							var sublen = Math.floor((W-2)/FontWidth);\n"
-"							if(sublen >= 2)\n"
+"							if(W > nMinWidth && X < nWidth && X+W > 0)\n"
 "							{\n"
-"								if(sublen < len)\n"
-"									name = name.substr(0, sublen);\n"
-"								context.fillStyle = InvertColor(TimerInfo[index].color);\n"
-"								context.fillText(name, X+1, Y+BoxHeight-FontAscent);\n"
-"								DebugDrawTextCount++;\n"
-"							}\n"
-"							if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)\n"
-"							{\n"
-"								fRangeBegin = timestart;\n"
-"								fRangeEnd = timeend;\n"
-"								nHoverTokenNext = index;\n"
-"								nHoverTokenIndexNext = j;\n"
-"								nHoverTokenLogIndexNext = nLog;\n"
-"								nHoverFrame = i;\n"
+"								if(index == nHoverToken)\n"
+"								{\n"
+"									context.fillStyle = nHoverColor;\n"
+"									context.fillRect(X, Y, W, BoxHeight-1);\n"
+"								}\n"
+"								else\n"
+"								{\n"
+"									context.fillStyle = TimerInfo[index].color;\n"
+"									context.fillRect(X, Y, W, BoxHeight-1);\n"
+"								}\n"
+"								DebugDrawQuadCount++;\n"
 "\n"
+"								var XText = X < 0 ? 0 : X;\n"
+"								var WText = W - (XText-X);\n"
+"								var name = TimerInfo[index].name;\n"
+"								var len = TimerInfo[index].len;\n"
+"								var sublen = Math.floor((WText-2)/FontWidth);\n"
+"								if(sublen >= 2)\n"
+"								{\n"
+"									if(sublen < len)\n"
+"										name = name.substr(0, sublen);\n"
+"									context.fillStyle = InvertColor(TimerInfo[index].color);\n"
+"									context.fillText(name, XText+1, Y+BoxHeight-FontAscent);\n"
+"									DebugDrawTextCount++;\n"
+"								}\n"
+"								if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)\n"
+"								{\n"
+"									fRangeBegin = timestart;\n"
+"									fRangeEnd = timeend;\n"
+"									nHoverTokenNext = index;\n"
+"									nHoverTokenIndexNext = j;\n"
+"									nHoverTokenLogIndexNext = nLog;\n"
+"									nHoverFrame = i;\n"
+"								}\n"
 "							}\n"
 "						}\n"
 "					}\n"
@@ -5991,6 +6027,7 @@ const char g_MicroProfileHtml_end[] =
 "	var result = document.cookie.match(/fisk=([^;]+)/);\n"
 "	var Mode = MicroProfileModeDetailed;\n"
 "	var ReferenceTimeString = \'33ms\';\n"
+"	var nMinWidth = 0.1;\n"
 "	if(result && result.length > 0)\n"
 "	{\n"
 "		var Obj = JSON.parse(result[1]);\n"
@@ -6010,9 +6047,14 @@ const char g_MicroProfileHtml_end[] =
 "		{\n"
 "			ThreadsActive = Obj.ThreadsActive;\n"
 "		}\n"
+"		if(Obj.nMinWidth)\n"
+"		{\n"
+"			nMinWidth = Obj.nMinWidth;\n"
+"		}\n"
 "	}\n"
 "	MicroProfileSetMode(Mode);\n"
 "	MicroProfileSetReferenceTime(ReferenceTimeString);\n"
+"	MicroProfileSetMinWidth(\'\' + nMinWidth);\n"
 "\n"
 "}\n"
 "function WriteCookie()\n"
@@ -6022,6 +6064,7 @@ const char g_MicroProfileHtml_end[] =
 "	Obj.ReferenceTime = ReferenceTime + \'ms\';\n"
 "	Obj.ThreadsActive = ThreadsActive;\n"
 "	Obj.ThreadsAllActive = ThreadsAllActive;\n"
+"	Obj.nMinWidth = nMinWidth;\n"
 "	var date = new Date();\n"
 "	date.setFullYear(2099);\n"
 "	var cookie = \'fisk=\' + JSON.stringify(Obj) + \';expires=\' + date;\n"
@@ -6068,4 +6111,4 @@ const size_t g_MicroProfileHtml_end_size = sizeof(g_MicroProfileHtml_end);
 #endif //MICROPROFILE_EMBED_HTML
 
 
-///end embedded file from ../microprofile.html
+///end embedded file from microprofile.html

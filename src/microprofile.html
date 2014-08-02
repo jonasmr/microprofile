@@ -71,6 +71,17 @@ Click to Zoom to selected range<br>
         <li><a href="#">---</a></li>
     </ul>
 </li>
+<li><a href="#">Width</a>
+    <ul id='WidthMenu'>
+        <li><a href="#" onclick="MicroProfileSetMinWidth('1');">1</a></li>
+        <li><a href="#" onclick="MicroProfileSetMinWidth('0.5');">0.5</a></li>
+        <li><a href="#" onclick="MicroProfileSetMinWidth('0.25');">0.25</a></li>
+        <li><a href="#" onclick="MicroProfileSetMinWidth('0.1');">0.1</a></li>
+        <li><a href="#" onclick="MicroProfileSetMinWidth('0.05');">0.05</a></li>
+        <li><a href="#" onclick="MicroProfileSetMinWidth('0.025');">0.025</a></li>
+        <li><a href="#" onclick="MicroProfileSetMinWidth('0.01');">0.01</a></li>
+    </ul>
+</li>
 </ul>
 
 </div>
@@ -134,6 +145,7 @@ var Font = 'Bold ' + FontHeight + 'px Courier New';
 var BoxHeight = FontHeight + 2;
 var ThreadsActive = new Object();
 var ThreadsAllActive = 1;
+var nMinWidth = 0.5;
 
 var nModDown = 0;
 var g_MSG = 'no';
@@ -287,8 +299,27 @@ function MicroProfileSetMode(Mode)
 function MicroProfileSetReferenceTime(TimeString)
 {
 	ReferenceTime = parseInt(TimeString);
-	console.log('reference Time is ' + ReferenceTime);
 	var ReferenceMenu = document.getElementById('ReferenceSubMenu');
+	var Links = ReferenceMenu.getElementsByTagName('a');
+	for(var i = 0; i < Links.length; ++i)
+	{
+		if(Links[i].innerHTML.match('^' + TimeString))
+		{
+			Links[i].style['text-decoration'] = 'underline';
+		}
+		else
+		{
+			Links[i].style['text-decoration'] = 'none';
+		}
+	}
+	WriteCookie();
+	MicroProfileDraw();
+}
+
+function MicroProfileSetMinWidth(TimeString)
+{
+	nMinWidth = parseFloat(TimeString);
+	var ReferenceMenu = document.getElementById('WidthMenu');
 	var Links = ReferenceMenu.getElementsByTagName('a');
 	for(var i = 0; i < Links.length; ++i)
 	{
@@ -880,38 +911,43 @@ function MicroProfileDrawDetailed(Animation)
 							var X = (timestart - fDetailedOffset) * fScaleX;
 							var Y = fOffsetY + StackPos * BoxHeight;
 							var W = (timeend-timestart)*fScaleX;
-							if(index == nHoverToken)
-							{
-								context.fillStyle = nHoverColor;
-								context.fillRect(X, Y, W, BoxHeight-1);
-							}
-							else
-							{
-								context.fillStyle = TimerInfo[index].color;
-								context.fillRect(X, Y, W, BoxHeight-1);
-							}
-							DebugDrawQuadCount++;
 
-							var name = TimerInfo[index].name;
-							var len = TimerInfo[index].len;
-							var sublen = Math.floor((W-2)/FontWidth);
-							if(sublen >= 2)
+							if(W > nMinWidth && X < nWidth && X+W > 0)
 							{
-								if(sublen < len)
-									name = name.substr(0, sublen);
-								context.fillStyle = InvertColor(TimerInfo[index].color);
-								context.fillText(name, X+1, Y+BoxHeight-FontAscent);
-								DebugDrawTextCount++;
-							}
-							if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
-							{
-								fRangeBegin = timestart;
-								fRangeEnd = timeend;
-								nHoverTokenNext = index;
-								nHoverTokenIndexNext = j;
-								nHoverTokenLogIndexNext = nLog;
-								nHoverFrame = i;
+								if(index == nHoverToken)
+								{
+									context.fillStyle = nHoverColor;
+									context.fillRect(X, Y, W, BoxHeight-1);
+								}
+								else
+								{
+									context.fillStyle = TimerInfo[index].color;
+									context.fillRect(X, Y, W, BoxHeight-1);
+								}
+								DebugDrawQuadCount++;
 
+								var XText = X < 0 ? 0 : X;
+								var WText = W - (XText-X);
+								var name = TimerInfo[index].name;
+								var len = TimerInfo[index].len;
+								var sublen = Math.floor((WText-2)/FontWidth);
+								if(sublen >= 2)
+								{
+									if(sublen < len)
+										name = name.substr(0, sublen);
+									context.fillStyle = InvertColor(TimerInfo[index].color);
+									context.fillText(name, XText+1, Y+BoxHeight-FontAscent);
+									DebugDrawTextCount++;
+								}
+								if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
+								{
+									fRangeBegin = timestart;
+									fRangeEnd = timeend;
+									nHoverTokenNext = index;
+									nHoverTokenIndexNext = j;
+									nHoverTokenLogIndexNext = nLog;
+									nHoverFrame = i;
+								}
 							}
 						}
 					}
@@ -1232,6 +1268,7 @@ function ReadCookie()
 	var result = document.cookie.match(/fisk=([^;]+)/);
 	var Mode = MicroProfileModeDetailed;
 	var ReferenceTimeString = '33ms';
+	var nMinWidth = 0.1;
 	if(result && result.length > 0)
 	{
 		var Obj = JSON.parse(result[1]);
@@ -1251,9 +1288,14 @@ function ReadCookie()
 		{
 			ThreadsActive = Obj.ThreadsActive;
 		}
+		if(Obj.nMinWidth)
+		{
+			nMinWidth = Obj.nMinWidth;
+		}
 	}
 	MicroProfileSetMode(Mode);
 	MicroProfileSetReferenceTime(ReferenceTimeString);
+	MicroProfileSetMinWidth('' + nMinWidth);
 
 }
 function WriteCookie()
@@ -1263,6 +1305,7 @@ function WriteCookie()
 	Obj.ReferenceTime = ReferenceTime + 'ms';
 	Obj.ThreadsActive = ThreadsActive;
 	Obj.ThreadsAllActive = ThreadsAllActive;
+	Obj.nMinWidth = nMinWidth;
 	var date = new Date();
 	date.setFullYear(2099);
 	var cookie = 'fisk=' + JSON.stringify(Obj) + ';expires=' + date;

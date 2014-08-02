@@ -4398,7 +4398,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	}
 
 	CB(Handle, g_MicroProfileHtml_end_size-1, &g_MicroProfileHtml_end[0]);
-
 }
 
 void MicroProfileWriteFile(void* Handle, size_t nSize, const char* pData)
@@ -4537,8 +4536,9 @@ bool MicroProfileWebServerUpdate()
 				uint64_t nDataEnd = g_nMicroProfileDataSent;
 				uint64_t nTickEnd = MP_TICK();
 				float fMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu()) * (nTickEnd - nTickStart);
+				MicroProfilePrintf(MicroProfileWriteSocket, &Connection, "\n<!-- Sent %dkb in %6.2fms-->\n\n",((nDataEnd-nDataStart)>>10) + 1, fMs);
 #if MICROPROFILE_DEBUG
-				printf("Sent %lldkb, in %6.3fms\n", ((nDataEnd-nDataStart)>>10) + 1, fMs);
+				printf("\nSent %lldkb, in %6.3fms\n\n", ((nDataEnd-nDataStart)>>10) + 1, fMs);
 #endif
 				bServed = true;
 			}

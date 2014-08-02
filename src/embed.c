@@ -27,7 +27,11 @@ void DumpFile(FILE* pOut, const char* pTest)
 		switch(c)
 		{
 			case '\n':
+			#ifdef _WIN32
 				fprintf(pOut, "\\n\"\n\""); 
+			#else
+				fprintf(pOut, "\\n\"\r\n\""); 
+			#endif
 				break;
 			case '\\':
 				fprintf(pOut, "\\"); 
