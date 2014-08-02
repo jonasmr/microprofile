@@ -520,6 +520,11 @@ typedef int MpSocket;
 #include <algorithm>
 
 
+#ifndef MICROPROFILE_DEBUG
+#define MICROPROFILE_DEBUG 0
+#endif
+
+
 #define S g_MicroProfile
 #define MICROPROFILE_MAX_TIMERS 1024
 #define MICROPROFILE_MAX_GROUPS 48 //dont bump! no. of bits used it bitmask
@@ -529,7 +534,6 @@ typedef int MpSocket;
 #define MICROPROFILE_MAX_CONTEXT_SWITCH_THREADS 256
 #define MICROPROFILE_STACK_MAX 32
 #define MICROPROFILE_MAX_PRESETS 5
-#define MICROPROFILE_DEBUG 0
 #define MICROPROFILE_TOOLTIP_MAX_STRINGS (32 + MICROPROFILE_MAX_GROUPS*2)
 #define MICROPROFILE_TOOLTIP_STRING_BUFFER_SIZE (4*1024)
 #define MICROPROFILE_TOOLTIP_MAX_LOCKED 3
@@ -4964,6 +4968,7 @@ const char g_MicroProfileHtml_end[] =
 "		li.innerText = name;\n"
 "		var asText = li.innerHTML;\n"
 "		var html = \'<a href=\"#\" onclick=\"MicroProfileToggleThread(\\'\' + name + \'\\');\">\' + asText + \'</a>\';\n"
+"		console.log(html);\n"
 "		li.innerHTML = html;\n"
 "		ulThreadMenu.appendChild(li);\n"
 "	}\n"
@@ -4982,7 +4987,7 @@ const char g_MicroProfileHtml_end[] =
 "	for(var i = 0; i < as.length; ++i)\n"
 "	{\n"
 "		var elem = as[i];\n"
-"		var inner = elem.innerHTML;\n"
+"		var inner = elem.innerText;\n"
 "		var bActive = false;\n"
 "		if(i < 2)\n"
 "		{\n"
