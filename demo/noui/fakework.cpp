@@ -79,7 +79,7 @@ void WorkerThreadLong(int threadId)
 void WorkerThread(int threadId)
 {
 	char name[100];
-	snprintf(name, 99, "Worker%d", threadId);
+	snprintf(name, 99, "<Worker%d>", threadId);
 	MicroProfileOnThreadCreate(&name[0]);
 	uint32_t c0 = 0xff3399ff;
 	uint32_t c1 = 0xffff99ff;

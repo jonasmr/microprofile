@@ -190,7 +190,9 @@ function MicroProfileInitThreadMenu()
 		{
 			MaxLen = name.length;
 		}
-		var html = '<a href="#" onclick="MicroProfileToggleThread(\'' + name + '\');">' + name + '</a>';
+		li.innerText = name;
+		var asText = li.innerHTML;
+		var html = '<a href="#" onclick="MicroProfileToggleThread(\'' + name + '\');">' + asText + '</a>';
 		li.innerHTML = html;
 		ulThreadMenu.appendChild(li);
 	}

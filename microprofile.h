@@ -4422,6 +4422,24 @@ void MicroProfileWriteSocket(void* Handle, size_t nSize, const char* pData)
 }
 
 
+void MicroProfileSetNonBlocking(MpSocket Socket, int Blocking)
+{
+#ifdef _WIN32
+	u_long nonBlocking = Blocking ? 1 : 0; 
+	ioctlsocket(Socket, FIONBIO, &nonBlocking);
+#else
+	int Options = fcntl(Socket, F_GETFL);
+	if(Blocking)
+	{
+		fcntl(Socket, F_SETFL, Options|O_NONBLOCK);
+	}
+	else
+	{
+		fcntl(Socket, F_SETFL, Options&(~O_NONBLOCK));
+	}
+#endif
+}
+
 void MicroProfileWebServerStart()
 {
 #ifdef _WIN32
@@ -4431,14 +4449,12 @@ void MicroProfileWebServerStart()
 		S.ListenerSocket = -1;
 		return;
 	}
+#endif
+
 	S.ListenerSocket = socket(PF_INET, SOCK_STREAM, 6);
 	MP_ASSERT(!MP_INVALID_SOCKET(S.ListenerSocket));
+	MicroProfileSetNonBlocking(S.ListenerSocket, 1);
 
-	u_long nonBlocking = 1; 
-	ioctlsocket(S.ListenerSocket, FIONBIO, &nonBlocking);
-#else
-	fcntl(S.ListenerSocket, F_SETFL, O_NONBLOCK);
-#endif
 	struct sockaddr_in Addr; 
 	Addr.sin_family = AF_INET; 
 	Addr.sin_addr.s_addr = INADDR_ANY; 
@@ -4472,6 +4488,7 @@ bool MicroProfileWebServerUpdate()
 	{
 		std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 		char Req[8192];
+		MicroProfileSetNonBlocking(Connection, 0);
 		int nReceived = recv(Connection, Req, 8192, 0);
 		if(nReceived > 0)
 		{
@@ -4932,7 +4949,9 @@ const char g_MicroProfileHtml_end[] =
 "		{\n"
 "			MaxLen = name.length;\n"
 "		}\n"
-"		var html = \'<a href=\"#\" onclick=\"MicroProfileToggleThread(\\'\' + name + \'\\');\">\' + name + \'</a>\';\n"
+"		li.innerText = name;\n"
+"		var asText = li.innerHTML;\n"
+"		var html = \'<a href=\"#\" onclick=\"MicroProfileToggleThread(\\'\' + name + \'\\');\">\' + asText + \'</a>\';\n"
 "		li.innerHTML = html;\n"
 "		ulThreadMenu.appendChild(li);\n"
 "	}\n"
