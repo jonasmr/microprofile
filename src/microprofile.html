@@ -56,41 +56,41 @@ Click to Zoom to selected range<br>
 </div>
 
 </li>
-<li><a href="#" onclick="MicroProfileSetMode('timers');" id="buttonTimers">Timers</a> 
-<li><a href="#" onclick="MicroProfileSetMode('detailed');" id="buttonDetailed">Detailed</a> 
+<li><a href="#" onclick="SetMode('timers');" id="buttonTimers">Timers</a> 
+<li><a href="#" onclick="SetMode('detailed');" id="buttonDetailed">Detailed</a> 
 </li>
 <li><a href="#">Reference</a>
     <ul id='ReferenceSubMenu'>
-        <li><a href="#" onclick="MicroProfileSetReferenceTime('5ms');">5ms</a></li>
-        <li><a href="#" onclick="MicroProfileSetReferenceTime('10ms');">10ms</a></li>
-        <li><a href="#" onclick="MicroProfileSetReferenceTime('15ms');">15ms</a></li>
-        <li><a href="#" onclick="MicroProfileSetReferenceTime('20ms');">20ms</a></li>
-        <li><a href="#" onclick="MicroProfileSetReferenceTime('33ms');">33ms</a></li>
-        <li><a href="#" onclick="MicroProfileSetReferenceTime('50ms');">50ms</a></li>
-        <li><a href="#" onclick="MicroProfileSetReferenceTime('100ms');">100ms</a></li>
+        <li><a href="#" onclick="SetReferenceTime('5ms');">5ms</a></li>
+        <li><a href="#" onclick="SetReferenceTime('10ms');">10ms</a></li>
+        <li><a href="#" onclick="SetReferenceTime('15ms');">15ms</a></li>
+        <li><a href="#" onclick="SetReferenceTime('20ms');">20ms</a></li>
+        <li><a href="#" onclick="SetReferenceTime('33ms');">33ms</a></li>
+        <li><a href="#" onclick="SetReferenceTime('50ms');">50ms</a></li>
+        <li><a href="#" onclick="SetReferenceTime('100ms');">100ms</a></li>
     </ul>
 </li>
 <li id="ilThreads"><a href="#">Threads</a>
     <ul id="ThreadSubMenu">
-        <li><a href="#" onclick="MicroProfileToggleThread();">All</a></li>
+        <li><a href="#" onclick="ToggleThread();">All</a></li>
         <li><a href="#">---</a></li>
     </ul>
 </li>
 <li id="ilGroups"><a href="#">Groups</a>
     <ul id="GroupSubMenu">
-        <li><a href="#" onclick="MicroProfileToggleGroup();">All</a></li>
+        <li><a href="#" onclick="ToggleGroup();">All</a></li>
         <li><a href="#">---</a></li>
     </ul>
 </li>
 <li id="ilWidth"><a href="#">Width</a>
     <ul id='WidthMenu'>
-        <li><a href="#" onclick="MicroProfileSetMinWidth('1');">1</a></li>
-        <li><a href="#" onclick="MicroProfileSetMinWidth('0.5');">0.5</a></li>
-        <li><a href="#" onclick="MicroProfileSetMinWidth('0.25');">0.25</a></li>
-        <li><a href="#" onclick="MicroProfileSetMinWidth('0.1');">0.1</a></li>
-        <li><a href="#" onclick="MicroProfileSetMinWidth('0.05');">0.05</a></li>
-        <li><a href="#" onclick="MicroProfileSetMinWidth('0.025');">0.025</a></li>
-        <li><a href="#" onclick="MicroProfileSetMinWidth('0.01');">0.01</a></li>
+        <li><a href="#" onclick="SetMinWidth('1');">1</a></li>
+        <li><a href="#" onclick="SetMinWidth('0.5');">0.5</a></li>
+        <li><a href="#" onclick="SetMinWidth('0.25');">0.25</a></li>
+        <li><a href="#" onclick="SetMinWidth('0.1');">0.1</a></li>
+        <li><a href="#" onclick="SetMinWidth('0.05');">0.05</a></li>
+        <li><a href="#" onclick="SetMinWidth('0.025');">0.025</a></li>
+        <li><a href="#" onclick="SetMinWidth('0.01');">0.01</a></li>
     </ul>
 </li>
 </ul>
@@ -163,7 +163,7 @@ var nMinWidth = 0.5;
 var nModDown = 0;
 var g_MSG = 'no';
 var nDrawCount = 0;
-var nMicroProfileBackColors = ['#474747', '#313131' ];
+var nBackColors = ['#474747', '#313131' ];
 var nBackColorOffset = '#606060';
 var FRAME_HISTORY_COLOR_CPU = '#ff7f27';
 var FRAME_HISTORY_COLOR_GPU = '#ffffff';
@@ -180,15 +180,15 @@ var fFrameScale = 33.33;
 var fRangeBegin = 0;
 var fRangeEnd = -1;
 
-var MicroProfileModeDetailed = 0;
-var MicroProfileModeTimers = 1;
-var MicroProfileMode = MicroProfileModeDetailed;
+var ModeDetailed = 0;
+var ModeTimers = 1;
+var Mode = ModeDetailed;
 
 var DebugDrawQuadCount = 0;
 var DebugDrawTextCount = 0;
 
 
-function MicroProfileInitFrameInfo()
+function InitFrameInfo()
 {
 	var DetailedTotal = 0;
 	for(var i = 0; i < Frames.length; i++)
@@ -208,7 +208,7 @@ function MicroProfileInitFrameInfo()
 	txt = txt + 'Time:' + DetailedTotal.toFixed(2) +'ms<br>';
 	div.innerHTML = txt;
 }
-function MicroProfileInitGroups()
+function InitGroups()
 {
 	for(groupid in GroupInfo)
 	{
@@ -224,7 +224,7 @@ function MicroProfileInitGroups()
 	}
 }
 
-function MicroProfileInitThreadMenu()
+function InitThreadMenu()
 {
 	var ulThreadMenu = document.getElementById('ThreadSubMenu');
 	var MaxLen = 7;
@@ -238,7 +238,7 @@ function MicroProfileInitThreadMenu()
 		}
 		li.innerText = name;
 		var asText = li.innerHTML;
-		var html = '<a href="#" onclick="MicroProfileToggleThread(\'' + name + '\');">' + asText + '</a>';
+		var html = '<a href="#" onclick="ToggleThread(\'' + name + '\');">' + asText + '</a>';
 		li.innerHTML = html;
 		ulThreadMenu.appendChild(li);
 	}
@@ -250,7 +250,7 @@ function MicroProfileInitThreadMenu()
 	}
 }
 
-function MicroProfileUpdateThreadMenu()
+function UpdateThreadMenu()
 {
 	var ulThreadMenu = document.getElementById('ThreadSubMenu');
 	var as = ulThreadMenu.getElementsByTagName('a');
@@ -281,7 +281,7 @@ function MicroProfileUpdateThreadMenu()
 	}
 }
 
-function MicroProfileToggleThread(ThreadName)
+function ToggleThread(ThreadName)
 {
 	if(ThreadName)
 	{
@@ -305,13 +305,13 @@ function MicroProfileToggleThread(ThreadName)
 			ThreadsAllActive = 1;
 		}
 	}
-	MicroProfileUpdateThreadMenu();
+	UpdateThreadMenu();
 	WriteCookie();
-	MicroProfileDraw();
+	Draw();
 }
 
 
-function MicroProfileInitGroupMenu()
+function InitGroupMenu()
 {
 	var ulGroupMenu = document.getElementById('GroupSubMenu');
 	var MaxLen = 7;
@@ -325,7 +325,7 @@ function MicroProfileInitGroupMenu()
 		}
 		li.innerText = name;
 		var asText = li.innerHTML;
-		var html = '<a href="#" onclick="MicroProfileToggleGroup(\'' + name + '\');">' + asText + '</a>';
+		var html = '<a href="#" onclick="ToggleGroup(\'' + name + '\');">' + asText + '</a>';
 		li.innerHTML = html;
 		ulGroupMenu.appendChild(li);
 	}
@@ -335,10 +335,10 @@ function MicroProfileInitGroupMenu()
 	{
 		Lis[i].style['width'] = LenStr;
 	}
-	MicroProfileUpdateGroupMenu();
+	UpdateGroupMenu();
 }
 
-function MicroProfileUpdateGroupMenu()
+function UpdateGroupMenu()
 {
 	var ulThreadMenu = document.getElementById('GroupSubMenu');
 	var as = ulThreadMenu.getElementsByTagName('a');
@@ -370,7 +370,7 @@ function MicroProfileUpdateGroupMenu()
 }
 
 
-function MicroProfileToggleGroup(GroupName)
+function ToggleGroup(GroupName)
 {
 	if(GroupName)
 	{
@@ -394,43 +394,45 @@ function MicroProfileToggleGroup(GroupName)
 			GroupsAllActive = 1;
 		}
 	}
-	MicroProfileUpdateGroupMenu();
+	UpdateGroupMenu();
 	WriteCookie();
-	MicroProfileDraw();
+	Draw();
 }
 
 
 
-function MicroProfileSetMode(Mode)
+function SetMode(NewMode)
 {
+	console.log('setmodemodemode ' + NewMode);
+	console.log('!!!mode is ' + NewMode);
 	var buttonTimers = document.getElementById('buttonTimers');
 	var buttonDetailed = document.getElementById('buttonDetailed');
 	var ilWidth = document.getElementById('ilWidth');
 	var ilThreads = document.getElementById('ilThreads');
 	var ilGroups = document.getElementById('ilGroups');
-	if(Mode == 'timers' || Mode == MicroProfileModeTimers)
+	if(NewMode == 'timers' || NewMode == ModeTimers)
 	{
 		buttonTimers.style['text-decoration'] = 'underline';
 		buttonDetailed.style['text-decoration'] = 'none';
 		ilWidth.style['display'] = 'none';
 		ilThreads.style['display'] = 'none';
 		ilGroups.style['display'] = 'block';
-		MicroProfileMode = MicroProfileModeTimers;
+		Mode = ModeTimers;
 	}
-	else if(Mode == 'detailed' || Mode == MicroProfileModeDetailed)
+	else if(NewMode == 'detailed' || NewMode == ModeDetailed)
 	{
 		buttonTimers.style['text-decoration'] = 'none';
 		buttonDetailed.style['text-decoration'] = 'underline';
 		ilWidth.style['display'] = 'block';
 		ilThreads.style['display'] = 'block';
 		ilGroups.style['display'] = 'none';
-		MicroProfileMode = MicroProfileModeDetailed;
+		Mode = ModeDetailed;
 	}
 	WriteCookie();
-	MicroProfileDraw();
+	Draw();
 }
 
-function MicroProfileSetReferenceTime(TimeString)
+function SetReferenceTime(TimeString)
 {
 	ReferenceTime = parseInt(TimeString);
 	var ReferenceMenu = document.getElementById('ReferenceSubMenu');
@@ -447,10 +449,10 @@ function MicroProfileSetReferenceTime(TimeString)
 		}
 	}
 	WriteCookie();
-	MicroProfileDraw();
+	Draw();
 }
 
-function MicroProfileSetMinWidth(TimeString)
+function SetMinWidth(TimeString)
 {
 	nMinWidth = parseFloat(TimeString);
 	var ReferenceMenu = document.getElementById('WidthMenu');
@@ -467,10 +469,10 @@ function MicroProfileSetMinWidth(TimeString)
 		}
 	}
 	WriteCookie();
-	MicroProfileDraw();
+	Draw();
 }
 
-function MicroProfileGatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)
+function GatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)
 {
 	var HoverInfo = new Object();
 	var StackPos = 1;
@@ -517,7 +519,7 @@ function MicroProfileGatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFram
 	}
 
 }
-function MicroProfileCalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast)
+function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast)
 {
 	//var Result = new Object();
 	if(!nFrameFirst || nFrameFirst < 0)
@@ -615,7 +617,7 @@ function MicroProfileCalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast
 
 }
 
-function MicroProfileDrawDetailedFrameHistory()
+function DrawDetailedFrameHistory()
 {
 	var x = HistoryViewMouseX;
 
@@ -656,13 +658,13 @@ function MicroProfileDrawDetailedFrameHistory()
 		StringArray.push("Time");
 		StringArray.push("" + (Frames[FrameIndex].frameend - Frames[FrameIndex].framestart).toFixed(3));
 
-		MicroProfileDrawToolTip(StringArray, CanvasHistory, HistoryViewMouseX, HistoryViewMouseY+20);
+		DrawToolTip(StringArray, CanvasHistory, HistoryViewMouseX, HistoryViewMouseY+20);
 
 	}
 
 }
 
-function MicroProfileDrawDetailedBackground()
+function DrawDetailedBackground()
 {
 	var context = CanvasDetailedView.getContext('2d');
 	var fMs = fDetailedRange;
@@ -682,7 +684,7 @@ function MicroProfileDrawDetailedBackground()
 		var fNext = f + fStep;
 		var X = (f - fDetailedOffset) * fScaleX;
 		var W = (fNext-f)*fScaleX;
-		context.fillStyle = nMicroProfileBackColors[nColorIndex];
+		context.fillStyle = nBackColors[nColorIndex];
 		context.fillRect(X, 0, W+2, fHeight);
 		nColorIndex = 1 - nColorIndex;
 		f = fNext;
@@ -709,7 +711,7 @@ function MicroProfileDrawDetailedBackground()
 	context.globalAlpha = 1;
 
 }
-function MicroProfileDrawToolTip(StringArray, Canvas, x, y)
+function DrawToolTip(StringArray, Canvas, x, y)
 {
 	var context = Canvas.getContext('2d');
 	context.font = Font;
@@ -756,7 +758,7 @@ function MicroProfileDrawToolTip(StringArray, Canvas, x, y)
 		YPos += BoxHeight;
 	}
 }
-function MicroProfileDrawHoverToolTip()
+function DrawHoverToolTip()
 {
 	if(nHoverToken != -1)
 	{
@@ -800,7 +802,7 @@ function MicroProfileDrawHoverToolTip()
 			StringArray.push("");
 
 			var FrameTime = new Object();
-			MicroProfileCalculateTimers(FrameTime, nHoverToken, nHoverFrame, nHoverFrame+1);
+			CalculateTimers(FrameTime, nHoverToken, nHoverFrame, nHoverFrame+1);
 			StringArray.push("Total");
 			StringArray.push("" + FrameTime.Sum);
 			StringArray.push("Count");
@@ -811,7 +813,7 @@ function MicroProfileDrawHoverToolTip()
 			StringArray.push("" + FrameTime.Max);
 		}
 
-		var HoverInfo = MicroProfileGatherHoverMetaCounters(nHoverToken, nHoverTokenIndex, nHoverTokenLogIndex, nHoverFrame);
+		var HoverInfo = GatherHoverMetaCounters(nHoverToken, nHoverTokenIndex, nHoverTokenLogIndex, nHoverFrame);
 		var Header = 0;
 		for(index in HoverInfo)
 		{
@@ -827,14 +829,15 @@ function MicroProfileDrawHoverToolTip()
 			StringArray.push(""+index);
 			StringArray.push(""+HoverInfo[index]);
 		}
-		MicroProfileDrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20);
+		DrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20);
 
 	}
 }
 
 
-function MicroProfileDrawBarView()
+function DrawBarView()
 {
+	console.log('bar view view');
 	nHoverToken = -1;
 	nHoverFrame = -1;
 	var context = CanvasDetailedView.getContext('2d');
@@ -876,7 +879,7 @@ function MicroProfileDrawBarView()
 			//write header
 			nColorIndex = 1-nColorIndex;
 			bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
-			context.fillStyle = bMouseIn ? nBackColorOffset : nMicroProfileBackColors[nColorIndex];
+			context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
 			context.fillRect(0, Y, Width, Height);
 			context.fillStyle = 'white';
 			context.fillText(Group.name, 1, Y+Height-FontAscent);
@@ -901,7 +904,7 @@ function MicroProfileDrawBarView()
 				{
 					nHoverToken = timerid;
 				}
-				context.fillStyle = bMouseIn ? nBackColorOffset : nMicroProfileBackColors[nColorIndex];
+				context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
 				context.fillRect(X, Y, Width, Height);
 
 				var Timer = TimerInfo[timerid];
@@ -978,7 +981,7 @@ function MicroProfileDrawBarView()
 
 }
 
-function MicroProfileDrawDetailed(Animation)
+function DrawDetailed(Animation)
 {
 	if(AnimationActive != Animation)
 	{
@@ -994,7 +997,7 @@ function MicroProfileDrawDetailed(Animation)
 	var context = CanvasDetailedView.getContext('2d');
 	context.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
 
-	MicroProfileDrawDetailedBackground();
+	DrawDetailedBackground();
 
 	var colors = [ '#ff0000', '#ff00ff', '#ffff00'];
 
@@ -1164,15 +1167,16 @@ function MicroProfileDrawDetailed(Animation)
 	var end = new Date();
 	var time = end - start;
 	var timeTaken = 'TIME ' + time + 'ms ';
-	context.fillStyle = 'white';
-	context.font = 'italic 12pt Calibri';
-	context.fillText(timeTaken+" " + nDrawCount + "..." + g_MSG + " Q:" + DebugDrawQuadCount + " T:" + DebugDrawTextCount, 20, 20);
-	g_MSG = '';
+	if(false)
+	{
+		context.fillStyle = 'white';
+		context.font = 'italic 12pt Calibri';
+		context.fillText(timeTaken+" " + nDrawCount + "..." + g_MSG + " Q:" + DebugDrawQuadCount + " T:" + DebugDrawTextCount, 20, 20);
+		g_MSG = '';
+	}
 }
-function MicroProfileMoveGraph(X, Y)
-{
-}
-function MicroProfileZoomTo(fZoomBegin, fZoomEnd)
+
+function ZoomTo(fZoomBegin, fZoomEnd)
 {
 	if(fZoomBegin < fZoomEnd)
 	{
@@ -1193,7 +1197,7 @@ function MicroProfileZoomTo(fZoomBegin, fZoomEnd)
 			fPrc = Math.pow(fPrc, 0.3);
 			fDetailedOffset = fDetailedOffsetOriginal + (fDetailedOffsetTarget - fDetailedOffsetOriginal) * fPrc;
 			fDetailedRange = fDetailedRangeOriginal + (fDetailedRangeTarget - fDetailedRangeOriginal) * fPrc;
-			MicroProfileDrawDetailed(true);
+			DrawDetailed(true);
 			if(fPrc >= 1.0)
 			{
 				AnimationActive = false;
@@ -1208,34 +1212,36 @@ function MicroProfileZoomTo(fZoomBegin, fZoomEnd)
 		requestAnimationFrame(ZoomFunc);
 	}
 }
-function MicroProfileDraw()
+function Draw()
 {
-	if(MicroProfileMode == MicroProfileModeTimers)
+
+		console.log('drawing ' + Mode);
+	if(Mode == ModeTimers)
 	{
-		MicroProfileDrawBarView();
+		DrawBarView();
 	}
-	else if(MicroProfileMode == MicroProfileModeDetailed)
+	else if(Mode == ModeDetailed)
 	{
-		MicroProfileDrawDetailed(false);
-		MicroProfileDrawHoverToolTip();
+		DrawDetailed(false);
+		DrawHoverToolTip();
 	}
-	MicroProfileDrawDetailedFrameHistory();
+	DrawDetailedFrameHistory();
 }
-function MicroProfileAutoRedraw(Timestamp)
+function AutoRedraw(Timestamp)
 {
-	if(MicroProfileMode == MicroProfileModeDetailed)
+	if(Mode == ModeDetailed)
 	{
 		if(nHoverToken != -1 && !MouseZoom && !MouseDrag)
 		{
-			MicroProfileDrawDetailed(false);
-			MicroProfileDrawHoverToolTip();
+			DrawDetailed(false);
+			DrawHoverToolTip();
 		}
 	}
-	requestAnimationFrame(MicroProfileAutoRedraw);
+	requestAnimationFrame(AutoRedraw);
 }
 
 
-function MicroProfileZoomGraph(nZoom)
+function ZoomGraph(nZoom)
 {
 	var fOldRange = fDetailedRange;
 	if(nZoom>0)
@@ -1260,7 +1266,7 @@ function MicroProfileZoomGraph(nZoom)
 
 }
 
-function MicroProfileMeasureFont()
+function MeasureFont()
 {
 	var context = CanvasDetailedView.getContext('2d');
 	context.font = Font;
@@ -1293,7 +1299,7 @@ function ResizeCanvas()
 		CanvasDetailedView.height = nHeight;
 		CanvasHistory.width = window.innerWidth;
 	}
-	MicroProfileDraw();
+	Draw();
 }
 
 function MouseMove(evt)
@@ -1307,7 +1313,7 @@ function MouseMove(evt)
 		var rect = CanvasDetailedView.getBoundingClientRect();
 		var x = evt.clientX - rect.left;
 		var y = evt.clientY - rect.top;
-		if(MicroProfileMode == MicroProfileModeDetailed)
+		if(Mode == ModeDetailed)
 		{
 			if(MouseDrag)
 			{
@@ -1327,11 +1333,11 @@ function MouseMove(evt)
 			{
 				if(y != DetailedViewMouseY)
 				{
-					MicroProfileZoomGraph(y - DetailedViewMouseY);
+					ZoomGraph(y - DetailedViewMouseY);
 				}
 			}
 		}
-		else if(MicroProfileMode == MicroProfileModeTimers)
+		else if(Mode == ModeTimers)
 		{
 			if(MouseDrag)
 			{
@@ -1353,7 +1359,7 @@ function MouseMove(evt)
 		HistoryViewMouseX = evt.clientX - Rect.left;
 		HistoryViewMouseY = evt.clientY - Rect.top;
 	}
-	MicroProfileDraw();
+	Draw();
 }
 function MouseButton(bPressed, evt)
 {
@@ -1363,7 +1369,7 @@ function MouseButton(bPressed, evt)
 		{
 			if(evt.button == 0)
 			{
-				MicroProfileZoomTo(fRangeBegin, fRangeEnd);
+				ZoomTo(fRangeBegin, fRangeEnd);
 			}
 		}
 	}
@@ -1384,7 +1390,7 @@ function MouseButton(bPressed, evt)
 			MouseButtonState[evt.button]=1;
 			if(evt.button == 0)
 			{
-				MicroProfileZoomTo(fRangeBegin, fRangeEnd);
+				ZoomTo(fRangeBegin, fRangeEnd);
 			}
 		}
 	}
@@ -1426,7 +1432,7 @@ function KeyDown(evt)
 function ReadCookie()
 {
 	var result = document.cookie.match(/fisk=([^;]+)/);
-	var Mode = MicroProfileModeDetailed;
+	var NewMode = ModeDetailed;
 	var ReferenceTimeString = '33ms';
 	var nMinWidth = 0.1;
 	if(result && result.length > 0)
@@ -1434,7 +1440,7 @@ function ReadCookie()
 		var Obj = JSON.parse(result[1]);
 		if(Obj.Mode)
 		{
-			Mode = Obj.Mode;
+			NewMode = Obj.Mode;
 		}
 		if(Obj.ReferenceTime)
 		{
@@ -1469,15 +1475,15 @@ function ReadCookie()
 			GroupsActive = Obj.GroupsActive;
 		}
 	}
-	MicroProfileSetMode(Mode);
-	MicroProfileSetReferenceTime(ReferenceTimeString);
-	MicroProfileSetMinWidth('' + nMinWidth);
+	SetMode(NewMode);
+	SetReferenceTime(ReferenceTimeString);
+	SetMinWidth('' + nMinWidth);
 
 }
 function WriteCookie()
 {
 	var Obj = new Object();
-	Obj.Mode = MicroProfileMode;
+	Obj.Mode = Mode;
 	Obj.ReferenceTime = ReferenceTime + 'ms';
 	Obj.ThreadsActive = ThreadsActive;
 	Obj.ThreadsAllActive = ThreadsAllActive;
@@ -1506,24 +1512,23 @@ window.addEventListener('resize', ResizeCanvas, false);
 var start = new Date();
 for(var i = 0; i < TimerInfo.length; i++)
 {
-	var v = MicroProfileCalculateTimers(TimerInfo[i], i);
+	var v = CalculateTimers(TimerInfo[i], i);
 
 }
 var end = new Date();
 var time = end - start;
 console.log('setup :: ' + time + 'ms ');
 
-MicroProfileInitGroups();
+InitGroups();
 ReadCookie();
-MicroProfileMeasureFont()
-MicroProfileInitThreadMenu();
-MicroProfileInitGroupMenu();
-MicroProfileInitFrameInfo();
-MicroProfileUpdateThreadMenu();
-
+MeasureFont()
+InitThreadMenu();
+InitGroupMenu();
+InitFrameInfo();
+UpdateThreadMenu();
 ResizeCanvas();
-MicroProfileDraw();
-MicroProfileAutoRedraw();
+Draw();
+AutoRedraw();
 
 </script>
 </body>
