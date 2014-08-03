@@ -713,6 +713,8 @@ struct
 	uint32_t nAggregateFlip;
 	uint32_t nAggregateFlipCount;
 	uint32_t nAggregateFrames;
+
+	uint64_t nAggregateFlipTick;
 	
 	uint32_t nDisplay;
 	uint32_t nBars;
@@ -1022,6 +1024,7 @@ void MicroProfileInit()
 		memset(&S, 0, sizeof(S));
 		S.nGroupCount = 0;
 		S.nBarWidth = 100;
+		S.nAggregateFlipTick = MP_TICK();
 		S.nBarHeight = MICROPROFILE_TEXT_HEIGHT;
 		S.nActiveGroup = 0;
 		S.nActiveBars = 0;
@@ -1666,6 +1669,8 @@ void MicroProfileFlip()
 			S.nAggregateFlipCount = 0;
 			S.nFlipAggregate = 0;
 			S.nFlipMax = 0;
+
+			S.nAggregateFlipTick = MP_TICK();
 		}
 	}
 
@@ -4222,6 +4227,13 @@ void MicroProfilePrintf(MicroProfileWriteCallback CB, void* Handle, const char* 
 void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFrames)
 {
 	CB(Handle, g_MicroProfileHtml_begin_size-1, &g_MicroProfileHtml_begin[0]);
+
+	//dump info
+	uint64_t nTicks = MP_TICK();
+	float fAggregateMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu()) * (nTicks - S.nAggregateFlipTick);
+	MicroProfilePrintf(CB, Handle, "var AggregateInfo = {'Frames':%d, 'Time':%f};\n", S.nAggregateFrames, fAggregateMs);
+
+
 	//groups
 	MicroProfilePrintf(CB, Handle, "var GroupInfo = Array(%d);\n\n",S.nGroupCount);
 	for(uint32_t i = 0; i < S.nGroupCount; ++i)
@@ -4290,9 +4302,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 
 
 
-
-
-
 	uint32_t nNumFrames = (MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY - 1);
 	if(S.nFrameCurrentIndex < nNumFrames)
 		nNumFrames = S.nFrameCurrentIndex;
@@ -4300,6 +4309,9 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	{
 		nNumFrames = nMaxFrames;
 	}
+
+
+
 #if MICROPROFILE_DEBUG
 	printf("dumping %d frames\n", nNumFrames);
 #endif

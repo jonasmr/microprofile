@@ -30,12 +30,13 @@ ul ul {
 }
 li:hover ul {
     margin-left:0;
+    margin-right:0;
 }
 ul li ul{ display:block;float:none;width:100%;}
 ul li ul li{ display:block;float:none;width:100%;}
 li li a{ display:block;float:none;width:100%;text-align:left;}
 #nav li:hover div {margin-left:0;}
-.help {position:absolute;z-index:5;text-align:left;padding:2px;margin-left:-999em;background-color: #474747;}
+.help {position:absolute;z-index:5;text-align:left;padding:2px;margin-left:-999em;background-color: #313131;}
 .root {z-index:1;position:absolute;top:0px;left:0px;}
 </style>
 </head>
@@ -50,6 +51,10 @@ Shift-Drag to Pan view<br>
 Ctrl-Drag to Zoom view<br>
 Click to Zoom to selected range<br>
 </div>
+
+<div class="help" id="divFrameInfo" style="left:20px;top:300px;width:auto;">
+</div>
+
 </li>
 <li><a href="#" onclick="MicroProfileSetMode('timers');" id="buttonTimers">Timers</a> 
 <li><a href="#" onclick="MicroProfileSetMode('detailed');" id="buttonDetailed">Detailed</a> 
@@ -65,13 +70,19 @@ Click to Zoom to selected range<br>
         <li><a href="#" onclick="MicroProfileSetReferenceTime('100ms');">100ms</a></li>
     </ul>
 </li>
-<li><a href="#">Threads</a>
+<li id="ilThreads"><a href="#">Threads</a>
     <ul id="ThreadSubMenu">
         <li><a href="#" onclick="MicroProfileToggleThread();">All</a></li>
         <li><a href="#">---</a></li>
     </ul>
 </li>
-<li><a href="#">Width</a>
+<li id="ilGroups"><a href="#">Groups</a>
+    <ul id="GroupSubMenu">
+        <li><a href="#" onclick="MicroProfileToggleGroup();">All</a></li>
+        <li><a href="#">---</a></li>
+    </ul>
+</li>
+<li id="ilWidth"><a href="#">Width</a>
     <ul id='WidthMenu'>
         <li><a href="#" onclick="MicroProfileSetMinWidth('1');">1</a></li>
         <li><a href="#" onclick="MicroProfileSetMinWidth('0.5');">0.5</a></li>
@@ -145,6 +156,8 @@ var Font = 'Bold ' + FontHeight + 'px Courier New';
 var BoxHeight = FontHeight + 2;
 var ThreadsActive = new Object();
 var ThreadsAllActive = 1;
+var GroupsActive = new Object();
+var GroupsAllActive = 1;
 var nMinWidth = 0.5;
 
 var nModDown = 0;
@@ -174,6 +187,27 @@ var MicroProfileMode = MicroProfileModeDetailed;
 var DebugDrawQuadCount = 0;
 var DebugDrawTextCount = 0;
 
+
+function MicroProfileInitFrameInfo()
+{
+	var DetailedTotal = 0;
+	for(var i = 0; i < Frames.length; i++)
+	{
+		var frfr = Frames[i];
+		DetailedTotal += frfr.frameend - frfr.framestart;
+	}
+
+	var div = document.getElementById('divFrameInfo');
+	var txt = '';
+	txt = txt + 'Timers View' + '<br>';
+	txt = txt + 'Frames:' + AggregateInfo.Frames +'<br>';
+	txt = txt + 'Time:' + AggregateInfo.Time.toFixed(2) +'ms<br>';
+	txt = txt + '<hr>';
+	txt = txt + 'Detailed View' + '<br>';
+	txt = txt + 'Frames:' + Frames.length +'<br>';
+	txt = txt + 'Time:' + DetailedTotal.toFixed(2) +'ms<br>';
+	div.innerHTML = txt;
+}
 function MicroProfileInitGroups()
 {
 	for(groupid in GroupInfo)
@@ -245,7 +279,6 @@ function MicroProfileUpdateThreadMenu()
 			elem.style['text-decoration'] = 'none';
 		}
 	}
-
 }
 
 function MicroProfileToggleThread(ThreadName)
@@ -276,20 +309,121 @@ function MicroProfileToggleThread(ThreadName)
 	WriteCookie();
 	MicroProfileDraw();
 }
+
+
+function MicroProfileInitGroupMenu()
+{
+	var ulGroupMenu = document.getElementById('GroupSubMenu');
+	var MaxLen = 7;
+	for(var idx in GroupInfo)
+	{
+		var name = GroupInfo[idx].name;
+		var li = document.createElement('li');
+		if(name.length > MaxLen)
+		{
+			MaxLen = name.length;
+		}
+		li.innerText = name;
+		var asText = li.innerHTML;
+		var html = '<a href="#" onclick="MicroProfileToggleGroup(\'' + name + '\');">' + asText + '</a>';
+		li.innerHTML = html;
+		ulGroupMenu.appendChild(li);
+	}
+	var LenStr = (5+(1+MaxLen) * FontWidth) + 'px';
+	var Lis = ulGroupMenu.getElementsByTagName('li');
+	for(var i = 0; i < Lis.length; ++i)
+	{
+		Lis[i].style['width'] = LenStr;
+	}
+	MicroProfileUpdateGroupMenu();
+}
+
+function MicroProfileUpdateGroupMenu()
+{
+	var ulThreadMenu = document.getElementById('GroupSubMenu');
+	var as = ulThreadMenu.getElementsByTagName('a');
+	for(var i = 0; i < as.length; ++i)
+	{
+		var elem = as[i];
+		var inner = elem.innerText;
+		var bActive = false;
+		if(i < 2)
+		{
+			if(inner == 'All')
+			{
+				bActive = GroupsAllActive;
+			}
+		}
+		else
+		{
+			bActive = GroupsActive[inner];
+		}
+		if(bActive)
+		{
+			elem.style['text-decoration'] = 'underline';
+		}
+		else
+		{
+			elem.style['text-decoration'] = 'none';
+		}
+	}
+}
+
+
+function MicroProfileToggleGroup(GroupName)
+{
+	if(GroupName)
+	{
+		if(GroupsActive[GroupName])
+		{
+			GroupsActive[GroupName] = false;
+		}
+		else
+		{
+			GroupsActive[GroupName] = true;
+		}
+	}
+	else
+	{
+		if(GroupsAllActive)
+		{
+			GroupsAllActive = 0;
+		}
+		else
+		{
+			GroupsAllActive = 1;
+		}
+	}
+	MicroProfileUpdateGroupMenu();
+	WriteCookie();
+	MicroProfileDraw();
+}
+
+
+
 function MicroProfileSetMode(Mode)
 {
 	var buttonTimers = document.getElementById('buttonTimers');
 	var buttonDetailed = document.getElementById('buttonDetailed');
+	var ilWidth = document.getElementById('ilWidth');
+	var ilThreads = document.getElementById('ilThreads');
+	var ilGroups = document.getElementById('ilGroups');
 	if(Mode == 'timers' || Mode == MicroProfileModeTimers)
 	{
 		buttonTimers.style['text-decoration'] = 'underline';
 		buttonDetailed.style['text-decoration'] = 'none';
+		ilWidth.style['display'] = 'none';
+		ilThreads.style['display'] = 'none';
+		ilGroups.style['display'] = 'block';
 		MicroProfileMode = MicroProfileModeTimers;
 	}
 	else if(Mode == 'detailed' || Mode == MicroProfileModeDetailed)
 	{
 		buttonTimers.style['text-decoration'] = 'none';
 		buttonDetailed.style['text-decoration'] = 'underline';
+		ilWidth.style['display'] = 'block';
+		ilThreads.style['display'] = 'block';
+		ilGroups.style['display'] = 'none';
 		MicroProfileMode = MicroProfileModeDetailed;
 	}
 	WriteCookie();
@@ -713,7 +847,10 @@ function MicroProfileDrawBarView()
 	var nTotalRows = 0;
 	for(var groupid in GroupInfo)
 	{
-		nTotalRows += GroupInfo[groupid].TimerArray.length + 1;
+		if(GroupsAllActive || GroupsActive[GroupInfo[groupid].name])
+		{
+			nTotalRows += GroupInfo[groupid].TimerArray.length + 1;
+		}
 	}
 	var nTotalRowPixels = nTotalRows * Height;
 	var nFrameRows = nHeight - BoxHeight;
@@ -734,72 +871,75 @@ function MicroProfileDrawBarView()
 	for(var groupid in GroupInfo)
 	{
 		var Group = GroupInfo[groupid];
-		//write header
-		nColorIndex = 1-nColorIndex;
-		bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
-		context.fillStyle = bMouseIn ? nBackColorOffset : nMicroProfileBackColors[nColorIndex];
-		context.fillRect(0, Y, Width, Height);
-		context.fillStyle = 'white';
-		context.fillText(Group.name, 1, Y+Height-FontAscent);
-
-
-		Y += Height;
-		var TimerArray = Group.TimerArray;
-		var InnerBoxHeight = BoxHeight-2;
-		var TimerLen = 6;
-		var TimerWidth = TimerLen * FontWidth;
-		var nWidthBars = nBarsWidth+2;
-		var nWidthMs = TimerWidth + 2 + 10;
-
-
-		for(var timerindex in TimerArray)
+		if(GroupsAllActive || GroupsActive[Group.name])
 		{
-			var timerid = TimerArray[timerindex];
-			var X = 0;
+			//write header
 			nColorIndex = 1-nColorIndex;
 			bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
-			if(bMouseIn)
-			{
-				nHoverToken = timerid;
-			}
 			context.fillStyle = bMouseIn ? nBackColorOffset : nMicroProfileBackColors[nColorIndex];
-			context.fillRect(X, Y, Width, Height);
-
-			var Timer = TimerInfo[timerid];
-
-			var Average = Timer.average;
-			var Max = Timer.max;
-			var ExclusiveMax = Timer.exclmax;
-			var ExclusiveAverage = Timer.exclaverage;
-			var CallAverage = Timer.callaverage;
-			var CallCount = Timer.callcount;
-			var YText = Y+Height-FontAscent;
-			function DrawTimer(Value)
-			{
-				var Prc = Value * RcpReferenceTime;
-				if(Prc > 1)
-				{
-					Prc = 1;
-				}
-				context.fillStyle = Timer.color;
-				context.fillRect(X+1, Y+1, Prc * nBarsWidth, InnerBoxHeight);
-				X += nWidthBars;
-				context.fillStyle = 'white';
-				context.fillText(("      " + Value.toFixed(2)).slice(-TimerLen), X, YText);
-				X += nWidthMs;
-			}
-			DrawTimer(Average);
-			DrawTimer(Max);
-			DrawTimer(CallAverage);
+			context.fillRect(0, Y, Width, Height);
 			context.fillStyle = 'white';
-			context.fillText(CallCount, X, YText);
-			X += CountWidth;
-			DrawTimer(ExclusiveAverage);
-			DrawTimer(ExclusiveMax);
-			context.fillStyle = Timer.color;
-			context.fillText(Timer.name, X+1, YText);
-			Y += Height;
+			context.fillText(Group.name, 1, Y+Height-FontAscent);
 
+
+			Y += Height;
+			var TimerArray = Group.TimerArray;
+			var InnerBoxHeight = BoxHeight-2;
+			var TimerLen = 6;
+			var TimerWidth = TimerLen * FontWidth;
+			var nWidthBars = nBarsWidth+2;
+			var nWidthMs = TimerWidth + 2 + 10;
+
+
+			for(var timerindex in TimerArray)
+			{
+				var timerid = TimerArray[timerindex];
+				var X = 0;
+				nColorIndex = 1-nColorIndex;
+				bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
+				if(bMouseIn)
+				{
+					nHoverToken = timerid;
+				}
+				context.fillStyle = bMouseIn ? nBackColorOffset : nMicroProfileBackColors[nColorIndex];
+				context.fillRect(X, Y, Width, Height);
+
+				var Timer = TimerInfo[timerid];
+
+				var Average = Timer.average;
+				var Max = Timer.max;
+				var ExclusiveMax = Timer.exclmax;
+				var ExclusiveAverage = Timer.exclaverage;
+				var CallAverage = Timer.callaverage;
+				var CallCount = Timer.callcount;
+				var YText = Y+Height-FontAscent;
+				function DrawTimer(Value)
+				{
+					var Prc = Value * RcpReferenceTime;
+					if(Prc > 1)
+					{
+						Prc = 1;
+					}
+					context.fillStyle = Timer.color;
+					context.fillRect(X+1, Y+1, Prc * nBarsWidth, InnerBoxHeight);
+					X += nWidthBars;
+					context.fillStyle = 'white';
+					context.fillText(("      " + Value.toFixed(2)).slice(-TimerLen), X, YText);
+					X += nWidthMs;
+				}
+				DrawTimer(Average);
+				DrawTimer(Max);
+				DrawTimer(CallAverage);
+				context.fillStyle = 'white';
+				context.fillText(CallCount, X, YText);
+				X += CountWidth;
+				DrawTimer(ExclusiveAverage);
+				DrawTimer(ExclusiveMax);
+				context.fillStyle = Timer.color;
+				context.fillText(Timer.name, X+1, YText);
+				Y += Height;
+
+			}
 		}
 	}
 	X = 0;
@@ -1300,9 +1440,13 @@ function ReadCookie()
 		{
 			ReferenceTimeString = Obj.ReferenceTime;
 		}
-		if(Obj.ThreadsAllActive || Obj.ThreadsAllActive == 0)
+		if(Obj.ThreadsAllActive || Obj.ThreadsAllActive == 0 || Obj.ThreadsAllActive == false)
 		{
 			ThreadsAllActive = Obj.ThreadsAllActive;
+		}
+		else
+		{
+			ThreadsAllActive = 1;
 		}
 		if(Obj.ThreadsActive)
 		{
@@ -1311,6 +1455,18 @@ function ReadCookie()
 		if(Obj.nMinWidth)
 		{
 			nMinWidth = Obj.nMinWidth;
+		}
+		if(Obj.GroupsAllActive || Obj.GroupsAllActive == 0 || Obj.GroupsAllActive)
+		{
+			GroupsAllActive = Obj.GroupsAllActive;
+		}
+		else
+		{
+			GroupsAllActive = 1;
+		}
+		if(Obj.GroupsActive)
+		{
+			GroupsActive = Obj.GroupsActive;
 		}
 	}
 	MicroProfileSetMode(Mode);
@@ -1325,6 +1481,8 @@ function WriteCookie()
 	Obj.ReferenceTime = ReferenceTime + 'ms';
 	Obj.ThreadsActive = ThreadsActive;
 	Obj.ThreadsAllActive = ThreadsAllActive;
+	Obj.GroupsActive = GroupsActive;
+	Obj.GroupsAllActive = GroupsAllActive;
 	Obj.nMinWidth = nMinWidth;
 	var date = new Date();
 	date.setFullYear(2099);
@@ -1359,7 +1517,10 @@ MicroProfileInitGroups();
 ReadCookie();
 MicroProfileMeasureFont()
 MicroProfileInitThreadMenu();
+MicroProfileInitGroupMenu();
+MicroProfileInitFrameInfo();
 MicroProfileUpdateThreadMenu();
+
 ResizeCanvas();
 MicroProfileDraw();
 MicroProfileAutoRedraw();
