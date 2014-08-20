@@ -187,6 +187,7 @@ void WorkerThread(int threadId)
 				usleep(1000);
 				for(uint32_t j = 0; j < 4; ++j)
 				{
+					MICROPROFILE_META_CPU("custom_very_long_meta", 1);
 					MICROPROFILE_SCOPE(ThreadSafeInner1);
 					usleep(500);
 					MICROPROFILE_SCOPE(ThreadSafeInner2);

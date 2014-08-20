@@ -53,6 +53,7 @@ int main(int argc, char* argv[])
 	//turn on profiling
 	MicroProfileSetForceEnable(true);
 	MicroProfileSetEnableAllGroups(true);
+	MicroProfileSetForceMetaCounters(true);
 
 	StartFakeWork();
 	while(!g_nQuit)

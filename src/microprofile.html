@@ -114,9 +114,9 @@ function MakeGroup(id, name, numtimers, isgpu)
 	return group;
 }
 
-function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax, callaverage, callcount)
+function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax, callaverage, callcount, meta)
 {
-	var timer = {"id":id, "name":name, "len":name.length, "color":color, "textcolor":InvertColor(color), "group":group, "average":average, "max":max, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount};
+	var timer = {"id":id, "name":name, "len":name.length, "color":color, "textcolor":InvertColor(color), "group":group, "average":average, "max":max, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "meta":meta};
 	return timer;
 }
 function MakeFrame(id, framestart, frameend, ts, tt, ti)
@@ -871,6 +871,17 @@ function DrawBarView()
 	var bMouseIn = 0;
 	var RcpReferenceTime = 1.0 / ReferenceTime;
 	var CountWidth = 8 * FontWidth;
+	var nMetaLen = TimerInfo[0].meta.length;
+	var nMetaCharacters = 10;
+	for(var i = 0; i < nMetaLen; ++i)
+	{
+		if(nMetaCharacters < MetaNames[i].length)
+			nMetaCharacters = MetaNames[i].length;
+	}
+	var nWidthMeta = nMetaCharacters * FontWidth + 6;
+
+
+
 	for(var groupid in GroupInfo)
 	{
 		var Group = GroupInfo[groupid];
@@ -930,6 +941,20 @@ function DrawBarView()
 					context.fillText(("      " + Value.toFixed(2)).slice(-TimerLen), X, YText);
 					X += nWidthMs;
 				}
+				function DrawMeta(Value)
+				{
+					if(!Value)
+					{
+						Value = "0";
+					}
+					else
+					{
+						Value = '' + Value;
+					}
+					context.fillText(Value, X + nWidthMeta - 6 - Value.length * FontWidth, YText);
+					X += nWidthMeta;
+				}
+
 				DrawTimer(Average);
 				DrawTimer(Max);
 				DrawTimer(CallAverage);
@@ -938,6 +963,14 @@ function DrawBarView()
 				X += CountWidth;
 				DrawTimer(ExclusiveAverage);
 				DrawTimer(ExclusiveMax);
+
+				context.fillStyle = 'white';
+				for(var j = 0; j < nMetaLen; ++j)
+				{
+					DrawMeta(Timer.meta[j]);
+				}
+
+
 				context.fillStyle = Timer.color;
 				context.fillText(Timer.name, X+1, YText);
 				Y += Height;
@@ -976,8 +1009,11 @@ function DrawBarView()
 	DrawHeaderSplitSingle('Count', CountWidth);
 	DrawHeaderSplit('Excl Average');
 	DrawHeaderSplit('Excl Max');
-	DrawHeaderSplit('Call Average');
-
+	for(var i = 0; i < nMetaLen; ++i)
+	{
+		DrawHeaderSplitSingle(MetaNames[i], nWidthMeta);
+	}
+	DrawHeaderSplit('Name');
 
 }
 

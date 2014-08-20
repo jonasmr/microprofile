@@ -88,6 +88,7 @@
 #define MICROPROFILE_ENABLED 1
 #endif
 
+
 #if 0 == MICROPROFILE_ENABLED
 
 #define MICROPROFILE_DECLARE(var)
@@ -123,6 +124,9 @@
 #define MicroProfileGetForceEnable() false
 #define MicroProfileSetEnableAllGroups(a) do{} while(0)
 #define MicroProfileGetEnableAllGroups() false
+#define MicroProfileSetForceMetaCounters(a)
+#define MicroProfileGetForceMetaCounters() 0
+
 #define MicroProfileDumpHtml() do{} while(0)
 
 #else
@@ -373,6 +377,8 @@ MICROPROFILE_API void MicroProfileSetForceEnable(bool bForceEnable);
 MICROPROFILE_API bool MicroProfileGetForceEnable();
 MICROPROFILE_API void MicroProfileSetEnableAllGroups(bool bEnable); 
 MICROPROFILE_API bool MicroProfileGetEnableAllGroups();
+MICROPROFILE_API void MicroProfileSetForceMetaCounters(bool bEnable); 
+MICROPROFILE_API bool MicroProfileGetForceMetaCounters();
 
 #if MICROPROFILE_WEBSERVER
 MICROPROFILE_API void MicroProfileDumpHtml();
@@ -723,6 +729,7 @@ struct
 
 	uint64_t nForceGroup;
 	uint32_t nForceEnable;
+	uint32_t nForceMetaCounters;
 
 	//menu/mouse over stuff
 	uint64_t nMenuActiveGroup;
@@ -1683,6 +1690,16 @@ void MicroProfileFlip()
 	uint32_t nNewActiveBars = 0;
 	if(S.nDisplay && S.nRunning)
 		nNewActiveBars = S.nBars;
+	if(S.nForceMetaCounters)
+	{
+		for(int i = 0; i < MICROPROFILE_META_MAX; ++i)
+		{
+			if(S.MetaCounters[i].pName)
+			{
+				nNewActiveBars |= (MP_DRAW_META_FIRST<<i);
+			}
+		}
+	}
 	if(nNewActiveBars != S.nActiveBars)
 		S.nActiveBars = nNewActiveBars;
 
@@ -1708,6 +1725,16 @@ void MicroProfileSetEnableAllGroups(bool bEnableAllGroups)
 bool MicroProfileGetEnableAllGroups()
 {
 	return 0 != S.nMenuAllGroups;
+}
+
+void MicroProfileSetForceMetaCounters(bool bForce)
+{
+	S.nForceMetaCounters = bForce ? 1 : 0;
+}
+
+bool MicroProfileGetForceMetaCounters()
+{
+	return 0 != S.nForceMetaCounters;
 }
 
 
@@ -4260,7 +4287,19 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	{
 		uint32_t nIdx = i * 2;
 		MP_ASSERT(i == S.TimerInfo[i].nTimerIndex);
-		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x', %f, %f, %f, %f, %f, %d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
+		MicroProfilePrintf(CB, Handle, "var Meta%d = [");
+		bool bOnce = true;
+		for(int j = 0; j < MICROPROFILE_META_MAX; ++j)
+		{
+			if(S.MetaCounters[j].pName)
+			{
+				uint32_t lala = S.MetaCounters[j].nCounters[i];
+				MicroProfilePrintf(CB, Handle, bOnce ? "%d" : ",%d", lala);
+				bOnce = false;
+			}
+		}
+		MicroProfilePrintf(CB, Handle, "];\n");
+		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x', %f, %f, %f, %f, %f, %d, Meta%d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
 		(S.TimerInfo[i].nColor>>16) & 0xff,
 		(S.TimerInfo[i].nColor>>8) & 0xff,
 		S.TimerInfo[i].nColor & 0xff,
@@ -4269,7 +4308,8 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 		pAverageExclusive[nIdx],
 		pMaxExclusive[nIdx],
 		pCallAverage[nIdx],
-		S.Aggregate[i].nCount
+		S.Aggregate[i].nCount,
+		i
 		);
 
 	}
@@ -4885,9 +4925,9 @@ const char g_MicroProfileHtml_begin[] =
 "	return group;\n"
 "}\n"
 "\n"
-"function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax, callaverage, callcount)\n"
+"function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax, callaverage, callcount, meta)\n"
 "{\n"
-"	var timer = {\"id\":id, \"name\":name, \"len\":name.length, \"color\":color, \"textcolor\":InvertColor(color), \"group\":group, \"average\":average, \"max\":max, \"exclaverage\":exclaverage, \"exclmax\":exclmax, \"callaverage\":callaverage, \"callcount\":callcount};\n"
+"	var timer = {\"id\":id, \"name\":name, \"len\":name.length, \"color\":color, \"textcolor\":InvertColor(color), \"group\":group, \"average\":average, \"max\":max, \"exclaverage\":exclaverage, \"exclmax\":exclmax, \"callaverage\":callaverage, \"callcount\":callcount, \"meta\":meta};\n"
 "	return timer;\n"
 "}\n"
 "function MakeFrame(id, framestart, frameend, ts, tt, ti)\n"
@@ -5646,6 +5686,17 @@ const char g_MicroProfileHtml_end[] =
 "	var bMouseIn = 0;\n"
 "	var RcpReferenceTime = 1.0 / ReferenceTime;\n"
 "	var CountWidth = 8 * FontWidth;\n"
+"	var nMetaLen = TimerInfo[0].meta.length;\n"
+"	var nMetaCharacters = 10;\n"
+"	for(var i = 0; i < nMetaLen; ++i)\n"
+"	{\n"
+"		if(nMetaCharacters < MetaNames[i].length)\n"
+"			nMetaCharacters = MetaNames[i].length;\n"
+"	}\n"
+"	var nWidthMeta = nMetaCharacters * FontWidth + 6;\n"
+"\n"
+"\n"
+"\n"
 "	for(var groupid in GroupInfo)\n"
 "	{\n"
 "		var Group = GroupInfo[groupid];\n"
@@ -5705,6 +5756,20 @@ const char g_MicroProfileHtml_end[] =
 "					context.fillText((\"      \" + Value.toFixed(2)).slice(-TimerLen), X, YText);\n"
 "					X += nWidthMs;\n"
 "				}\n"
+"				function DrawMeta(Value)\n"
+"				{\n"
+"					if(!Value)\n"
+"					{\n"
+"						Value = \"0\";\n"
+"					}\n"
+"					else\n"
+"					{\n"
+"						Value = \'\' + Value;\n"
+"					}\n"
+"					context.fillText(Value, X + nWidthMeta - 6 - Value.length * FontWidth, YText);\n"
+"					X += nWidthMeta;\n"
+"				}\n"
+"\n"
 "				DrawTimer(Average);\n"
 "				DrawTimer(Max);\n"
 "				DrawTimer(CallAverage);\n"
@@ -5713,6 +5778,14 @@ const char g_MicroProfileHtml_end[] =
 "				X += CountWidth;\n"
 "				DrawTimer(ExclusiveAverage);\n"
 "				DrawTimer(ExclusiveMax);\n"
+"\n"
+"				context.fillStyle = \'white\';\n"
+"				for(var j = 0; j < nMetaLen; ++j)\n"
+"				{\n"
+"					DrawMeta(Timer.meta[j]);\n"
+"				}\n"
+"\n"
+"\n"
 "				context.fillStyle = Timer.color;\n"
 "				context.fillText(Timer.name, X+1, YText);\n"
 "				Y += Height;\n"
@@ -5751,8 +5824,11 @@ const char g_MicroProfileHtml_end[] =
 "	DrawHeaderSplitSingle(\'Count\', CountWidth);\n"
 "	DrawHeaderSplit(\'Excl Average\');\n"
 "	DrawHeaderSplit(\'Excl Max\');\n"
-"	DrawHeaderSplit(\'Call Average\');\n"
-"\n"
+"	for(var i = 0; i < nMetaLen; ++i)\n"
+"	{\n"
+"		DrawHeaderSplitSingle(MetaNames[i], nWidthMeta);\n"
+"	}\n"
+"	DrawHeaderSplit(\'Name\');\n"
 "\n"
 "}\n"
 "\n"

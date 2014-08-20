@@ -88,6 +88,7 @@
 #define MICROPROFILE_ENABLED 1
 #endif
 
+
 #if 0 == MICROPROFILE_ENABLED
 
 #define MICROPROFILE_DECLARE(var)
@@ -123,6 +124,9 @@
 #define MicroProfileGetForceEnable() false
 #define MicroProfileSetEnableAllGroups(a) do{} while(0)
 #define MicroProfileGetEnableAllGroups() false
+#define MicroProfileSetForceMetaCounters(a)
+#define MicroProfileGetForceMetaCounters() 0
+
 #define MicroProfileDumpHtml() do{} while(0)
 
 #else
@@ -373,6 +377,8 @@ MICROPROFILE_API void MicroProfileSetForceEnable(bool bForceEnable);
 MICROPROFILE_API bool MicroProfileGetForceEnable();
 MICROPROFILE_API void MicroProfileSetEnableAllGroups(bool bEnable); 
 MICROPROFILE_API bool MicroProfileGetEnableAllGroups();
+MICROPROFILE_API void MicroProfileSetForceMetaCounters(bool bEnable); 
+MICROPROFILE_API bool MicroProfileGetForceMetaCounters();
 
 #if MICROPROFILE_WEBSERVER
 MICROPROFILE_API void MicroProfileDumpHtml();
@@ -723,6 +729,7 @@ struct
 
 	uint64_t nForceGroup;
 	uint32_t nForceEnable;
+	uint32_t nForceMetaCounters;
 
 	//menu/mouse over stuff
 	uint64_t nMenuActiveGroup;
@@ -1683,6 +1690,16 @@ void MicroProfileFlip()
 	uint32_t nNewActiveBars = 0;
 	if(S.nDisplay && S.nRunning)
 		nNewActiveBars = S.nBars;
+	if(S.nForceMetaCounters)
+	{
+		for(int i = 0; i < MICROPROFILE_META_MAX; ++i)
+		{
+			if(S.MetaCounters[i].pName)
+			{
+				nNewActiveBars |= (MP_DRAW_META_FIRST<<i);
+			}
+		}
+	}
 	if(nNewActiveBars != S.nActiveBars)
 		S.nActiveBars = nNewActiveBars;
 
@@ -1708,6 +1725,16 @@ void MicroProfileSetEnableAllGroups(bool bEnableAllGroups)
 bool MicroProfileGetEnableAllGroups()
 {
 	return 0 != S.nMenuAllGroups;
+}
+
+void MicroProfileSetForceMetaCounters(bool bForce)
+{
+	S.nForceMetaCounters = bForce ? 1 : 0;
+}
+
+bool MicroProfileGetForceMetaCounters()
+{
+	return 0 != S.nForceMetaCounters;
 }
 
 
@@ -4260,7 +4287,19 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	{
 		uint32_t nIdx = i * 2;
 		MP_ASSERT(i == S.TimerInfo[i].nTimerIndex);
-		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x', %f, %f, %f, %f, %f, %d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
+		MicroProfilePrintf(CB, Handle, "var Meta%d = [");
+		bool bOnce = true;
+		for(int j = 0; j < MICROPROFILE_META_MAX; ++j)
+		{
+			if(S.MetaCounters[j].pName)
+			{
+				uint32_t lala = S.MetaCounters[j].nCounters[i];
+				MicroProfilePrintf(CB, Handle, bOnce ? "%d" : ",%d", lala);
+				bOnce = false;
+			}
+		}
+		MicroProfilePrintf(CB, Handle, "];\n");
+		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x', %f, %f, %f, %f, %f, %d, Meta%d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
 		(S.TimerInfo[i].nColor>>16) & 0xff,
 		(S.TimerInfo[i].nColor>>8) & 0xff,
 		S.TimerInfo[i].nColor & 0xff,
@@ -4269,7 +4308,8 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 		pAverageExclusive[nIdx],
 		pMaxExclusive[nIdx],
 		pCallAverage[nIdx],
-		S.Aggregate[i].nCount
+		S.Aggregate[i].nCount,
+		i
 		);
 
 	}
