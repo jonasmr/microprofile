@@ -102,11 +102,18 @@ function InvertColor(hexTripletColor) {
 	var color = hexTripletColor;
 	color = color.substring(1); // remove #
 	color = parseInt(color, 16); // convert to integer
-	color = 0xFFFFFF ^ color; // invert three bytes
-	color = color.toString(16); // convert to hex
-	color = ("000000" + color).slice(-6); // pad with leading zeros
-	color = "#" + color; // prepend #
-	return color;
+	var R = ((color >> 16) % 256)/255.0;
+	var G = ((color >> 8) % 256)/255.0;
+	var B = ((color >> 0) % 256)/255.0;
+	var lum = (0.2126*R + 0.7152*G + 0.0722*B);
+	if(lum < 0.7)
+	{
+		return '#ffffff';
+	}
+	else
+	{
+		return '#333333';
+	}
 }
 function MakeGroup(id, name, numtimers, isgpu)
 {
