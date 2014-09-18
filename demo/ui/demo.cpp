@@ -103,7 +103,7 @@ void HandleEvent(SDL_Event* pEvt)
 		}
 		if(pEvt->key.keysym.sym == 'd')
 		{
-			MicroProfileDumpHtml();
+			MicroProfileDumpHtml("../dump.html");
 		}
 		break;
 
