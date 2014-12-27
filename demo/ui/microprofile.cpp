@@ -41,8 +41,11 @@ void uprintf(const char* fmt, ...)
 #endif
 
 
-#define MICRO_PROFILE_IMPL
+#define MICROPROFILE_IMPL
 #include "microprofile.h"
+#define MICROPROFILEUI_IMPL
+#include "microprofileui.h"
+
 #include "glinc.h"
 
 #if MICROPROFILE_ENABLED

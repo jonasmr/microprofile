@@ -32,6 +32,7 @@
 
 
 #include "microprofile.h"
+#include "microprofileui.h"
 #include "glinc.h"
 
 #ifdef main

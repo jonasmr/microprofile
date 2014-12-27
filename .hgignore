@@ -10,3 +10,4 @@ demo\microprofile.vcxproj
 demo\microprofile.vcxproj.filters
 *.tlog
 *.lastbuildstate
+*.o

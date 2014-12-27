@@ -29,8 +29,7 @@
 #include <unistd.h>
 #endif
 
-#define MICRO_PROFILE_IMPL
-#define MICROPROFILE_UI 0
+#define MICROPROFILE_IMPL
 #include "microprofile.h"
 
 MICROPROFILE_DEFINE(MAIN, "MAIN", "Main", 0xff0000);
