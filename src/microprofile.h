@@ -128,6 +128,10 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <thread>
+#include <mutex>
+#include <atomic>
+
 
 #if defined(__APPLE__)
 #include <mach/mach.h>
@@ -303,6 +307,7 @@ struct MicroProfileState
 	float fReferenceTime;
 };
 
+struct MicroProfile;
 
 MICROPROFILE_API void MicroProfileInit();
 MICROPROFILE_API void MicroProfileShutdown();
@@ -337,6 +342,16 @@ MICROPROFILE_API bool MicroProfileGetForceMetaCounters();
 MICROPROFILE_API void MicroProfileSetAggregateFrames(int frames);
 MICROPROFILE_API int MicroProfileGetAggregateFrames();
 MICROPROFILE_API int MicroProfileGetCurrentAggregateFrames();
+MICROPROFILE_API MicroProfile* MicroProfileGet();
+MICROPROFILE_API void MicroProfileGetRange(uint32_t nPut, uint32_t nGet, uint32_t nRange[2][2]);
+MICROPROFILE_API std::recursive_mutex& MicroProfileGetMutex();
+MICROPROFILE_API void MicroProfileStartContextSwitchTrace();
+MICROPROFILE_API void MicroProfileStopContextSwitchTrace();
+MICROPROFILE_API bool MicroProfileIsLocalThread(uint32_t nThreadId);
+MICROPROFILE_API void MicroProfileLoadPreset(const char* pSuffix);
+MICROPROFILE_API void MicroProfileSavePreset(const char* pSuffix);
+
+
 
 #if MICROPROFILE_WEBSERVER
 MICROPROFILE_API void MicroProfileDumpHtml(const char* pFile);
@@ -394,8 +409,20 @@ struct MicroProfileScopeGpuHandler
 
 
 
+#define MICROPROFILE_MAX_TIMERS 1024
+#define MICROPROFILE_MAX_GROUPS 48 //dont bump! no. of bits used it bitmask
+#define MICROPROFILE_MAX_GRAPHS 5
+#define MICROPROFILE_GRAPH_HISTORY 128
+#define MICROPROFILE_BUFFER_SIZE ((MICROPROFILE_PER_THREAD_BUFFER_SIZE)/sizeof(MicroProfileLogEntry))
+#define MICROPROFILE_MAX_CONTEXT_SWITCH_THREADS 256
+#define MICROPROFILE_STACK_MAX 32
+#define MICROPROFILE_MAX_PRESETS 5
+#define MICROPROFILE_TOOLTIP_MAX_STRINGS (32 + MICROPROFILE_MAX_GROUPS*2)
+#define MICROPROFILE_TOOLTIP_STRING_BUFFER_SIZE (4*1024)
+#define MICROPROFILE_TOOLTIP_MAX_LOCKED 3
+#define MICROPROFILE_ANIM_DELAY_PRC 0.5f
+#define MICROPROFILE_GAP_TIME 50 //extra ms to fetch to close timers from earlier frames
 
-#ifdef MICROPROFILE_IMPL
 
 #ifndef MICROPROFILE_MAX_THREADS
 #define MICROPROFILE_MAX_THREADS 32
@@ -413,90 +440,10 @@ struct MicroProfileScopeGpuHandler
 #define MICROPROFILE_UNPACK_BLUE(c) ((c))
 #endif
 
-
-#ifdef _WIN32
-#include <windows.h>
-#define snprintf _snprintf
-
-#pragma warning(push)
-#pragma warning(disable: 4244)
-int64_t MicroProfileTicksPerSecondCpu()
-{
-	static int64_t nTicksPerSecond = 0;	
-	if(nTicksPerSecond == 0) 
-	{
-		QueryPerformanceFrequency((LARGE_INTEGER*)&nTicksPerSecond);
-	}
-	return nTicksPerSecond;
-}
-int64_t MicroProfileGetTick()
-{
-	int64_t ticks;
-	QueryPerformanceCounter((LARGE_INTEGER*)&ticks);
-	return ticks;
-}
-
+#ifndef MICROPROFILE_DEFAULT_PRESET
+#define MICROPROFILE_DEFAULT_PRESET "Default"
 #endif
 
-#if MICROPROFILE_WEBSERVER
-
-#ifdef _WIN32
-typedef SOCKET MpSocket;
-#define MP_INVALID_SOCKET(f) (f == INVALID_SOCKET)
-#endif
-
-#if defined(__APPLE__)
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <fcntl.h>
-typedef int MpSocket;
-#define MP_INVALID_SOCKET(f) (f < 0)
-#endif
-
-void MicroProfileWebServerStart();
-void MicroProfileWebServerStop();
-bool MicroProfileWebServerUpdate();
-void MicroProfileDumpHtmlToFile();
-
-#else
-
-#define MicroProfileWebServerStart() do{}while(0)
-#define MicroProfileWebServerStop() do{}while(0)
-#define MicroProfileWebServerUpdate() false
-#define MicroProfileDumpHtmlToFile() do{} while(0)
-
-typedef int MpSocket;
-#endif 
-
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <math.h>
-#include <thread>
-#include <mutex>
-#include <atomic>
-#include <algorithm>
-
-
-#ifndef MICROPROFILE_DEBUG
-#define MICROPROFILE_DEBUG 0
-#endif
-
-
-#define S g_MicroProfile
-#define MICROPROFILE_MAX_TIMERS 1024
-#define MICROPROFILE_MAX_GROUPS 48 //dont bump! no. of bits used it bitmask
-#define MICROPROFILE_MAX_GRAPHS 5
-#define MICROPROFILE_GRAPH_HISTORY 128
-#define MICROPROFILE_BUFFER_SIZE ((MICROPROFILE_PER_THREAD_BUFFER_SIZE)/sizeof(MicroProfileLogEntry))
-#define MICROPROFILE_MAX_CONTEXT_SWITCH_THREADS 256
-#define MICROPROFILE_STACK_MAX 32
-#define MICROPROFILE_MAX_PRESETS 5
-#define MICROPROFILE_TOOLTIP_MAX_STRINGS (32 + MICROPROFILE_MAX_GROUPS*2)
-#define MICROPROFILE_TOOLTIP_STRING_BUFFER_SIZE (4*1024)
-#define MICROPROFILE_TOOLTIP_MAX_LOCKED 3
-#define MICROPROFILE_ANIM_DELAY_PRC 0.5f
-#define MICROPROFILE_GAP_TIME 50 //extra ms to fetch to close timers from earlier frames
 
 #ifndef MICROPROFILE_CONTEXT_SWITCH_TRACE 
 #ifdef _WIN32
@@ -511,6 +458,14 @@ typedef int MpSocket;
 #else
 #define MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE (1)
 #endif
+
+#ifdef _WIN32
+typedef SOCKET MpSocket;
+#else
+typedef int MpSocket;
+#endif
+
+
 
 enum MicroProfileDrawMask
 {
@@ -533,6 +488,8 @@ enum MicroProfileDrawBarsMask
 	MP_DRAW_ALL 				= 0xffffffff,
 
 };
+
+typedef uint64_t MicroProfileLogEntry;
 
 struct MicroProfileTimer
 {
@@ -576,53 +533,6 @@ struct MicroProfileContextSwitch
 	int64_t nTicks : 56;
 };
 
-#define MP_LOG_TICK_MASK  0x0000ffffffffffff
-#define MP_LOG_INDEX_MASK 0x3fff000000000000
-#define MP_LOG_BEGIN_MASK 0xc000000000000000
-#define MP_LOG_META 0x2
-#define MP_LOG_ENTER 0x1
-#define MP_LOG_LEAVE 0x0
-
-typedef uint64_t MicroProfileLogEntry;
-
-inline int MicroProfileLogType(MicroProfileLogEntry Index)
-{
-	return ((MP_LOG_BEGIN_MASK & Index)>>62) & 0x3;
-}
-
-inline uint64_t MicroProfileLogTimerIndex(MicroProfileLogEntry Index)
-{
-	return (0x3fff&(Index>>48));
-}
-
-inline MicroProfileLogEntry MicroProfileMakeLogIndex(uint64_t nBegin, MicroProfileToken nToken, int64_t nTick)
-{
-	MicroProfileLogEntry Entry =  (nBegin<<62) | ((0x3fff&nToken)<<48) | (MP_LOG_TICK_MASK&nTick);
-	int t = MicroProfileLogType(Entry);
-	uint64_t nTimerIndex = MicroProfileLogTimerIndex(Entry);
-	MP_ASSERT(t == nBegin);
-	MP_ASSERT(nTimerIndex == (nToken&0x3fff));
-	return Entry;
-
-} 
-
-inline int64_t MicroProfileLogTickDifference(MicroProfileLogEntry Start, MicroProfileLogEntry End)
-{
-	uint64_t nStart = Start;
-	uint64_t nEnd = End;
-	int64_t nDifference = ((nEnd<<16) - (nStart<<16)); 
-	return nDifference >> 16;
-}
-
-inline int64_t MicroProfileLogGetTick(MicroProfileLogEntry e)
-{
-	return MP_LOG_TICK_MASK & e;
-}
-
-inline int64_t MicroProfileLogSetTick(MicroProfileLogEntry e, int64_t nTick)
-{
-	return (MP_LOG_TICK_MASK & nTick) | (e & ~MP_LOG_TICK_MASK);
-}
 
 struct MicroProfileFrameState
 {
@@ -653,16 +563,8 @@ struct MicroProfileThreadLog
 	int 					nFreeListNext;
 };
 
-struct MicroProfileStringArray
-{
-	const char* ppStrings[MICROPROFILE_TOOLTIP_MAX_STRINGS];
-	char Buffer[MICROPROFILE_TOOLTIP_STRING_BUFFER_SIZE];
-	char* pBufferPos;
-	uint32_t nNumStrings;
-};
 
-
-struct 
+struct MicroProfile
 {
 	uint32_t nTotalTimers;
 	uint32_t nGroupCount;
@@ -786,9 +688,6 @@ struct
 	uint64_t				nFlipMaxDisplay;
 		
 
-	MicroProfileStringArray LockedToolTips[MICROPROFILE_TOOLTIP_MAX_LOCKED];	
-	uint32_t  				nLockedToolTipColor[MICROPROFILE_TOOLTIP_MAX_LOCKED];	
-	int 					LockedToolTipFront;
 
 
 	int64_t					nRangeBegin;
@@ -824,77 +723,53 @@ struct
 
 	MpSocket 					ListenerSocket;
 
-} g_MicroProfile;
+};
 
-MicroProfileThreadLog*			g_MicroProfileGpuLog = 0;
-#ifdef MICROPROFILE_IOS
-// iOS doesn't support __thread
-static pthread_key_t g_MicroProfileThreadLogKey;
-static pthread_once_t g_MicroProfileThreadLogKeyOnce = PTHREAD_ONCE_INIT;
-static void MicroProfileCreateThreadLogKey()
+#define MP_LOG_TICK_MASK  0x0000ffffffffffff
+#define MP_LOG_INDEX_MASK 0x3fff000000000000
+#define MP_LOG_BEGIN_MASK 0xc000000000000000
+#define MP_LOG_META 0x2
+#define MP_LOG_ENTER 0x1
+#define MP_LOG_LEAVE 0x0
+
+
+inline int MicroProfileLogType(MicroProfileLogEntry Index)
 {
-	pthread_key_create(&g_MicroProfileThreadLogKey, NULL);
+	return ((MP_LOG_BEGIN_MASK & Index)>>62) & 0x3;
 }
-#else
-MP_THREAD_LOCAL MicroProfileThreadLog* g_MicroProfileThreadLog = 0;
-#endif
-static bool g_bUseLock = false; /// This is used because windows does not support using mutexes under dll init(which is where global initialization is handled)
-static uint32_t g_nMicroProfileBackColors[2] = {  0x474747, 0x313131 };
 
-#define MICROPROFILE_NUM_CONTEXT_SWITCH_COLORS 16
-static uint32_t g_nMicroProfileContextSwitchThreadColors[MICROPROFILE_NUM_CONTEXT_SWITCH_COLORS] = //palette generated by http://tools.medialab.sciences-po.fr/iwanthue/index.php
+inline uint64_t MicroProfileLogTimerIndex(MicroProfileLogEntry Index)
 {
-	0x63607B,
-	0x755E2B,
-	0x326A55,
-	0x523135,
-	0x904F42,
-	0x87536B,
-	0x346875,
-	0x5E6046,
-	0x35404C,
-	0x224038,
-	0x413D1E,
-	0x5E3A26,
-	0x5D6161,
-	0x4C6234,
-	0x7D564F,
-	0x5C4352,
-};
-static uint32_t g_MicroProfileAggregatePresets[] = {0, 10, 20, 30, 60, 120};
-static float g_MicroProfileReferenceTimePresets[] = {5.f, 10.f, 15.f,20.f, 33.33f, 66.66f, 100.f};
-static uint32_t g_MicroProfileOpacityPresets[] = {0x40, 0x80, 0xc0, 0xff};
-static const char* g_MicroProfilePresetNames[] = 
+	return (0x3fff&(Index>>48));
+}
+
+inline MicroProfileLogEntry MicroProfileMakeLogIndex(uint64_t nBegin, MicroProfileToken nToken, int64_t nTick)
 {
-	"Default",
-	"Render",
-	"GPU",
-	"Lighting",
-	"AI",
-	"Visibility",
-	"Sound",
-};
+	MicroProfileLogEntry Entry =  (nBegin<<62) | ((0x3fff&nToken)<<48) | (MP_LOG_TICK_MASK&nTick);
+	int t = MicroProfileLogType(Entry);
+	uint64_t nTimerIndex = MicroProfileLogTimerIndex(Entry);
+	MP_ASSERT(t == nBegin);
+	MP_ASSERT(nTimerIndex == (nToken&0x3fff));
+	return Entry;
 
+} 
 
-MICROPROFILE_DEFINE(g_MicroProfileDetailed, "MicroProfile", "Detailed View", 0x8888000);
-MICROPROFILE_DEFINE(g_MicroProfileDrawGraph, "MicroProfile", "Draw Graph", 0xff44ee00);
-MICROPROFILE_DEFINE(g_MicroProfileFlip, "MicroProfile", "MicroProfileFlip", 0x3355ee);
-MICROPROFILE_DEFINE(g_MicroProfileThreadLoop, "MicroProfile", "ThreadLoop", 0x3355ee);
-MICROPROFILE_DEFINE(g_MicroProfileClear, "MicroProfile", "Clear", 0x3355ee);
-MICROPROFILE_DEFINE(g_MicroProfileAccumulate, "MicroProfile", "Accumulate", 0x3355ee);
-MICROPROFILE_DEFINE(g_MicroProfileDrawBarView, "MicroProfile", "DrawBarView", 0x00dd77);
-MICROPROFILE_DEFINE(g_MicroProfileDraw,"MicroProfile", "Draw", 0x737373);
-MICROPROFILE_DEFINE(g_MicroProfileContextSwitchDraw, "MicroProfile", "ContextSwitchDraw", 0x730073);
-MICROPROFILE_DEFINE(g_MicroProfileContextSwitchSearch,"MicroProfile", "ContextSwitchSearch", 0xDD7300);
-
-void MicroProfileStartContextSwitchTrace();
-void MicroProfileStopContextSwitchTrace();
-bool MicroProfileIsLocalThread(uint32_t nThreadId);
-
-inline std::recursive_mutex& MicroProfileMutex()
+inline int64_t MicroProfileLogTickDifference(MicroProfileLogEntry Start, MicroProfileLogEntry End)
 {
-	static std::recursive_mutex Mutex;
-	return Mutex;
+	uint64_t nStart = Start;
+	uint64_t nEnd = End;
+	int64_t nDifference = ((nEnd<<16) - (nStart<<16)); 
+	return nDifference >> 16;
+}
+
+inline int64_t MicroProfileLogGetTick(MicroProfileLogEntry e)
+{
+	return MP_LOG_TICK_MASK & e;
+}
+
+inline int64_t MicroProfileLogSetTick(MicroProfileLogEntry e, int64_t nTick)
+{
+	return (MP_LOG_TICK_MASK & nTick) | (e & ~MP_LOG_TICK_MASK);
 }
 
 template<typename T>
@@ -904,52 +779,6 @@ T MicroProfileMin(T a, T b)
 template<typename T>
 T MicroProfileMax(T a, T b)
 { return a > b ? a : b; }
-
-
-
-void MicroProfileStringArrayClear(MicroProfileStringArray* pArray)
-{
-	pArray->nNumStrings = 0;
-	pArray->pBufferPos = &pArray->Buffer[0];
-}
-
-void MicroProfileStringArrayAddLiteral(MicroProfileStringArray* pArray, const char* pLiteral)
-{
-	MP_ASSERT(pArray->nNumStrings < MICROPROFILE_TOOLTIP_MAX_STRINGS);
-	pArray->ppStrings[pArray->nNumStrings++] = pLiteral;
-}
-
-void MicroProfileStringArrayFormat(MicroProfileStringArray* pArray, const char* fmt, ...)
-{
-	MP_ASSERT(pArray->nNumStrings < MICROPROFILE_TOOLTIP_MAX_STRINGS);
-	pArray->ppStrings[pArray->nNumStrings++] = pArray->pBufferPos;
-	va_list args;
-	va_start (args, fmt);
-	pArray->pBufferPos += 1 + vsprintf(pArray->pBufferPos, fmt, args);
-	va_end(args);
-	MP_ASSERT(pArray->pBufferPos < pArray->Buffer + MICROPROFILE_TOOLTIP_STRING_BUFFER_SIZE);
-}
-void MicroProfileStringArrayCopy(MicroProfileStringArray* pDest, MicroProfileStringArray* pSrc)
-{
-	memcpy(&pDest->ppStrings[0], &pSrc->ppStrings[0], sizeof(pDest->ppStrings));
-	memcpy(&pDest->Buffer[0], &pSrc->Buffer[0], sizeof(pDest->Buffer));
-	for(uint32_t i = 0; i < MICROPROFILE_TOOLTIP_MAX_STRINGS; ++i)
-	{
-		if(i < pSrc->nNumStrings)
-		{
-			if(pSrc->ppStrings[i] >= &pSrc->Buffer[0] && pSrc->ppStrings[i] < &pSrc->Buffer[0] + MICROPROFILE_TOOLTIP_STRING_BUFFER_SIZE)
-			{
-				pDest->ppStrings[i] += &pDest->Buffer[0] - &pSrc->Buffer[0];
-			}
-		}
-	}
-	pDest->nNumStrings = pSrc->nNumStrings;
-}
-
-MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName);
-void MicroProfileLoadPreset(const char* pSuffix);
-void MicroProfileSavePreset(const char* pSuffix);
-
 
 inline int64_t MicroProfileMsToTick(float fMs, int64_t nTicksPerSecond)
 {
@@ -963,8 +792,116 @@ inline float MicroProfileTickToMsMultiplier(int64_t nTicksPerSecond)
 
 inline uint16_t MicroProfileGetGroupIndex(MicroProfileToken t)
 {
-	return (uint16_t)S.TimerInfo[MicroProfileGetTimerIndex(t)].nGroupIndex;
+	return (uint16_t)MicroProfileGet()->TimerInfo[MicroProfileGetTimerIndex(t)].nGroupIndex;
 }
+
+
+
+#ifdef MICROPROFILE_IMPL
+
+#ifdef _WIN32
+#include <windows.h>
+#define snprintf _snprintf
+
+#pragma warning(push)
+#pragma warning(disable: 4244)
+int64_t MicroProfileTicksPerSecondCpu()
+{
+	static int64_t nTicksPerSecond = 0;	
+	if(nTicksPerSecond == 0) 
+	{
+		QueryPerformanceFrequency((LARGE_INTEGER*)&nTicksPerSecond);
+	}
+	return nTicksPerSecond;
+}
+int64_t MicroProfileGetTick()
+{
+	int64_t ticks;
+	QueryPerformanceCounter((LARGE_INTEGER*)&ticks);
+	return ticks;
+}
+
+#endif
+
+#if MICROPROFILE_WEBSERVER
+
+#ifdef _WIN32
+#define MP_INVALID_SOCKET(f) (f == INVALID_SOCKET)
+#endif
+
+#if defined(__APPLE__)
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <fcntl.h>
+#define MP_INVALID_SOCKET(f) (f < 0)
+#endif
+
+void MicroProfileWebServerStart();
+void MicroProfileWebServerStop();
+bool MicroProfileWebServerUpdate();
+void MicroProfileDumpHtmlToFile();
+
+#else
+
+#define MicroProfileWebServerStart() do{}while(0)
+#define MicroProfileWebServerStop() do{}while(0)
+#define MicroProfileWebServerUpdate() false
+#define MicroProfileDumpHtmlToFile() do{} while(0)
+#endif 
+
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+#include <algorithm>
+
+
+#ifndef MICROPROFILE_DEBUG
+#define MICROPROFILE_DEBUG 0
+#endif
+
+
+#define S g_MicroProfile
+
+MicroProfile g_MicroProfile;
+MicroProfileThreadLog*			g_MicroProfileGpuLog = 0;
+#ifdef MICROPROFILE_IOS
+// iOS doesn't support __thread
+static pthread_key_t g_MicroProfileThreadLogKey;
+static pthread_once_t g_MicroProfileThreadLogKeyOnce = PTHREAD_ONCE_INIT;
+static void MicroProfileCreateThreadLogKey()
+{
+	pthread_key_create(&g_MicroProfileThreadLogKey, NULL);
+}
+#else
+MP_THREAD_LOCAL MicroProfileThreadLog* g_MicroProfileThreadLog = 0;
+#endif
+static bool g_bUseLock = false; /// This is used because windows does not support using mutexes under dll init(which is where global initialization is handled)
+
+
+MICROPROFILE_DEFINE(g_MicroProfileFlip, "MicroProfile", "MicroProfileFlip", 0x3355ee);
+MICROPROFILE_DEFINE(g_MicroProfileThreadLoop, "MicroProfile", "ThreadLoop", 0x3355ee);
+MICROPROFILE_DEFINE(g_MicroProfileClear, "MicroProfile", "Clear", 0x3355ee);
+MICROPROFILE_DEFINE(g_MicroProfileAccumulate, "MicroProfile", "Accumulate", 0x3355ee);
+
+
+inline std::recursive_mutex& MicroProfileMutex()
+{
+	static std::recursive_mutex Mutex;
+	return Mutex;
+}
+std::recursive_mutex& MicroProfileGetMutex()
+{
+	return MicroProfileMutex();
+}
+
+MICROPROFILE_API MicroProfile* MicroProfileGet()
+{
+	return &g_MicroProfile;
+}
+
+
+MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName);
 
 
 void MicroProfileInit()
@@ -1394,7 +1331,7 @@ void MicroProfileFlip()
 		if(0 == once)
 		{
 			uint32_t nDisplay = S.nDisplay;
-			MicroProfileLoadPreset(g_MicroProfilePresetNames[0]);
+			MicroProfileLoadPreset(MICROPROFILE_DEFAULT_PRESET);
 			once++;
 			S.nDisplay = nDisplay;// dont load display, just state
 		}

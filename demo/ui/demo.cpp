@@ -30,6 +30,7 @@
 #include <unistd.h>
 #endif
 
+#define MICROPROFILE_IMPL
 
 #include "microprofile.h"
 #include "microprofileui.h"
@@ -166,7 +167,6 @@ int main(int argc, char* argv[])
 	printf("press 'x' to toggle profiling\n");
 	printf("press 'c' to toggle enable of all profiler groups\n");
 	MicroProfileOnThreadCreate("Main");
-
 	if(SDL_Init(SDL_INIT_VIDEO) < 0) {
 		return 1;
 	}
