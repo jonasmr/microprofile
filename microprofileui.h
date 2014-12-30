@@ -46,7 +46,7 @@
 #define MicroProfileDraw(foo, bar) do{}while(0)
 #define MicroProfileIsDrawing() 0
 #define MicroProfileToggleDisplayMode() do{}while(0)
-#define MicroProfileSetDisplayMode() do{}while(0)
+#define MicroProfileSetDisplayMode(f) do{}while(0)
 #else
 
 #ifndef MICROPROFILE_DRAWCURSOR
