@@ -137,6 +137,9 @@ MICROPROFILEUI_API void MicroProfileDrawLine2D(uint32_t nVertices, float* pVerti
 MICROPROFILEUI_API void MicroProfileDumpTimers();
 
 #ifdef MICROPROFILEUI_IMPL
+#ifdef _WIN32
+#define snprintf _snprintf
+#endif
 #include <stdlib.h>
 #include <math.h>
 #include <algorithm>
@@ -2151,11 +2154,11 @@ void MicroProfileMoveGraph()
 		float fOldRange = UI.fDetailedRange;
 		if(nZoom>0)
 		{
-			UI.fDetailedRangeTarget = UI.fDetailedRange *= UI.nModDown ? 1.40 : 1.05f;
+			UI.fDetailedRangeTarget = UI.fDetailedRange *= UI.nModDown ? 1.40f : 1.05f;
 		}
 		else
 		{
-			float fNewDetailedRange = UI.fDetailedRange / (UI.nModDown ? 1.40 : 1.05f);
+			float fNewDetailedRange = UI.fDetailedRange / (UI.nModDown ? 1.40f : 1.05f);
 			if(fNewDetailedRange < 1e-4f) //100ns
 				fNewDetailedRange = 1e-4f;
 			UI.fDetailedRangeTarget = UI.fDetailedRange = fNewDetailedRange;

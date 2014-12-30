@@ -448,7 +448,8 @@ struct MicroProfileScopeGpuHandler
 #endif
 
 #ifdef _WIN32
-typedef SOCKET MpSocket;
+#include <basetsd.h>
+typedef UINT_PTR MpSocket;
 #else
 typedef int MpSocket;
 #endif

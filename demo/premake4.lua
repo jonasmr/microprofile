@@ -5,7 +5,7 @@ solution "microprofile"
    project "ui"
       kind "WindowedApp"
       language "C++"
-      files { "ui/*.h", "ui/*.cpp", "glew/*.c", "../microprofile.h", "../src/microprofile.h", "../src/microprofile.html"}
+      files { "ui/*.h", "ui/*.cpp", "glew/*.c", "../microprofile.h", "../microprofileui.h", "../src/microprofile.h", "../src/microprofile.html"}
       includedirs {"sdl2/include/", "glew/", ".." }       
       defines {"GLEW_STATIC;_CRT_SECURE_NO_WARNINGS"}       
       libdirs {"sdl2/VisualC/SDL/Win32/Release/"}
@@ -13,7 +13,7 @@ solution "microprofile"
       debugdir "."
       defines {"MICROPROFILE_UI=1", "MICROPROFILE_WEBSERVER=1"}
       --remove comment below to auto generate microprofile.h. requires embed (in src/) to be built
-      --prebuildcommands { "../embed.bat" }
+      prebuildcommands { "../embed.bat" }
 
       configuration "windows"
          links { "opengl32", "glu32", "winmm", "dxguid", "Ws2_32"}
@@ -35,7 +35,7 @@ solution "microprofile"
    		files { "noui/*.h", "noui/*.cpp", "../microprofile.h", "../src/microprofile.h", "../src/microprofile.html"}
    		debugdir "."
    		--remove comment below to auto generate microprofile.h. requires embed (in src/) to be built
-		--prebuildcommands { "../embed.bat" }
+		prebuildcommands { "../embed.bat" }
 
       configuration "Debug"
          defines { "DEBUG" }
