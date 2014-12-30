@@ -88,6 +88,9 @@
 #define MICROPROFILE_ENABLED 1
 #endif
 
+#include <stdint.h>
+typedef uint64_t MicroProfileToken;
+typedef uint16_t MicroProfileGroupId;
 
 #if 0 == MICROPROFILE_ENABLED
 
@@ -105,6 +108,7 @@
 #define MICROPROFILE_FORCEDISABLECPUGROUP(s) do{} while(0)
 #define MICROPROFILE_FORCEENABLEGPUGROUP(s) do{} while(0)
 #define MICROPROFILE_FORCEDISABLEGPUGROUP(s) do{} while(0)
+#define MICROPROFILE_SCOPE_TOKEN(token)
 
 #define MicroProfileGetTime(group, name) 0.f
 #define MicroProfileOnThreadCreate(foo) do{}while(0)
@@ -271,9 +275,6 @@ typedef uint32_t ThreadIdType;
 #define MICROPROFILE_INVALID_TICK ((uint64_t)-1)
 #define MICROPROFILE_GROUP_MASK_ALL 0xffffffffffff
 
-
-typedef uint64_t MicroProfileToken;
-typedef uint16_t MicroProfileGroupId;
 
 #define MICROPROFILE_INVALID_TOKEN (uint64_t)-1
 
