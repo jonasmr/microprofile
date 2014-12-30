@@ -348,7 +348,6 @@ void MicroProfileFloatWindowSize(const char** ppStrings, uint32_t nNumStrings, u
 
 void MicroProfileDrawFloatWindow(uint32_t nX, uint32_t nY, const char** ppStrings, uint32_t nNumStrings, uint32_t nColor, uint32_t* pColors = 0)
 {
-	MicroProfile& S = *MicroProfileGet();	
 	uint32_t nWidth = 0, nHeight = 0;
 	uint32_t* nStringLengths = (uint32_t*)alloca(nNumStrings * sizeof(uint32_t));
 	MicroProfileFloatWindowSize(ppStrings, nNumStrings, pColors, nWidth, nHeight, nStringLengths);
@@ -378,7 +377,6 @@ void MicroProfileDrawFloatWindow(uint32_t nX, uint32_t nY, const char** ppString
 }
 void MicroProfileDrawTextBox(uint32_t nX, uint32_t nY, const char** ppStrings, uint32_t nNumStrings, uint32_t nColor, uint32_t* pColors = 0)
 {
-	MicroProfile& S = *MicroProfileGet();
 	uint32_t nWidth = 0, nHeight = 0;
 	uint32_t* nStringLengths = (uint32_t*)alloca(nNumStrings * sizeof(uint32_t));
 	for(uint32_t i = 0; i < nNumStrings; ++i)
@@ -1394,7 +1392,6 @@ uint32_t MicroProfileDrawBarMetaCount(int32_t nX, int32_t nY, uint64_t* pCounter
 {
 	if(!pName)
 		return 0;
-	MicroProfile& S = *MicroProfileGet();
 
 	MicroProfileDrawLineVertical(nX-5, nY, nTotalHeight, UI.nOpacityBackground|g_nMicroProfileBackColors[0]|g_nMicroProfileBackColors[1]);
 	uint32_t nTextWidth = (1+MICROPROFILE_TEXT_WIDTH) * MicroProfileMax<uint32_t>(6, (uint32_t)strlen(pName));
@@ -1411,7 +1408,6 @@ uint32_t MicroProfileDrawBarMetaCount(int32_t nX, int32_t nY, uint64_t* pCounter
 
 uint32_t MicroProfileDrawBarLegend(int32_t nX, int32_t nY, uint32_t nTotalHeight)
 {
-	MicroProfile& S = *MicroProfileGet();
 	MicroProfileDrawLineVertical(nX-5, nY, nTotalHeight, UI.nOpacityBackground | g_nMicroProfileBackColors[0]|g_nMicroProfileBackColors[1]);
 	MicroProfileLoopActiveGroupsDraw(nX, nY, 0, 
 		[](uint32_t nTimer, uint32_t nIdx, uint64_t nGroupMask, uint32_t nX, uint32_t nY){
@@ -2137,7 +2133,6 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 
 void MicroProfileMoveGraph()
 {
-	MicroProfile& S = *MicroProfileGet();
 
 	int nZoom = UI.nMouseWheelDelta;
 	int nPanX = 0;
@@ -2489,7 +2484,6 @@ void MicroProfileToggleGraph(MicroProfileToken nToken)
 
 void MicroProfileMousePosition(uint32_t nX, uint32_t nY, int nWheelDelta)
 {
-	MicroProfile& S = *MicroProfileGet();
 	UI.nMouseX = nX;
 	UI.nMouseY = nY;
 	UI.nMouseWheelDelta = nWheelDelta;
@@ -2497,7 +2491,6 @@ void MicroProfileMousePosition(uint32_t nX, uint32_t nY, int nWheelDelta)
 
 void MicroProfileModKey(uint32_t nKeyState)
 {
-	MicroProfile& S = *MicroProfileGet();	
 	UI.nModDown = nKeyState ? 1 : 0;
 }
 
@@ -2515,7 +2508,6 @@ void MicroProfileClearGraph()
 
 void MicroProfileMouseButton(uint32_t nLeft, uint32_t nRight)
 {
-	MicroProfile& S = *MicroProfileGet();	
 	if(0 == nLeft && UI.nMouseDownLeft)
 	{
 		if(UI.nModDown)

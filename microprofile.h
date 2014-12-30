@@ -572,22 +572,10 @@ struct MicroProfile
 	uint32_t nForceEnable;
 	uint32_t nForceMetaCounters;
 
-// 	//menu/mouse over stuff
 	uint64_t nActiveGroupWanted;
 	uint32_t nAllGroupsWanted;
 	uint32_t nAllThreadsWanted;
 
-
-// 	uint64_t nActiveGroupWanted;
-// 	uint32_t nAllGroupsWanted;
-// 	uint32_t nAllThreadsWanted;
-// 	uint64_t nHoverToken;
-// 	int64_t  nHoverTime;
-// 	int 	 nHoverFrame;
-// #if MICROPROFILE_DEBUG
-// 	uint64_t nHoverAddressEnter;
-// 	uint64_t nHoverAddressLeave;
-// #endif
 	uint32_t nOverflow;
 
 	uint64_t nGroupMask;
@@ -601,27 +589,6 @@ struct MicroProfile
 
 	float fReferenceTime;
 	float fRcpReferenceTime;
-
-	// uint32_t nOpacityBackground;
-	// uint32_t nOpacityForeground;
-
-	// bool bShowSpikes;
-
-	// float fDetailedOffset; //display offset relative to start of latest displayable frame.
-	// float fDetailedRange; //no. of ms to display
-
-	// float fDetailedOffsetTarget;
-	// float fDetailedRangeTarget;
-
-
-
-	// uint32_t nWidth;
-	// uint32_t nHeight;
-
-	// uint32_t nBarWidth;
-	// uint32_t nBarHeight;
-
-	//hertil.
 
 	MicroProfileGroupInfo 	GroupInfo[MICROPROFILE_MAX_GROUPS];
 	MicroProfileTimerInfo 	TimerInfo[MICROPROFILE_MAX_TIMERS];
@@ -648,18 +615,6 @@ struct MicroProfile
 	MicroProfileGraphState	Graph[MICROPROFILE_MAX_GRAPHS];
 	uint32_t				nGraphPut;
 
-	// uint32_t 				nMouseX;
-	// uint32_t 				nMouseY;
-	// int						nMouseWheelDelta;
-	// uint32_t				nMouseDownLeft;
-	// uint32_t				nMouseDownRight;
-	// uint32_t 				nMouseLeft;
-	// uint32_t 				nMouseRight;
-	// uint32_t 				nMouseLeftMod;
-	// uint32_t 				nMouseRightMod;
-	// uint32_t				nModDown;
-	// uint32_t 				nActiveMenu;
-
 	uint32_t				nThreadActive[MICROPROFILE_MAX_THREADS];
 	MicroProfileThreadLog* 	Pool[MICROPROFILE_MAX_THREADS];
 	uint32_t				nNumLogs;
@@ -672,9 +627,6 @@ struct MicroProfile
 	uint64_t				nFramePutIndex;
 
 	MicroProfileFrameState Frames[MICROPROFILE_MAX_FRAME_HISTORY];
-	
-	// MicroProfileLogEntry* pDisplayMouseOver;
-
 
 	uint64_t				nFlipTicks;
 	uint64_t				nFlipAggregate;
@@ -906,9 +858,7 @@ void MicroProfileInit()
 			S.TimerInfo[i].pName[0] = '\0';
 		}
 		S.nGroupCount = 0;
-		// S.nBarWidth = 100;
 		S.nAggregateFlipTick = MP_TICK();
-		// S.nBarHeight = MICROPROFILE_TEXT_HEIGHT;//todo fix
 		S.nActiveGroup = 0;
 		S.nActiveBars = 0;
 		S.nForceGroup = 0;
@@ -922,8 +872,6 @@ void MicroProfileInit()
 			S.Graph[i].nToken = MICROPROFILE_INVALID_TOKEN;
 		}
 		S.nRunning = 1;
-		// S.nWidth = 100;
-		// S.nHeight = 100;
 		S.fReferenceTime = 33.33f;
 		S.fRcpReferenceTime = 1.f / S.fReferenceTime;
 		S.nFreeListHead = -1;
@@ -941,13 +889,6 @@ void MicroProfileInit()
 		pGpu->nThreadId = 0;
 
 
-		// S.fDetailedOffsetTarget = S.fDetailedOffset = 0.f;
-		// S.fDetailedRangeTarget = S.fDetailedRange = 50.f;
-
-		// S.nOpacityBackground = 0xff<<24;
-		// S.nOpacityForeground = 0xff<<24;
-
-		// // S.bShowSpikes = false;
 		MicroProfileWebServerStart();
 	}
 	if(bUseLock)
@@ -1572,10 +1513,6 @@ void MicroProfileFlip()
 	}
 	if(nNewActiveBars != S.nActiveBars)
 		S.nActiveBars = nNewActiveBars;
-
-	// S.fDetailedOffset = S.fDetailedOffset + (S.fDetailedOffsetTarget - S.fDetailedOffset) * MICROPROFILE_ANIM_DELAY_PRC;
-	// S.fDetailedRange = S.fDetailedRange + (S.fDetailedRangeTarget - S.fDetailedRange) * MICROPROFILE_ANIM_DELAY_PRC;
-
 }
 
 void MicroProfileSetForceEnable(bool bEnable)
@@ -1626,234 +1563,6 @@ int MicroProfileGetCurrentAggregateFrames()
 	return int(S.nAggregateFlip ? S.nAggregateFlip : S.nAggregateFlipCount);
 }
 
-// void MicroProfileGetState(MicroProfileState* pStateOut)
-// {
-// 	pStateOut->nDisplay = S.nDisplay;
-// 	pStateOut->nAllGroupsWanted = S.nAllGroupsWanted;
-// 	pStateOut->nActiveGroupWanted = S.nActiveGroupWanted;
-// 	pStateOut->nAllThreadsWanted = S.nAllThreadsWanted;
-// 	pStateOut->nAggregateFlip = S.nAggregateFlip;
-// 	pStateOut->nBars = S.nBars;
-// 	pStateOut->fReferenceTime = S.fReferenceTime;
-// }
-
-// void MicroProfileSetState(MicroProfileState* pStateOut)
-// {
-// 	MicroProfileScopeLock L(MicroProfileMutex());
-// 	S.nDisplay = pStateOut->nDisplay;
-// 	S.nAllGroupsWanted = pStateOut->nAllGroupsWanted;
-// 	S.nActiveGroupWanted = pStateOut->nActiveGroupWanted;
-// 	S.nAllThreadsWanted = pStateOut->nAllThreadsWanted;
-// 	S.nAggregateFlip = pStateOut->nAggregateFlip;
-// 	S.nBars = pStateOut->nBars;
-// 	S.fReferenceTime = pStateOut->fReferenceTime;
-// 	S.fRcpReferenceTime = 1.f / S.fReferenceTime;
-// }
-
-
-// #include <stdio.h>
-
-// #define MICROPROFILE_PRESET_HEADER_MAGIC 0x28586813
-// #define MICROPROFILE_PRESET_HEADER_VERSION 0x00000102
-// struct MicroProfilePresetHeader
-// {
-// 	uint32_t nMagic;
-// 	uint32_t nVersion;
-// 	//groups, threads, aggregate, reference frame, graphs timers
-// 	uint32_t nGroups[MICROPROFILE_MAX_GROUPS];
-// 	uint32_t nThreads[MICROPROFILE_MAX_THREADS];
-// 	uint32_t nGraphName[MICROPROFILE_MAX_GRAPHS];
-// 	uint32_t nGraphGroupName[MICROPROFILE_MAX_GRAPHS];
-// 	uint32_t nAllGroupsWanted;
-// 	uint32_t nAllThreadsWanted;
-// 	uint32_t nAggregateFlip;
-// 	float fReferenceTime;
-// 	uint32_t nBars;
-// 	uint32_t nDisplay;
-// 	uint32_t nOpacityBackground;
-// 	uint32_t nOpacityForeground;
-// 	uint32_t nShowSpikes;
-// };
-
-// #ifndef MICROPROFILE_PRESET_FILENAME_FUNC
-// #define MICROPROFILE_PRESET_FILENAME_FUNC MicroProfilePresetFilename
-// static const char* MicroProfilePresetFilename(const char* pSuffix)
-// {
-// 	static char filename[512];
-// 	snprintf(filename, sizeof(filename)-1, ".microprofilepreset.%s", pSuffix);
-// 	return filename;
-// }
-// #endif
-
-// void MicroProfileSavePreset(const char* pPresetName)
-// {
-// 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
-// 	FILE* F = fopen(MICROPROFILE_PRESET_FILENAME_FUNC(pPresetName), "wb");
-// 	if(!F) return;
-
-// 	MicroProfilePresetHeader Header;
-// 	memset(&Header, 0, sizeof(Header));
-// 	Header.nAggregateFlip = S.nAggregateFlip;
-// 	Header.nBars = S.nBars;
-// 	Header.fReferenceTime = S.fReferenceTime;
-// 	Header.nAllGroupsWanted = S.nAllGroupsWanted;
-// 	Header.nAllThreadsWanted = S.nAllThreadsWanted;
-// 	Header.nMagic = MICROPROFILE_PRESET_HEADER_MAGIC;
-// 	Header.nVersion = MICROPROFILE_PRESET_HEADER_VERSION;
-// 	Header.nDisplay = S.nDisplay;
-// 	Header.nOpacityBackground = S.nOpacityBackground;
-// 	Header.nOpacityForeground = S.nOpacityForeground;
-// 	Header.nShowSpikes = S.bShowSpikes ? 1 : 0;
-// 	fwrite(&Header, sizeof(Header), 1, F);
-// 	uint64_t nMask = 1;
-// 	for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
-// 	{
-// 		if(S.nActiveGroupWanted & nMask)
-// 		{
-// 			uint32_t offset = ftell(F);
-// 			const char* pName = S.GroupInfo[i].pName;
-// 			int nLen = (int)strlen(pName)+1;
-// 			fwrite(pName, nLen, 1, F);
-// 			Header.nGroups[i] = offset;
-// 		}
-// 		nMask <<= 1;
-// 	}
-// 	for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
-// 	{
-// 		MicroProfileThreadLog* pLog = S.Pool[i];
-// 		if(pLog && S.nThreadActive[i])
-// 		{
-// 			uint32_t nOffset = ftell(F);
-// 			const char* pName = &pLog->ThreadName[0];
-// 			int nLen = (int)strlen(pName)+1;
-// 			fwrite(pName, nLen, 1, F);
-// 			Header.nThreads[i] = nOffset;
-// 		}
-// 	}
-// 	for(uint32_t i = 0; i < MICROPROFILE_MAX_GRAPHS; ++i)
-// 	{
-// 		MicroProfileToken nToken = S.Graph[i].nToken;
-// 		if(nToken != MICROPROFILE_INVALID_TOKEN)
-// 		{
-// 			uint32_t nGroupIndex = MicroProfileGetGroupIndex(nToken);
-// 			uint32_t nTimerIndex = MicroProfileGetTimerIndex(nToken);
-// 			const char* pGroupName = S.GroupInfo[nGroupIndex].pName;
-// 			const char* pTimerName = S.TimerInfo[nTimerIndex].pName;
-// 			MP_ASSERT(pGroupName);
-// 			MP_ASSERT(pTimerName);
-// 			int nGroupLen = (int)strlen(pGroupName)+1;
-// 			int nTimerLen = (int)strlen(pTimerName)+1;
-
-// 			uint32_t nOffsetGroup = ftell(F);
-// 			fwrite(pGroupName, nGroupLen, 1, F);
-// 			uint32_t nOffsetTimer = ftell(F);
-// 			fwrite(pTimerName, nTimerLen, 1, F);
-// 			Header.nGraphName[i] = nOffsetTimer;
-// 			Header.nGraphGroupName[i] = nOffsetGroup;
-// 		}
-// 	}
-// 	fseek(F, 0, SEEK_SET);
-// 	fwrite(&Header, sizeof(Header), 1, F);
-
-// 	fclose(F);
-
-// }
-
-
-
-// void MicroProfileLoadPreset(const char* pSuffix)
-// {
-// 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
-// 	FILE* F = fopen(MICROPROFILE_PRESET_FILENAME_FUNC(pSuffix), "rb");
-// 	if(!F)
-// 	{
-// 	 	return;
-// 	}
-// 	fseek(F, 0, SEEK_END);
-// 	int nSize = ftell(F);
-// 	char* const pBuffer = (char*)alloca(nSize);
-// 	fseek(F, 0, SEEK_SET);
-// 	int nRead = (int)fread(pBuffer, nSize, 1, F);
-// 	fclose(F);
-// 	if(1 != nRead)
-// 		return;
-	
-// 	MicroProfilePresetHeader& Header = *(MicroProfilePresetHeader*)pBuffer;
-
-// 	if(Header.nMagic != MICROPROFILE_PRESET_HEADER_MAGIC || Header.nVersion != MICROPROFILE_PRESET_HEADER_VERSION)
-// 	{
-// 		return;
-// 	}
-
-// 	S.nAggregateFlip = Header.nAggregateFlip;
-// 	S.nBars = Header.nBars;
-// 	S.fReferenceTime = Header.fReferenceTime;
-// 	S.fRcpReferenceTime = 1.f / Header.fReferenceTime;
-// 	S.nAllGroupsWanted = Header.nAllGroupsWanted;
-// 	S.nAllThreadsWanted = Header.nAllThreadsWanted;
-// 	S.nDisplay = Header.nDisplay;
-// 	S.nActiveGroupWanted = 0;
-// 	S.nOpacityBackground = Header.nOpacityBackground;
-// 	S.nOpacityForeground = Header.nOpacityForeground;
-// 	S.bShowSpikes = Header.nShowSpikes == 1;
-
-// 	memset(&S.nThreadActive[0], 0, sizeof(S.nThreadActive));
-
-// 	for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
-// 	{
-// 		if(Header.nGroups[i])
-// 		{
-// 			const char* pGroupName = pBuffer + Header.nGroups[i];	
-// 			for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
-// 			{
-// 				if(S.GroupInfo[j].pName && 0 == MP_STRCASECMP(pGroupName, S.GroupInfo[j].pName))
-// 				{
-// 					S.nActiveGroupWanted |= (1ll << j);
-// 				}
-// 			}
-// 		}
-// 	}
-// 	for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
-// 	{
-// 		if(Header.nThreads[i])
-// 		{
-// 			const char* pThreadName = pBuffer + Header.nThreads[i];
-// 			for(uint32_t j = 0; j < MICROPROFILE_MAX_THREADS; ++j)
-// 			{
-// 				MicroProfileThreadLog* pLog = S.Pool[j];
-// 				if(pLog && 0 == MP_STRCASECMP(pThreadName, &pLog->ThreadName[0]))
-// 				{
-// 					S.nThreadActive[j] = 1;
-// 				}
-// 			}
-// 		}
-// 	}
-// 	for(uint32_t i = 0; i < MICROPROFILE_MAX_GRAPHS; ++i)
-// 	{
-// 		MicroProfileToken nPrevToken = S.Graph[i].nToken;
-// 		S.Graph[i].nToken = MICROPROFILE_INVALID_TOKEN;
-// 		if(Header.nGraphName[i] && Header.nGraphGroupName[i])
-// 		{
-// 			const char* pGraphName = pBuffer + Header.nGraphName[i];
-// 			const char* pGraphGroupName = pBuffer + Header.nGraphGroupName[i];
-// 			for(uint32_t j = 0; j < S.nTotalTimers; ++j)
-// 			{
-// 				uint64_t nGroupIndex = S.TimerInfo[j].nGroupIndex;
-// 				if(0 == MP_STRCASECMP(pGraphName, S.TimerInfo[j].pName) && 0 == MP_STRCASECMP(pGraphGroupName, S.GroupInfo[nGroupIndex].pName))
-// 				{
-// 					MicroProfileToken nToken = MicroProfileMakeToken(1ll << nGroupIndex, (uint16_t)j);
-// 					S.Graph[i].nToken = nToken;			// note: group index is stored here but is checked without in MicroProfileToggleGraph()!
-// 					S.TimerInfo[j].bGraph = true;
-// 					if(nToken != nPrevToken)
-// 					{
-// 						memset(&S.Graph[i].nHistory, 0, sizeof(S.Graph[i].nHistory));
-// 					}
-// 					break;
-// 				}
-// 			}
-// 		}
-// 	}
-// }
 
 void MicroProfileForceEnableGroup(const char* pGroup, MicroProfileTokenType Type)
 {
