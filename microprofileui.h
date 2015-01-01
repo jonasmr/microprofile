@@ -1353,7 +1353,7 @@ void MicroProfileCalcTimers(float* pTimers, float* pAverage, float* pMax, float*
 
 uint32_t MicroProfileDrawBarArray(int32_t nX, int32_t nY, float* pTimers, const char* pName, uint32_t nTotalHeight, float* pTimers2 = NULL)
 {
-	MicroProfile& S = *MicroProfileGet();
+	MicroProfile* pState = MicroProfileGet();
 
 	const uint32_t nHeight = MICROPROFILE_TEXT_HEIGHT;
 	const uint32_t nWidth = MICROPROFILE_BAR_WIDTH;
@@ -1364,6 +1364,7 @@ uint32_t MicroProfileDrawBarArray(int32_t nX, int32_t nY, float* pTimers, const 
 
 	MicroProfileLoopActiveGroupsDraw(nX, nY, pName, 
 		[=](uint32_t nTimer, uint32_t nIdx, uint64_t nGroupMask, uint32_t nX, uint32_t nY){
+			MicroProfile& S = *pState;
 			char sBuffer[SBUF_MAX];
 			if (pTimers2 && pTimers2[nIdx] > 0.1f)
 				snprintf(sBuffer, SBUF_MAX-1, "%5.2f %3.1fx", pTimers[nIdx], pTimers[nIdx] / pTimers2[nIdx]);
