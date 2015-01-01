@@ -127,6 +127,7 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileSetForceMetaCounters(a)
 #define MicroProfileGetForceMetaCounters() 0
 #define MicroProfileDumpHtml(c) do{} while(0)
+#define MicroProfileWebServerPort() ((uint32_t)-1)
 
 #else
 
@@ -135,6 +136,12 @@ typedef uint16_t MicroProfileGroupId;
 #include <thread>
 #include <mutex>
 #include <atomic>
+
+#ifndef MICROPROFILE_API
+#define MICROPROFILE_API
+#endif
+
+MICROPROFILE_API int64_t MicroProfileTicksPerSecondCpu();
 
 
 #if defined(__APPLE__)
@@ -167,7 +174,6 @@ inline int64_t MicroProfileTicksPerSecondCpu()
 typedef uint64_t ThreadIdType;
 
 #elif defined(_WIN32)
-int64_t MicroProfileTicksPerSecondCpu();
 int64_t MicroProfileGetTick();
 #define MP_TICK() MicroProfileGetTick()
 #define MP_BREAK() __debugbreak()
@@ -203,9 +209,6 @@ typedef uint64_t ThreadIdType;
 typedef uint32_t ThreadIdType;
 #endif
 
-#ifndef MICROPROFILE_API
-#define MICROPROFILE_API
-#endif
 
 #define MP_ASSERT(a) do{if(!(a)){MP_BREAK();} }while(0)
 #define MICROPROFILE_DECLARE(var) extern MicroProfileToken g_mp_##var
@@ -344,11 +347,12 @@ MICROPROFILE_API void MicroProfileStopContextSwitchTrace();
 MICROPROFILE_API bool MicroProfileIsLocalThread(uint32_t nThreadId);
 
 
-
 #if MICROPROFILE_WEBSERVER
 MICROPROFILE_API void MicroProfileDumpHtml(const char* pFile);
+MICROPROFILE_API uint32_t MicroProfileWebServerPort();
 #else
 #define MicroProfileDumpHtml(c) do{} while(0)
+#define MicroProfileWebServerPort() ((uint32_t)-1)
 #endif
 
 
@@ -657,6 +661,7 @@ struct MicroProfile
 
 
 	MpSocket 					ListenerSocket;
+	uint32_t					nWebServerPort;
 
 };
 
@@ -1654,6 +1659,11 @@ extern const size_t g_MicroProfileHtml_end_size;
 
 typedef void MicroProfileWriteCallback(void* Handle, size_t size, const char* pData);
 
+uint32_t MicroProfileWebServerPort()
+{
+	return S.nWebServerPort;
+}
+
 void MicroProfileDumpHtml(const char* pFile)
 {
 	uint32_t nLen = strlen(pFile);
@@ -1943,6 +1953,7 @@ void MicroProfileWebServerStart()
 	MP_ASSERT(!MP_INVALID_SOCKET(S.ListenerSocket));
 	MicroProfileSetNonBlocking(S.ListenerSocket, 1);
 
+	S.nWebServerPort = (uint32_t)-1;
 	struct sockaddr_in Addr; 
 	Addr.sin_family = AF_INET; 
 	Addr.sin_addr.s_addr = INADDR_ANY; 
@@ -1951,7 +1962,7 @@ void MicroProfileWebServerStart()
 		Addr.sin_port = htons(MICROPROFILE_WEBSERVER_PORT+i); 
 		if(0 == bind(S.ListenerSocket, (sockaddr*)&Addr, sizeof(Addr)))
 		{
-			printf("MicroProfile Webserver Port %d\n", MICROPROFILE_WEBSERVER_PORT + i);
+			S.nWebServerPort = MICROPROFILE_WEBSERVER_PORT+i;
 			break;
 		}
 	}
