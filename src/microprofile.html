@@ -44,7 +44,7 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 <canvas id="History" height="70" style="background-color:#474747;margin:0px;padding:0px;"></canvas><canvas id="DetailedView" height="200" style="background-color:#474747;margin:0px;padding:0px;"></canvas>
 <div id="root" class="root">
 <ul id="nav">
-<li><a href="#">?</a>
+<li><a href="#" onclick="ToggleDebugMode();">?</a>
 <div class="help" style="left:20px;top:20px;width:220px;">
 Use Cursor to Inspect<br>
 Shift-Drag to Pan view<br>
@@ -91,6 +91,12 @@ Click to Zoom to selected range<br>
         <li><a href="#" onclick="SetMinWidth('0.05');">0.05</a></li>
         <li><a href="#" onclick="SetMinWidth('0.025');">0.025</a></li>
         <li><a href="#" onclick="SetMinWidth('0.01');">0.01</a></li>
+    </ul>
+</li>
+<li id="ilContextSwitch"><a href="#">ContextSwitch</a>
+    <ul id='ContextSwitchMenu'>
+        <li><a href="#" onclick="SetContextSwitch(1);">On</a></li>
+        <li><a href="#" onclick="SetContextSwitch(0);">Off</a></li>
     </ul>
 </li>
 </ul>
@@ -166,6 +172,7 @@ var ThreadsAllActive = 1;
 var GroupsActive = new Object();
 var GroupsAllActive = 1;
 var nMinWidth = 0.5;
+var nContextSwitchEnabled = 1;
 
 var nModDown = 0;
 var g_MSG = 'no';
@@ -178,6 +185,9 @@ var FRAME_HISTORY_COLOR_CPU = '#ff7f27';
 var FRAME_HISTORY_COLOR_GPU = '#ffffff';
 var ZOOM_TIME = 0.5;
 var AnimationActive = false;
+var nHoverCSCpu = -1;
+var nHoverCSCpuNext = -1;
+var nHoverCSToolTip = null;
 var nHoverToken = -1;
 var nHoverFrame = -1;
 var nHoverTokenIndex = -1;
@@ -195,6 +205,95 @@ var Mode = ModeDetailed;
 
 var DebugDrawQuadCount = 0;
 var DebugDrawTextCount = 0;
+var ProfileMode = 0;
+var ProfileFps = 0;
+var ProfileFpsAggr = 0;
+var ProfileFpsCount = 0;
+var ProfileLastTimeStamp = new Date();
+
+var CSwitchCache = {};
+var ProfileData = {};
+var ProfileStackTime = {};
+var ProfileStackName = {};
+
+function ProfileModeClear()
+{
+	if(ProfileMode)
+	{
+		ProfileData = new Object();
+		ProfileStackTime = new Array();
+		ProfileStackName = new Array();
+	}
+}
+function ProfileEnter(Name)
+{
+	if(ProfileMode)
+	{
+		ProfileStackTime.push(new Date());
+		ProfileStackName.push(Name);
+	}
+}
+function ProfileLeave()
+{
+	if(ProfileMode)
+	{
+		var Time = new Date();
+		var Delta = Time - ProfileStackTime.pop();
+		var Name = ProfileStackName.pop();
+		var Obj = ProfileData[Name];
+		if(!Obj)
+		{
+			Obj = new Object();
+			Obj.Count = 0;
+			Obj.Name = Name;
+			Obj.Time = 0;
+			ProfileData[Name] = Obj;
+		}
+		Obj.Time += Delta;
+		Obj.Count += 1;
+	}
+
+}
+
+function ProfileModeDraw(Canvas)
+{
+	if(ProfileMode)
+	{
+		var StringArray = [];
+		for(var idx in ProfileData)
+		{
+			var Timer = ProfileData[idx];
+			StringArray.push(Timer.Name);
+			StringArray.push(Timer.Time + "ms");
+		}
+		var Time = new Date();
+		var Delta = Time - ProfileLastTimeStamp;
+		ProfileLastTimeStamp = Time;
+		StringArray.push("Frame Delta");
+		StringArray.push(Delta + "ms");
+		if(ProfileMode == 2)
+		{
+			ProfileFpsAggr += Delta;
+			ProfileFpsCount ++ ;
+			var AggrFrames = 10;
+			if(ProfileFpsCount == AggrFrames)
+			{
+				ProfileFps = 1000 / (ProfileFpsAggr / AggrFrames);
+				ProfileFpsAggr = 0;
+				ProfileFpsCount = 0;
+			}
+			StringArray.push("FPS");
+			StringArray.push("" + ProfileFps.toFixed(2));
+		}
+		DrawToolTip(StringArray, Canvas, 0, 400);
+	}
+}
+
+function ToggleDebugMode()
+{
+	ProfileMode = (ProfileMode+1)%3;
+	console.log('Toggle Debug Mode ' + ProfileMode);
+}
 
 
 function InitFrameInfo()
@@ -419,12 +518,14 @@ function SetMode(NewMode)
 	var ilWidth = document.getElementById('ilWidth');
 	var ilThreads = document.getElementById('ilThreads');
 	var ilGroups = document.getElementById('ilGroups');
+	var ilContextSwitch = document.getElementById('ilContextSwitch')
 	if(NewMode == 'timers' || NewMode == ModeTimers)
 	{
 		buttonTimers.style['text-decoration'] = 'underline';
 		buttonDetailed.style['text-decoration'] = 'none';
 		ilWidth.style['display'] = 'none';
 		ilThreads.style['display'] = 'none';
+		ilContextSwitch.style['display'] = 'none';
 		ilGroups.style['display'] = 'block';
 		Mode = ModeTimers;
 	}
@@ -435,6 +536,7 @@ function SetMode(NewMode)
 		ilWidth.style['display'] = 'block';
 		ilThreads.style['display'] = 'block';
 		ilGroups.style['display'] = 'none';
+		ilContextSwitch.style['display'] = 'block';
 		Mode = ModeDetailed;
 	}
 	WriteCookie();
@@ -479,6 +581,25 @@ function SetMinWidth(TimeString)
 	}
 	WriteCookie();
 	Draw();
+}
+function SetContextSwitch(Enabled)
+{
+	nContextSwitchEnabled = Enabled ? 1 : 0;
+	var ReferenceMenu = document.getElementById('ContextSwitchMenu');
+	var Links = ReferenceMenu.getElementsByTagName('a');
+	if(nContextSwitchEnabled)
+	{
+		Links[0].style['text-decoration'] = 'underline';
+		Links[1].style['text-decoration'] = 'none';
+	}
+	else
+	{
+		Links[0].style['text-decoration'] = 'none';	
+		Links[1].style['text-decoration'] = 'underline';		
+	}
+	WriteCookie();
+	Draw();
+
 }
 
 function GatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)
@@ -769,6 +890,7 @@ function DrawToolTip(StringArray, Canvas, x, y)
 }
 function DrawHoverToolTip()
 {
+	ProfileEnter("DrawHoverToolTip");
 	if(nHoverToken != -1)
 	{
 		var StringArray = [];
@@ -839,14 +961,29 @@ function DrawHoverToolTip()
 			StringArray.push(""+HoverInfo[index]);
 		}
 		DrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20);
-
 	}
+	else if(nHoverCSCpu >= 0)
+	{
+		var StringArray = [];
+		StringArray.push("Context Switch");
+		StringArray.push("");
+		StringArray.push("");
+		StringArray.push("");
+		StringArray.push("Cpu");
+		StringArray.push("" + nHoverCSCpu);
+		StringArray.push("Begin");
+		StringArray.push("" + fRangeBegin);
+		StringArray.push("End");
+		StringArray.push("" + fRangeEnd);
+		DrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20);
+	}
+	ProfileLeave();
 }
 
 
 function DrawBarView()
 {
-	console.log('bar view view');
+	ProfileEnter("DrawBarView");
 	nHoverToken = -1;
 	nHoverFrame = -1;
 	var context = CanvasDetailedView.getContext('2d');
@@ -1024,45 +1161,100 @@ function DrawBarView()
 	}
 	DrawHeaderSplit('Name');
 
+	ProfileLeave();
 }
 
-function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOffset)
-{
-	var nCount = CSwitchTime.length;
-	var j = 0;
-	var TimeIn = -1.0;
-	var nNumColors = CSwitchColors.length;
-	for(var i = 0; i < nCount; ++i)
-	{	
-		var ThreadIn = CSwitchThreadInOutCpu[j];
-		var ThreadOut = CSwitchThreadInOutCpu[j+1];
-		var Cpu = CSwitchThreadInOutCpu[j+2];
-		if(TimeIn < 0)
-		{
-			if(ThreadIn == ThreadId)
-			{
-				TimeIn = CSwitchTime[i];
-			}
-		}
-		else
-		{
-			if(ThreadOut == ThreadId)
-			{
-				var TimeOut = CSwitchTime[i];
-				var X = (TimeIn - fDetailedOffset) * fScaleX;
-				var W = (TimeOut - TimeIn) * fScaleX;
-				context.fillStyle = CSwitchColors[Cpu % nNumColors];
-				context.fillRect(X, fOffsetY, W, CSwitchHeight);
-				TimeIn = -1;
-			}
-		}
-		j += 3;
 
-// var CSwitchColors = ['#63607B','#755E2B','#326A55','#523135','#904F42','#87536B','#346875','#5E6046','#35404C','#224038','#413D1E','#5E3A26','#5D6161','#4C6234','#7D564F','#5C4352'];
-// var CSwitchHeight = 5;
+function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOffset, nHoverColor)
+{
+	ProfileEnter("DrawContextSwitchBars");
+	var CSObject = CSwitchCache[ThreadId];
+	if(ThreadId > 0 && !CSObject)
+	{
+		var start = new Date();
+		CSArrayIn = new Array();
+		CSArrayOut = new Array();
+		CSArrayCpu = new Array();
+		var nCount = CSwitchTime.length;
+		var j = 0;
+		var TimeIn = -1.0;
+		for(var i = 0; i < nCount; ++i)
+		{	
+			var ThreadIn = CSwitchThreadInOutCpu[j];
+			var ThreadOut = CSwitchThreadInOutCpu[j+1];
+			var Cpu = CSwitchThreadInOutCpu[j+2];
+			if(TimeIn < 0)
+			{
+				if(ThreadIn == ThreadId)
+				{
+					TimeIn = CSwitchTime[i];
+				}
+			}
+			else
+			{
+				if(ThreadOut == ThreadId)
+				{
+					var TimeOut = CSwitchTime[i];
+					CSArrayIn.push(TimeIn);
+					CSArrayOut.push(TimeOut);
+					CSArrayCpu.push(Cpu);
+					TimeIn = -1;
+				}
+			}
+			j += 3;
+		}
+		CSObject = new Object();
+		CSObject.Size = CSArrayIn.length;
+		CSObject.In = CSArrayIn;
+		CSObject.Out = CSArrayOut;
+		CSObject.Cpu = CSArrayCpu;
+		CSwitchCache[ThreadId] = CSObject;
+		var end = new Date();
+		var time = end - start;
+		var timeTaken = 'TIME ' + time + 'ms ';
+		console.log(timeTaken + ' for ' + ThreadId);
 
 
 	}
+	if(CSObject)
+	{
+		var Size = CSObject.Size;		
+		var In = CSObject.In;
+		var Out = CSObject.Out;
+		var Cpu = CSObject.Cpu;
+		var nNumColors = CSwitchColors.length;
+		for(var i = 0; i < Size; ++i)
+		{
+			var TimeIn = In[i];
+			var TimeOut = Out[i];
+			var ActiveCpu = Cpu[i];
+			var X = (TimeIn - fDetailedOffset) * fScaleX;
+			if(X > nWidth)
+			{
+				break;
+			}
+			var W = (TimeOut - TimeIn) * fScaleX;
+			if(W > nMinWidth && X+W > 0)
+			{
+				if(nHoverCSCpu == ActiveCpu)
+				{
+					context.fillStyle = nHoverColor;
+				}
+				else
+				{
+					context.fillStyle = CSwitchColors[ActiveCpu % nNumColors];
+				}
+				context.fillRect(X, fOffsetY, W, CSwitchHeight);
+				if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < fOffsetY+CSwitchHeight && DetailedViewMouseY >= fOffsetY)
+				{
+					nHoverCSCpuNext = ActiveCpu;
+					fRangeBegin = TimeIn;
+					fRangeEnd = TimeOut;
+				}
+			}
+		}
+	}
+	ProfileLeave();
 }
 
 function DrawDetailed(Animation)
@@ -1071,8 +1263,10 @@ function DrawDetailed(Animation)
 	{
 		return;
 	}
+	ProfileEnter("DrawDetailed");
 	DebugDrawQuadCount = 0;
 	DebugDrawTextCount = 0;
+	nHoverCSCpuNext = -1;
 
 
 	var start = new Date();
@@ -1116,8 +1310,11 @@ function DrawDetailed(Animation)
 			context.fillStyle = 'white';
 			context.fillText(ThreadName, 0, fOffsetY);
 			fOffsetY += BoxHeight;
-			DrawContextSwitchBars(context, ThreadIds[nLog], fScaleX, fOffsetY, fDetailedOffset);
-			fOffsetY += CSwitchHeight+1;
+			if(nContextSwitchEnabled)
+			{
+				DrawContextSwitchBars(context, ThreadIds[nLog], fScaleX, fOffsetY, fDetailedOffset, nHoverColor);
+				fOffsetY += CSwitchHeight+1;
+			}
 
 
 			var MaxDepth = 1;
@@ -1249,7 +1446,7 @@ function DrawDetailed(Animation)
 
 
 
-
+	nHoverCSCpu = nHoverCSCpuNext;
 
 	var end = new Date();
 	var time = end - start;
@@ -1261,6 +1458,7 @@ function DrawDetailed(Animation)
 		context.fillText(timeTaken+" " + nDrawCount + "..." + g_MSG + " Q:" + DebugDrawQuadCount + " T:" + DebugDrawTextCount, 20, 20);
 		g_MSG = '';
 	}
+	ProfileLeave();
 }
 
 function ZoomTo(fZoomBegin, fZoomEnd)
@@ -1299,10 +1497,14 @@ function ZoomTo(fZoomBegin, fZoomEnd)
 		requestAnimationFrame(ZoomFunc);
 	}
 }
-function Draw()
+function Draw(SkipHistory)
 {
+	if(ProfileMode)
+	{
+		ProfileModeClear();
+		ProfileEnter("Total");
+	}
 
-		console.log('drawing ' + Mode);
 	if(Mode == ModeTimers)
 	{
 		DrawBarView();
@@ -1312,16 +1514,26 @@ function Draw()
 		DrawDetailed(false);
 		DrawHoverToolTip();
 	}
-	DrawDetailedFrameHistory();
+	if(!SkipHistory)
+	{
+		DrawDetailedFrameHistory();
+	}
+
+	if(ProfileMode)
+	{
+		ProfileLeave();
+		ProfileModeDraw(CanvasDetailedView);
+	}
+
+
 }
 function AutoRedraw(Timestamp)
 {
 	if(Mode == ModeDetailed)
 	{
-		if(nHoverToken != -1 && !MouseZoom && !MouseDrag)
+		if(ProfileMode == 2 || ((nHoverCSCpu >= 0 || nHoverToken != -1) && !MouseZoom && !MouseDrag))
 		{
-			DrawDetailed(false);
-			DrawHoverToolTip();
+			Draw(1);
 		}
 	}
 	requestAnimationFrame(AutoRedraw);
@@ -1561,7 +1773,16 @@ function ReadCookie()
 		{
 			GroupsActive = Obj.GroupsActive;
 		}
+		if(Obj.nContextSwitchEnabled)
+		{
+			nContextSwitchEnabled = Obj.nContextSwitchEnabled; 
+		}
+		else
+		{
+			nContextSwitchEnabled = 1;
+		}
 	}
+	SetContextSwitch(nContextSwitchEnabled);
 	SetMode(NewMode);
 	SetReferenceTime(ReferenceTimeString);
 	SetMinWidth('' + nMinWidth);
@@ -1577,6 +1798,7 @@ function WriteCookie()
 	Obj.GroupsActive = GroupsActive;
 	Obj.GroupsAllActive = GroupsAllActive;
 	Obj.nMinWidth = nMinWidth;
+	Obj.nContextSwitchEnabled = nContextSwitchEnabled;
 	var date = new Date();
 	date.setFullYear(2099);
 	var cookie = 'fisk=' + JSON.stringify(Obj) + ';expires=' + date;

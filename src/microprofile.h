@@ -320,10 +320,8 @@ inline uint16_t MicroProfileGetTimerIndex(MicroProfileToken t){ return (t&0xffff
 inline uint64_t MicroProfileGetGroupMask(MicroProfileToken t){ return ((t>>16)&MICROPROFILE_GROUP_MASK_ALL);}
 inline MicroProfileToken MicroProfileMakeToken(uint64_t nGroupMask, uint16_t nTimer){ return (nGroupMask<<16) | nTimer;}
 
-MICROPROFILE_API void MicroProfileFlip(); //! called once per frame.
+MICROPROFILE_API void MicroProfileFlip(); //! call once per frame.
 MICROPROFILE_API void MicroProfileTogglePause();
-// MICROPROFILE_API void MicroProfileGetState(MicroProfileState* pStateOut);
-// MICROPROFILE_API void MicroProfileSetState(MicroProfileState* pStateIn);
 MICROPROFILE_API void MicroProfileForceEnableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API float MicroProfileGetTime(const char* pGroup, const char* pName);

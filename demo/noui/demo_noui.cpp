@@ -54,6 +54,8 @@ int main(int argc, char* argv[])
 	MicroProfileSetEnableAllGroups(true);
 	MicroProfileSetForceMetaCounters(true);
 
+	MicroProfileStartContextSwitchTrace();
+
 	StartFakeWork();
 	while(!g_nQuit)
 	{
