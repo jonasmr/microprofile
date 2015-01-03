@@ -172,6 +172,8 @@ var g_MSG = 'no';
 var nDrawCount = 0;
 var nBackColors = ['#474747', '#313131' ];
 var nBackColorOffset = '#606060';
+var CSwitchColors = ['#63607B','#755E2B','#326A55','#523135','#904F42','#87536B','#346875','#5E6046','#35404C','#224038','#413D1E','#5E3A26','#5D6161','#4C6234','#7D564F','#5C4352'];
+var CSwitchHeight = 5;
 var FRAME_HISTORY_COLOR_CPU = '#ff7f27';
 var FRAME_HISTORY_COLOR_GPU = '#ffffff';
 var ZOOM_TIME = 0.5;
@@ -1024,6 +1026,45 @@ function DrawBarView()
 
 }
 
+function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOffset)
+{
+	var nCount = CSwitchTime.length;
+	var j = 0;
+	var TimeIn = -1.0;
+	var nNumColors = CSwitchColors.length;
+	for(var i = 0; i < nCount; ++i)
+	{	
+		var ThreadIn = CSwitchThreadInOutCpu[j];
+		var ThreadOut = CSwitchThreadInOutCpu[j+1];
+		var Cpu = CSwitchThreadInOutCpu[j+2];
+		if(TimeIn < 0)
+		{
+			if(ThreadIn == ThreadId)
+			{
+				TimeIn = CSwitchTime[i];
+			}
+		}
+		else
+		{
+			if(ThreadOut == ThreadId)
+			{
+				var TimeOut = CSwitchTime[i];
+				var X = (TimeIn - fDetailedOffset) * fScaleX;
+				var W = (TimeOut - TimeIn) * fScaleX;
+				context.fillStyle = CSwitchColors[Cpu % nNumColors];
+				context.fillRect(X, fOffsetY, W, CSwitchHeight);
+				TimeIn = -1;
+			}
+		}
+		j += 3;
+
+// var CSwitchColors = ['#63607B','#755E2B','#326A55','#523135','#904F42','#87536B','#346875','#5E6046','#35404C','#224038','#413D1E','#5E3A26','#5D6161','#4C6234','#7D564F','#5C4352'];
+// var CSwitchHeight = 5;
+
+
+	}
+}
+
 function DrawDetailed(Animation)
 {
 	if(AnimationActive != Animation)
@@ -1075,6 +1116,9 @@ function DrawDetailed(Animation)
 			context.fillStyle = 'white';
 			context.fillText(ThreadName, 0, fOffsetY);
 			fOffsetY += BoxHeight;
+			DrawContextSwitchBars(context, ThreadIds[nLog], fScaleX, fOffsetY, fDetailedOffset);
+			fOffsetY += CSwitchHeight+1;
+
 
 			var MaxDepth = 1;
 			var StackPos = 0;

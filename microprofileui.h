@@ -146,7 +146,6 @@ MICROPROFILEUI_API void MicroProfileDumpTimers();
 
 MICROPROFILE_DEFINE(g_MicroProfileDetailed, "MicroProfile", "Detailed View", 0x8888000);
 MICROPROFILE_DEFINE(g_MicroProfileDrawGraph, "MicroProfile", "Draw Graph", 0xff44ee00);
-MICROPROFILE_DEFINE(g_MicroProfileContextSwitchSearch,"MicroProfile", "ContextSwitchSearch", 0xDD7300);
 MICROPROFILE_DEFINE(g_MicroProfileDrawBarView, "MicroProfile", "DrawBarView", 0x00dd77);
 MICROPROFILE_DEFINE(g_MicroProfileDraw,"MicroProfile", "Draw", 0x737373);
 
@@ -792,24 +791,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 	S.nContextSwitchHoverTickOut = -1;
 	if(S.bContextSwitchRunning)
 	{
-		MICROPROFILE_SCOPE(g_MicroProfileContextSwitchSearch);
-		uint32_t nContextSwitchPut = S.nContextSwitchPut;
-		nContextSwitchStart = nContextSwitchEnd = (nContextSwitchPut + MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE - 1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE;		
-		int64_t nSearchEnd = nBaseTicksEndCpu + MicroProfileMsToTick(30.f, MicroProfileTicksPerSecondCpu());
-		int64_t nSearchBegin = nBaseTicksCpu - MicroProfileMsToTick(30.f, MicroProfileTicksPerSecondCpu());
-		for(uint32_t i = 0; i < MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE; ++i)
-		{
-			uint32_t nIndex = (nContextSwitchPut + MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE - (i+1)) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE;
-			MicroProfileContextSwitch& CS = S.ContextSwitch[nIndex];
-			if(CS.nTicks > nSearchEnd)
-			{
-				nContextSwitchEnd = nIndex;
-			}
-			if(CS.nTicks > nSearchBegin)
-			{
-				nContextSwitchStart = nIndex;
-			}
-		}
+		MicroProfileContextSwitchSearch(&nContextSwitchStart, &nContextSwitchEnd, nBaseTicksCpu, nBaseTicksEndCpu);
 	}
 
 	bool bSkipBarView = S.bContextSwitchRunning && S.bContextSwitchNoBars;

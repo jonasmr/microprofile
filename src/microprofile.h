@@ -327,6 +327,7 @@ MICROPROFILE_API void MicroProfileTogglePause();
 MICROPROFILE_API void MicroProfileForceEnableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API float MicroProfileGetTime(const char* pGroup, const char* pName);
+MICROPROFILE_API void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pContextSwitchEnd, uint64_t nBaseTicksCpu, uint64_t nBaseTicksEndCpu);
 MICROPROFILE_API void MicroProfileOnThreadCreate(const char* pThreadName); //should be called from newly created threads
 MICROPROFILE_API void MicroProfileOnThreadExit(); //call on exit to reuse log
 MICROPROFILE_API void MicroProfileInitThreadLog();
@@ -823,7 +824,7 @@ MICROPROFILE_DEFINE(g_MicroProfileFlip, "MicroProfile", "MicroProfileFlip", 0x33
 MICROPROFILE_DEFINE(g_MicroProfileThreadLoop, "MicroProfile", "ThreadLoop", 0x3355ee);
 MICROPROFILE_DEFINE(g_MicroProfileClear, "MicroProfile", "Clear", 0x3355ee);
 MICROPROFILE_DEFINE(g_MicroProfileAccumulate, "MicroProfile", "Accumulate", 0x3355ee);
-
+MICROPROFILE_DEFINE(g_MicroProfileContextSwitchSearch,"MicroProfile", "ContextSwitchSearch", 0xDD7300);
 
 inline std::recursive_mutex& MicroProfileMutex()
 {
@@ -1648,6 +1649,34 @@ float MicroProfileGetTime(const char* pGroup, const char* pName)
 	return S.Frame[nTimerIndex].nTicks * fToMs;
 }
 
+
+void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pContextSwitchEnd, uint64_t nBaseTicksCpu, uint64_t nBaseTicksEndCpu)
+{
+	MICROPROFILE_SCOPE(g_MicroProfileContextSwitchSearch);
+	uint32_t nContextSwitchPut = S.nContextSwitchPut;
+	uint64_t nContextSwitchStart, nContextSwitchEnd;
+	nContextSwitchStart = nContextSwitchEnd = (nContextSwitchPut + MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE - 1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE;		
+	int64_t nSearchEnd = nBaseTicksEndCpu + MicroProfileMsToTick(30.f, MicroProfileTicksPerSecondCpu());
+	int64_t nSearchBegin = nBaseTicksCpu - MicroProfileMsToTick(30.f, MicroProfileTicksPerSecondCpu());
+	for(uint32_t i = 0; i < MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE; ++i)
+	{
+		uint32_t nIndex = (nContextSwitchPut + MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE - (i+1)) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE;
+		MicroProfileContextSwitch& CS = S.ContextSwitch[nIndex];
+		if(CS.nTicks > nSearchEnd)
+		{
+			nContextSwitchEnd = nIndex;
+		}
+		if(CS.nTicks > nSearchBegin)
+		{
+			nContextSwitchStart = nIndex;
+		}
+	}
+	*pContextSwitchStart = nContextSwitchStart;
+	*pContextSwitchEnd = nContextSwitchEnd;
+}
+
+
+
 #if MICROPROFILE_WEBSERVER
 
 #define MICROPROFILE_EMBED_HTML
@@ -1656,6 +1685,7 @@ extern const char g_MicroProfileHtml_end[];
 extern const size_t g_MicroProfileHtml_begin_size;
 extern const size_t g_MicroProfileHtml_end_size;
 
+static uint64_t g_nMicroProfileDataSent = 0;
 
 typedef void MicroProfileWriteCallback(void* Handle, size_t size, const char* pData);
 
@@ -1691,6 +1721,10 @@ void MicroProfilePrintf(MicroProfileWriteCallback CB, void* Handle, const char* 
 
 void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFrames)
 {
+	uint32_t nRunning = S.nRunning;
+	S.nRunning = 0;
+	S.nPauseTicks = MP_TICK();
+
 	CB(Handle, g_MicroProfileHtml_begin_size-1, &g_MicroProfileHtml_begin[0]);
 
 	//dump info
@@ -1758,7 +1792,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 		if(S.Pool[i])
 		{
 			MicroProfilePrintf(CB, Handle, "'%s',", S.Pool[i]->ThreadName);
-
 		}
 		else
 		{
@@ -1766,6 +1799,26 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 		}
 	}
 	MicroProfilePrintf(CB, Handle, "];\n\n");
+
+	MicroProfilePrintf(CB, Handle, "\nvar ThreadIds = [");
+	for(uint32_t i = 0; i < S.nNumLogs; ++i)
+	{
+		if(S.Pool[i])
+		{
+			ThreadIdType ThreadId = S.Pool[i]->nThreadId;
+			if(!ThreadId)
+			{
+				ThreadId = (ThreadIdType)-1;
+			}
+			MicroProfilePrintf(CB, Handle, "%d,", ThreadId);
+		}
+		else
+		{
+			MicroProfilePrintf(CB, Handle, "-1,", i);
+		}
+	}
+	MicroProfilePrintf(CB, Handle, "];\n\n");
+
 	MicroProfilePrintf(CB, Handle, "\nvar MetaNames = [");
 	for(int i = 0; i < MICROPROFILE_META_MAX; ++i)
 	{
@@ -1795,7 +1848,8 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 #endif
 	uint32_t nFirstFrame = (S.nFrameCurrent + MICROPROFILE_MAX_FRAME_HISTORY - nNumFrames) % MICROPROFILE_MAX_FRAME_HISTORY;
 	uint32_t nFirstFrameIndex = S.nFrameCurrentIndex - nNumFrames;
-	int64_t nTickStart = S.Frames[nFirstFrame].nFrameStartCpu;
+	const int64_t nTickStart = S.Frames[nFirstFrame].nFrameStartCpu;
+	const int64_t nTickEnd = S.Frames[S.nFrameCurrent].nFrameStartCpu;
 	int64_t nTickStartGpu = S.Frames[nFirstFrame].nFrameStartGpu;
 
 
@@ -1888,10 +1942,105 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 		float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
 		float fFrameMs = MicroProfileLogTickDifference(nTickStart, nFrameStart) * fToMs;
 		float fFrameEndMs = MicroProfileLogTickDifference(nTickStart, nFrameEnd) * fToMs;
-		MicroProfilePrintf(CB, Handle, "Frames[%d] = MakeFrame(%d, %f, %f, ts%d, tt%d, ti%d);\n", i, nFirstFrameIndex, fFrameMs,fFrameEndMs, i, i, i);
+		MicroProfilePrintf(CB, Handle, "Frames[%d] = MakeFrame(%d, %f, %f, ts%d, tt%d, ti%d);\n", i, nFirstFrameIndex, fFrameMs, fFrameEndMs, i, i, i);
 	}
+	
+	uint32_t nContextSwitchStart = 0;
+	uint32_t nContextSwitchEnd = 0;
+	MicroProfileContextSwitchSearch(&nContextSwitchStart, &nContextSwitchEnd, nTickStart, nTickEnd);
+
+	uint32_t nWrittenBefore = g_nMicroProfileDataSent;
+	MicroProfilePrintf(CB, Handle, "var CSwitchThreadInOutCpu = [");
+	for(uint32_t j = nContextSwitchStart; j != nContextSwitchEnd; j = (j+1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE)
+	{
+		MicroProfileContextSwitch CS = S.ContextSwitch[j];
+		int nCpu = CS.nCpu;
+		MicroProfilePrintf(CB, Handle, "%d,%d,%d,", CS.nThreadIn, CS.nThreadOut, nCpu);
+	}
+	MicroProfilePrintf(CB, Handle, "];\n");
+	MicroProfilePrintf(CB, Handle, "var CSwitchTime = [");
+	float fToMsCpu = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+	for(uint32_t j = nContextSwitchStart; j != nContextSwitchEnd; j = (j+1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE)
+	{
+		MicroProfileContextSwitch CS = S.ContextSwitch[j];
+		float fTime = MicroProfileLogTickDifference(nTickStart, CS.nTicks) * fToMsCpu;
+		MicroProfilePrintf(CB, Handle, "%f,", fTime);
+	}
+	MicroProfilePrintf(CB, Handle, "];\n");
+	uint32_t nWrittenAfter = g_nMicroProfileDataSent;
+	MicroProfilePrintf(CB, Handle, "//CSwitch Size %d\n", nWrittenAfter - nWrittenBefore);
+
+
+	/*void MicroProfileDrawDetailedContextSwitchBars(uint32_t nY, uint32_t nThreadId, uint32_t nContextSwitchStart, uint32_t nContextSwitchEnd, int64_t nBaseTicks, uint32_t nBaseY)
+	{
+		MicroProfile& S = *MicroProfileGet();
+		int64_t nTickIn = -1;
+		uint32_t nThreadBefore = -1;
+		float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+		float fMsToScreen = UI.nWidth / UI.fDetailedRange;
+		float fMouseX = (float)UI.nMouseX;
+		float fMouseY = (float)UI.nMouseY;
+
+
+		for(uint32_t j = nContextSwitchStart; j != nContextSwitchEnd; j = (j+1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE)
+		{
+			MP_ASSERT(j < MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE);
+			MicroProfileContextSwitch CS = S.ContextSwitch[j];
+
+			if(nTickIn == -1)
+			{
+				if(CS.nThreadIn == nThreadId)
+				{
+					nTickIn = CS.nTicks;
+					nThreadBefore = CS.nThreadOut;
+				}
+			}
+			else
+			{
+				if(CS.nThreadOut == nThreadId)
+				{
+					int64_t nTickOut = CS.nTicks;
+					float fMsStart = fToMs * MicroProfileLogTickDifference(nBaseTicks, nTickIn);
+					float fMsEnd = fToMs * MicroProfileLogTickDifference(nBaseTicks, nTickOut);
+					if(fMsStart <= fMsEnd)
+					{
+						float fXStart = fMsStart * fMsToScreen;
+						float fXEnd = fMsEnd * fMsToScreen;
+						float fYStart = (float)nY;
+						float fYEnd = fYStart + (MICROPROFILE_DETAILED_CONTEXT_SWITCH_HEIGHT);
+						uint32_t nColor = g_nMicroProfileContextSwitchThreadColors[CS.nCpu%MICROPROFILE_NUM_CONTEXT_SWITCH_COLORS];
+						float fXDist = MicroProfileMax(fXStart - fMouseX, fMouseX - fXEnd);
+						bool bHover = fXDist < MICROPROFILE_HOVER_DIST && fYStart <= fMouseY && fMouseY <= fYEnd && nBaseY < fMouseY;
+						if(bHover)
+						{
+							UI.nRangeBegin = nTickIn;
+							UI.nRangeEnd = nTickOut;
+							S.nContextSwitchHoverTickIn = nTickIn;
+							S.nContextSwitchHoverTickOut = nTickOut;
+							S.nContextSwitchHoverThread = CS.nThreadOut;
+							S.nContextSwitchHoverThreadBefore = nThreadBefore;
+							S.nContextSwitchHoverThreadAfter = CS.nThreadIn;
+							S.nContextSwitchHoverCpuNext = CS.nCpu;
+							nColor = UI.nHoverColor;
+						}
+						if(CS.nCpu == S.nContextSwitchHoverCpu)
+						{
+							nColor = UI.nHoverColorShared;
+						}
+						MicroProfileDrawBox(fXStart, fYStart, fXEnd, fYEnd, nColor|UI.nOpacityForeground, MicroProfileBoxTypeFlat);
+					}
+					nTickIn = -1;
+				}
+			}
+		}
+	}*/
+
+
+
 
 	CB(Handle, g_MicroProfileHtml_end_size-1, &g_MicroProfileHtml_end[0]);
+	S.nRunning = nRunning;
+
 }
 
 void MicroProfileWriteFile(void* Handle, size_t nSize, const char* pData)
@@ -1910,7 +2059,6 @@ void MicroProfileDumpHtmlToFile()
 	}
 }
 
-static uint64_t g_nMicroProfileDataSent = 0;
 void MicroProfileWriteSocket(void* Handle, size_t nSize, const char* pData)
 {
 	g_nMicroProfileDataSent += nSize;
