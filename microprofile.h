@@ -262,6 +262,10 @@ typedef uint32_t ThreadIdType;
 #define MICROPROFILE_WEBSERVER_MAXFRAMES 30
 #endif
 
+#ifndef MICROPROFILE_WEBSERVER_SOCKET_BUFFER_SIZE
+#define MICROPROFILE_WEBSERVER_SOCKET_BUFFER_SIZE (16<<10)
+#endif
+
 #ifndef MICROPROFILE_GPU_TIMERS
 #define MICROPROFILE_GPU_TIMERS 1
 #endif
@@ -662,6 +666,13 @@ struct MicroProfile
 	MpSocket 					ListenerSocket;
 	uint32_t					nWebServerPort;
 
+	char						WebServerBuffer[MICROPROFILE_WEBSERVER_SOCKET_BUFFER_SIZE];
+	uint32_t					WebServerPut;
+
+	uint64_t 					nWebServerDataSent;
+
+
+
 };
 
 #define MP_LOG_TICK_MASK  0x0000ffffffffffff
@@ -894,8 +905,9 @@ void MicroProfileInit()
 		pGpu->nGpu = 1;
 		pGpu->nThreadId = 0;
 
-
 		MicroProfileWebServerStart();
+		S.nWebServerDataSent = 0;
+
 	}
 	if(bUseLock)
 		mutex.unlock();
@@ -1683,8 +1695,6 @@ extern const char g_MicroProfileHtml_end[];
 extern const size_t g_MicroProfileHtml_begin_size;
 extern const size_t g_MicroProfileHtml_end_size;
 
-static uint64_t g_nMicroProfileDataSent = 0;
-
 typedef void MicroProfileWriteCallback(void* Handle, size_t size, const char* pData);
 
 uint32_t MicroProfileWebServerPort()
@@ -1943,30 +1953,30 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 		MicroProfilePrintf(CB, Handle, "Frames[%d] = MakeFrame(%d, %f, %f, ts%d, tt%d, ti%d);\n", i, nFirstFrameIndex, fFrameMs, fFrameEndMs, i, i, i);
 	}
 	
-	uint32_t nContextSwitchStart = 0;
-	uint32_t nContextSwitchEnd = 0;
-	MicroProfileContextSwitchSearch(&nContextSwitchStart, &nContextSwitchEnd, nTickStart, nTickEnd);
+		uint32_t nContextSwitchStart = 0;
+		uint32_t nContextSwitchEnd = 0;
+		MicroProfileContextSwitchSearch(&nContextSwitchStart, &nContextSwitchEnd, nTickStart, nTickEnd);
 
-	uint32_t nWrittenBefore = g_nMicroProfileDataSent;
-	MicroProfilePrintf(CB, Handle, "var CSwitchThreadInOutCpu = [");
-	for(uint32_t j = nContextSwitchStart; j != nContextSwitchEnd; j = (j+1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE)
-	{
-		MicroProfileContextSwitch CS = S.ContextSwitch[j];
-		int nCpu = CS.nCpu;
-		MicroProfilePrintf(CB, Handle, "%d,%d,%d,", CS.nThreadIn, CS.nThreadOut, nCpu);
-	}
-	MicroProfilePrintf(CB, Handle, "];\n");
-	MicroProfilePrintf(CB, Handle, "var CSwitchTime = [");
+		uint32_t nWrittenBefore = S.nWebServerDataSent;
+		MicroProfilePrintf(CB, Handle, "var CSwitchThreadInOutCpu = [");
+		for(uint32_t j = nContextSwitchStart; j != nContextSwitchEnd; j = (j+1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE)
+		{
+			MicroProfileContextSwitch CS = S.ContextSwitch[j];
+			int nCpu = CS.nCpu;
+			MicroProfilePrintf(CB, Handle, "%d,%d,%d,", CS.nThreadIn, CS.nThreadOut, nCpu);
+		}
+		MicroProfilePrintf(CB, Handle, "];\n");
+		MicroProfilePrintf(CB, Handle, "var CSwitchTime = [");
 	float fToMsCpu = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
-	for(uint32_t j = nContextSwitchStart; j != nContextSwitchEnd; j = (j+1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE)
-	{
-		MicroProfileContextSwitch CS = S.ContextSwitch[j];
-		float fTime = MicroProfileLogTickDifference(nTickStart, CS.nTicks) * fToMsCpu;
-		MicroProfilePrintf(CB, Handle, "%f,", fTime);
-	}
-	MicroProfilePrintf(CB, Handle, "];\n");
-	uint32_t nWrittenAfter = g_nMicroProfileDataSent;
-	MicroProfilePrintf(CB, Handle, "//CSwitch Size %d\n", nWrittenAfter - nWrittenBefore);
+		for(uint32_t j = nContextSwitchStart; j != nContextSwitchEnd; j = (j+1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE)
+		{
+			MicroProfileContextSwitch CS = S.ContextSwitch[j];
+			float fTime = MicroProfileLogTickDifference(nTickStart, CS.nTicks) * fToMsCpu;
+			MicroProfilePrintf(CB, Handle, "%f,", fTime);
+		}
+		MicroProfilePrintf(CB, Handle, "];\n");
+		uint32_t nWrittenAfter = S.nWebServerDataSent;
+		MicroProfilePrintf(CB, Handle, "//CSwitch Size %d\n", nWrittenAfter - nWrittenBefore);
 
 	CB(Handle, g_MicroProfileHtml_end_size-1, &g_MicroProfileHtml_end[0]);
 	S.nRunning = nRunning;
@@ -1989,12 +1999,33 @@ void MicroProfileDumpHtmlToFile()
 	}
 }
 
-void MicroProfileWriteSocket(void* Handle, size_t nSize, const char* pData)
+void MicroProfileFlushSocket(MpSocket Socket)
 {
-	g_nMicroProfileDataSent += nSize;
-	send(*(MpSocket*)Handle, pData, nSize, 0);
+	send(Socket, &S.WebServerBuffer[0], S.WebServerPut, 0);
+	S.WebServerPut = 0;
+
 }
 
+void MicroProfileWriteSocket(void* Handle, size_t nSize, const char* pData)
+{
+	S.nWebServerDataSent += nSize;
+	MpSocket Socket = *(MpSocket*)Handle;
+	if(nSize > MICROPROFILE_WEBSERVER_SOCKET_BUFFER_SIZE / 2)
+	{
+		MicroProfileFlushSocket(Socket);
+		send(Socket, pData, nSize, 0);
+
+	}
+	else
+	{
+		memcpy(&S.WebServerBuffer[S.WebServerPut], pData, nSize);
+		S.WebServerPut += nSize;
+		if(S.WebServerPut > MICROPROFILE_WEBSERVER_SOCKET_BUFFER_SIZE/2)
+		{
+			MicroProfileFlushSocket(Socket);
+		}
+	}
+}
 
 #ifndef MicroProfileSetNonBlocking //fcntl doesnt work on a some unix like platforms..
 void MicroProfileSetNonBlocking(MpSocket Socket, int NonBlocking)
@@ -2109,12 +2140,14 @@ bool MicroProfileWebServerUpdate()
 				}
 				uint64_t nTickStart = MP_TICK();
 				send(Connection, MICROPROFILE_HTML_HEADER, sizeof(MICROPROFILE_HTML_HEADER)-1, 0);
-				uint64_t nDataStart = g_nMicroProfileDataSent;
+				uint64_t nDataStart = S.nWebServerDataSent;
+				S.WebServerPut = 0;
 				MicroProfileDumpHtml(MicroProfileWriteSocket, &Connection, nMaxFrames);
-				uint64_t nDataEnd = g_nMicroProfileDataSent;
+				uint64_t nDataEnd = S.nWebServerDataSent;
 				uint64_t nTickEnd = MP_TICK();
 				float fMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu()) * (nTickEnd - nTickStart);
 				MicroProfilePrintf(MicroProfileWriteSocket, &Connection, "\n<!-- Sent %dkb in %6.2fms-->\n\n",((nDataEnd-nDataStart)>>10) + 1, fMs);
+				MicroProfileFlushSocket(Connection);
 #if MICROPROFILE_DEBUG
 				printf("\nSent %lldkb, in %6.3fms\n\n", ((nDataEnd-nDataStart)>>10) + 1, fMs);
 #endif
@@ -2401,6 +2434,9 @@ const char g_MicroProfileHtml_begin[] =
 "        <li><a href=\"#\" onclick=\"SetReferenceTime(\'33ms\');\">33ms</a></li>\n"
 "        <li><a href=\"#\" onclick=\"SetReferenceTime(\'50ms\');\">50ms</a></li>\n"
 "        <li><a href=\"#\" onclick=\"SetReferenceTime(\'100ms\');\">100ms</a></li>\n"
+"        <li><a href=\"#\" onclick=\"SetReferenceTime(\'250ms\');\">250ms</a></li>\n"
+"        <li><a href=\"#\" onclick=\"SetReferenceTime(\'500ms\');\">500ms</a></li>\n"
+"        <li><a href=\"#\" onclick=\"SetReferenceTime(\'1000ms\');\">1000ms</a></li>\n"
 "    </ul>\n"
 "</li>\n"
 "<li id=\"ilThreads\"><a href=\"#\">Threads</a>\n"
@@ -4154,16 +4190,10 @@ const char g_MicroProfileHtml_end[] =
 "window.addEventListener(\'keyup\', KeyUp);\n"
 "window.addEventListener(\'resize\', ResizeCanvas, false);\n"
 "\n"
-"\n"
-"var start = new Date();\n"
 "for(var i = 0; i < TimerInfo.length; i++)\n"
 "{\n"
 "	var v = CalculateTimers(TimerInfo[i], i);\n"
-"\n"
 "}\n"
-"var end = new Date();\n"
-"var time = end - start;\n"
-"console.log(\'setup :: \' + time + \'ms \');\n"
 "\n"
 "InitGroups();\n"
 "ReadCookie();\n"

@@ -68,6 +68,9 @@ Click to Zoom to selected range<br>
         <li><a href="#" onclick="SetReferenceTime('33ms');">33ms</a></li>
         <li><a href="#" onclick="SetReferenceTime('50ms');">50ms</a></li>
         <li><a href="#" onclick="SetReferenceTime('100ms');">100ms</a></li>
+        <li><a href="#" onclick="SetReferenceTime('250ms');">250ms</a></li>
+        <li><a href="#" onclick="SetReferenceTime('500ms');">500ms</a></li>
+        <li><a href="#" onclick="SetReferenceTime('1000ms');">1000ms</a></li>
     </ul>
 </li>
 <li id="ilThreads"><a href="#">Threads</a>
@@ -1817,16 +1820,10 @@ window.addEventListener('keydown', KeyDown);
 window.addEventListener('keyup', KeyUp);
 window.addEventListener('resize', ResizeCanvas, false);
 
-
-var start = new Date();
 for(var i = 0; i < TimerInfo.length; i++)
 {
 	var v = CalculateTimers(TimerInfo[i], i);
-
 }
-var end = new Date();
-var time = end - start;
-console.log('setup :: ' + time + 'ms ');
 
 InitGroups();
 ReadCookie();

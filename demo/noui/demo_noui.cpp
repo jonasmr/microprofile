@@ -45,9 +45,9 @@ void StopFakeWork();
 
 int main(int argc, char* argv[])
 {
-	printf("open localhost:1338 in chrome to capture profile data\n");
-	printf("press ctrl-c to quit\n");
 	MicroProfileOnThreadCreate("Main");
+	printf("open localhost:%d in chrome to capture profile data\n", MicroProfileWebServerPort());
+	printf("press ctrl-c to quit\n");
 
 	//turn on profiling
 	MicroProfileSetForceEnable(true);

@@ -239,7 +239,7 @@ static uint32_t g_nMicroProfileContextSwitchThreadColors[MICROPROFILE_NUM_CONTEX
 };
 
 static uint32_t g_MicroProfileAggregatePresets[] = {0, 10, 20, 30, 60, 120};
-static float g_MicroProfileReferenceTimePresets[] = {5.f, 10.f, 15.f,20.f, 33.33f, 66.66f, 100.f};
+static float g_MicroProfileReferenceTimePresets[] = {5.f, 10.f, 15.f,20.f, 33.33f, 66.66f, 100.f, 250.f, 500.f, 1000.f};
 static uint32_t g_MicroProfileOpacityPresets[] = {0x40, 0x80, 0xc0, 0xff};
 static const char* g_MicroProfilePresetNames[] = 
 {
@@ -2291,6 +2291,8 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 				MicroProfileStringArrayClear(&Debug);
 				MicroProfileStringArrayAddLiteral(&Debug, "Memory Usage");
 				MicroProfileStringArrayFormat(&Debug, "%4.2fmb", S.nMemUsage / (1024.f * 1024.f));
+				MicroProfileStringArrayAddLiteral(&Debug, "Web Server Port");
+				MicroProfileStringArrayFormat(&Debug, "%d", MicroProfileWebServerPort());
 				uint32_t nFrameNext = (S.nFrameCurrent+1) % MICROPROFILE_MAX_FRAME_HISTORY;
 				MicroProfileFrameState* pFrameCurrent = &S.Frames[S.nFrameCurrent];
 				MicroProfileFrameState* pFrameNext = &S.Frames[nFrameNext];

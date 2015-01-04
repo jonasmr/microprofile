@@ -205,6 +205,7 @@ int main(int argc, char* argv[])
 	MicroProfileQueryInitGL();
 	MicroProfileDrawInit();
 	MP_ASSERT(glGetError() == 0);
+	MicroProfileToggleDisplayMode();
 #endif
 
 	StartFakeWork();
