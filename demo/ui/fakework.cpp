@@ -40,6 +40,21 @@ void usleep(__int64 usec)
 #endif
 
 
+void spinsleep(int64_t nUs)
+{
+	MICROPROFILE_SCOPEI("spin","sleep", 0xffff);
+	float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+	int64_t nTickStart = MP_TICK();
+	float fElapsed = 0;
+	float fTarget = nUs / 1000000.f;
+	do
+	{
+		int64_t nTickEnd = MP_TICK();
+		fElapsed = (nTickEnd - nTickStart) * fToMs;
+
+	}while(fElapsed < fTarget);
+}
+
 MICROPROFILE_DECLARE(ThreadSafeMain);
 MICROPROFILE_DECLARE(ThreadSafeInner0);
 MICROPROFILE_DECLARE(ThreadSafeInner1);
@@ -132,10 +147,10 @@ void WorkerThread(int threadId)
 				usleep(1000);
 				{
 					MICROPROFILE_SCOPEI("Thread2", "Worker2", c0); 
-					usleep(200);
+					spinsleep(100000);
 					{
 						MICROPROFILE_SCOPEI("Thread2", "InnerWork0", c1); 
-						usleep(100);
+						spinsleep(100);
 						{
 							MICROPROFILE_SCOPEI("Thread2", "InnerWork1", c2); 
 							usleep(100);
@@ -144,7 +159,7 @@ void WorkerThread(int threadId)
 								usleep(100);
 								{
 									MICROPROFILE_SCOPEI("Thread2", "InnerWork3", c4); 
-									usleep(100);
+									spinsleep(50000);
 								}
 							}
 						}
@@ -186,6 +201,7 @@ void WorkerThread(int threadId)
 				usleep(1000);
 				for(uint32_t j = 0; j < 4; ++j)
 				{
+					MICROPROFILE_META_CPU("custom_very_long_meta", 1);
 					MICROPROFILE_SCOPE(ThreadSafeInner1);
 					usleep(500);
 					MICROPROFILE_SCOPE(ThreadSafeInner2);

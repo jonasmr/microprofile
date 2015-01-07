@@ -166,11 +166,17 @@ inline int64_t MicroProfileTicksPerSecondCpu()
 	}
 	return nTicksPerSecond;
 }
+inline uint64_t MicroProfileGetCurrentThreadId()
+{	
+	uint64_t tid;
+	pthread_threadid_np(pthread_self(), &tid);
+	return tid;
+}
 
 #define MP_BREAK() __builtin_trap()
 #define MP_THREAD_LOCAL __thread
 #define MP_STRCASECMP strcasecmp
-#define MP_GETCURRENTTHREADID() (uint64_t)pthread_self()
+#define MP_GETCURRENTTHREADID() MicroProfileGetCurrentThreadId()
 typedef uint64_t ThreadIdType;
 
 #elif defined(_WIN32)
@@ -442,8 +448,10 @@ struct MicroProfileScopeGpuHandler
 
 
 #ifndef MICROPROFILE_CONTEXT_SWITCH_TRACE 
-#ifdef _WIN32
+#if defined(_WIN32) 
 #define MICROPROFILE_CONTEXT_SWITCH_TRACE 1
+#elif defined(__APPLE__)
+#define MICROPROFILE_CONTEXT_SWITCH_TRACE 0 //disabled until dtrace script is working.
 #else
 #define MICROPROFILE_CONTEXT_SWITCH_TRACE 0
 #endif
@@ -2338,6 +2346,104 @@ bool MicroProfileIsLocalThread(uint32_t nThreadId)
 	CloseHandle(h);
 	return GetCurrentProcessId() == hProcess;
 }
+
+#elif defined(__APPLE__)
+void MicroProfileTraceThread(int unused)
+{
+
+
+	FILE* pFile = fopen("mypipe", "r");
+	if(!pFile)
+	{
+		printf("CONTEXT SWITCH FAILED TO OPEN FILE: make sure to run dtrace script\n");
+		S.bContextSwitchRunning = false;
+		return;
+	}
+	printf("STARTING TRACE THREAD\n");
+	char* pLine = 0;
+	size_t cap = 0;
+	size_t len = 0;
+	struct timeval tv;
+
+	gettimeofday(&tv, NULL);
+
+	uint64_t nsSinceEpoch = ((uint64_t)(tv.tv_sec) * 1000000 + (uint64_t)(tv.tv_usec)) * 1000;
+	uint64_t nTickEpoch = MP_TICK();
+	uint32_t nLastThread[MICROPROFILE_MAX_CONTEXT_SWITCH_THREADS] = {0};
+	mach_timebase_info_data_t sTimebaseInfo;	
+	mach_timebase_info(&sTimebaseInfo);
+	S.bContextSwitchRunning = true;
+
+	uint64_t nProcessed = 0;
+	uint64_t nProcessedLast = 0;
+	while((len = getline(&pLine, &cap, pFile))>0 && !S.bContextSwitchStop)
+	{
+		nProcessed += len;
+		if(nProcessed - nProcessedLast > 10<<10)
+		{
+			nProcessedLast = nProcessed;
+			printf("processed %llukb %llukb\n", (nProcessed-nProcessedLast)>>10,nProcessed >>10);
+		}
+
+		char* pX = strchr(pLine, 'X');
+		if(pX)
+		{
+			int cpu = atoi(pX+1);
+			char* pX2 = strchr(pX + 1, 'X');
+			char* pX3 = strchr(pX2 + 1, 'X');
+			int thread = atoi(pX2+1);
+			char* lala;
+			int64_t timestamp = strtoll(pX3 + 1, &lala, 10);
+			MicroProfileContextSwitch Switch;
+
+			//convert to ticks.
+			uint64_t nDeltaNsSinceEpoch = timestamp - nsSinceEpoch;
+			uint64_t nDeltaTickSinceEpoch = sTimebaseInfo.numer * nDeltaNsSinceEpoch / sTimebaseInfo.denom;
+			uint64_t nTicks = nDeltaTickSinceEpoch + nTickEpoch;
+			if(cpu < MICROPROFILE_MAX_CONTEXT_SWITCH_THREADS)
+			{
+				Switch.nThreadOut = nLastThread[cpu];
+				Switch.nThreadIn = thread;
+				nLastThread[cpu] = thread;
+				Switch.nCpu = cpu;
+				Switch.nTicks = nTicks;
+				MicroProfileContextSwitchPut(&Switch);
+			}
+		}
+	}
+}
+
+void MicroProfileStartContextSwitchTrace()
+{
+	if(!S.bContextSwitchRunning)
+	{
+		if(!S.pContextSwitchThread)
+			S.pContextSwitchThread = new std::thread();
+		if(S.pContextSwitchThread->joinable())
+		{
+			S.bContextSwitchStop = true;
+			S.pContextSwitchThread->join();
+		}
+		S.bContextSwitchRunning	= true;
+		S.bContextSwitchStop = false;
+		*S.pContextSwitchThread = std::thread(&MicroProfileTraceThread, 0);
+	}
+}
+
+void MicroProfileStopContextSwitchTrace()
+{
+	if(S.bContextSwitchRunning && S.pContextSwitchThread)
+	{
+		S.bContextSwitchStop = true;
+		S.pContextSwitchThread->join();
+	}
+}
+
+bool MicroProfileIsLocalThread(uint32_t nThreadId) 
+{
+	return false;
+}
+
 
 #else
 #error "context switch trace not supported/implemented on platform"

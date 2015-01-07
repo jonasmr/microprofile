@@ -1,0 +1,5 @@
+#!/bin/sh
+#copy to working directory and run before enabling context-switch trace
+mkfifo mypipe
+sudo dtrace -n fbt::thread_dispatch:return'{printf("X%dX%dX%d", cpu, tid, walltimestamp)}' -o mypipe
+rm mypipe
