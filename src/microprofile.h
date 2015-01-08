@@ -178,7 +178,6 @@ inline uint64_t MicroProfileGetCurrentThreadId()
 #define MP_STRCASECMP strcasecmp
 #define MP_GETCURRENTTHREADID() MicroProfileGetCurrentThreadId()
 typedef uint64_t ThreadIdType;
-
 #elif defined(_WIN32)
 int64_t MicroProfileGetTick();
 #define MP_TICK() MicroProfileGetTick()
@@ -209,6 +208,7 @@ inline int64_t MicroProfileGetTick()
 #define MP_GETCURRENTTHREADID() (uint64_t)pthread_self()
 typedef uint64_t ThreadIdType;
 #endif
+
 
 #ifndef MP_GETCURRENTTHREADID 
 #define MP_GETCURRENTTHREADID() 0
@@ -303,16 +303,7 @@ enum MicroProfileBoxType
 	MicroProfileBoxTypeFlat,
 };
 
-// struct MicroProfileState
-// {
-// 	uint32_t nDisplay;
-// 	uint32_t nAllGroupsWanted;
-// 	uint64_t nActiveGroupWanted;
-// 	uint32_t nAllThreadsWanted;
-// 	uint32_t nAggregateFlip;
-// 	uint32_t nBars;
-// 	float fReferenceTime;
-// };
+
 
 struct MicroProfile;
 
@@ -468,6 +459,15 @@ struct MicroProfileScopeGpuHandler
 typedef UINT_PTR MpSocket;
 #else
 typedef int MpSocket;
+#endif
+
+
+typedef void* (MicroProfileThreadFunc)(void*);
+
+#if defined(__APPLE__) || defined(__linux__)
+typedef pthread_t MicroProfileThread;
+#else
+typedef std::thread* MicroProfileThread;
 #endif
 
 
@@ -651,7 +651,7 @@ struct MicroProfile
 	uint64_t				nFlipAggregateDisplay;
 	uint64_t				nFlipMaxDisplay;
 
-	std::thread* 				pContextSwitchThread;
+	MicroProfileThread 			ContextSwitchThread;
 	bool  						bContextSwitchRunning;
 	bool						bContextSwitchStop;
 	bool						bContextSwitchAllThreads;
@@ -794,6 +794,38 @@ int64_t MicroProfileGetTick()
 #define MP_INVALID_SOCKET(f) (f < 0)
 #endif
 
+
+
+typedef void* (MicroProfileThreadFunc)(void*);
+
+#if defined(__APPLE__) || defined(__linux__)
+typedef pthread_t MicroProfileThread;
+void MicroProfileThreadStart(MicroProfileThread* pThread, MicroProfileThreadFunc Func)
+{	
+	pthread_attr_t Attr;
+	int r  = pthread_attr_init(&Attr);
+	MP_ASSERT(r == 0);
+	pthread_create(pThread, &Attr, Func, 0);
+}
+void MicroProfileThreadJoin(MicroProfileThread* pThread)
+{
+	int r = pthread_join(*pThread, 0);
+	MP_ASSERT(r == 0);
+}
+#else
+//todo:win32
+#include <thread>
+typedef std::thread* MicroProfileThread;
+inline void MicroProfileThreadStart(MicroProfileThread* pThread, MicroProfileThreadFunc Func)
+{
+	*pThread = new std::thread(Func, nullptr);
+}
+inline void MicroProfileThreadJoin(MicroProfileThread* pThread)
+{
+	(*pThread)->join();
+	delete *pThread;
+}
+#endif
 void MicroProfileWebServerStart();
 void MicroProfileWebServerStop();
 bool MicroProfileWebServerUpdate();
@@ -925,20 +957,7 @@ void MicroProfileShutdown()
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 	MicroProfileWebServerStop();
-
-#if MICROPROFILE_CONTEXT_SWITCH_TRACE
-	if(S.pContextSwitchThread)
-	{
-		if(S.pContextSwitchThread->joinable())
-		{
-			S.bContextSwitchStop = true;
-			S.pContextSwitchThread->join();
-		}
-		delete S.pContextSwitchThread;
-	}
-#endif
-
-
+	MicroProfileStopContextSwitchTrace();
 }
 
 #ifdef MICROPROFILE_IOS
@@ -2265,7 +2284,7 @@ void MicroProfileContextSwitchStopTrace()
 
 }
 
-void MicroProfileTraceThread(int unused)
+void* MicroProfileTraceThread(void* unused)
 {
 
 	MicroProfileContextSwitchStopTrace();
@@ -2292,7 +2311,7 @@ void MicroProfileTraceThread(int unused)
 	if (ERROR_SUCCESS != status)
 	{
 		S.bContextSwitchRunning = false;
-		return;
+		return 0;
 	}
 
 	EVENT_TRACE_LOGFILE log;
@@ -2309,22 +2328,16 @@ void MicroProfileTraceThread(int unused)
 	MicroProfileContextSwitchStopTrace();
 
 	S.bContextSwitchRunning = false;
+	return 0;
 }
 
 void MicroProfileStartContextSwitchTrace()
 {
 	if(!S.bContextSwitchRunning)
 	{
-		if(!S.pContextSwitchThread)
-			S.pContextSwitchThread = new std::thread();
-		if(S.pContextSwitchThread->joinable())
-		{
-			S.bContextSwitchStop = true;
-			S.pContextSwitchThread->join();
-		}
 		S.bContextSwitchRunning	= true;
 		S.bContextSwitchStop = false;
-		*S.pContextSwitchThread = std::thread(&MicroProfileTraceThread, 0);
+		MicroProfileThreadStart(&S.ContextSwitchThread, MicroProfileTraceThread);
 	}
 }
 
@@ -2333,7 +2346,7 @@ void MicroProfileStopContextSwitchTrace()
 	if(S.bContextSwitchRunning && S.pContextSwitchThread)
 	{
 		S.bContextSwitchStop = true;
-		S.pContextSwitchThread->join();
+		MicroProfileThreadJoin(&S.ContextSwitchThread, MicroProfileTraceThread);
 	}
 }
 
@@ -2348,16 +2361,15 @@ bool MicroProfileIsLocalThread(uint32_t nThreadId)
 }
 
 #elif defined(__APPLE__)
-void MicroProfileTraceThread(int unused)
+#include <sys/time.h>
+void* MicroProfileTraceThread(void* unused)
 {
-
-
 	FILE* pFile = fopen("mypipe", "r");
 	if(!pFile)
 	{
 		printf("CONTEXT SWITCH FAILED TO OPEN FILE: make sure to run dtrace script\n");
 		S.bContextSwitchRunning = false;
-		return;
+		return 0;
 	}
 	printf("STARTING TRACE THREAD\n");
 	char* pLine = 0;
@@ -2411,31 +2423,27 @@ void MicroProfileTraceThread(int unused)
 			}
 		}
 	}
+	printf("EXITING TRACE THREAD\n");
+	S.bContextSwitchRunning = false;
+	return 0;
 }
 
 void MicroProfileStartContextSwitchTrace()
 {
 	if(!S.bContextSwitchRunning)
 	{
-		if(!S.pContextSwitchThread)
-			S.pContextSwitchThread = new std::thread();
-		if(S.pContextSwitchThread->joinable())
-		{
-			S.bContextSwitchStop = true;
-			S.pContextSwitchThread->join();
-		}
 		S.bContextSwitchRunning	= true;
 		S.bContextSwitchStop = false;
-		*S.pContextSwitchThread = std::thread(&MicroProfileTraceThread, 0);
+		MicroProfileThreadStart(&S.ContextSwitchThread, MicroProfileTraceThread);
 	}
 }
 
 void MicroProfileStopContextSwitchTrace()
 {
-	if(S.bContextSwitchRunning && S.pContextSwitchThread)
+	if(S.bContextSwitchRunning)
 	{
 		S.bContextSwitchStop = true;
-		S.pContextSwitchThread->join();
+		MicroProfileThreadJoin(&S.ContextSwitchThread);
 	}
 }
 
