@@ -100,6 +100,7 @@ Click to Zoom to selected range<br>
     <ul id='ContextSwitchMenu'>
         <li><a href="#" onclick="SetContextSwitch(1);">On</a></li>
         <li><a href="#" onclick="SetContextSwitch(0);">Off</a></li>
+<!--        <li><a href="#" onclick="ToggleDebug();">DEBUG</a></li> -->
     </ul>
 </li>
 </ul>
@@ -146,7 +147,9 @@ ____embed____
 
 var CanvasDetailedView = document.getElementById('DetailedView');
 var CanvasHistory = document.getElementById('History');
+var g_Msg = '0';
 
+var Initialized = 0;
 var fDetailedOffset = Frames[0].framestart;
 var fDetailedRange = Frames[0].frameend - fDetailedOffset;
 var nWidth = CanvasDetailedView.width;
@@ -218,6 +221,7 @@ var CSwitchCache = {};
 var ProfileData = {};
 var ProfileStackTime = {};
 var ProfileStackName = {};
+var Debug = 0;
 
 function ProfileModeClear()
 {
@@ -268,7 +272,11 @@ function ProfileModeDraw(Canvas)
 			var Timer = ProfileData[idx];
 			StringArray.push(Timer.Name);
 			StringArray.push(Timer.Time + "ms");
+			StringArray.push("#");
+			StringArray.push("" + Timer.Count);
 		}
+		StringArray.push("debug");
+		StringArray.push(g_Msg);
 		var Time = new Date();
 		var Delta = Time - ProfileLastTimeStamp;
 		ProfileLastTimeStamp = Time;
@@ -585,6 +593,7 @@ function SetMinWidth(TimeString)
 	WriteCookie();
 	Draw();
 }
+
 function SetContextSwitch(Enabled)
 {
 	nContextSwitchEnabled = Enabled ? 1 : 0;
@@ -605,6 +614,17 @@ function SetContextSwitch(Enabled)
 
 }
 
+function ToggleDebug()
+{
+	if(Debug)
+	{
+		Debug = 0;
+	}
+	else
+	{
+		Debug = 1;
+	}
+}
 function GatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)
 {
 	var HoverInfo = new Object();
@@ -752,6 +772,7 @@ function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast)
 
 function DrawDetailedFrameHistory()
 {
+	ProfileEnter("DrawDetailedFrameHistory");
 	var x = HistoryViewMouseX;
 
 	var context = CanvasHistory.getContext('2d');
@@ -794,6 +815,7 @@ function DrawDetailedFrameHistory()
 		DrawToolTip(StringArray, CanvasHistory, HistoryViewMouseX, HistoryViewMouseY+20);
 
 	}
+	ProfileLeave();
 
 }
 
@@ -1262,7 +1284,7 @@ function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOf
 
 function DrawDetailed(Animation)
 {
-	if(AnimationActive != Animation)
+	if(AnimationActive != Animation || !Initialized)
 	{
 		return;
 	}
@@ -1305,6 +1327,17 @@ function DrawDetailed(Animation)
 	context.fillStyle = 'black';
 	context.font = Font;
 	var nNumLogs = Frames[0].ts.length;
+	var fTimeEnd = fDetailedOffset + fDetailedRange;
+
+	var FirstFrame = Frames.length-1;
+	for(var i = Frames.length-1; i > 0 ; --i)
+	{
+		if(Frames[i].framestart > fDetailedOffset)
+		{
+			FirstFrame = i-1;
+		}
+	}
+
 	for(nLog = 0; nLog < nNumLogs; nLog++)
 	{
 		var ThreadName = ThreadNames[nLog];
@@ -1318,19 +1351,20 @@ function DrawDetailed(Animation)
 				DrawContextSwitchBars(context, ThreadIds[nLog], fScaleX, fOffsetY, fDetailedOffset, nHoverColor);
 				fOffsetY += CSwitchHeight+1;
 			}
-
-
 			var MaxDepth = 1;
 			var StackPos = 0;
 			var Stack = Array(20);
 
-			for(var i = 0; i < Frames.length; i++)
+			var LocalFirstFrame = Frames[FirstFrame].FirstFrameIndex[nLog];
+
+			for(var i = LocalFirstFrame; i < Frames.length; i++)
 			{
 				var frfr = Frames[i];
-				if(0 == StackPos && frfr.framestart > fDetailedOffset + fDetailedRange) 
+				if(frfr.framestart > fTimeEnd && (StackPos == 0 || Stack[0] > fTimeEnd))
 				{
-					continue;
+					break;
 				}
+				ProfileEnter("FrameStart");
 				var ts = frfr.ts[nLog];
 				var ti = frfr.ti[nLog];
 				var tt = frfr.tt[nLog];
@@ -1402,10 +1436,12 @@ function DrawDetailed(Animation)
 						}
 					}
 				}
+				ProfileLeave();
 			}
 			fOffsetY += (1+MaxDepth) * BoxHeight;
 		}
 	}
+
 	if(MouseDrag || MouseZoom)
 	{
 		nHoverToken = -1;
@@ -1820,9 +1856,62 @@ window.addEventListener('keydown', KeyDown);
 window.addEventListener('keyup', KeyUp);
 window.addEventListener('resize', ResizeCanvas, false);
 
-for(var i = 0; i < TimerInfo.length; i++)
+
+
+function Preprocess()
 {
-	var v = CalculateTimers(TimerInfo[i], i);
+	for(var i = 0; i < TimerInfo.length; i++)
+	{
+		var v = CalculateTimers(TimerInfo[i], i);
+	}
+
+	//create arrays that show how far back we need to start search in order to get all markers.
+	var nNumLogs = Frames[0].ts.length;
+	for(var i = 0; i < Frames.length; i++)
+	{
+		Frames[i].FirstFrameIndex = new Array(nNumLogs);
+	}
+
+	var StackPos = 0;
+	var Stack = Array(20);
+	
+	for(nLog = 0; nLog < nNumLogs; nLog++)
+	{
+		StackPos = 0;
+		console.log('Start index for ' + ThreadNames[nLog]);
+		for(var i = 0; i < Frames.length; i++)
+		{
+			var Frame_ = Frames[i];			
+			var tt = Frame_.tt[nLog];
+			var count = tt.length;
+
+			var FirstFrame = i;
+			if(StackPos>0)
+			{
+				FirstFrame = Stack[0];
+			}
+			Frames[i].FirstFrameIndex[nLog] = FirstFrame;
+			console.log('frame ' + i + ' is ' + FirstFrame);
+
+			for(var j = 0; j < count; j++)
+			{
+				var type = tt[j];
+				if(type == 1)
+				{
+					Stack[StackPos] = i;//store the frame which it comes from
+					StackPos++;
+				}
+				else if(type == 0)
+				{
+					if(StackPos>0)
+					{
+						StackPos--;
+					}
+				}
+			}
+		}
+	}
+	Initialized = 1;
 }
 
 InitGroups();
@@ -1833,6 +1922,7 @@ InitGroupMenu();
 InitFrameInfo();
 UpdateThreadMenu();
 ResizeCanvas();
+Preprocess();
 Draw();
 AutoRedraw();
 

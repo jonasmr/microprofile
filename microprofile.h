@@ -178,7 +178,6 @@ inline uint64_t MicroProfileGetCurrentThreadId()
 #define MP_STRCASECMP strcasecmp
 #define MP_GETCURRENTTHREADID() MicroProfileGetCurrentThreadId()
 typedef uint64_t ThreadIdType;
-#define MP_THREAD_POSIX
 #elif defined(_WIN32)
 int64_t MicroProfileGetTick();
 #define MP_TICK() MicroProfileGetTick()
@@ -208,14 +207,7 @@ inline int64_t MicroProfileGetTick()
 #define MP_STRCASECMP strcasecmp
 #define MP_GETCURRENTTHREADID() (uint64_t)pthread_self()
 typedef uint64_t ThreadIdType;
-#define MP_THREAD_POSIX
 #endif
-
-
-
-///////BEGIN MOVE TO IMPL
-
-
 
 
 #ifndef MP_GETCURRENTTHREADID 
@@ -450,7 +442,7 @@ struct MicroProfileScopeGpuHandler
 #if defined(_WIN32) 
 #define MICROPROFILE_CONTEXT_SWITCH_TRACE 1
 #elif defined(__APPLE__)
-#define MICROPROFILE_CONTEXT_SWITCH_TRACE 1 //disabled until dtrace script is working.
+#define MICROPROFILE_CONTEXT_SWITCH_TRACE 0 //disabled until dtrace script is working.
 #else
 #define MICROPROFILE_CONTEXT_SWITCH_TRACE 0
 #endif
@@ -474,8 +466,6 @@ typedef void* (MicroProfileThreadFunc)(void*);
 
 #if defined(__APPLE__) || defined(__linux__)
 typedef pthread_t MicroProfileThread;
-#elif defined(_WIN32)
-
 #else
 typedef std::thread* MicroProfileThread;
 #endif
@@ -836,10 +826,6 @@ inline void MicroProfileThreadJoin(MicroProfileThread* pThread)
 	delete *pThread;
 }
 #endif
-///////END MOVE TO IMPL
-
-
-
 void MicroProfileWebServerStart();
 void MicroProfileWebServerStop();
 bool MicroProfileWebServerUpdate();
@@ -2594,6 +2580,7 @@ const char g_MicroProfileHtml_begin[] =
 "    <ul id=\'ContextSwitchMenu\'>\n"
 "        <li><a href=\"#\" onclick=\"SetContextSwitch(1);\">On</a></li>\n"
 "        <li><a href=\"#\" onclick=\"SetContextSwitch(0);\">Off</a></li>\n"
+"<!--        <li><a href=\"#\" onclick=\"ToggleDebug();\">DEBUG</a></li> -->\n"
 "    </ul>\n"
 "</li>\n"
 "</ul>\n"
@@ -2644,7 +2631,9 @@ const char g_MicroProfileHtml_end[] =
 "\n"
 "var CanvasDetailedView = document.getElementById(\'DetailedView\');\n"
 "var CanvasHistory = document.getElementById(\'History\');\n"
+"var g_Msg = \'0\';\n"
 "\n"
+"var Initialized = 0;\n"
 "var fDetailedOffset = Frames[0].framestart;\n"
 "var fDetailedRange = Frames[0].frameend - fDetailedOffset;\n"
 "var nWidth = CanvasDetailedView.width;\n"
@@ -2716,6 +2705,7 @@ const char g_MicroProfileHtml_end[] =
 "var ProfileData = {};\n"
 "var ProfileStackTime = {};\n"
 "var ProfileStackName = {};\n"
+"var Debug = 0;\n"
 "\n"
 "function ProfileModeClear()\n"
 "{\n"
@@ -2766,7 +2756,11 @@ const char g_MicroProfileHtml_end[] =
 "			var Timer = ProfileData[idx];\n"
 "			StringArray.push(Timer.Name);\n"
 "			StringArray.push(Timer.Time + \"ms\");\n"
+"			StringArray.push(\"#\");\n"
+"			StringArray.push(\"\" + Timer.Count);\n"
 "		}\n"
+"		StringArray.push(\"debug\");\n"
+"		StringArray.push(g_Msg);\n"
 "		var Time = new Date();\n"
 "		var Delta = Time - ProfileLastTimeStamp;\n"
 "		ProfileLastTimeStamp = Time;\n"
@@ -3083,6 +3077,7 @@ const char g_MicroProfileHtml_end[] =
 "	WriteCookie();\n"
 "	Draw();\n"
 "}\n"
+"\n"
 "function SetContextSwitch(Enabled)\n"
 "{\n"
 "	nContextSwitchEnabled = Enabled ? 1 : 0;\n"
@@ -3103,6 +3098,17 @@ const char g_MicroProfileHtml_end[] =
 "\n"
 "}\n"
 "\n"
+"function ToggleDebug()\n"
+"{\n"
+"	if(Debug)\n"
+"	{\n"
+"		Debug = 0;\n"
+"	}\n"
+"	else\n"
+"	{\n"
+"		Debug = 1;\n"
+"	}\n"
+"}\n"
 "function GatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)\n"
 "{\n"
 "	var HoverInfo = new Object();\n"
@@ -3250,6 +3256,7 @@ const char g_MicroProfileHtml_end[] =
 "\n"
 "function DrawDetailedFrameHistory()\n"
 "{\n"
+"	ProfileEnter(\"DrawDetailedFrameHistory\");\n"
 "	var x = HistoryViewMouseX;\n"
 "\n"
 "	var context = CanvasHistory.getContext(\'2d\');\n"
@@ -3292,6 +3299,7 @@ const char g_MicroProfileHtml_end[] =
 "		DrawToolTip(StringArray, CanvasHistory, HistoryViewMouseX, HistoryViewMouseY+20);\n"
 "\n"
 "	}\n"
+"	ProfileLeave();\n"
 "\n"
 "}\n"
 "\n"
@@ -3760,7 +3768,7 @@ const char g_MicroProfileHtml_end[] =
 "\n"
 "function DrawDetailed(Animation)\n"
 "{\n"
-"	if(AnimationActive != Animation)\n"
+"	if(AnimationActive != Animation || !Initialized)\n"
 "	{\n"
 "		return;\n"
 "	}\n"
@@ -3803,6 +3811,17 @@ const char g_MicroProfileHtml_end[] =
 "	context.fillStyle = \'black\';\n"
 "	context.font = Font;\n"
 "	var nNumLogs = Frames[0].ts.length;\n"
+"	var fTimeEnd = fDetailedOffset + fDetailedRange;\n"
+"\n"
+"	var FirstFrame = Frames.length-1;\n"
+"	for(var i = Frames.length-1; i > 0 ; --i)\n"
+"	{\n"
+"		if(Frames[i].framestart > fDetailedOffset)\n"
+"		{\n"
+"			FirstFrame = i-1;\n"
+"		}\n"
+"	}\n"
+"\n"
 "	for(nLog = 0; nLog < nNumLogs; nLog++)\n"
 "	{\n"
 "		var ThreadName = ThreadNames[nLog];\n"
@@ -3816,19 +3835,20 @@ const char g_MicroProfileHtml_end[] =
 "				DrawContextSwitchBars(context, ThreadIds[nLog], fScaleX, fOffsetY, fDetailedOffset, nHoverColor);\n"
 "				fOffsetY += CSwitchHeight+1;\n"
 "			}\n"
-"\n"
-"\n"
 "			var MaxDepth = 1;\n"
 "			var StackPos = 0;\n"
 "			var Stack = Array(20);\n"
 "\n"
-"			for(var i = 0; i < Frames.length; i++)\n"
+"			var LocalFirstFrame = Frames[FirstFrame].FirstFrameIndex[nLog];\n"
+"\n"
+"			for(var i = LocalFirstFrame; i < Frames.length; i++)\n"
 "			{\n"
 "				var frfr = Frames[i];\n"
-"				if(0 == StackPos && frfr.framestart > fDetailedOffset + fDetailedRange) \n"
+"				if(frfr.framestart > fTimeEnd && (StackPos == 0 || Stack[0] > fTimeEnd))\n"
 "				{\n"
-"					continue;\n"
+"					break;\n"
 "				}\n"
+"				ProfileEnter(\"FrameStart\");\n"
 "				var ts = frfr.ts[nLog];\n"
 "				var ti = frfr.ti[nLog];\n"
 "				var tt = frfr.tt[nLog];\n"
@@ -3900,10 +3920,12 @@ const char g_MicroProfileHtml_end[] =
 "						}\n"
 "					}\n"
 "				}\n"
+"				ProfileLeave();\n"
 "			}\n"
 "			fOffsetY += (1+MaxDepth) * BoxHeight;\n"
 "		}\n"
 "	}\n"
+"\n"
 "	if(MouseDrag || MouseZoom)\n"
 "	{\n"
 "		nHoverToken = -1;\n"
@@ -4318,9 +4340,62 @@ const char g_MicroProfileHtml_end[] =
 "window.addEventListener(\'keyup\', KeyUp);\n"
 "window.addEventListener(\'resize\', ResizeCanvas, false);\n"
 "\n"
-"for(var i = 0; i < TimerInfo.length; i++)\n"
+"\n"
+"\n"
+"function Preprocess()\n"
 "{\n"
-"	var v = CalculateTimers(TimerInfo[i], i);\n"
+"	for(var i = 0; i < TimerInfo.length; i++)\n"
+"	{\n"
+"		var v = CalculateTimers(TimerInfo[i], i);\n"
+"	}\n"
+"\n"
+"	//create arrays that show how far back we need to start search in order to get all markers.\n"
+"	var nNumLogs = Frames[0].ts.length;\n"
+"	for(var i = 0; i < Frames.length; i++)\n"
+"	{\n"
+"		Frames[i].FirstFrameIndex = new Array(nNumLogs);\n"
+"	}\n"
+"\n"
+"	var StackPos = 0;\n"
+"	var Stack = Array(20);\n"
+"	\n"
+"	for(nLog = 0; nLog < nNumLogs; nLog++)\n"
+"	{\n"
+"		StackPos = 0;\n"
+"		console.log(\'Start index for \' + ThreadNames[nLog]);\n"
+"		for(var i = 0; i < Frames.length; i++)\n"
+"		{\n"
+"			var Frame_ = Frames[i];			\n"
+"			var tt = Frame_.tt[nLog];\n"
+"			var count = tt.length;\n"
+"\n"
+"			var FirstFrame = i;\n"
+"			if(StackPos>0)\n"
+"			{\n"
+"				FirstFrame = Stack[0];\n"
+"			}\n"
+"			Frames[i].FirstFrameIndex[nLog] = FirstFrame;\n"
+"			console.log(\'frame \' + i + \' is \' + FirstFrame);\n"
+"\n"
+"			for(var j = 0; j < count; j++)\n"
+"			{\n"
+"				var type = tt[j];\n"
+"				if(type == 1)\n"
+"				{\n"
+"					Stack[StackPos] = i;//store the frame which it comes from\n"
+"					StackPos++;\n"
+"				}\n"
+"				else if(type == 0)\n"
+"				{\n"
+"					if(StackPos>0)\n"
+"					{\n"
+"						StackPos--;\n"
+"					}\n"
+"				}\n"
+"			}\n"
+"		}\n"
+"	}\n"
+"	Initialized = 1;\n"
 "}\n"
 "\n"
 "InitGroups();\n"
@@ -4331,6 +4406,7 @@ const char g_MicroProfileHtml_end[] =
 "InitFrameInfo();\n"
 "UpdateThreadMenu();\n"
 "ResizeCanvas();\n"
+"Preprocess();\n"
 "Draw();\n"
 "AutoRedraw();\n"
 "\n"
