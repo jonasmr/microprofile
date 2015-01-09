@@ -1871,11 +1871,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	uint32_t nNumFrames = (MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY - 1);
 	if(S.nFrameCurrentIndex < nNumFrames)
 		nNumFrames = S.nFrameCurrentIndex;
-	if((int)nNumFrames > nMaxFrames) 
-	{
-		nNumFrames = nMaxFrames;
-	}
-
+	nNumFrames = MicroProfileMin(nNumFrames, (uint32_t)nMaxFrames);
 
 
 #if MICROPROFILE_DEBUG

@@ -1364,7 +1364,6 @@ function DrawDetailed(Animation)
 				{
 					break;
 				}
-				ProfileEnter("FrameStart");
 				var ts = frfr.ts[nLog];
 				var ti = frfr.ti[nLog];
 				var tt = frfr.tt[nLog];
@@ -1436,7 +1435,6 @@ function DrawDetailed(Animation)
 						}
 					}
 				}
-				ProfileLeave();
 			}
 			fOffsetY += (1+MaxDepth) * BoxHeight;
 		}

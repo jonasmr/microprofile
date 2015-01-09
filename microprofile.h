@@ -1871,11 +1871,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	uint32_t nNumFrames = (MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY - 1);
 	if(S.nFrameCurrentIndex < nNumFrames)
 		nNumFrames = S.nFrameCurrentIndex;
-	if((int)nNumFrames > nMaxFrames) 
-	{
-		nNumFrames = nMaxFrames;
-	}
-
+	nNumFrames = MicroProfileMin(nNumFrames, (uint32_t)nMaxFrames);
 
 
 #if MICROPROFILE_DEBUG
@@ -3848,7 +3844,6 @@ const char g_MicroProfileHtml_end[] =
 "				{\n"
 "					break;\n"
 "				}\n"
-"				ProfileEnter(\"FrameStart\");\n"
 "				var ts = frfr.ts[nLog];\n"
 "				var ti = frfr.ti[nLog];\n"
 "				var tt = frfr.tt[nLog];\n"
@@ -3920,7 +3915,6 @@ const char g_MicroProfileHtml_end[] =
 "						}\n"
 "					}\n"
 "				}\n"
-"				ProfileLeave();\n"
 "			}\n"
 "			fOffsetY += (1+MaxDepth) * BoxHeight;\n"
 "		}\n"
