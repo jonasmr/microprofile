@@ -464,6 +464,8 @@ typedef int MpSocket;
 
 #if defined(__APPLE__) || defined(__linux__)
 typedef pthread_t MicroProfileThread;
+#elif defined(_WIN32)
+typedef HANDLE MicroProfileThread;
 #else
 typedef std::thread* MicroProfileThread;
 #endif
@@ -810,8 +812,24 @@ void MicroProfileThreadJoin(MicroProfileThread* pThread)
 	int r = pthread_join(*pThread, 0);
 	MP_ASSERT(r == 0);
 }
+#elif defined(_WIN32)
+typedef HANDLE MicroProfileThread;
+DWORD _stdcall ThreadTrampoline(void* pFunc)
+{
+	MicroProfileThreadFunc F = (MicroProfileThreadFunc)pFunc;
+	return (uint32_t)F(0);
+}
+
+void MicroProfileThreadStart(MicroProfileThread* pThread, MicroProfileThreadFunc Func)
+{	
+	*pThread = CreateThread(0, 0, ThreadTrampoline, Func, 0, 0);
+}
+void MicroProfileThreadJoin(MicroProfileThread* pThread)
+{
+	WaitForSingleObject(*pThread, INFINITE);
+	CloseHandle(*pThread);
+}
 #else
-//todo:win32
 #include <thread>
 typedef std::thread* MicroProfileThread;
 inline void MicroProfileThreadStart(MicroProfileThread* pThread, MicroProfileThreadFunc Func)
@@ -3780,8 +3798,7 @@ const char g_MicroProfileHtml_end[] =
 "					}\n"
 "					else\n"
 "					{\n"
-"						context.fillStyle = \'white\';\n"
-"						//CSwitchColors[ActiveCpu % nNumColors];\n"
+"						context.fillStyle = CSwitchColors[ActiveCpu % nNumColors];\n"
 "					}\n"
 "					context.fillRect(X, fOffsetY, W, CSwitchHeight);\n"
 "				}\n"
