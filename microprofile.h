@@ -462,8 +462,6 @@ typedef int MpSocket;
 #endif
 
 
-typedef void* (MicroProfileThreadFunc)(void*);
-
 #if defined(__APPLE__) || defined(__linux__)
 typedef pthread_t MicroProfileThread;
 #else
@@ -796,7 +794,7 @@ int64_t MicroProfileGetTick()
 
 
 
-typedef void* (MicroProfileThreadFunc)(void*);
+typedef void* (*MicroProfileThreadFunc)(void*);
 
 #if defined(__APPLE__) || defined(__linux__)
 typedef pthread_t MicroProfileThread;
@@ -2344,10 +2342,10 @@ void MicroProfileStartContextSwitchTrace()
 
 void MicroProfileStopContextSwitchTrace()
 {
-	if(S.bContextSwitchRunning && S.pContextSwitchThread)
+	if(S.bContextSwitchRunning)
 	{
 		S.bContextSwitchStop = true;
-		MicroProfileThreadJoin(&S.ContextSwitchThread, MicroProfileTraceThread);
+		MicroProfileThreadJoin(&S.ContextSwitchThread);
 	}
 }
 

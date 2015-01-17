@@ -1297,8 +1297,7 @@ function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOf
 					}
 					else
 					{
-						context.fillStyle = 'white';
-						//CSwitchColors[ActiveCpu % nNumColors];
+						context.fillStyle = CSwitchColors[ActiveCpu % nNumColors];
 					}
 					context.fillRect(X, fOffsetY, W, CSwitchHeight);
 				}
