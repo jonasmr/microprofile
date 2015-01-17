@@ -85,22 +85,10 @@ Click to Zoom to selected range<br>
         <li><a href="#">---</a></li>
     </ul>
 </li>
-<li id="ilWidth"><a href="#">Width</a>
-    <ul id='WidthMenu'>
-        <li><a href="#" onclick="SetMinWidth('1');">1</a></li>
-        <li><a href="#" onclick="SetMinWidth('0.5');">0.5</a></li>
-        <li><a href="#" onclick="SetMinWidth('0.25');">0.25</a></li>
-        <li><a href="#" onclick="SetMinWidth('0.1');">0.1</a></li>
-        <li><a href="#" onclick="SetMinWidth('0.05');">0.05</a></li>
-        <li><a href="#" onclick="SetMinWidth('0.025');">0.025</a></li>
-        <li><a href="#" onclick="SetMinWidth('0.01');">0.01</a></li>
-    </ul>
-</li>
 <li id="ilContextSwitch"><a href="#">ContextSwitch</a>
     <ul id='ContextSwitchMenu'>
         <li><a href="#" onclick="SetContextSwitch(1);">On</a></li>
         <li><a href="#" onclick="SetContextSwitch(0);">Off</a></li>
-        <li><a href="#" onclick="ToggleDrawMode();">FastDraw</a></li>
 <!--      	<li><a href="#" onclick="ToggleDebug();">DEBUG</a></li> -->
     </ul>
 </li>
@@ -165,6 +153,7 @@ ____embed____
 
 var CanvasDetailedView = document.getElementById('DetailedView');
 var CanvasHistory = document.getElementById('History');
+var CanvasDetailedOffscreen = document.createElement('canvas');
 var g_Msg = '0';
 
 var Initialized = 0;
@@ -195,7 +184,8 @@ var ThreadsActive = new Object();
 var ThreadsAllActive = 1;
 var GroupsActive = new Object();
 var GroupsAllActive = 1;
-var nMinWidth = 0.5;
+var nMinWidth = 0.01;//subpixel width
+var nMinWidthPan = 1.0;//subpixel width when panning
 var nContextSwitchEnabled = 1;
 
 var nModDown = 0;
@@ -218,6 +208,11 @@ var nHoverTokenIndex = -1;
 var nHoverTokenLogIndex = -1;
 var nHoverCounter = 0;
 var nHoverCounterDelta = 8;
+var nHoverTokenNext = -1;
+var nHoverTokenLogIndexNext = -1;
+var nHoverTokenIndexNext = -1;
+
+
 
 var fFrameScale = 33.33;
 var fRangeBegin = 0;
@@ -239,10 +234,8 @@ var CSwitchCache = {};
 var ProfileData = {};
 var ProfileStackTime = {};
 var ProfileStackName = {};
-var Debug = 0;
-var DrawModeDefault = 0;
-var DrawModeFast = 1;
-var DrawMode = DrawModeFast;
+var Debug = 1;
+
 var g_MaxStack = Array();
 var g_TypeArray;
 var g_TimeArray;
@@ -251,6 +244,12 @@ var LodData = new Array();
 var NumLodSplits = 10;
 var SplitMin = 100;
 var SPLIT_LIMIT = 1e20;
+var DPR = 1;
+var DetailedRedrawState = {};
+var OffscreenData;
+var DetailedFrameCounter = 0;
+var Invalidate = 0;
+
 
 function ProfileModeClear()
 {
@@ -578,7 +577,8 @@ function ToggleGroup(GroupName)
 	}
 	UpdateGroupMenu();
 	WriteCookie();
-	Draw();
+	RequestRedraw();
+
 }
 
 
@@ -589,7 +589,6 @@ function SetMode(NewMode)
 	console.log('!!!mode is ' + NewMode);
 	var buttonTimers = document.getElementById('buttonTimers');
 	var buttonDetailed = document.getElementById('buttonDetailed');
-	var ilWidth = document.getElementById('ilWidth');
 	var ilThreads = document.getElementById('ilThreads');
 	var ilGroups = document.getElementById('ilGroups');
 	var ilContextSwitch = document.getElementById('ilContextSwitch')
@@ -597,7 +596,6 @@ function SetMode(NewMode)
 	{
 		buttonTimers.style['text-decoration'] = 'underline';
 		buttonDetailed.style['text-decoration'] = 'none';
-		ilWidth.style['display'] = 'none';
 		ilThreads.style['display'] = 'none';
 		ilContextSwitch.style['display'] = 'none';
 		ilGroups.style['display'] = 'block';
@@ -607,14 +605,14 @@ function SetMode(NewMode)
 	{
 		buttonTimers.style['text-decoration'] = 'none';
 		buttonDetailed.style['text-decoration'] = 'underline';
-		ilWidth.style['display'] = 'block';
 		ilThreads.style['display'] = 'block';
 		ilGroups.style['display'] = 'none';
 		ilContextSwitch.style['display'] = 'block';
 		Mode = ModeDetailed;
 	}
 	WriteCookie();
-	Draw();
+	RequestRedraw();
+
 }
 
 function SetReferenceTime(TimeString)
@@ -634,27 +632,8 @@ function SetReferenceTime(TimeString)
 		}
 	}
 	WriteCookie();
-	Draw();
-}
+	RequestRedraw();
 
-function SetMinWidth(TimeString)
-{
-	nMinWidth = parseFloat(TimeString);
-	var ReferenceMenu = document.getElementById('WidthMenu');
-	var Links = ReferenceMenu.getElementsByTagName('a');
-	for(var i = 0; i < Links.length; ++i)
-	{
-		if(Links[i].innerHTML.match('^' + TimeString))
-		{
-			Links[i].style['text-decoration'] = 'underline';
-		}
-		else
-		{
-			Links[i].style['text-decoration'] = 'none';
-		}
-	}
-	WriteCookie();
-	Draw();
 }
 
 function SetContextSwitch(Enabled)
@@ -673,18 +652,12 @@ function SetContextSwitch(Enabled)
 		Links[1].style['text-decoration'] = 'underline';		
 	}
 	WriteCookie();
-	Draw();
-
+	RequestRedraw();
 }
 
 function ToggleDebug()
 {
-	Debug = (Debug + 1) % 5;
-}
-
-function ToggleDrawMode()
-{
-	DrawMode = DrawMode ? 0 : 1;
+	Debug = (Debug + 1) % 2;
 }
 
 function GatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)
@@ -880,9 +853,9 @@ function DrawDetailedFrameHistory()
 
 }
 
-function DrawDetailedBackground()
+function DrawDetailedBackground(context)
 {
-	var context = CanvasDetailedView.getContext('2d');
+	// var context = CanvasDetailedView.getContext('2d');
 	var fMs = fDetailedRange;
 	var fMsEnd = fMs + fDetailedOffset;
 	var fMsToScreen = nWidth / fMs;
@@ -1251,13 +1224,12 @@ function DrawBarView()
 }
 
 
-function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOffset, nHoverColor)
+function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled)
 {
 	ProfileEnter("DrawContextSwitchBars");
 	var CSObject = CSwitchCache[ThreadId];
 	if(ThreadId > 0 && !CSObject)
 	{
-		var start = new Date();
 		CSArrayIn = new Array();
 		CSArrayOut = new Array();
 		CSArrayCpu = new Array();
@@ -1295,12 +1267,6 @@ function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOf
 		CSObject.Out = CSArrayOut;
 		CSObject.Cpu = CSArrayCpu;
 		CSwitchCache[ThreadId] = CSObject;
-		var end = new Date();
-		var time = end - start;
-		var timeTaken = 'TIME ' + time + 'ms ';
-		console.log(timeTaken + ' for ' + ThreadId);
-
-
 	}
 	if(CSObject)
 	{
@@ -1314,23 +1280,28 @@ function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOf
 			var TimeIn = In[i];
 			var TimeOut = Out[i];
 			var ActiveCpu = Cpu[i];
+
 			var X = (TimeIn - fDetailedOffset) * fScaleX;
 			if(X > nWidth)
 			{
 				break;
 			}
 			var W = (TimeOut - TimeIn) * fScaleX;
-			if(W > nMinWidth && X+W > 0)
+			if(W > MinWidth && X+W > 0)
 			{
-				if(nHoverCSCpu == ActiveCpu)
+				if(nHoverCSCpu == ActiveCpu || bDrawEnabled)
 				{
-					context.fillStyle = nHoverColor;
+					if(nHoverCSCpu == ActiveCpu)
+					{
+						context.fillStyle = nHoverColor;
+					}
+					else
+					{
+						context.fillStyle = 'white';
+						//CSwitchColors[ActiveCpu % nNumColors];
+					}
+					context.fillRect(X, fOffsetY, W, CSwitchHeight);
 				}
-				else
-				{
-					context.fillStyle = CSwitchColors[ActiveCpu % nNumColors];
-				}
-				context.fillRect(X, fOffsetY, W, CSwitchHeight);
 				if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < fOffsetY+CSwitchHeight && DetailedViewMouseY >= fOffsetY)
 				{
 					nHoverCSCpuNext = ActiveCpu;
@@ -1343,33 +1314,20 @@ function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOf
 	ProfileLeave();
 }
 
-function DrawDetailed(Animation)
+function DrawDetailedView(context, MinWidth, bDrawEnabled)
 {
-	if(AnimationActive != Animation || !Initialized)
+	if(bDrawEnabled)
 	{
-		return;
+		DrawDetailedBackground(context);
 	}
-	ProfileEnter("DrawDetailed");
-	DebugDrawQuadCount = 0;
-	DebugDrawTextCount = 0;
-	nHoverCSCpuNext = -1;
-
-
-	var start = new Date();
-	nDrawCount++;
-
-	var context = CanvasDetailedView.getContext('2d');
-	context.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
-
-	DrawDetailedBackground();
 
 	var colors = [ '#ff0000', '#ff00ff', '#ffff00'];
 
 	var fScaleX = nWidth / fDetailedRange; 
 	var fOffsetY = -nOffsetY + BoxHeight;
-	var nHoverTokenNext = -1;
-	var nHoverTokenLogIndexNext = -1;
-	var nHoverTokenIndexNext = -1;
+	nHoverTokenNext = -1;
+	nHoverTokenLogIndexNext = -1;
+	nHoverTokenIndexNext = -1;
 	nHoverCounter += nHoverCounterDelta;
 	if(nHoverCounter >= 255) 
 	{
@@ -1399,10 +1357,8 @@ function DrawDetailed(Animation)
 		}
 	}
 
-	var nMinTimeMs = nMinWidth / fScaleX;
-	if(DrawMode == DrawModeFast)
+	var nMinTimeMs = MinWidth / fScaleX;
 	{
-		// console.log("min time is " + nMinTimeMs);
 
 		var Batches = new Array(TimerInfo.length);
 		var BatchesTxt = Array();
@@ -1438,15 +1394,12 @@ function DrawDetailed(Animation)
 					LodIndex = LodData.length-1;
 				}
 
-
-
-
 				context.fillStyle = 'white';
 				context.fillText(ThreadName, 0, fOffsetY);
 				fOffsetY += BoxHeight;
 				if(nContextSwitchEnabled)
 				{
-					DrawContextSwitchBars(context, ThreadIds[nLog], fScaleX, fOffsetY, fDetailedOffset, nHoverColor);
+					DrawContextSwitchBars(context, ThreadIds[nLog], fScaleX, fOffsetY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled);
 					fOffsetY += CSwitchHeight+1;
 				}
 				var MaxDepth = 1;
@@ -1492,48 +1445,34 @@ function DrawDetailed(Animation)
 							var Y = fOffsetY + StackPos * BoxHeight;
 							var W = (timeend-timestart)*fScaleX;
 
-							if(W > nMinWidth && X < nWidth && X+W > 0)
+							if(W > MinWidth && X < nWidth && X+W > 0)
 							{
-								if(Debug < 3)
-								{
-									if(index == nHoverToken)
-									{
-										context.fillStyle = nHoverColor;
-										context.fillRect(X, Y, W, BoxHeight-1);
-									}
-									else
-									{
-										context.fillStyle = TimerInfo[index].color;
-										context.fillRect(X, Y, W, BoxHeight-1);
-									}
-								}
-								else
+								if(bDrawEnabled || index == nHoverToken)
 								{
 									Batches[index].push(X);
 									Batches[index].push(Y);
 									Batches[index].push(W);
+									DebugDrawQuadCount++;
 
+									var XText = X < 0 ? 0 : X;
+									var WText = W - (XText-X);
+									var name = TimerInfo[index].name;
+									var len = TimerInfo[index].len;
+									var sublen = Math.floor((WText-2)/FontWidth);
+									if(sublen >= 2)
+									{
+										if(sublen < len)
+											name = name.substr(0, sublen);
+										var txtidx = TimerInfo[index].textcolorindex;
+										BatchesTxt[txtidx].push(name);
+										BatchesTxtPos[txtidx].push(XText+1);
+										BatchesTxtPos[txtidx].push(Y+BoxHeight-FontAscent);
+
+										DebugDrawTextCount++;
+									}
 								}
 
 
-								DebugDrawQuadCount++;
-
-								var XText = X < 0 ? 0 : X;
-								var WText = W - (XText-X);
-								var name = TimerInfo[index].name;
-								var len = TimerInfo[index].len;
-								var sublen = Math.floor((WText-2)/FontWidth);
-								if(sublen >= 2)
-								{
-									if(sublen < len)
-										name = name.substr(0, sublen);
-									var txtidx = TimerInfo[index].textcolorindex;
-									BatchesTxt[txtidx].push(name);
-									BatchesTxtPos[txtidx].push(XText+1);
-									BatchesTxtPos[txtidx].push(Y+BoxHeight-FontAscent);
-
-									DebugDrawTextCount++;
-								}
 								if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
 								{
 									fRangeBegin = timestart;
@@ -1565,42 +1504,13 @@ function DrawDetailed(Animation)
 				}
 			}
 		}
-
-		if(0)
 		{
 			for(var i = 0; i < Batches.length; ++i)
 			{
 				var a = Batches[i];
 				if(a.length)
 				{
-					if(index == nHoverToken)
-					{
-						context.fillStyle = nHoverColor;
-					}
-					else
-					{
-						context.fillStyle = TimerInfo[i].color;
-					}
-
-	
-					for(var j = 0; j < a.length; j += 3)
-					{
-						var X = a[j];
-						var Y = a[j+1];
-						var W = a[j+2];
-						context.fillRect(X, Y, W, BoxHeight-1);
-					}
-				}
-			}
-		}
-		else
-		{
-			for(var i = 0; i < Batches.length; ++i)
-			{
-				var a = Batches[i];
-				if(a.length)
-				{
-					if(index == nHoverToken)
+					if(i == nHoverToken)
 					{
 						context.fillStyle = nHoverColor;
 					}
@@ -1650,105 +1560,55 @@ function DrawDetailed(Animation)
 		}
 
 	}
+}
+
+function DrawDetailed(Animation)
+{
+	if(AnimationActive != Animation || !Initialized)
+	{
+		return;
+	}
+	ProfileEnter("DrawDetailed");
+	DebugDrawQuadCount = 0;
+	DebugDrawTextCount = 0;
+	nHoverCSCpuNext = -1;
+
+
+	var start = new Date();
+	nDrawCount++;
+
+	var context = CanvasDetailedView.getContext('2d');
+	var offscreen = CanvasDetailedOffscreen.getContext('2d');
+	var fScaleX = nWidth / fDetailedRange; 
+	var fOffsetY = -nOffsetY + BoxHeight;
+
+	if(DetailedRedrawState.fOffsetY == fOffsetY && DetailedRedrawState.fDetailedOffset == fDetailedOffset && DetailedRedrawState.fDetailedRange == fDetailedRange && !MouseZoom && !MouseDrag)
+	{
+		Invalidate++;
+	}
 	else
-	{ 
-		for(nLog = 0; nLog < nNumLogs; nLog++)
-		{
-			var ThreadName = ThreadNames[nLog];
-			if(ThreadsAllActive || ThreadsActive[ThreadName])
-			{
-				context.fillStyle = 'white';
-				context.fillText(ThreadName, 0, fOffsetY);
-				fOffsetY += BoxHeight;
-				if(nContextSwitchEnabled)
-				{
-					DrawContextSwitchBars(context, ThreadIds[nLog], fScaleX, fOffsetY, fDetailedOffset, nHoverColor);
-					fOffsetY += CSwitchHeight+1;
-				}
-				var MaxDepth = 1;
-				var StackPos = 0;
-				var Stack = Array(20);
-
-				var LocalFirstFrame = Frames[FirstFrame].FirstFrameIndex[nLog];
-				var IndexStart = Frames[LocalFirstFrame].LogStart[nLog];
-				var IndexEnd = g_TimeArray[nLog].length;
-
-				var TypeArray = g_TypeArray[nLog];
-				var IndexArray = g_IndexArray[nLog];
-				var TimeArray = g_TimeArray[nLog];
-
-				for(var j = IndexStart; j < IndexEnd; ++j)
-				{
-					var type = TypeArray[j];
-					var index = IndexArray[j];
-					var time = TimeArray[j];
-					if(type == 1)
-					{
-						//push
-						Stack[StackPos] = time;
-						StackPos++;
-						if(StackPos > MaxDepth)
-						{
-							MaxDepth = StackPos;
-						}
-					}
-					else if(type == 0)
-					{
-						if(StackPos>0)
-						{
-							StackPos--;
-
-							var timestart = Stack[StackPos];
-							var timeend = time;
-							var X = (timestart - fDetailedOffset) * fScaleX;
-							var Y = fOffsetY + StackPos * BoxHeight;
-							var W = (timeend-timestart)*fScaleX;
-
-							if(W > nMinWidth && X < nWidth && X+W > 0)
-							{
-								if(index == nHoverToken)
-								{
-									context.fillStyle = nHoverColor;
-									context.fillRect(X, Y, W, BoxHeight-1);
-								}
-								else
-								{
-									context.fillStyle = TimerInfo[index].color;
-									context.fillRect(X, Y, W, BoxHeight-1);
-								}
-								DebugDrawQuadCount++;
-
-								var XText = X < 0 ? 0 : X;
-								var WText = W - (XText-X);
-								var name = TimerInfo[index].name;
-								var len = TimerInfo[index].len;
-								var sublen = Math.floor((WText-2)/FontWidth);
-								if(sublen >= 2)
-								{
-									if(sublen < len)
-										name = name.substr(0, sublen);
-									context.fillStyle = InvertColor(TimerInfo[index].color);
-									context.fillText(name, XText+1, Y+BoxHeight-FontAscent);
-									DebugDrawTextCount++;
-								}
-								if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
-								{
-									fRangeBegin = timestart;
-									fRangeEnd = timeend;
-									nHoverTokenNext = index;
-									nHoverTokenIndexNext = j;
-									nHoverTokenLogIndexNext = nLog;
-									nHoverFrame = i;
-								}
-							}
-							if(StackPos == 0 && time > fTimeEnd)
-								break;											
-						}
-					}
-				}
-				fOffsetY += (1+MaxDepth) * BoxHeight;
-			}
-		}
+	{
+		Invalidate = 0;
+		DetailedRedrawState.fOffsetY = fOffsetY;
+		DetailedRedrawState.fDetailedOffset = fDetailedOffset;
+		DetailedRedrawState.fDetailedRange = fDetailedRange;
+	}
+	if(Invalidate == 0) //when panning, only draw bars that are a certain width to keep decent framerate
+	{
+		context.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
+		DrawDetailedView(context, nMinWidthPan, true);
+	}
+	else if(Invalidate == 1) //draw full and store
+	{
+		offscreen.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
+		DrawDetailedView(offscreen, nMinWidth, true);
+		OffscreenData = offscreen.getImageData(0, 0, CanvasDetailedOffscreen.width, CanvasDetailedOffscreen.height);
+	}
+	else//reuse stored result untill next time viewport is changed.
+	{
+		context.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
+		context.putImageData(OffscreenData, 0, 0);
+		DrawDetailedView(context, nMinWidth, false);
 	}
 
 	if(MouseDrag || MouseZoom)
@@ -1796,16 +1656,6 @@ function DrawDetailed(Animation)
 
 	nHoverCSCpu = nHoverCSCpuNext;
 
-	var end = new Date();
-	var time = end - start;
-	var timeTaken = 'TIME ' + time + 'ms ';
-	if(false)
-	{
-		context.fillStyle = 'white';
-		context.font = 'italic 12pt Calibri';
-		context.fillText(timeTaken+" " + nDrawCount + "..." + g_MSG + " Q:" + DebugDrawQuadCount + " T:" + DebugDrawTextCount, 20, 20);
-		g_MSG = '';
-	}
 	ProfileLeave();
 }
 
@@ -1845,6 +1695,11 @@ function ZoomTo(fZoomBegin, fZoomEnd)
 		requestAnimationFrame(ZoomFunc);
 	}
 }
+function RequestRedraw()
+{
+	Invalidate = 0;
+	Draw();
+}
 function Draw(SkipHistory)
 {
 	if(ProfileMode)
@@ -1879,7 +1734,7 @@ function AutoRedraw(Timestamp)
 {
 	if(Mode == ModeDetailed)
 	{
-		if(ProfileMode == 2 || ((nHoverCSCpu >= 0 || nHoverToken != -1) && !MouseZoom && !MouseDrag))
+		if(ProfileMode == 2 || ((nHoverCSCpu >= 0 || nHoverToken != -1) && !MouseZoom && !MouseDrag)||(Invalidate<2 && !MouseZoom && !MouseDrag))
 		{
 			Draw(1);
 		}
@@ -1924,7 +1779,8 @@ function ResizeCanvas()
 {
 	nWidth = window.innerWidth;
 	nHeight = window.innerHeight - CanvasHistory.height-2;
-	var DPR = window.devicePixelRatio;
+	DPR = window.devicePixelRatio;
+
 	if(DPR)
 	{
 		CanvasDetailedView.style.width = nWidth + 'px'; 
@@ -1938,15 +1794,23 @@ function ResizeCanvas()
 		CanvasHistory.getContext('2d').scale(DPR,DPR);
 		CanvasDetailedView.getContext('2d').scale(DPR,DPR);
 
+		CanvasDetailedOffscreen.style.width = nWidth + 'px';
+		CanvasDetailedOffscreen.style.height = nHeight + 'px';
+		CanvasDetailedOffscreen.width = nWidth * DPR;
+		CanvasDetailedOffscreen.height = nHeight * DPR;
+		CanvasDetailedOffscreen.getContext('2d').scale(DPR,DPR);
 
 	}
 	else
 	{
+		DPR = 1;
 		CanvasDetailedView.width = nWidth;
 		CanvasDetailedView.height = nHeight;
+		CanvasDetailedOffscreen.width = nWidth;
+		CanvasDetailedOffscreen.height = nHeight;
 		CanvasHistory.width = window.innerWidth;
 	}
-	Draw();
+	RequestRedraw();
 }
 
 function MouseMove(evt)
@@ -2081,7 +1945,6 @@ function ReadCookie()
 	var result = document.cookie.match(/fisk=([^;]+)/);
 	var NewMode = ModeDetailed;
 	var ReferenceTimeString = '33ms';
-	var nMinWidth = 0.1;
 	if(result && result.length > 0)
 	{
 		var Obj = JSON.parse(result[1]);
@@ -2104,10 +1967,6 @@ function ReadCookie()
 		if(Obj.ThreadsActive)
 		{
 			ThreadsActive = Obj.ThreadsActive;
-		}
-		if(Obj.nMinWidth)
-		{
-			nMinWidth = Obj.nMinWidth;
 		}
 		if(Obj.GroupsAllActive || Obj.GroupsAllActive == 0 || Obj.GroupsAllActive)
 		{
@@ -2133,8 +1992,6 @@ function ReadCookie()
 	SetContextSwitch(nContextSwitchEnabled);
 	SetMode(NewMode);
 	SetReferenceTime(ReferenceTimeString);
-	SetMinWidth('' + nMinWidth);
-
 }
 function WriteCookie()
 {
@@ -2145,7 +2002,6 @@ function WriteCookie()
 	Obj.ThreadsAllActive = ThreadsAllActive;
 	Obj.GroupsActive = GroupsActive;
 	Obj.GroupsAllActive = GroupsAllActive;
-	Obj.nMinWidth = nMinWidth;
 	Obj.nContextSwitchEnabled = nContextSwitchEnabled;
 	var date = new Date();
 	date.setFullYear(2099);
