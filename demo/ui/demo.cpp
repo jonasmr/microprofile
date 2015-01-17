@@ -30,6 +30,8 @@
 #include <unistd.h>
 #endif
 
+#define MICROPROFILE_DEBUG 1
+#define MICROPROFILE_WEBSERVER_MAXFRAMES 200
 #define MICROPROFILE_IMPL
 
 #include "microprofile.h"

@@ -1976,33 +1976,40 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 		MicroProfilePrintf(CB, Handle, "Frames[%d] = MakeFrame(%d, %f, %f, ts%d, tt%d, ti%d);\n", i, nFirstFrameIndex, fFrameMs, fFrameEndMs, i, i, i);
 	}
 	
-		uint32_t nContextSwitchStart = 0;
-		uint32_t nContextSwitchEnd = 0;
-		MicroProfileContextSwitchSearch(&nContextSwitchStart, &nContextSwitchEnd, nTickStart, nTickEnd);
+	uint32_t nContextSwitchStart = 0;
+	uint32_t nContextSwitchEnd = 0;
+	MicroProfileContextSwitchSearch(&nContextSwitchStart, &nContextSwitchEnd, nTickStart, nTickEnd);
 
-		uint32_t nWrittenBefore = S.nWebServerDataSent;
-		MicroProfilePrintf(CB, Handle, "var CSwitchThreadInOutCpu = [");
-		for(uint32_t j = nContextSwitchStart; j != nContextSwitchEnd; j = (j+1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE)
-		{
-			MicroProfileContextSwitch CS = S.ContextSwitch[j];
-			int nCpu = CS.nCpu;
-			MicroProfilePrintf(CB, Handle, "%d,%d,%d,", CS.nThreadIn, CS.nThreadOut, nCpu);
-		}
-		MicroProfilePrintf(CB, Handle, "];\n");
-		MicroProfilePrintf(CB, Handle, "var CSwitchTime = [");
+	uint32_t nWrittenBefore = S.nWebServerDataSent;
+	MicroProfilePrintf(CB, Handle, "var CSwitchThreadInOutCpu = [");
+	for(uint32_t j = nContextSwitchStart; j != nContextSwitchEnd; j = (j+1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE)
+	{
+		MicroProfileContextSwitch CS = S.ContextSwitch[j];
+		int nCpu = CS.nCpu;
+		MicroProfilePrintf(CB, Handle, "%d,%d,%d,", CS.nThreadIn, CS.nThreadOut, nCpu);
+	}
+	MicroProfilePrintf(CB, Handle, "];\n");
+	MicroProfilePrintf(CB, Handle, "var CSwitchTime = [");
 	float fToMsCpu = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
-		for(uint32_t j = nContextSwitchStart; j != nContextSwitchEnd; j = (j+1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE)
-		{
-			MicroProfileContextSwitch CS = S.ContextSwitch[j];
-			float fTime = MicroProfileLogTickDifference(nTickStart, CS.nTicks) * fToMsCpu;
-			MicroProfilePrintf(CB, Handle, "%f,", fTime);
-		}
-		MicroProfilePrintf(CB, Handle, "];\n");
-		uint32_t nWrittenAfter = S.nWebServerDataSent;
-		MicroProfilePrintf(CB, Handle, "//CSwitch Size %d\n", nWrittenAfter - nWrittenBefore);
+	for(uint32_t j = nContextSwitchStart; j != nContextSwitchEnd; j = (j+1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE)
+	{
+		MicroProfileContextSwitch CS = S.ContextSwitch[j];
+		float fTime = MicroProfileLogTickDifference(nTickStart, CS.nTicks) * fToMsCpu;
+		MicroProfilePrintf(CB, Handle, "%f,", fTime);
+	}
+	MicroProfilePrintf(CB, Handle, "];\n");
+	uint32_t nWrittenAfter = S.nWebServerDataSent;
+	MicroProfilePrintf(CB, Handle, "//CSwitch Size %d\n", nWrittenAfter - nWrittenBefore);
 
 	CB(Handle, g_MicroProfileHtml_end_size-1, &g_MicroProfileHtml_end[0]);
 	S.nRunning = nRunning;
+
+#if MICROPROFILE_DEBUG
+	int64_t nTicksEnd = MP_TICK();
+	float fMs = fToMsCpu * (nTicksEnd - S.nPauseTicks);
+	printf("html dump took %6.2fms\n", fMs);
+#endif
+
 
 }
 
@@ -2124,9 +2131,7 @@ bool MicroProfileWebServerUpdate()
 		if(nReceived > 0)
 		{
 			Req[nReceived] = '\0';
-#if MICROPROFILE_DEBUG
-			printf("got request \n%s\n", Req);
-#endif
+// 			printf("got request \n%s\n", Req);
 #define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n"
 			char* pHttp = strstr(Req, "HTTP/");
 			char* pGet = strstr(Req, "GET / ");
