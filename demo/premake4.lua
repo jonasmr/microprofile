@@ -13,7 +13,7 @@ solution "microprofile"
       debugdir "."
       defines {"MICROPROFILE_UI=1", "MICROPROFILE_WEBSERVER=1"}
       --remove comment below to auto generate microprofile.h. requires embed (in src/) to be built
-      prebuildcommands { "../embed.bat" }
+      --prebuildcommands { "../embed.bat" }
 
       configuration "windows"
          links { "opengl32", "glu32", "winmm", "dxguid", "Ws2_32"}
@@ -35,7 +35,7 @@ solution "microprofile"
    		files { "noui/*.h", "noui/*.cpp", "../microprofile.h", "../src/microprofile.h", "../src/microprofile.html"}
    		debugdir "."
    		--remove comment below to auto generate microprofile.h. requires embed (in src/) to be built
-		prebuildcommands { "../embed.bat" }
+		--prebuildcommands { "../embed.bat" }
 
       configuration "Debug"
          defines { "DEBUG" }
@@ -44,4 +44,29 @@ solution "microprofile"
       configuration "Release"
          defines { "NDEBUG" }
          flags { "Optimize", "Symbols", "StaticRuntime" }
+
+   project "noui_d3d11"
+      kind "WindowedApp"
+      language "C++"
+      files { "noui_d3d11/*.h", "noui_d3d11/*.cpp", "../microprofile.h", "../src/microprofile.h", "../src/microprofile.html"}
+      includedirs {".." }       
+      defines {"MICROPROFILE_GPU_TIMERS_D3D11=1;_CRT_SECURE_NO_WARNINGS"}       
+      libdirs {}
+      links {}
+      debugdir "."
+      defines {}
+      --remove comment below to auto generate microprofile.h. requires embed (in src/) to be built
+      --prebuildcommands { "../embed.bat" }
+      postbuildcommands { "copy ..\\noui_d3d11\\Tutorial02*.* .." }
+
+      configuration "windows"
+         links {"dxguid", "Ws2_32", "d3d11","d3dcompiler", "winmm"}
+      configuration "Debug"
+         defines { "DEBUG" }
+         flags { "Symbols" }
+ 
+      configuration "Release"
+         defines { "NDEBUG" }
+         flags { "Optimize", "Symbols" }
+
 

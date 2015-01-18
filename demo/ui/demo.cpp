@@ -30,13 +30,15 @@
 #include <unistd.h>
 #endif
 
+#include "glinc.h"
+
 #define MICROPROFILE_DEBUG 1
 #define MICROPROFILE_WEBSERVER_MAXFRAMES 200
 #define MICROPROFILE_IMPL
-
+#define MICROPROFILE_GPU_TIMERS_GL 1
 #include "microprofile.h"
 #include "microprofileui.h"
-#include "glinc.h"
+
 
 #ifdef main
 #undef main
@@ -148,7 +150,6 @@ void HandleEvent(SDL_Event* pEvt)
 
 }
 
-void MicroProfileQueryInitGL();
 void MicroProfileDrawInit();
 void MicroProfileBeginDraw(uint32_t nWidth, uint32_t nHeight, float* prj);
 void MicroProfileEndDraw();
@@ -204,7 +205,7 @@ int main(int argc, char* argv[])
 
 
 #if MICROPROFILE_ENABLED
-	MicroProfileQueryInitGL();
+	MicroProfileGpuInitGL();
 	MicroProfileDrawInit();
 	MP_ASSERT(glGetError() == 0);
 	MicroProfileToggleDisplayMode();
@@ -249,7 +250,7 @@ int main(int argc, char* argv[])
 
 		MicroProfileFlip();
 		{
-			MICROPROFILE_SCOPEGPUI("GPU", "MicroProfileDraw", 0x88dd44);
+			MICROPROFILE_SCOPEGPUI("MicroProfileDraw", 0x88dd44);
 			float projection[16];
 			float left = 0.f;
 			float right = WIDTH;

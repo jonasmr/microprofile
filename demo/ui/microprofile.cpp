@@ -59,7 +59,6 @@ struct MicroProfileVertex
 
 
 #define MICROPROFILE_MAX_VERTICES (16<<10)
-#define MICROPROFILE_NUM_QUERIES (8<<10)
 #define MAX_FONT_CHARS 256
 #define Q0(d, member, v) d[0].member = v
 #define Q1(d, member, v) d[1].member = v; d[3].member = v
@@ -100,9 +99,6 @@ namespace
 	GLuint g_PixelShader;
 	GLuint g_Program;
 	GLuint g_FontTexture;
-
-	GLuint g_GlTimers[MICROPROFILE_NUM_QUERIES];
-	GLuint g_GlTimerPos = (GLuint)-1;
 
 
 	struct SFontDescription
@@ -317,7 +313,7 @@ void MicroProfileFlush()
 	if(0 == nVertexPos)
 		return;
 	MICROPROFILE_SCOPEI("MicroProfile", "Flush", 0xffff3456);
-	MICROPROFILE_SCOPEGPUI("GPU", "FlushDraw", 0xffff4444);
+	MICROPROFILE_SCOPEGPUI("FlushDraw", 0xffff4444);
 
 
 
@@ -508,37 +504,6 @@ void MicroProfileDrawLine2D(uint32_t nVertices, float* pVertices, uint32_t nColo
 		pVertex += 2;
 	}
 }
-
-
-void MicroProfileQueryInitGL()
-{
-	g_GlTimerPos = 0;
-	glGenQueries(MICROPROFILE_NUM_QUERIES, &g_GlTimers[0]);		
-}
-
-uint32_t MicroProfileGpuInsertTimeStamp()
-{
-	uint32_t nIndex = (g_GlTimerPos+1)%MICROPROFILE_NUM_QUERIES;
-	glQueryCounter(g_GlTimers[nIndex], GL_TIMESTAMP);
-	g_GlTimerPos = nIndex;
-	return nIndex;
-}
-uint64_t MicroProfileGpuGetTimeStamp(uint32_t nKey)
-{
-	uint64_t result;
-	#ifdef __APPLE__
-	//for some reason, on osx, this gets truncated to 32bit if only called once ?!?
-	glGetQueryObjectui64v(g_GlTimers[nKey], GL_QUERY_RESULT, &result);
-	#endif
-	glGetQueryObjectui64v(g_GlTimers[nKey], GL_QUERY_RESULT, &result);
-	return result;
-}
-
-uint64_t MicroProfileTicksPerSecondGpu()
-{
-	return 1000000000ll;
-}
-
 
 namespace
 {
