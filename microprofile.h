@@ -1224,7 +1224,6 @@ MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, ui
 	uint16_t nTimerIndex = (uint16_t)(S.nTotalTimers++);
 	uint64_t nGroupMask = 1ll << nGroupIndex;
 	MicroProfileToken nToken = MicroProfileMakeToken(nGroupMask, nTimerIndex);
-	printf("MADE TOKEN WITH MASK %16llx\n", nGroupMask);
 	S.GroupInfo[nGroupIndex].nNumTimers++;
 	S.GroupInfo[nGroupIndex].nMaxTimerNameLen = MicroProfileMax(S.GroupInfo[nGroupIndex].nMaxTimerNameLen, (uint32_t)strlen(pName));
 	MP_ASSERT(S.GroupInfo[nGroupIndex].Type == Type); //dont mix cpu & gpu timers in the same group
@@ -1276,13 +1275,6 @@ inline void MicroProfileLogPut(MicroProfileToken nToken_, uint64_t nTick, uint64
 	}
 	else
 	{
-		int64_t test = MicroProfileMakeLogIndex(nBegin, nToken_, nTick);;
-		MP_ASSERT(MicroProfileLogType(test) == nBegin);
-		MP_ASSERT(MicroProfileLogTimerIndex(test) == MicroProfileGetTimerIndex(nToken_));
-		int nTimer = MicroProfileLogTimerIndex(test);
-		uint16_t nGroup = MicroProfileGet()->TimerInfo[nTimer].nGroupIndex;
-		MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
-
 		pLog->Log[nPos] = MicroProfileMakeLogIndex(nBegin, nToken_, nTick);
 		pLog->nPut.store(nNextPos, std::memory_order_release);
 	}
