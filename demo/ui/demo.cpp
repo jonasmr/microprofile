@@ -169,7 +169,7 @@ int main(int argc, char* argv[])
 	printf("press 'right shift' to pause microprofile update\n");
 	printf("press 'x' to toggle profiling\n");
 	printf("press 'c' to toggle enable of all profiler groups\n");
-	MicroProfileOnThreadCreate("Main");
+	MicroProfileOnThreadCreate("AA_Main");
 	if(SDL_Init(SDL_INIT_VIDEO) < 0) {
 		return 1;
 	}
@@ -229,10 +229,10 @@ int main(int argc, char* argv[])
 
 #if 1||FAKE_WORK
 		{
-			MICROPROFILE_SCOPEI("Main", "Dummy", 0xff3399ff);
+			MICROPROFILE_SCOPEI("BMain", "Dummy", 0xff3399ff);
 			for(uint32_t i = 0; i < 14; ++i)
 			{
-				MICROPROFILE_SCOPEI("Main", "1ms", 0xff3399ff);
+				MICROPROFILE_SCOPEI("BMain", "1ms", 0xff3399ff);
 				MICROPROFILE_META_CPU("Sleep",1);
 
 				usleep(1000);

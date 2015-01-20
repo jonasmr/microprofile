@@ -249,6 +249,8 @@ var DetailedRedrawState = {};
 var OffscreenData;
 var DetailedFrameCounter = 0;
 var Invalidate = 0;
+var GroupOrder = Array();
+var ThreadOrder = Array();
 
 
 function ProfileModeClear()
@@ -409,9 +411,10 @@ function InitThreadMenu()
 {
 	var ulThreadMenu = document.getElementById('ThreadSubMenu');
 	var MaxLen = 7;
-	for(var idx in ThreadNames)
+	ThreadOrder = CreateOrderArray(ThreadNames, function(a){return a;});
+	for(var idx in ThreadOrder)
 	{
-		var name = ThreadNames[idx];
+		var name = ThreadNames[ThreadOrder[idx]];
 		var li = document.createElement('li');
 		if(name.length > MaxLen)
 		{
@@ -423,7 +426,7 @@ function InitThreadMenu()
 		li.innerHTML = html;
 		ulThreadMenu.appendChild(li);
 	}
-	var LenStr = (5+(1+MaxLen) * FontWidth) + 'px';
+	var LenStr = (5+(1+MaxLen) * (1+FontWidth)) + 'px';
 	var Lis = ulThreadMenu.getElementsByTagName('li');
 	for(var i = 0; i < Lis.length; ++i)
 	{
@@ -486,9 +489,36 @@ function ToggleThread(ThreadName)
 			ThreadsAllActive = 1;
 		}
 	}
+	Invalidate = 0;
 	UpdateThreadMenu();
 	WriteCookie();
 	Draw();
+
+}
+
+function CreateOrderArray(Source, NameFunc)
+{
+	var Temp = Array(Source.length);
+	for(var i = 0; i < Source.length; ++i)
+	{
+		Temp[i] = {};
+		Temp[i].index = i;
+		Temp[i].namezz = NameFunc(Source[i]).toLowerCase();
+	}
+	Temp.sort(function(l, r)
+	{ 
+		if(r.namezz<l.namezz)
+			{return 1;}
+		if(l.namezz<r.namezz)
+			{return -1;} 
+		return 0;
+	} );
+	var OrderArray = Array(Source.length);
+	for(var i = 0; i < Source.length; ++i)
+	{
+		OrderArray[i] = Temp[i].index;
+	}
+	return OrderArray;
 }
 
 
@@ -496,9 +526,12 @@ function InitGroupMenu()
 {
 	var ulGroupMenu = document.getElementById('GroupSubMenu');
 	var MaxLen = 7;
-	for(var idx in GroupInfo)
+
+	GroupOrder = CreateOrderArray(GroupInfo, function(a){ return a.name; } );
+
+	for(var idx in GroupOrder)
 	{
-		var name = GroupInfo[idx].name;
+		var name = GroupInfo[GroupOrder[idx]].name;
 		var li = document.createElement('li');
 		if(name.length > MaxLen)
 		{
@@ -585,8 +618,6 @@ function ToggleGroup(GroupName)
 
 function SetMode(NewMode)
 {
-	console.log('setmodemodemode ' + NewMode);
-	console.log('!!!mode is ' + NewMode);
 	var buttonTimers = document.getElementById('buttonTimers');
 	var buttonDetailed = document.getElementById('buttonDetailed');
 	var ilThreads = document.getElementById('ilThreads');
@@ -1087,8 +1118,9 @@ function DrawBarView()
 
 
 
-	for(var groupid in GroupInfo)
+	for(var idx in GroupOrder)
 	{
+		var groupid = GroupOrder[idx];
 		var Group = GroupInfo[groupid];
 		if(GroupsAllActive || GroupsActive[Group.name])
 		{

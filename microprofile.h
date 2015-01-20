@@ -666,7 +666,7 @@ struct MicroProfile
 
 	MicroProfileGroupInfo 	GroupInfo[MICROPROFILE_MAX_GROUPS];
 	MicroProfileTimerInfo 	TimerInfo[MICROPROFILE_MAX_TIMERS];
-	
+	int 					GroupOrder[MICROPROFILE_MAX_GROUPS];
 	MicroProfileTimer 		AggregateTimers[MICROPROFILE_MAX_TIMERS];
 	uint64_t				MaxTimers[MICROPROFILE_MAX_TIMERS];
 	uint64_t				AggregateTimersExclusive[MICROPROFILE_MAX_TIMERS];
@@ -1193,6 +1193,15 @@ uint16_t MicroProfileGetGroup(const char* pGroup, MicroProfileTokenType Type)
 	S.GroupInfo[S.nGroupCount].nMaxTimerNameLen = 0;
 	nGroupIndex = S.nGroupCount++;
 	S.nGroupMask = (S.nGroupMask<<1)|1;
+
+	S.GroupOrder[nGroupIndex] = nGroupIndex;
+	std::sort(&S.GroupOrder[0], &S.GroupOrder[0] + S.nGroupCount,
+		[](int l, int r)
+		{
+			return MP_STRCASECMP(g_MicroProfile.GroupInfo[l].pName, g_MicroProfile.GroupInfo[r].pName)<0;
+		}
+	);
+
 	MP_ASSERT(nGroupIndex < MICROPROFILE_MAX_GROUPS);
 	return nGroupIndex;
 }
@@ -3020,6 +3029,8 @@ const char g_MicroProfileHtml_end[] =
 "var OffscreenData;\n"
 "var DetailedFrameCounter = 0;\n"
 "var Invalidate = 0;\n"
+"var GroupOrder = Array();\n"
+"var ThreadOrder = Array();\n"
 "\n"
 "\n"
 "function ProfileModeClear()\n"
@@ -3180,9 +3191,10 @@ const char g_MicroProfileHtml_end[] =
 "{\n"
 "	var ulThreadMenu = document.getElementById(\'ThreadSubMenu\');\n"
 "	var MaxLen = 7;\n"
-"	for(var idx in ThreadNames)\n"
+"	ThreadOrder = CreateOrderArray(ThreadNames, function(a){return a;});\n"
+"	for(var idx in ThreadOrder)\n"
 "	{\n"
-"		var name = ThreadNames[idx];\n"
+"		var name = ThreadNames[ThreadOrder[idx]];\n"
 "		var li = document.createElement(\'li\');\n"
 "		if(name.length > MaxLen)\n"
 "		{\n"
@@ -3194,7 +3206,7 @@ const char g_MicroProfileHtml_end[] =
 "		li.innerHTML = html;\n"
 "		ulThreadMenu.appendChild(li);\n"
 "	}\n"
-"	var LenStr = (5+(1+MaxLen) * FontWidth) + \'px\';\n"
+"	var LenStr = (5+(1+MaxLen) * (1+FontWidth)) + \'px\';\n"
 "	var Lis = ulThreadMenu.getElementsByTagName(\'li\');\n"
 "	for(var i = 0; i < Lis.length; ++i)\n"
 "	{\n"
@@ -3257,9 +3269,36 @@ const char g_MicroProfileHtml_end[] =
 "			ThreadsAllActive = 1;\n"
 "		}\n"
 "	}\n"
+"	Invalidate = 0;\n"
 "	UpdateThreadMenu();\n"
 "	WriteCookie();\n"
 "	Draw();\n"
+"\n"
+"}\n"
+"\n"
+"function CreateOrderArray(Source, NameFunc)\n"
+"{\n"
+"	var Temp = Array(Source.length);\n"
+"	for(var i = 0; i < Source.length; ++i)\n"
+"	{\n"
+"		Temp[i] = {};\n"
+"		Temp[i].index = i;\n"
+"		Temp[i].namezz = NameFunc(Source[i]).toLowerCase();\n"
+"	}\n"
+"	Temp.sort(function(l, r)\n"
+"	{ \n"
+"		if(r.namezz<l.namezz)\n"
+"			{return 1;}\n"
+"		if(l.namezz<r.namezz)\n"
+"			{return -1;} \n"
+"		return 0;\n"
+"	} );\n"
+"	var OrderArray = Array(Source.length);\n"
+"	for(var i = 0; i < Source.length; ++i)\n"
+"	{\n"
+"		OrderArray[i] = Temp[i].index;\n"
+"	}\n"
+"	return OrderArray;\n"
 "}\n"
 "\n"
 "\n"
@@ -3267,9 +3306,12 @@ const char g_MicroProfileHtml_end[] =
 "{\n"
 "	var ulGroupMenu = document.getElementById(\'GroupSubMenu\');\n"
 "	var MaxLen = 7;\n"
-"	for(var idx in GroupInfo)\n"
+"\n"
+"	GroupOrder = CreateOrderArray(GroupInfo, function(a){ return a.name; } );\n"
+"\n"
+"	for(var idx in GroupOrder)\n"
 "	{\n"
-"		var name = GroupInfo[idx].name;\n"
+"		var name = GroupInfo[GroupOrder[idx]].name;\n"
 "		var li = document.createElement(\'li\');\n"
 "		if(name.length > MaxLen)\n"
 "		{\n"
@@ -3356,8 +3398,6 @@ const char g_MicroProfileHtml_end[] =
 "\n"
 "function SetMode(NewMode)\n"
 "{\n"
-"	console.log(\'setmodemodemode \' + NewMode);\n"
-"	console.log(\'!!!mode is \' + NewMode);\n"
 "	var buttonTimers = document.getElementById(\'buttonTimers\');\n"
 "	var buttonDetailed = document.getElementById(\'buttonDetailed\');\n"
 "	var ilThreads = document.getElementById(\'ilThreads\');\n"
@@ -3858,8 +3898,9 @@ const char g_MicroProfileHtml_end[] =
 "\n"
 "\n"
 "\n"
-"	for(var groupid in GroupInfo)\n"
+"	for(var idx in GroupOrder)\n"
 "	{\n"
+"		var groupid = GroupOrder[idx];\n"
 "		var Group = GroupInfo[groupid];\n"
 "		if(GroupsAllActive || GroupsActive[Group.name])\n"
 "		{\n"

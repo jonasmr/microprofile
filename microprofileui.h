@@ -1699,7 +1699,6 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 		pMenuText[nNumMenuItems++] = "!BUFFERSFULL!";
 	}
 
-
 	struct SOptionDesc
 	{
 		SOptionDesc(){}
@@ -1790,9 +1789,9 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 				default: return 0;
 			}
 		},
-		[] (int index, bool& bSelected) -> const char*{
+		[&] (int index, bool& bSelected) -> const char*{
 			MicroProfile& S = *MicroProfileGet();
-
+			bSelected = false;
 			if(index == 0)
 			{
 				bSelected = S.nAllGroupsWanted != 0;
@@ -1801,11 +1800,14 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 			else
 			{
 				index = index-1;
-				bSelected = 0 != (S.nActiveGroupWanted & (1ll << index));
-				if(index < MICROPROFILE_MAX_GROUPS && S.GroupInfo[index].pName[0] != '\0')
-					return S.GroupInfo[index].pName;
-				else
-					return 0;
+				if(index < S.nGroupCount)
+				{
+					index = S.GroupOrder[index];
+					bSelected = 0 != (S.nActiveGroupWanted & (1ll << index));
+					if(S.GroupInfo[index].pName[0] != '\0')
+						return S.GroupInfo[index].pName;
+				}
+				return 0;
 			}
 		},
 		[] (int index, bool& bSelected) -> const char*{
@@ -1945,13 +1947,18 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 					break;
 			}
 		},
-		[](int nIndex)
+		[&](int nIndex)
 		{
 			MicroProfile& S = *MicroProfileGet();			
 			if(nIndex == 0)
 				S.nAllGroupsWanted = 1-S.nAllGroupsWanted;
 			else
-				S.nActiveGroupWanted ^= (1ll << (nIndex-1));
+			{
+				nIndex -= 1;
+				MP_ASSERT(nIndex < S.nGroupCount);
+				nIndex = S.GroupOrder[nIndex];
+				S.nActiveGroupWanted ^= (1ll << nIndex);
+			}
 		},
 		[](int nIndex)
 		{
@@ -1965,7 +1972,7 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 		[](int nIndex)
 		{
 			MicroProfile& S = *MicroProfileGet();
-						S.nBars ^= (1 << nIndex);
+			S.nBars ^= (1 << nIndex);
 		},
 		[](int nIndex)
 		{

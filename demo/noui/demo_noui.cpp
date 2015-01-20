@@ -61,7 +61,6 @@ int main(int argc, char* argv[])
 	{
 		MICROPROFILE_SCOPE(MAIN);
 		{
-			MICROPROFILE_SCOPEI("Main", "Dummy", 0xff3399ff);
 			usleep(16000);
 		}
 		MicroProfileFlip();
