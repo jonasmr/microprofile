@@ -506,13 +506,17 @@ void MicroProfileDrawFloatTooltip(uint32_t nX, uint32_t nY, uint32_t nToken, uin
 	float fAverageExclusive = fToMs * (S.AggregateExclusive[nIndex]/nAggregateFrames);
 	float fMaxExclusive = fToMs * (S.AggregateMaxExclusive[nIndex]);
 
+	float fGroupAverage = fToMs * (S.AggregateGroup[nGroupId] / nAggregateFrames);
+	float fGroupMax = fToMs * (S.AggregateGroupMax[nGroupId]);
+	float fGroup = fToMs * (S.FrameGroup[nGroupId]);
+
 
 	MicroProfileStringArray ToolTip;
 	MicroProfileStringArrayClear(&ToolTip);
 	const char* pGroupName = S.GroupInfo[nGroupId].pName;
 	const char* pTimerName = S.TimerInfo[nTimerId].pName;
-	MicroProfileStringArrayFormat(&ToolTip, "%s", pGroupName);
-	MicroProfileStringArrayFormat(&ToolTip,"%s", pTimerName);
+	MicroProfileStringArrayAddLiteral(&ToolTip, "Timer:");
+	MicroProfileStringArrayFormat(&ToolTip, "%s", pTimerName);
 
 #if MICROPROFILE_DEBUG
 	MicroProfileStringArrayFormat(&ToolTip,"0x%p", UI.nHoverAddressEnter);
@@ -556,6 +560,21 @@ void MicroProfileDrawFloatTooltip(uint32_t nX, uint32_t nY, uint32_t nToken, uin
 
 	MicroProfileStringArrayAddLiteral(&ToolTip, "Exclusive Max:");
 	MicroProfileStringArrayFormat(&ToolTip, "%6.3fms",  fMaxExclusive);
+
+	MicroProfileStringArrayAddLiteral(&ToolTip, "");
+	MicroProfileStringArrayAddLiteral(&ToolTip, "");
+	
+	MicroProfileStringArrayAddLiteral(&ToolTip, "Group:");
+	MicroProfileStringArrayFormat(&ToolTip, "%s", pGroupName);
+	MicroProfileStringArrayAddLiteral(&ToolTip, "Frame Time:");
+	MicroProfileStringArrayFormat(&ToolTip, "%6.3f", fGroup);
+	MicroProfileStringArrayAddLiteral(&ToolTip, "Frame Average:");
+	MicroProfileStringArrayFormat(&ToolTip, "%6.3f", fGroupAverage);
+	MicroProfileStringArrayAddLiteral(&ToolTip, "Frame Max:");
+	MicroProfileStringArrayFormat(&ToolTip, "%6.3f", fGroupMax);
+
+
+
 
 	MicroProfileToolTipMeta(&ToolTip);
 
@@ -1802,7 +1821,6 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 				index = index-1;
 				if(index < S.nGroupCount)
 				{
-					index = S.GroupOrder[index];
 					bSelected = 0 != (S.nActiveGroupWanted & (1ll << index));
 					if(S.GroupInfo[index].pName[0] != '\0')
 						return S.GroupInfo[index].pName;
@@ -1956,7 +1974,6 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 			{
 				nIndex -= 1;
 				MP_ASSERT(nIndex < S.nGroupCount);
-				nIndex = S.GroupOrder[nIndex];
 				S.nActiveGroupWanted ^= (1ll << nIndex);
 			}
 		},

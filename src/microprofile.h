@@ -586,6 +586,10 @@ struct MicroProfileThreadLog
 	int64_t					nChildTickStack[MICROPROFILE_STACK_MAX];
 	uint32_t				nStackPos;
 
+
+	uint8_t					nGroupStackPos[MICROPROFILE_MAX_GROUPS];
+	int64_t 				nGroupTicks[MICROPROFILE_MAX_GROUPS];
+
 	enum
 	{
 		THREAD_MAX_LEN = 64,
@@ -666,11 +670,12 @@ struct MicroProfile
 
 	MicroProfileGroupInfo 	GroupInfo[MICROPROFILE_MAX_GROUPS];
 	MicroProfileTimerInfo 	TimerInfo[MICROPROFILE_MAX_TIMERS];
+	uint8_t					TimerToGroup[MICROPROFILE_MAX_TIMERS];
 	
-	MicroProfileTimer 		AggregateTimers[MICROPROFILE_MAX_TIMERS];
-	uint64_t				MaxTimers[MICROPROFILE_MAX_TIMERS];
-	uint64_t				AggregateTimersExclusive[MICROPROFILE_MAX_TIMERS];
-	uint64_t				MaxTimersExclusive[MICROPROFILE_MAX_TIMERS];
+	MicroProfileTimer 		AccumTimers[MICROPROFILE_MAX_TIMERS];
+	uint64_t				AccumMaxTimers[MICROPROFILE_MAX_TIMERS];
+	uint64_t				AccumTimersExclusive[MICROPROFILE_MAX_TIMERS];
+	uint64_t				AccumMaxTimersExclusive[MICROPROFILE_MAX_TIMERS];
 
 	MicroProfileTimer 		Frame[MICROPROFILE_MAX_TIMERS];
 	uint64_t				FrameExclusive[MICROPROFILE_MAX_TIMERS];
@@ -679,6 +684,15 @@ struct MicroProfile
 	uint64_t				AggregateMax[MICROPROFILE_MAX_TIMERS];	
 	uint64_t				AggregateExclusive[MICROPROFILE_MAX_TIMERS];
 	uint64_t				AggregateMaxExclusive[MICROPROFILE_MAX_TIMERS];
+
+
+	uint64_t 				FrameGroup[MICROPROFILE_MAX_GROUPS];
+	uint64_t 				AccumGroup[MICROPROFILE_MAX_GROUPS];
+	uint64_t 				AccumGroupMax[MICROPROFILE_MAX_GROUPS];
+	
+	uint64_t 				AggregateGroup[MICROPROFILE_MAX_GROUPS];
+	uint64_t 				AggregateGroupMax[MICROPROFILE_MAX_GROUPS];
+
 
 	struct 
 	{
@@ -808,7 +822,7 @@ inline float MicroProfileTickToMsMultiplier(int64_t nTicksPerSecond)
 
 inline uint16_t MicroProfileGetGroupIndex(MicroProfileToken t)
 {
-	return (uint16_t)MicroProfileGet()->TimerInfo[MicroProfileGetTimerIndex(t)].nGroupIndex;
+	return (uint16_t)MicroProfileGet()->TimerToGroup[MicroProfileGetTimerIndex(t)];
 }
 
 
@@ -1132,6 +1146,8 @@ void MicroProfileOnThreadExit()
 		{
 			S.Frames[i].nLogStart[nLogIndex] = 0;
 		}
+		memset(pLog->nGroupStackPos, 0, sizeof(pLog->nGroupStackPos));
+		memset(pLog->nGroupTicks, 0, sizeof(pLog->nGroupTicks));
 	}
 }
 
@@ -1163,7 +1179,7 @@ MicroProfileToken MicroProfileFindToken(const char* pGroup, const char* pName)
 	MicroProfileScopeLock L(MicroProfileMutex());
 	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
 	{
-		if(!MP_STRCASECMP(pName, S.TimerInfo[i].pName) && !MP_STRCASECMP(pGroup, S.GroupInfo[S.TimerInfo[i].nGroupIndex].pName))
+		if(!MP_STRCASECMP(pName, S.TimerInfo[i].pName) && !MP_STRCASECMP(pGroup, S.GroupInfo[S.TimerToGroup[i]].pName))
 		{
 			return S.TimerInfo[i].nToken;
 		}
@@ -1187,7 +1203,6 @@ uint16_t MicroProfileGetGroup(const char* pGroup, MicroProfileTokenType Type)
 	memcpy(&S.GroupInfo[S.nGroupCount].pName[0], pGroup, nLen);
 	S.GroupInfo[S.nGroupCount].pName[nLen] = '\0';
 	S.GroupInfo[S.nGroupCount].nNameLen = nLen;
-	S.GroupInfo[S.nGroupCount].nGroupIndex = S.nGroupCount;
 	S.GroupInfo[S.nGroupCount].nNumTimers = 0;
 	S.GroupInfo[S.nGroupCount].Type = Type;
 	S.GroupInfo[S.nGroupCount].nMaxTimerNameLen = 0;
@@ -1223,6 +1238,7 @@ MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, ui
 	S.TimerInfo[nTimerIndex].nColor = nColor&0xffffff;
 	S.TimerInfo[nTimerIndex].nGroupIndex = nGroupIndex;
 	S.TimerInfo[nTimerIndex].nTimerIndex = nTimerIndex;
+	S.TimerToGroup[nTimerIndex] = nGroupIndex;
 	return nToken;
 }
 
@@ -1259,9 +1275,6 @@ inline void MicroProfileLogPut(MicroProfileToken nToken_, uint64_t nTick, uint64
 	}
 	else
 	{
-		int64_t test = MicroProfileMakeLogIndex(nBegin, nToken_, nTick);;
-		MP_ASSERT(MicroProfileLogType(test) == nBegin);
-		MP_ASSERT(MicroProfileLogTimerIndex(test) == MicroProfileGetTimerIndex(nToken_));
 		pLog->Log[nPos] = MicroProfileMakeLogIndex(nBegin, nToken_, nTick);
 		pLog->nPut.store(nNextPos, std::memory_order_release);
 	}
@@ -1447,6 +1460,7 @@ void MicroProfileFlip()
 			S.nFlipMax = MicroProfileMax(S.nFlipMax, nTick);
 		}
 
+		uint8_t* pTimerToGroup = &S.TimerToGroup[0];
 		for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
 		{
 			MicroProfileThreadLog* pLog = S.Pool[i];
@@ -1466,6 +1480,7 @@ void MicroProfileFlip()
 
 		if(S.nRunning)
 		{
+			uint64_t* pFrameGroup = &S.FrameGroup[0];
 			{
 				MICROPROFILE_SCOPE(g_MicroProfileClear);
 				for(uint32_t i = 0; i < S.nTotalTimers; ++i)
@@ -1473,6 +1488,10 @@ void MicroProfileFlip()
 					S.Frame[i].nTicks = 0;
 					S.Frame[i].nCount = 0;
 					S.FrameExclusive[i] = 0;
+				}
+				for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
+				{
+					pFrameGroup[i] = 0;
 				}
 				for(uint32_t j = 0; j < MICROPROFILE_META_MAX; ++j)
 				{
@@ -1492,6 +1511,10 @@ void MicroProfileFlip()
 					MicroProfileThreadLog* pLog = S.Pool[i];
 					if(!pLog) 
 						continue;
+
+					uint8_t* pGroupStackPos = &pLog->nGroupStackPos[0];
+					int64_t nGroupTicks[MICROPROFILE_MAX_GROUPS] = {0};
+
 
 					uint32_t nPut = pFrameNext->nLogStart[i];
 					uint32_t nGet = pFrameCurrent->nLogStart[i];
@@ -1527,11 +1550,17 @@ void MicroProfileFlip()
 						{
 							MicroProfileLogEntry LE = pLog->Log[k];
 							int nType = MicroProfileLogType(LE);
+
 							if(MP_LOG_ENTER == nType)
 							{
-								MP_ASSERT(nStackPos < MICROPROFILE_STACK_MAX);								
+								int nTimer = MicroProfileLogTimerIndex(LE);
+								uint8_t nGroup = pTimerToGroup[nTimer];
+								MP_ASSERT(nStackPos < MICROPROFILE_STACK_MAX);
+								MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
+								pGroupStackPos[nGroup]++;
 								pStack[nStackPos++] = k;
 								pChildTickStack[nStackPos] = 0;
+
 							}
 							else if(MP_LOG_META == nType)
 							{
@@ -1546,6 +1575,9 @@ void MicroProfileFlip()
 							}
 							else
 							{
+								int nTimer = MicroProfileLogTimerIndex(LE);
+								uint8_t nGroup = pTimerToGroup[nTimer];
+								MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
 								MP_ASSERT(nType == MP_LOG_LEAVE);
 								if(nStackPos)
 								{									
@@ -1559,9 +1591,26 @@ void MicroProfileFlip()
 									S.Frame[nTimerIndex].nTicks += nTicks;
 									S.FrameExclusive[nTimerIndex] += (nTicks-nChildTicks);
 									S.Frame[nTimerIndex].nCount += 1;
+
+									MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
+									uint8_t nGroupStackPos = pGroupStackPos[nGroup];
+									if(nGroupStackPos)
+									{
+										nGroupStackPos--;
+										if(0 == nGroupStackPos)
+										{
+											nGroupTicks[nGroup] += nTicks;
+										}
+										pGroupStackPos[nGroup] = nGroupStackPos;
+									}
 								}
 							}
 						}
+					}
+					for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
+					{
+						pLog->nGroupTicks[i] += nGroupTicks[i];
+						pFrameGroup[i] += nGroupTicks[i];
 					}
 					pLog->nStackPos = nStackPos;
 				}
@@ -1570,11 +1619,17 @@ void MicroProfileFlip()
 				MICROPROFILE_SCOPE(g_MicroProfileAccumulate);
 				for(uint32_t i = 0; i < S.nTotalTimers; ++i)
 				{
-					S.AggregateTimers[i].nTicks += S.Frame[i].nTicks;				
-					S.AggregateTimers[i].nCount += S.Frame[i].nCount;
-					S.MaxTimers[i] = MicroProfileMax(S.MaxTimers[i], S.Frame[i].nTicks);
-					S.AggregateTimersExclusive[i] += S.FrameExclusive[i];				
-					S.MaxTimersExclusive[i] = MicroProfileMax(S.MaxTimersExclusive[i], S.FrameExclusive[i]);
+					S.AccumTimers[i].nTicks += S.Frame[i].nTicks;				
+					S.AccumTimers[i].nCount += S.Frame[i].nCount;
+					S.AccumMaxTimers[i] = MicroProfileMax(S.AccumMaxTimers[i], S.Frame[i].nTicks);
+					S.AccumTimersExclusive[i] += S.FrameExclusive[i];				
+					S.AccumMaxTimersExclusive[i] = MicroProfileMax(S.AccumMaxTimersExclusive[i], S.FrameExclusive[i]);
+				}
+
+				for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
+				{
+					S.AccumGroup[i] += pFrameGroup[i];
+					S.AccumGroupMax[i] = MicroProfileMax(S.AccumGroupMax[i], pFrameGroup[i]);
 				}
 			}
 			for(uint32_t i = 0; i < MICROPROFILE_MAX_GRAPHS; ++i)
@@ -1601,20 +1656,27 @@ void MicroProfileFlip()
 	}
 	if(nAggregateFlip)
 	{
-		memcpy(&S.Aggregate[0], &S.AggregateTimers[0], sizeof(S.Aggregate[0]) * S.nTotalTimers);
-		memcpy(&S.AggregateMax[0], &S.MaxTimers[0], sizeof(S.AggregateMax[0]) * S.nTotalTimers);
-		memcpy(&S.AggregateExclusive[0], &S.AggregateTimersExclusive[0], sizeof(S.AggregateExclusive[0]) * S.nTotalTimers);
-		memcpy(&S.AggregateMaxExclusive[0], &S.MaxTimersExclusive[0], sizeof(S.AggregateMaxExclusive[0]) * S.nTotalTimers);
-		
+		memcpy(&S.Aggregate[0], &S.AccumTimers[0], sizeof(S.Aggregate[0]) * S.nTotalTimers);
+		memcpy(&S.AggregateMax[0], &S.AccumMaxTimers[0], sizeof(S.AggregateMax[0]) * S.nTotalTimers);
+		memcpy(&S.AggregateExclusive[0], &S.AccumTimersExclusive[0], sizeof(S.AggregateExclusive[0]) * S.nTotalTimers);
+		memcpy(&S.AggregateMaxExclusive[0], &S.AccumMaxTimersExclusive[0], sizeof(S.AggregateMaxExclusive[0]) * S.nTotalTimers);
+
+		memcpy(&S.AggregateGroup[0], &S.AccumGroup[0], sizeof(S.AggregateGroup));
+		memcpy(&S.AggregateGroupMax[0], &S.AccumGroupMax[0], sizeof(S.AggregateGroup));		
+
+
 		S.nAggregateFrames = S.nAggregateFlipCount;
 		S.nFlipAggregateDisplay = S.nFlipAggregate;
 		S.nFlipMaxDisplay = S.nFlipMax;
 		if(nAggregateClear)
 		{
-			memset(&S.AggregateTimers[0], 0, sizeof(S.Aggregate[0]) * S.nTotalTimers);
-			memset(&S.MaxTimers[0], 0, sizeof(S.MaxTimers[0]) * S.nTotalTimers);
-			memset(&S.AggregateTimersExclusive[0], 0, sizeof(S.AggregateExclusive[0]) * S.nTotalTimers);
-			memset(&S.MaxTimersExclusive[0], 0, sizeof(S.MaxTimersExclusive[0]) * S.nTotalTimers);
+			memset(&S.AccumTimers[0], 0, sizeof(S.Aggregate[0]) * S.nTotalTimers);
+			memset(&S.AccumMaxTimers[0], 0, sizeof(S.AccumMaxTimers[0]) * S.nTotalTimers);
+			memset(&S.AccumTimersExclusive[0], 0, sizeof(S.AggregateExclusive[0]) * S.nTotalTimers);
+			memset(&S.AccumMaxTimersExclusive[0], 0, sizeof(S.AccumMaxTimersExclusive[0]) * S.nTotalTimers);
+			memset(&S.AccumGroup[0], 0, sizeof(S.AggregateGroup));
+			memset(&S.AccumGroupMax[0], 0, sizeof(S.AggregateGroup));		
+
 			S.nAggregateFlipCount = 0;
 			S.nFlipAggregate = 0;
 			S.nFlipMax = 0;
