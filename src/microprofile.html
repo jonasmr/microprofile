@@ -92,6 +92,15 @@ Click to Zoom to selected range<br>
 <!--      	<li><a href="#" onclick="ToggleDebug();">DEBUG</a></li> -->
     </ul>
 </li>
+<li id="ilTimersOptions"><a href="#">Options</a>
+    <ul id='TimersOptions'>
+        <li id='TimersTimers'><a href="#" onclick="ToggleTimersTimers();">Timers</a></li>
+        <li id='TimersGroups'><a href="#" onclick="ToggleTimersGroups();">Groups</a></li>
+        <li id='TimersMeta'><a href="#" onclick="ToggleTimersMeta();">Meta</a></li>
+    </ul>
+</li>
+
+
 </ul>
 
 </div>
@@ -131,9 +140,9 @@ function InvertColorIndex(hexTripletColor) {
 		return 1;
 	}
 }
-function MakeGroup(id, name, numtimers, isgpu)
+function MakeGroup(id, name, numtimers, isgpu, average, max)
 {
-	var group = {"id":id, "name":name, "numtimers":numtimers, "isgpu":isgpu};
+	var group = {"id":id, "name":name, "numtimers":numtimers, "isgpu":isgpu, "average" : average, "max" : max};
 	return group;
 }
 
@@ -169,6 +178,7 @@ var nBarsWidth = 80;
 var MouseButtonState = [0,0,0,0,0,0,0,0];
 var MouseDrag = 0;
 var MouseZoom = 0;
+var FlipToolTip = 0;
 var DetailedViewMouseX = 0;
 var DetailedViewMouseY = 0;
 var HistoryViewMouseX = -1;
@@ -251,6 +261,9 @@ var DetailedFrameCounter = 0;
 var Invalidate = 0;
 var GroupOrder = Array();
 var ThreadOrder = Array();
+var TimersTimers = 1;
+var TimersGroups = 1;
+var TimersMeta = 1;
 
 
 function ProfileModeClear()
@@ -370,15 +383,19 @@ function ToggleDebugMode()
 	console.log('Toggle Debug Mode ' + ProfileMode);
 }
 
-
-function InitFrameInfo()
+function DetailedTotal()
 {
-	var DetailedTotal = 0;
+	var Total = 0;
 	for(var i = 0; i < Frames.length; i++)
 	{
 		var frfr = Frames[i];
-		DetailedTotal += frfr.frameend - frfr.framestart;
+		Total += frfr.frameend - frfr.framestart;
 	}
+	return Total;
+}
+
+function InitFrameInfo()
+{
 
 	var div = document.getElementById('divFrameInfo');
 	var txt = '';
@@ -388,7 +405,7 @@ function InitFrameInfo()
 	txt = txt + '<hr>';
 	txt = txt + 'Detailed View' + '<br>';
 	txt = txt + 'Frames:' + Frames.length +'<br>';
-	txt = txt + 'Time:' + DetailedTotal.toFixed(2) +'ms<br>';
+	txt = txt + 'Time:' + DetailedTotal().toFixed(2) +'ms<br>';
 	div.innerHTML = txt;
 }
 function InitGroups()
@@ -614,7 +631,37 @@ function ToggleGroup(GroupName)
 
 }
 
+function UpdateTimersOptions()
+{
+	var ulTimersTimers = document.getElementById('TimersTimers');
+	var ulTimersGroups = document.getElementById('TimersGroups');
+	var ulTimersMeta = document.getElementById('TimersMeta');
+	ulTimersTimers.style['text-decoration'] = TimersTimers ? 'underline' : 'none';
+	ulTimersGroups.style['text-decoration'] = TimersGroups ? 'underline' : 'none';
+	ulTimersMeta.style['text-decoration'] = TimersMeta ? 'underline' : 'none';
 
+}
+function ToggleTimersTimers()
+{
+	TimersTimers = TimersTimers ? 0 : 1;
+	WriteCookie();
+	UpdateTimersOptions();
+	Invalidate = 0;
+}
+function ToggleTimersGroups()
+{
+	TimersGroups = TimersGroups ? 0 : 1;
+	WriteCookie();
+	UpdateTimersOptions();
+	Invalidate = 0;
+}
+function ToggleTimersMeta()
+{
+	TimersMeta = TimersMeta ? 0 : 1;
+	WriteCookie();
+	UpdateTimersOptions();
+	Invalidate = 0;
+}
 
 function SetMode(NewMode)
 {
@@ -622,7 +669,8 @@ function SetMode(NewMode)
 	var buttonDetailed = document.getElementById('buttonDetailed');
 	var ilThreads = document.getElementById('ilThreads');
 	var ilGroups = document.getElementById('ilGroups');
-	var ilContextSwitch = document.getElementById('ilContextSwitch')
+	var ilContextSwitch = document.getElementById('ilContextSwitch');
+	var ilTimersOptions = document.getElementById('ilTimersOptions');
 	if(NewMode == 'timers' || NewMode == ModeTimers)
 	{
 		buttonTimers.style['text-decoration'] = 'underline';
@@ -630,6 +678,7 @@ function SetMode(NewMode)
 		ilThreads.style['display'] = 'none';
 		ilContextSwitch.style['display'] = 'none';
 		ilGroups.style['display'] = 'block';
+		ilTimersOptions.style['display'] = 'block';
 		Mode = ModeTimers;
 	}
 	else if(NewMode == 'detailed' || NewMode == ModeDetailed)
@@ -639,6 +688,7 @@ function SetMode(NewMode)
 		ilThreads.style['display'] = 'block';
 		ilGroups.style['display'] = 'none';
 		ilContextSwitch.style['display'] = 'block';
+		ilTimersOptions.style['display'] = 'none';
 		Mode = ModeDetailed;
 	}
 	WriteCookie();
@@ -985,70 +1035,144 @@ function DrawHoverToolTip()
 	{
 		var StringArray = [];
 		var groupid = TimerInfo[nHoverToken].group;
-		StringArray.push(GroupInfo[groupid].name);
+		StringArray.push("Timer");
 		StringArray.push(TimerInfo[nHoverToken].name);
-		StringArray.push("");
-		StringArray.push("");
-		StringArray.push("Time");
-		StringArray.push((fRangeEnd-fRangeBegin).toFixed(3));
-		StringArray.push("");
-		StringArray.push("");
-		StringArray.push("Total");
-		StringArray.push("" + TimerInfo[nHoverToken].Sum);
-		StringArray.push("Max");
-		StringArray.push("" + TimerInfo[nHoverToken].Max);
-		StringArray.push("Average");
-		StringArray.push("" + TimerInfo[nHoverToken].Average);
-		StringArray.push("Count");
-		StringArray.push("" + TimerInfo[nHoverToken].CallCount);
+		StringArray.push("Group");
+		StringArray.push(GroupInfo[groupid].name);
 
-		StringArray.push("");
-		StringArray.push("");
-
-		StringArray.push("Max/Frame");
-		StringArray.push("" + TimerInfo[nHoverToken].FrameMax);
-
-		StringArray.push("Average Time/Frame");
-		StringArray.push("" + TimerInfo[nHoverToken].FrameAverage);
-
-		StringArray.push("Average Count/Frame");
-		StringArray.push("" + TimerInfo[nHoverToken].FrameCallAverage);
-
-	
-		if(nHoverFrame != -1)
+		var bShowTimers = Mode == ModeTimers;
+		if(FlipToolTip)
 		{
-			StringArray.push("");
-			StringArray.push("");
-			StringArray.push("Frame " + nHoverFrame);
-			StringArray.push("");
-
-			var FrameTime = new Object();
-			CalculateTimers(FrameTime, nHoverToken, nHoverFrame, nHoverFrame+1);
-			StringArray.push("Total");
-			StringArray.push("" + FrameTime.Sum);
-			StringArray.push("Count");
-			StringArray.push("" + FrameTime.CallCount);
-			StringArray.push("Average");
-			StringArray.push("" + FrameTime.Average);
-			StringArray.push("Max");
-			StringArray.push("" + FrameTime.Max);
+			bShowTimers = !bShowTimers;
 		}
-
-		var HoverInfo = GatherHoverMetaCounters(nHoverToken, nHoverTokenIndex, nHoverTokenLogIndex, nHoverFrame);
-		var Header = 0;
-		for(index in HoverInfo)
+		if(bShowTimers)
 		{
-			if(0 == Header)
+
+			StringArray.push("");
+			StringArray.push("");
+			var Timer = TimerInfo[nHoverToken];
+			StringArray.push("Average");
+			StringArray.push(Timer.average);
+			StringArray.push("Max");
+			StringArray.push(Timer.max);
+			StringArray.push("Excl Max");
+			StringArray.push(Timer.exclmax);
+			StringArray.push("Excl Average");
+			StringArray.push(Timer.exclaverage);
+			StringArray.push("Call Average");
+			StringArray.push(Timer.callaverage);
+			StringArray.push("Call Count");
+			StringArray.push(Timer.callcount);
+
+			StringArray.push("");
+			StringArray.push("");
+
+
+			StringArray.push("Group");
+			StringArray.push(GroupInfo[groupid].name);
+			StringArray.push("Average");
+			StringArray.push(GroupInfo[groupid].average);
+			StringArray.push("Max");
+			StringArray.push(GroupInfo[groupid].max);
+
+			StringArray.push("");
+			StringArray.push("");
+
+			StringArray.push("Timer Capture");
+			StringArray.push("");
+			StringArray.push("Frames");
+			StringArray.push(AggregateInfo.Frames);
+			StringArray.push("Time");
+			StringArray.push(AggregateInfo.Time.toFixed(2) + "ms");
+
+
+
+
+		}
+		else
+		{
+			StringArray.push("");
+			StringArray.push("");
+
+
+
+			StringArray.push("Time");
+			StringArray.push((fRangeEnd-fRangeBegin).toFixed(3));
+			StringArray.push("");
+			StringArray.push("");
+			StringArray.push("Total");
+			StringArray.push("" + TimerInfo[nHoverToken].Sum);
+			StringArray.push("Max");
+			StringArray.push("" + TimerInfo[nHoverToken].Max);
+			StringArray.push("Average");
+			StringArray.push("" + TimerInfo[nHoverToken].Average);
+			StringArray.push("Count");
+			StringArray.push("" + TimerInfo[nHoverToken].CallCount);
+
+			StringArray.push("");
+			StringArray.push("");
+
+			StringArray.push("Max/Frame");
+			StringArray.push("" + TimerInfo[nHoverToken].FrameMax);
+
+			StringArray.push("Average Time/Frame");
+			StringArray.push("" + TimerInfo[nHoverToken].FrameAverage);
+
+			StringArray.push("Average Count/Frame");
+			StringArray.push("" + TimerInfo[nHoverToken].FrameCallAverage);
+
+
+
+
+
+		
+			if(nHoverFrame != -1)
 			{
-				Header = 1;
 				StringArray.push("");
 				StringArray.push("");
-				StringArray.push("Meta");
+				StringArray.push("Frame " + nHoverFrame);
 				StringArray.push("");
 
+				var FrameTime = new Object();
+				CalculateTimers(FrameTime, nHoverToken, nHoverFrame, nHoverFrame+1);
+				StringArray.push("Total");
+				StringArray.push("" + FrameTime.Sum);
+				StringArray.push("Count");
+				StringArray.push("" + FrameTime.CallCount);
+				StringArray.push("Average");
+				StringArray.push("" + FrameTime.Average);
+				StringArray.push("Max");
+				StringArray.push("" + FrameTime.Max);
 			}
-			StringArray.push(""+index);
-			StringArray.push(""+HoverInfo[index]);
+
+			var HoverInfo = GatherHoverMetaCounters(nHoverToken, nHoverTokenIndex, nHoverTokenLogIndex, nHoverFrame);
+			var Header = 0;
+			for(index in HoverInfo)
+			{
+				if(0 == Header)
+				{
+					Header = 1;
+					StringArray.push("");
+					StringArray.push("");
+					StringArray.push("Meta");
+					StringArray.push("");
+
+				}
+				StringArray.push(""+index);
+				StringArray.push(""+HoverInfo[index]);
+			}
+
+			StringArray.push("");
+			StringArray.push("");
+
+			StringArray.push("Detailed Capture");
+			StringArray.push("");
+			StringArray.push("Frames");
+			StringArray.push(Frames.length);
+			StringArray.push("Time");
+			StringArray.push(DetailedTotal().toFixed(2) + "ms");
+
+
 		}
 		DrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20);
 	}
@@ -1074,6 +1198,7 @@ function DrawHoverToolTip()
 function DrawBarView()
 {
 	ProfileEnter("DrawBarView");
+	Invalidate++;
 	nHoverToken = -1;
 	nHoverFrame = -1;
 	var context = CanvasDetailedView.getContext('2d');
@@ -1124,94 +1249,108 @@ function DrawBarView()
 		var Group = GroupInfo[groupid];
 		if(GroupsAllActive || GroupsActive[Group.name])
 		{
-			//write header
-			nColorIndex = 1-nColorIndex;
-			bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
-			context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-			context.fillRect(0, Y, Width, Height);
-			context.fillStyle = 'white';
-			context.fillText(Group.name, 1, Y+Height-FontAscent);
-
-
-			Y += Height;
 			var TimerArray = Group.TimerArray;
 			var InnerBoxHeight = BoxHeight-2;
 			var TimerLen = 6;
 			var TimerWidth = TimerLen * FontWidth;
 			var nWidthBars = nBarsWidth+2;
 			var nWidthMs = TimerWidth + 2 + 10;
+	
+			var X = 0;
 
-
-			for(var timerindex in TimerArray)
+			function DrawTimer(Value, Color)
 			{
-				var timerid = TimerArray[timerindex];
-				var X = 0;
-				nColorIndex = 1-nColorIndex;
-				bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
-				if(bMouseIn)
-				{
-					nHoverToken = timerid;
-				}
-				context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-				context.fillRect(X, Y, Width, Height);
-
-				var Timer = TimerInfo[timerid];
-
-				var Average = Timer.average;
-				var Max = Timer.max;
-				var ExclusiveMax = Timer.exclmax;
-				var ExclusiveAverage = Timer.exclaverage;
-				var CallAverage = Timer.callaverage;
-				var CallCount = Timer.callcount;
+				var Prc = Value * RcpReferenceTime;
 				var YText = Y+Height-FontAscent;
-				function DrawTimer(Value)
+				if(Prc > 1)
 				{
-					var Prc = Value * RcpReferenceTime;
-					if(Prc > 1)
-					{
-						Prc = 1;
-					}
-					context.fillStyle = Timer.color;
-					context.fillRect(X+1, Y+1, Prc * nBarsWidth, InnerBoxHeight);
-					X += nWidthBars;
-					context.fillStyle = 'white';
-					context.fillText(("      " + Value.toFixed(2)).slice(-TimerLen), X, YText);
-					X += nWidthMs;
+					Prc = 1;
 				}
-				function DrawMeta(Value)
-				{
-					if(!Value)
-					{
-						Value = "0";
-					}
-					else
-					{
-						Value = '' + Value;
-					}
-					context.fillText(Value, X + nWidthMeta - 6 - Value.length * FontWidth, YText);
-					X += nWidthMeta;
-				}
-
-				DrawTimer(Average);
-				DrawTimer(Max);
-				DrawTimer(CallAverage);
+				context.fillStyle = Color;
+				context.fillRect(X+1, Y+1, Prc * nBarsWidth, InnerBoxHeight);
+				X += nWidthBars;
 				context.fillStyle = 'white';
-				context.fillText(CallCount, X, YText);
-				X += CountWidth;
-				DrawTimer(ExclusiveAverage);
-				DrawTimer(ExclusiveMax);
-
-				context.fillStyle = 'white';
-				for(var j = 0; j < nMetaLen; ++j)
-				{
-					DrawMeta(Timer.meta[j]);
-				}
-
-
-				context.fillStyle = Timer.color;
-				context.fillText(Timer.name, X+1, YText);
+				context.fillText(("      " + Value.toFixed(2)).slice(-TimerLen), X, YText);
+				X += nWidthMs;
+			}
+			//write header
+			nColorIndex = 1-nColorIndex;
+			bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
+			context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+			context.fillRect(0, Y, Width, TimersGroups?Height*2:nHeight);
+			context.fillStyle = 'white';
+			context.fillText(Group.name, 1, Y+Height-FontAscent);
+			Y += Height;
+			if(TimersGroups)
+			{
+				DrawTimer(Group.average, 'white');
+				DrawTimer(Group.max, 'white');
 				Y += Height;
+			}
 
+			if(TimersTimers)
+			{
+				for(var timerindex in TimerArray)
+				{
+					var timerid = TimerArray[timerindex];
+					X = 0;
+					nColorIndex = 1-nColorIndex;
+					bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
+					if(bMouseIn)
+					{
+						nHoverToken = timerid;
+					}
+					context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+					context.fillRect(X, Y, Width, Height);
+
+					var Timer = TimerInfo[timerid];
+
+					var Average = Timer.average;
+					var Max = Timer.max;
+					var ExclusiveMax = Timer.exclmax;
+					var ExclusiveAverage = Timer.exclaverage;
+					var CallAverage = Timer.callaverage;
+					var CallCount = Timer.callcount;
+					var YText = Y+Height-FontAscent;
+
+					function DrawMeta(Value)
+					{
+						if(!Value)
+						{
+							Value = "0";
+						}
+						else
+						{
+							Value = '' + Value;
+						}
+						context.fillText(Value, X + nWidthMeta - 6 - Value.length * FontWidth, YText);
+						X += nWidthMeta;
+					}
+
+					DrawTimer(Average, Timer.color);
+					DrawTimer(Max,Timer.color);
+					DrawTimer(CallAverage,Timer.color);
+					context.fillStyle = 'white';
+					context.fillText(CallCount, X, YText);
+					X += CountWidth;
+					DrawTimer(ExclusiveAverage,Timer.color);
+					DrawTimer(ExclusiveMax,Timer.color);
+
+					if(TimersMeta)
+					{
+						context.fillStyle = 'white';
+						for(var j = 0; j < nMetaLen; ++j)
+						{
+							DrawMeta(Timer.meta[j]);
+						}
+					}
+
+
+					context.fillStyle = Timer.color;
+					context.fillText(Timer.name, X+1, YText);
+					Y += Height;
+
+				}
 			}
 		}
 	}
@@ -1246,9 +1385,12 @@ function DrawBarView()
 	DrawHeaderSplitSingle('Count', CountWidth);
 	DrawHeaderSplit('Excl Average');
 	DrawHeaderSplit('Excl Max');
-	for(var i = 0; i < nMetaLen; ++i)
+	if(TimersMeta)
 	{
-		DrawHeaderSplitSingle(MetaNames[i], nWidthMeta);
+		for(var i = 0; i < nMetaLen; ++i)
+		{
+			DrawHeaderSplitSingle(MetaNames[i], nWidthMeta);
+		}
 	}
 	DrawHeaderSplit('Name');
 
@@ -1742,6 +1884,7 @@ function Draw(SkipHistory)
 	if(Mode == ModeTimers)
 	{
 		DrawBarView();
+		DrawHoverToolTip();
 	}
 	else if(Mode == ModeDetailed)
 	{
@@ -1769,6 +1912,15 @@ function AutoRedraw(Timestamp)
 		{
 			Draw(1);
 		}
+	}
+	else
+	{
+		if(Invalidate < 1)
+		{
+			Draw(1);
+		}
+
+
 	}
 	requestAnimationFrame(AutoRedraw);
 }
@@ -1955,11 +2107,20 @@ function KeyUp(evt)
 	{
 		MouseDrag = 0;
 	}
+	if(evt.keyCode == 18)
+	{
+		FlipToolTip = 0;
+	}
+	Invalidate = 0;
+
 }
 
 function KeyDown(evt)
 {
-	g_MSG = ' keycode' + evt.keyCode;
+	if(evt.keyCode == 18)
+	{
+		FlipToolTip = 1;
+	}
 	if(evt.keyCode == 17)
 	{
 		MouseDrag = 0;
@@ -1969,6 +2130,7 @@ function KeyDown(evt)
 	{
 		MouseDrag = 1;
 	}
+	Invalidate = 0;
 }
 
 function ReadCookie()
@@ -2019,10 +2181,14 @@ function ReadCookie()
 		{
 			nContextSwitchEnabled = 1;
 		}
+		TimersTimers = Obj.TimersTimers?0:1;
+		TimersGroups = Obj.TimersGroups?0:1;
+		TimersMeta = Obj.TimersMeta?0:1;
 	}
 	SetContextSwitch(nContextSwitchEnabled);
 	SetMode(NewMode);
 	SetReferenceTime(ReferenceTimeString);
+	UpdateTimersOptions();
 }
 function WriteCookie()
 {
@@ -2034,6 +2200,9 @@ function WriteCookie()
 	Obj.GroupsActive = GroupsActive;
 	Obj.GroupsAllActive = GroupsAllActive;
 	Obj.nContextSwitchEnabled = nContextSwitchEnabled;
+	Obj.TimersTimers = TimersTimers?0:1;
+	Obj.TimersGroups = TimersGroups?0:1;
+	Obj.TimersMeta = TimersMeta?0:1;
 	var date = new Date();
 	date.setFullYear(2099);
 	var cookie = 'fisk=' + JSON.stringify(Obj) + ';expires=' + date;
@@ -2157,7 +2326,7 @@ function PreprocessBuildSplitArray()
 		DeltaTimes.sort(function(a,b){return b-a;});
 		var SplitArray = Array(NumLodSplits);
 		var SplitIndex = DeltaTimes.length;
-		console.log("splitstart " + nLog);
+
 		if(nLog == 1)
 		{
 			// debugger;
@@ -2188,13 +2357,12 @@ function PreprocessBuildSplitArray()
 			{
 				console.assert(SplitArray[j-1] <= SplitArray[j], "must be less");
 			}
-			
-			console.log("split " + SplitIndex + " Time " +SplitArray[j]);
+
 		}
 		for(; j < NumLodSplits; ++j)
 		{
 			SplitArray[j] = SPLIT_LIMIT;
-			console.log("split skipping " + j + " " + SPLIT_LIMIT);
+			// console.log("split skipping " + j + " " + SPLIT_LIMIT);
 		}
 
 
@@ -2268,7 +2436,7 @@ function PreprocessLods()
 	for(var i = 0; i < NumLodSplits-1; ++i)
 	{
 		// debugger;
-		console.log("doing lod split " + i);
+		// console.log("doing lod split " + i);
 		// var LodObject = new Object();
 		var DestLogStart = Array(SourceLogStart.length);
 		for(var j = 0; j < DestLogStart.length; ++j)
@@ -2376,11 +2544,6 @@ function PreprocessGlobalArray()
 			// console.log(" " + TypeArray.length + " added " + Frame_.tt[nLog].length);
 			if(Frame_.tt.length != Frame_.ts.length || Frame_.ti.length != Frame_.ts.length)
 			{
-				console.log("ERRROR");
-				console.log("ERRROR");
-				console.log("ERRROR");
-				console.log("ERRROR");
-				console.log("ERRROR");
 				console.log("ERRROR");
 			}
 		}
