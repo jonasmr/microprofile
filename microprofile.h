@@ -589,7 +589,7 @@ struct MicroProfileThreadLog
 
 	uint8_t					nGroupStackPos[MICROPROFILE_MAX_GROUPS];
 	int64_t 				nGroupTicks[MICROPROFILE_MAX_GROUPS];
-
+	int64_t 				nAggregateGroupTicks[MICROPROFILE_MAX_GROUPS];
 	enum
 	{
 		THREAD_MAX_LEN = 64,
@@ -1665,6 +1665,22 @@ void MicroProfileFlip()
 		memcpy(&S.AggregateGroup[0], &S.AccumGroup[0], sizeof(S.AggregateGroup));
 		memcpy(&S.AggregateGroupMax[0], &S.AccumGroupMax[0], sizeof(S.AggregateGroup));		
 
+		for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
+		{
+			MicroProfileThreadLog* pLog = S.Pool[i];
+			if(!pLog) 
+				continue;
+			
+			memcpy(&pLog->nAggregateGroupTicks[0], &pLog->nGroupTicks[0], sizeof(pLog->nAggregateGroupTicks));
+			
+			if(nAggregateClear)
+			{
+				memset(&pLog->nGroupTicks[0], 0, sizeof(pLog->nGroupTicks));
+			}
+		}
+
+
+
 
 		S.nAggregateFrames = S.nAggregateFlipCount;
 		S.nFlipAggregateDisplay = S.nFlipAggregate;
@@ -1988,6 +2004,30 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 		}
 	}
 	MicroProfilePrintf(CB, Handle, "];\n\n");
+
+
+	for(uint32_t i = 0; i < S.nNumLogs; ++i)
+	{
+		if(S.Pool[i])
+		{
+			MicroProfilePrintf(CB, Handle, "var ThreadGroupTime%d = [");
+			float fToMs = S.Pool[i]->nGpu ? fToMsGPU : fToMsCPU;
+			for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
+			{
+				MicroProfilePrintf(CB, Handle, "%f,", S.Pool[i]->nAggregateGroupTicks[j]/nAggregateFrames * fToMs);
+			}
+			MicroProfilePrintf(CB, Handle, "]\n");
+		}
+	}
+	MicroProfilePrintf(CB, Handle, "\nvar ThreadGroupTimeArray = [");
+	for(uint32_t i = 0; i < S.nNumLogs; ++i)
+	{
+		if(S.Pool[i])
+		{
+			MicroProfilePrintf(CB, Handle, "ThreadGroupTime%d,", i);
+		}
+	}
+	MicroProfilePrintf(CB, Handle, "];");
 
 	MicroProfilePrintf(CB, Handle, "\nvar ThreadIds = [");
 	for(uint32_t i = 0; i < S.nNumLogs; ++i)
@@ -2926,10 +2966,11 @@ const char g_MicroProfileHtml_begin[] =
 "<!--      	<li><a href=\"#\" onclick=\"ToggleDebug();\">DEBUG</a></li> -->\n"
 "    </ul>\n"
 "</li>\n"
-"<li id=\"ilTimersOptions\"><a href=\"#\">Options</a>\n"
+"<li id=\"ilTimersOptions\"><a href=\"#\">Options&nbsp;&nbsp;&nbsp;</a>\n"
 "    <ul id=\'TimersOptions\'>\n"
 "        <li id=\'TimersTimers\'><a href=\"#\" onclick=\"ToggleTimersTimers();\">Timers</a></li>\n"
 "        <li id=\'TimersGroups\'><a href=\"#\" onclick=\"ToggleTimersGroups();\">Groups</a></li>\n"
+"        <li id=\'TimersGroupThread\'><a href=\"#\" onclick=\"ToggleTimersGroupThread();\">ThreadInfo</a></li>\n"
 "        <li id=\'TimersMeta\'><a href=\"#\" onclick=\"ToggleTimersMeta();\">Meta</a></li>\n"
 "    </ul>\n"
 "</li>\n"
@@ -3101,6 +3142,7 @@ const char g_MicroProfileHtml_end[] =
 "var ThreadOrder = Array();\n"
 "var TimersTimers = 1;\n"
 "var TimersGroups = 1;\n"
+"var TimersGroupThread = 0;\n"
 "var TimersMeta = 1;\n"
 "\n"
 "\n"
@@ -3473,9 +3515,11 @@ const char g_MicroProfileHtml_end[] =
 "{\n"
 "	var ulTimersTimers = document.getElementById(\'TimersTimers\');\n"
 "	var ulTimersGroups = document.getElementById(\'TimersGroups\');\n"
+"	var ulTimersGroupThread = document.getElementById(\'TimersGroupThread\');\n"
 "	var ulTimersMeta = document.getElementById(\'TimersMeta\');\n"
 "	ulTimersTimers.style[\'text-decoration\'] = TimersTimers ? \'underline\' : \'none\';\n"
 "	ulTimersGroups.style[\'text-decoration\'] = TimersGroups ? \'underline\' : \'none\';\n"
+"	ulTimersGroupThread.style[\'text-decoration\'] = TimersGroupThread ? \'underline\' : \'none\';\n"
 "	ulTimersMeta.style[\'text-decoration\'] = TimersMeta ? \'underline\' : \'none\';\n"
 "\n"
 "}\n"
@@ -3493,6 +3537,15 @@ const char g_MicroProfileHtml_end[] =
 "	UpdateTimersOptions();\n"
 "	Invalidate = 0;\n"
 "}\n"
+"function ToggleTimersGroupThread()\n"
+"{\n"
+"	TimersGroupThread = TimersGroupThread ? 0 : 1;\n"
+"	WriteCookie();\n"
+"	UpdateTimersOptions();\n"
+"	Invalidate = 0;\n"
+"}\n"
+"\n"
+"\n"
 "function ToggleTimersMeta()\n"
 "{\n"
 "	TimersMeta = TimersMeta ? 0 : 1;\n"
@@ -4113,9 +4166,10 @@ const char g_MicroProfileHtml_end[] =
 "			}\n"
 "			//write header\n"
 "			nColorIndex = 1-nColorIndex;\n"
-"			bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;\n"
+"			var fHeaderHeight = TimersGroups?Height*2:nHeight;\n"
+"			bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + fHeaderHeight;\n"
 "			context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];\n"
-"			context.fillRect(0, Y, Width, TimersGroups?Height*2:nHeight);\n"
+"			context.fillRect(0, Y, Width, fHeaderHeight);\n"
 "			context.fillStyle = \'white\';\n"
 "			context.fillText(Group.name, 1, Y+Height-FontAscent);\n"
 "			Y += Height;\n"
@@ -4124,6 +4178,25 @@ const char g_MicroProfileHtml_end[] =
 "				DrawTimer(Group.average, \'white\');\n"
 "				DrawTimer(Group.max, \'white\');\n"
 "				Y += Height;\n"
+"				if(TimersGroupThread)\n"
+"				{\n"
+"					for(var i = 0; i < ThreadNames.length; ++i)\n"
+"					{\n"
+"						var PerThreadTimer = ThreadGroupTimeArray[i][groupid];\n"
+"						if(PerThreadTimer > 0.0001)\n"
+"						{\n"
+"							bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + Height;\n"
+"							context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];\n"
+"							context.fillRect(0, Y, Width, Height);\n"
+"							X = 0;\n"
+"							DrawTimer(PerThreadTimer, \'white\');\n"
+"							var YText = Y+Height-FontAscent;\n"
+"							context.fillStyle = \'white\';\n"
+"							context.fillText(ThreadNames[i], X, YText);\n"
+"							Y += Height;\n"
+"						}\n"
+"					}\n"
+"				}\n"
 "			}\n"
 "\n"
 "			if(TimersTimers)\n"
@@ -4895,7 +4968,7 @@ const char g_MicroProfileHtml_end[] =
 "}\n"
 "function MouseButton(bPressed, evt)\n"
 "{\n"
-"	if(evt.target == CanvasHistory)\n"
+"	if(evt.target == CanvasHistory && Mode == ModeDetailed)\n"
 "	{\n"
 "		if(!bPressed)\n"
 "		{\n"
@@ -5021,6 +5094,7 @@ const char g_MicroProfileHtml_end[] =
 "		}\n"
 "		TimersTimers = Obj.TimersTimers?0:1;\n"
 "		TimersGroups = Obj.TimersGroups?0:1;\n"
+"		TimersGroupThread = Obj.TimersGroupThread?0:1;\n"
 "		TimersMeta = Obj.TimersMeta?0:1;\n"
 "	}\n"
 "	SetContextSwitch(nContextSwitchEnabled);\n"
@@ -5040,6 +5114,7 @@ const char g_MicroProfileHtml_end[] =
 "	Obj.nContextSwitchEnabled = nContextSwitchEnabled;\n"
 "	Obj.TimersTimers = TimersTimers?0:1;\n"
 "	Obj.TimersGroups = TimersGroups?0:1;\n"
+"	Obj.TimersGroupThread = TimersGroupThread?0:1;\n"
 "	Obj.TimersMeta = TimersMeta?0:1;\n"
 "	var date = new Date();\n"
 "	date.setFullYear(2099);\n"

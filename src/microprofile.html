@@ -92,10 +92,11 @@ Click to Zoom to selected range<br>
 <!--      	<li><a href="#" onclick="ToggleDebug();">DEBUG</a></li> -->
     </ul>
 </li>
-<li id="ilTimersOptions"><a href="#">Options</a>
+<li id="ilTimersOptions"><a href="#">Options&nbsp;&nbsp;&nbsp;</a>
     <ul id='TimersOptions'>
         <li id='TimersTimers'><a href="#" onclick="ToggleTimersTimers();">Timers</a></li>
         <li id='TimersGroups'><a href="#" onclick="ToggleTimersGroups();">Groups</a></li>
+        <li id='TimersGroupThread'><a href="#" onclick="ToggleTimersGroupThread();">ThreadInfo</a></li>
         <li id='TimersMeta'><a href="#" onclick="ToggleTimersMeta();">Meta</a></li>
     </ul>
 </li>
@@ -263,6 +264,7 @@ var GroupOrder = Array();
 var ThreadOrder = Array();
 var TimersTimers = 1;
 var TimersGroups = 1;
+var TimersGroupThread = 0;
 var TimersMeta = 1;
 
 
@@ -635,9 +637,11 @@ function UpdateTimersOptions()
 {
 	var ulTimersTimers = document.getElementById('TimersTimers');
 	var ulTimersGroups = document.getElementById('TimersGroups');
+	var ulTimersGroupThread = document.getElementById('TimersGroupThread');
 	var ulTimersMeta = document.getElementById('TimersMeta');
 	ulTimersTimers.style['text-decoration'] = TimersTimers ? 'underline' : 'none';
 	ulTimersGroups.style['text-decoration'] = TimersGroups ? 'underline' : 'none';
+	ulTimersGroupThread.style['text-decoration'] = TimersGroupThread ? 'underline' : 'none';
 	ulTimersMeta.style['text-decoration'] = TimersMeta ? 'underline' : 'none';
 
 }
@@ -655,6 +659,15 @@ function ToggleTimersGroups()
 	UpdateTimersOptions();
 	Invalidate = 0;
 }
+function ToggleTimersGroupThread()
+{
+	TimersGroupThread = TimersGroupThread ? 0 : 1;
+	WriteCookie();
+	UpdateTimersOptions();
+	Invalidate = 0;
+}
+
+
 function ToggleTimersMeta()
 {
 	TimersMeta = TimersMeta ? 0 : 1;
@@ -1275,9 +1288,10 @@ function DrawBarView()
 			}
 			//write header
 			nColorIndex = 1-nColorIndex;
-			bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
+			var fHeaderHeight = TimersGroups?Height*2:nHeight;
+			bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + fHeaderHeight;
 			context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-			context.fillRect(0, Y, Width, TimersGroups?Height*2:nHeight);
+			context.fillRect(0, Y, Width, fHeaderHeight);
 			context.fillStyle = 'white';
 			context.fillText(Group.name, 1, Y+Height-FontAscent);
 			Y += Height;
@@ -1286,6 +1300,25 @@ function DrawBarView()
 				DrawTimer(Group.average, 'white');
 				DrawTimer(Group.max, 'white');
 				Y += Height;
+				if(TimersGroupThread)
+				{
+					for(var i = 0; i < ThreadNames.length; ++i)
+					{
+						var PerThreadTimer = ThreadGroupTimeArray[i][groupid];
+						if(PerThreadTimer > 0.0001)
+						{
+							bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + Height;
+							context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+							context.fillRect(0, Y, Width, Height);
+							X = 0;
+							DrawTimer(PerThreadTimer, 'white');
+							var YText = Y+Height-FontAscent;
+							context.fillStyle = 'white';
+							context.fillText(ThreadNames[i], X, YText);
+							Y += Height;
+						}
+					}
+				}
 			}
 
 			if(TimersTimers)
@@ -2057,7 +2090,7 @@ function MouseMove(evt)
 }
 function MouseButton(bPressed, evt)
 {
-	if(evt.target == CanvasHistory)
+	if(evt.target == CanvasHistory && Mode == ModeDetailed)
 	{
 		if(!bPressed)
 		{
@@ -2183,6 +2216,7 @@ function ReadCookie()
 		}
 		TimersTimers = Obj.TimersTimers?0:1;
 		TimersGroups = Obj.TimersGroups?0:1;
+		TimersGroupThread = Obj.TimersGroupThread?0:1;
 		TimersMeta = Obj.TimersMeta?0:1;
 	}
 	SetContextSwitch(nContextSwitchEnabled);
@@ -2202,6 +2236,7 @@ function WriteCookie()
 	Obj.nContextSwitchEnabled = nContextSwitchEnabled;
 	Obj.TimersTimers = TimersTimers?0:1;
 	Obj.TimersGroups = TimersGroups?0:1;
+	Obj.TimersGroupThread = TimersGroupThread?0:1;
 	Obj.TimersMeta = TimersMeta?0:1;
 	var date = new Date();
 	date.setFullYear(2099);
@@ -2327,10 +2362,6 @@ function PreprocessBuildSplitArray()
 		var SplitArray = Array(NumLodSplits);
 		var SplitIndex = DeltaTimes.length;
 
-		if(nLog == 1)
-		{
-			// debugger;
-		}
 		var j = 0;
 		for(j = 0; j < NumLodSplits; ++j)
 		{

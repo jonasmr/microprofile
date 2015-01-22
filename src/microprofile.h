@@ -589,7 +589,7 @@ struct MicroProfileThreadLog
 
 	uint8_t					nGroupStackPos[MICROPROFILE_MAX_GROUPS];
 	int64_t 				nGroupTicks[MICROPROFILE_MAX_GROUPS];
-
+	int64_t 				nAggregateGroupTicks[MICROPROFILE_MAX_GROUPS];
 	enum
 	{
 		THREAD_MAX_LEN = 64,
@@ -1665,6 +1665,22 @@ void MicroProfileFlip()
 		memcpy(&S.AggregateGroup[0], &S.AccumGroup[0], sizeof(S.AggregateGroup));
 		memcpy(&S.AggregateGroupMax[0], &S.AccumGroupMax[0], sizeof(S.AggregateGroup));		
 
+		for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
+		{
+			MicroProfileThreadLog* pLog = S.Pool[i];
+			if(!pLog) 
+				continue;
+			
+			memcpy(&pLog->nAggregateGroupTicks[0], &pLog->nGroupTicks[0], sizeof(pLog->nAggregateGroupTicks));
+			
+			if(nAggregateClear)
+			{
+				memset(&pLog->nGroupTicks[0], 0, sizeof(pLog->nGroupTicks));
+			}
+		}
+
+
+
 
 		S.nAggregateFrames = S.nAggregateFlipCount;
 		S.nFlipAggregateDisplay = S.nFlipAggregate;
@@ -1988,6 +2004,30 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 		}
 	}
 	MicroProfilePrintf(CB, Handle, "];\n\n");
+
+
+	for(uint32_t i = 0; i < S.nNumLogs; ++i)
+	{
+		if(S.Pool[i])
+		{
+			MicroProfilePrintf(CB, Handle, "var ThreadGroupTime%d = [");
+			float fToMs = S.Pool[i]->nGpu ? fToMsGPU : fToMsCPU;
+			for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
+			{
+				MicroProfilePrintf(CB, Handle, "%f,", S.Pool[i]->nAggregateGroupTicks[j]/nAggregateFrames * fToMs);
+			}
+			MicroProfilePrintf(CB, Handle, "]\n");
+		}
+	}
+	MicroProfilePrintf(CB, Handle, "\nvar ThreadGroupTimeArray = [");
+	for(uint32_t i = 0; i < S.nNumLogs; ++i)
+	{
+		if(S.Pool[i])
+		{
+			MicroProfilePrintf(CB, Handle, "ThreadGroupTime%d,", i);
+		}
+	}
+	MicroProfilePrintf(CB, Handle, "];");
 
 	MicroProfilePrintf(CB, Handle, "\nvar ThreadIds = [");
 	for(uint32_t i = 0; i < S.nNumLogs; ++i)
