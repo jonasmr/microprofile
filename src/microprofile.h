@@ -140,7 +140,7 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileGetEnableAllGroups() false
 #define MicroProfileSetForceMetaCounters(a)
 #define MicroProfileGetForceMetaCounters() 0
-#define MicroProfileDumpHtml(c) do{} while(0)
+#define MicroProfileDumpFile(html,csv) do{} while(0)
 #define MicroProfileWebServerPort() ((uint32_t)-1)
 
 #else
@@ -363,10 +363,10 @@ MICROPROFILE_API bool MicroProfileIsLocalThread(uint32_t nThreadId);
 
 
 #if MICROPROFILE_WEBSERVER
-MICROPROFILE_API void MicroProfileDumpHtml(const char* pFile);
+MICROPROFILE_API void MicroProfileDumpFile(const char* pHtml, const char* pCsv);
 MICROPROFILE_API uint32_t MicroProfileWebServerPort();
 #else
-#define MicroProfileDumpHtml(c) do{} while(0)
+#define MicroProfileDumpFile(c) do{} while(0)
 #define MicroProfileWebServerPort() ((uint32_t)-1)
 #endif
 
@@ -660,8 +660,9 @@ struct MicroProfile
 	uint32_t nRunning;
 	uint32_t nToggleRunning;
 	uint32_t nMaxGroupSize;
-	uint32_t nDumpHtmlNextFrame;
+	uint32_t nDumpFileNextFrame;
 	char HtmlDumpPath[512];
+	char CsvDumpPath[512];
 
 	int64_t nPauseTicks;
 
@@ -917,14 +918,14 @@ inline void MicroProfileThreadJoin(MicroProfileThread* pThread)
 void MicroProfileWebServerStart();
 void MicroProfileWebServerStop();
 bool MicroProfileWebServerUpdate();
-void MicroProfileDumpHtmlToFile();
+void MicroProfileDumpToFile();
 
 #else
 
 #define MicroProfileWebServerStart() do{}while(0)
 #define MicroProfileWebServerStop() do{}while(0)
 #define MicroProfileWebServerUpdate() false
-#define MicroProfileDumpHtmlToFile() do{} while(0)
+#define MicroProfileDumpToFile() do{} while(0)
 #endif 
 
 
@@ -1408,10 +1409,10 @@ void MicroProfileFlip()
 		}
 	}
 	uint32_t nAggregateClear = S.nAggregateClear, nAggregateFlip = 0;
-	if(S.nDumpHtmlNextFrame)
+	if(S.nDumpFileNextFrame)
 	{
-		S.nDumpHtmlNextFrame = 0;
-		MicroProfileDumpHtmlToFile();
+		MicroProfileDumpToFile();
+		S.nDumpFileNextFrame = 0;
 	}
 	if(MicroProfileWebServerUpdate())
 	{	
@@ -1895,15 +1896,29 @@ uint32_t MicroProfileWebServerPort()
 	return S.nWebServerPort;
 }
 
-void MicroProfileDumpHtml(const char* pFile)
+void MicroProfileDumpFile(const char* pHtml, const char* pCsv)
 {
-	uint32_t nLen = strlen(pFile);
-	if(nLen > sizeof(S.HtmlDumpPath)-1)
+	S.nDumpFileNextFrame = 0;
+	if(pHtml)
 	{
-		return;
+		uint32_t nLen = strlen(pHtml);
+		if(nLen > sizeof(S.HtmlDumpPath)-1)
+		{
+			return;
+		}
+		memcpy(S.HtmlDumpPath, pHtml, nLen+1);
+		S.nDumpFileNextFrame |= 1;
 	}
-	memcpy(S.HtmlDumpPath, pFile, nLen+1);
-	S.nDumpHtmlNextFrame = 1;
+	if(pCsv)
+	{
+		uint32_t nLen = strlen(pCsv);
+		if(nLen > sizeof(S.CsvDumpPath)-1)
+		{
+			return;
+		}
+		memcpy(S.CsvDumpPath, pCsv, nLen+1);
+		S.nDumpFileNextFrame |= 2;
+	}
 }
 
 void MicroProfilePrintf(MicroProfileWriteCallback CB, void* Handle, const char* pFmt, ...)
@@ -1919,6 +1934,59 @@ void MicroProfilePrintf(MicroProfileWriteCallback CB, void* Handle, const char* 
 	CB(Handle, size, &buffer[0]);
 	va_end (args);
 }
+
+#define printf(...) MicroProfilePrintf(CB, Handle, __VA_ARGS__)
+void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFrames)
+{
+	printf("group,name,average,max,callaverage\n");
+
+	uint32_t nNumTimers = S.nTotalTimers;
+	uint32_t nBlockSize = 2 * nNumTimers;
+	float* pTimers = (float*)alloca(nBlockSize * 7 * sizeof(float));
+	float* pAverage = pTimers + nBlockSize;
+	float* pMax = pTimers + 2 * nBlockSize;
+	float* pCallAverage = pTimers + 3 * nBlockSize;
+	float* pTimersExclusive = pTimers + 4 * nBlockSize;
+	float* pAverageExclusive = pTimers + 5 * nBlockSize;
+	float* pMaxExclusive = pTimers + 6 * nBlockSize;
+
+	MicroProfileCalcAllTimers(pTimers, pAverage, pMax, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, nNumTimers);
+
+	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
+	{
+		uint32_t nIdx = i * 2;
+		printf("\"%s\",\"%s\",%f,%f,%f\n", S.TimerInfo[i].pName, S.GroupInfo[S.TimerInfo[i].nGroupIndex].pName, pAverage[nIdx], pMax[nIdx], pCallAverage[nIdx]);
+	}
+
+	printf("\n\n");
+	printf("frametimecpu\n");
+	float fToMsCPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+
+	const uint32_t nCount = MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY - 3;
+	const uint32_t nStart = S.nFrameCurrent;
+	for(uint32_t i = nCount; i > 0; i--)
+	{
+		uint32_t nFrame = (nStart + MICROPROFILE_MAX_FRAME_HISTORY - i) % MICROPROFILE_MAX_FRAME_HISTORY;
+		uint32_t nFrameNext = (nStart + MICROPROFILE_MAX_FRAME_HISTORY - i + 1) % MICROPROFILE_MAX_FRAME_HISTORY;
+		uint64_t nTicks = S.Frames[nFrameNext].nFrameStartCpu - S.Frames[nFrame].nFrameStartCpu;
+		printf("%f,", nTicks * fToMsCPU);
+	}
+	printf("\n");
+
+	printf("\n\n");
+	printf("frametimegpu\n");
+	float fToMsGPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondGpu());
+
+	for(uint32_t i = nCount; i > 0; i--)
+	{
+		uint32_t nFrame = (nStart + MICROPROFILE_MAX_FRAME_HISTORY - i) % MICROPROFILE_MAX_FRAME_HISTORY;
+		uint32_t nFrameNext = (nStart + MICROPROFILE_MAX_FRAME_HISTORY - i + 1) % MICROPROFILE_MAX_FRAME_HISTORY;
+		uint64_t nTicks = S.Frames[nFrameNext].nFrameStartGpu - S.Frames[nFrame].nFrameStartGpu;
+		printf("%f,", nTicks * fToMsCPU);
+	}
+	printf("\n");
+}
+#undef printf
 
 void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFrames)
 {
@@ -2212,14 +2280,26 @@ void MicroProfileWriteFile(void* Handle, size_t nSize, const char* pData)
 	fwrite(pData, nSize, 1, (FILE*)Handle);
 }
 
-void MicroProfileDumpHtmlToFile()
+void MicroProfileDumpToFile()
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
-	FILE* F = fopen(S.HtmlDumpPath, "w");
-	if(F)
+	if(S.nDumpFileNextFrame&1)
 	{
-		MicroProfileDumpHtml(MicroProfileWriteFile, F, MICROPROFILE_WEBSERVER_MAXFRAMES);
-		fclose(F);
+		FILE* F = fopen(S.HtmlDumpPath, "w");
+		if(F)
+		{
+			MicroProfileDumpHtml(MicroProfileWriteFile, F, MICROPROFILE_WEBSERVER_MAXFRAMES);
+			fclose(F);
+		}
+	}
+	if(S.nDumpFileNextFrame&2)
+	{
+		FILE* F = fopen(S.CsvDumpPath, "w");
+		if(F)
+		{
+			MicroProfileDumpCsv(MicroProfileWriteFile, F, MICROPROFILE_WEBSERVER_MAXFRAMES);
+			fclose(F);
+		}
 	}
 }
 

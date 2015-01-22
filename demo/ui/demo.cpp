@@ -109,7 +109,7 @@ void HandleEvent(SDL_Event* pEvt)
 		}
 		if(pEvt->key.keysym.sym == 'd')
 		{
-			MicroProfileDumpHtml("../dump.html");
+			MicroProfileDumpFile("../dump.html", "../dump.csv");
 		}
 		break;
 
