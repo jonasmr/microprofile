@@ -1982,7 +1982,7 @@ void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFra
 		uint32_t nFrame = (nStart + MICROPROFILE_MAX_FRAME_HISTORY - i) % MICROPROFILE_MAX_FRAME_HISTORY;
 		uint32_t nFrameNext = (nStart + MICROPROFILE_MAX_FRAME_HISTORY - i + 1) % MICROPROFILE_MAX_FRAME_HISTORY;
 		uint64_t nTicks = S.Frames[nFrameNext].nFrameStartGpu - S.Frames[nFrame].nFrameStartGpu;
-		printf("%f,", nTicks * fToMsCPU);
+		printf("%f,", nTicks * fToMsGPU);
 	}
 	printf("\n");
 }
@@ -2078,13 +2078,13 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	{
 		if(S.Pool[i])
 		{
-			MicroProfilePrintf(CB, Handle, "var ThreadGroupTime%d = [");
+			MicroProfilePrintf(CB, Handle, "var ThreadGroupTime%d = [", i);
 			float fToMs = S.Pool[i]->nGpu ? fToMsGPU : fToMsCPU;
 			for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
 			{
 				MicroProfilePrintf(CB, Handle, "%f,", S.Pool[i]->nAggregateGroupTicks[j]/nAggregateFrames * fToMs);
 			}
-			MicroProfilePrintf(CB, Handle, "]\n");
+			MicroProfilePrintf(CB, Handle, "];\n");
 		}
 	}
 	MicroProfilePrintf(CB, Handle, "\nvar ThreadGroupTimeArray = [");
