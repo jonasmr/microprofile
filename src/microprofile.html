@@ -2024,6 +2024,8 @@ function ResizeCanvas()
 
 function MouseMove(evt)
 {
+    evt.preventDefault();
+
 	MouseHistory = 0;
 	MouseDetailed = 0;
 	HistoryViewMouseX = HistoryViewMouseY = -1;
@@ -2035,7 +2037,7 @@ function MouseMove(evt)
 		var y = evt.clientY - rect.top;
 		if(Mode == ModeDetailed)
 		{
-			if(MouseDrag)
+		    if (MouseDrag || evt.button == 1 || evt.which == 1)
 			{
 				var X = x - DetailedViewMouseX;
 				var Y = y - DetailedViewMouseY;
@@ -2059,7 +2061,7 @@ function MouseMove(evt)
 		}
 		else if(Mode == ModeTimers)
 		{
-			if(MouseDrag)
+		    if (MouseDrag || evt.button == 1 || evt.which == 1)
 			{
 				var X = x - DetailedViewMouseX;
 				var Y = y - DetailedViewMouseY;
@@ -2083,6 +2085,9 @@ function MouseMove(evt)
 }
 function MouseButton(bPressed, evt)
 {
+
+    evt.preventDefault();
+      
 	if(evt.target == CanvasHistory && Mode == ModeDetailed)
 	{
 		if(!bPressed)
@@ -2122,6 +2127,15 @@ function MouseOut(evt)
 	nHoverToken = -1;
 	fRangeBegin = fRangeEnd = -1;
 }
+
+function MouseWheel(e)
+{
+    var e = window.event || e;
+    var delta = (e.wheelDelta || e.detail * (-120));
+    ZoomGraph((-4 * delta / 120.0) | 0);
+    Draw();
+}
+
 
 function KeyUp(evt)
 {
@@ -2233,14 +2247,20 @@ function WriteCookie()
 	document.cookie = cookie;
 }
 
+var mousewheelevt = (/Firefox/i.test(navigator.userAgent)) ? "DOMMouseScroll" : "mousewheel" //FF doesn't recognize mousewheel as of FF3.x
+
 CanvasDetailedView.addEventListener('mousemove', MouseMove, false);
 CanvasDetailedView.addEventListener('mousedown', function(evt) { MouseButton(true, evt); });
 CanvasDetailedView.addEventListener('mouseup', function(evt) { MouseButton(false, evt); } );
 CanvasDetailedView.addEventListener('mouseout', MouseOut);
+CanvasDetailedView.addEventListener("contextmenu", function (e) { e.preventDefault(); }, false);
+CanvasDetailedView.addEventListener(mousewheelevt, MouseWheel, false);
 CanvasHistory.addEventListener('mousemove', MouseMove);
 CanvasHistory.addEventListener('mousedown', function(evt) { MouseButton(true, evt); });
 CanvasHistory.addEventListener('mouseup', function(evt) { MouseButton(false, evt); } );
 CanvasHistory.addEventListener('mouseout', MouseOut);
+CanvasHistory.addEventListener("contextmenu", function (e) { e.preventDefault(); }, false);
+CanvasHistory.addEventListener(mousewheelevt, MouseWheel, false);
 window.addEventListener('keydown', KeyDown);
 window.addEventListener('keyup', KeyUp);
 window.addEventListener('resize', ResizeCanvas, false);
