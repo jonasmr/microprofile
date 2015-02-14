@@ -29,6 +29,7 @@
 #include <unistd.h>
 #endif
 
+#define MICROPROFILE_MAX_FRAME_HISTORY (2<<10)
 #define MICROPROFILE_IMPL
 #include "microprofile.h"
 
@@ -46,7 +47,6 @@ void StopFakeWork();
 int main(int argc, char* argv[])
 {
 	MicroProfileOnThreadCreate("Main");
-	printf("open localhost:%d in chrome to capture profile data\n", MicroProfileWebServerPort());
 	printf("press ctrl-c to quit\n");
 
 	//turn on profiling
@@ -64,6 +64,12 @@ int main(int argc, char* argv[])
 			usleep(16000);
 		}
 		MicroProfileFlip();
+		static bool once = false;
+		if(!once)
+		{
+			once = 1;
+			printf("open localhost:%d in chrome to capture profile data\n", MicroProfileWebServerPort());
+		}
 
 	}
 

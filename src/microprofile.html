@@ -176,7 +176,8 @@ var nOffsetBarsY = 0;
 var nBarsWidth = 80;
 var NameWidth = 200;
 var MouseButtonState = [0,0,0,0,0,0,0,0];
-var MouseDrag = 0;
+var MouseDragKey = 0;
+var MouseDragButton = 0;
 var MouseZoom = 0;
 var FlipToolTip = 0;
 var DetailedViewMouseX = 0;
@@ -894,9 +895,23 @@ function DrawDetailedFrameHistory()
 	var fX = 0;
 	var FrameIndex = -1;
 
+
+	var FrameFirst = -1;
+	var FrameLast = nWidth;
+	var fDetailedOffsetEnd = fDetailedOffset + fDetailedRange;
 	for(i = 0; i < Frames.length; i++)
 	{
 		var fMs = Frames[i].frameend - Frames[i].framestart;
+		if(fDetailedOffset <= Frames[i].frameend && fDetailedOffset >= Frames[i].framestart)
+		{
+			var lerp = (fDetailedOffset - Frames[i].framestart) / (Frames[i].frameend - Frames[i].framestart);
+			FrameFirst = fX + fWidth * lerp;
+		}
+		if(fDetailedOffsetEnd <= Frames[i].frameend && fDetailedOffsetEnd >= Frames[i].framestart)
+		{
+			var lerp = (fDetailedOffsetEnd - Frames[i].framestart) / (Frames[i].frameend - Frames[i].framestart);
+			FrameLast = fX + fWidth * lerp;
+		}
 		var fH = fHeightScale * fMs;
 		var bMouse = x > fX && x < fX + fWidth;
 		if(bMouse)
@@ -913,6 +928,23 @@ function DrawDetailedFrameHistory()
 		context.fillRect(fX, fHeight - fH, fWidth-1, fH);
 		fX += fWidth;
 	}
+
+	var fRangeHistoryBegin = FrameFirst;
+	var fRangeHistoryEnd = FrameLast;
+	var X = fRangeHistoryBegin;
+	var Y = 0;
+	var W = fRangeHistoryEnd - fRangeHistoryBegin;
+	context.globalAlpha = 0.35;
+	context.fillStyle = '#009900';
+	context.fillRect(X, Y, W, fHeight);
+	context.globalAlpha = 1;
+	context.strokeStyle = '#00ff00';
+	context.beginPath();
+	context.moveTo(X, Y);
+	context.lineTo(X, Y+fHeight);
+	context.moveTo(X+W, Y);
+	context.lineTo(X+W, Y+fHeight);
+	context.stroke();
 
 	if(FrameIndex>=0)
 	{
@@ -931,7 +963,6 @@ function DrawDetailedFrameHistory()
 
 function DrawDetailedBackground(context)
 {
-	// var context = CanvasDetailedView.getContext('2d');
 	var fMs = fDetailedRange;
 	var fMsEnd = fMs + fDetailedOffset;
 	var fMsToScreen = nWidth / fMs;
@@ -1781,7 +1812,7 @@ function DrawDetailed(Animation)
 	var fScaleX = nWidth / fDetailedRange; 
 	var fOffsetY = -nOffsetY + BoxHeight;
 
-	if(DetailedRedrawState.fOffsetY == fOffsetY && DetailedRedrawState.fDetailedOffset == fDetailedOffset && DetailedRedrawState.fDetailedRange == fDetailedRange && !MouseZoom && !MouseDrag)
+	if(DetailedRedrawState.fOffsetY == fOffsetY && DetailedRedrawState.fDetailedOffset == fDetailedOffset && DetailedRedrawState.fDetailedRange == fDetailedRange && !MouseZoom && !MouseDragKey && !MouseDragButton)
 	{
 		Invalidate++;
 	}
@@ -1810,7 +1841,7 @@ function DrawDetailed(Animation)
 		DrawDetailedView(context, nMinWidth, false);
 	}
 
-	if(MouseDrag || MouseZoom)
+	if(MouseDragKey || MouseZoom || MouseDragButton)
 	{
 		nHoverToken = -1;
 		nHoverTokenIndex = -1;
@@ -1901,6 +1932,7 @@ function RequestRedraw()
 }
 function Draw(SkipHistory)
 {
+	SkipHistory = 0;
 	if(ProfileMode)
 	{
 		ProfileModeClear();
@@ -1934,7 +1966,7 @@ function AutoRedraw(Timestamp)
 {
 	if(Mode == ModeDetailed)
 	{
-		if(ProfileMode == 2 || ((nHoverCSCpu >= 0 || nHoverToken != -1) && !MouseZoom && !MouseDrag)||(Invalidate<2 && !MouseZoom && !MouseDrag))
+		if(ProfileMode == 2 || ((nHoverCSCpu >= 0 || nHoverToken != -1) && !MouseZoom && !MouseDragKey && !MouseDragButton)||(Invalidate<2 && !MouseZoom && !MouseDragKey && !MouseDragButton))
 		{
 			Draw(1);
 		}
@@ -2022,11 +2054,24 @@ function ResizeCanvas()
 	RequestRedraw();
 }
 
+function MouseUpdateDrag(bPressed, evt)
+{
+   if(bPressed && (evt.button == 1 || evt.which == 1))
+    {
+    	
+		MouseDragButton = 1;
+    }
+    else
+    {
+    	MouseDragButton = 0;
+    }
+}
+
 function MouseMove(evt)
 {
     evt.preventDefault();
-
-	MouseHistory = 0;
+    MouseUpdateDrag(1, evt);
+ 	MouseHistory = 0;
 	MouseDetailed = 0;
 	HistoryViewMouseX = HistoryViewMouseY = -1;
 	if(evt.target == CanvasDetailedView)
@@ -2037,7 +2082,7 @@ function MouseMove(evt)
 		var y = evt.clientY - rect.top;
 		if(Mode == ModeDetailed)
 		{
-		    if (MouseDrag || evt.button == 1 || evt.which == 1)
+		    if(MouseDragKey || MouseDragButton)
 			{
 				var X = x - DetailedViewMouseX;
 				var Y = y - DetailedViewMouseY;
@@ -2061,7 +2106,7 @@ function MouseMove(evt)
 		}
 		else if(Mode == ModeTimers)
 		{
-		    if (MouseDrag || evt.button == 1 || evt.which == 1)
+		    if(MouseDragKey || MouseDragButton)
 			{
 				var X = x - DetailedViewMouseX;
 				var Y = y - DetailedViewMouseY;
@@ -2085,9 +2130,8 @@ function MouseMove(evt)
 }
 function MouseButton(bPressed, evt)
 {
-
     evt.preventDefault();
-      
+ 	MouseUpdateDrag(bPressed, evt);
 	if(evt.target == CanvasHistory && Mode == ModeDetailed)
 	{
 		if(!bPressed)
@@ -2123,7 +2167,8 @@ function MouseButton(bPressed, evt)
 function MouseOut(evt)
 {
 	MouseZoom = 0;
-	MouseDrag = 0;
+	MouseDragKey = 0;
+	MouseDragButton = 0;
 	nHoverToken = -1;
 	fRangeBegin = fRangeEnd = -1;
 }
@@ -2145,7 +2190,7 @@ function KeyUp(evt)
 	}
 	else if(evt.keyCode == 16)
 	{
-		MouseDrag = 0;
+		MouseDragKey = 0;
 	}
 	if(evt.keyCode == 18)
 	{
@@ -2163,12 +2208,12 @@ function KeyDown(evt)
 	}
 	if(evt.keyCode == 17)
 	{
-		MouseDrag = 0;
+		MouseDragKey = 0;
 		MouseZoom = 1;
 	}
 	else if(evt.keyCode == 16)
 	{
-		MouseDrag = 1;
+		MouseDragKey = 1;
 	}
 	Invalidate = 0;
 }

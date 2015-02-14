@@ -1044,8 +1044,7 @@ void MicroProfileInit()
 		pGpu->nGpu = 1;
 		pGpu->nThreadId = 0;
 
-		MicroProfileWebServerStart();
-		S.nWebServerDataSent = 0;
+		S.nWebServerDataSent = (uint64_t)-1;
 	}
 	if(bUseLock)
 		mutex.unlock();
@@ -1414,6 +1413,12 @@ void MicroProfileFlip()
 		MicroProfileDumpToFile();
 		S.nDumpFileNextFrame = 0;
 	}
+	if(S.nWebServerDataSent == (uint64_t)-1)
+	{
+		MicroProfileWebServerStart();
+		S.nWebServerDataSent = 0;
+	}
+
 	if(MicroProfileWebServerUpdate())
 	{	
 		nAggregateClear = 1;
