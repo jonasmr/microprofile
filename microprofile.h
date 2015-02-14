@@ -1938,6 +1938,11 @@ void MicroProfilePrintf(MicroProfileWriteCallback CB, void* Handle, const char* 
 #define printf(...) MicroProfilePrintf(CB, Handle, __VA_ARGS__)
 void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFrames)
 {
+	uint32_t nAggregateFrames = S.nAggregateFrames ? S.nAggregateFrames : 1;
+	float fToMsCPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+	float fToMsGPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondGpu());
+
+	printf("frames,%d\n", nAggregateFrames);
 	printf("group,name,average,max,callaverage\n");
 
 	uint32_t nNumTimers = S.nTotalTimers;
@@ -1959,8 +1964,45 @@ void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFra
 	}
 
 	printf("\n\n");
+
+	printf("group,average,max,total\n");
+	for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
+	{
+		const char* pGroupName = S.GroupInfo[j].pName;
+		float fToMs =  S.GroupInfo[j].Type == MicroProfileTokenTypeGpu ? fToMsGPU : fToMsCPU;
+		if(pGroupName[0] != '\0')
+		{
+			printf("\"%s\",%.3f,%.3f,%.3f\n", pGroupName, fToMs * S.AggregateGroup[j] / nAggregateFrames, fToMs * S.AggregateGroup[j] / nAggregateFrames, fToMs * S.AggregateGroup[j]);
+		}
+	}
+
+	printf("\n\n");
+	printf("group,thread,average,total\n");
+	for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
+	{
+		for(uint32_t i = 0; i < S.nNumLogs; ++i)
+		{
+			if(S.Pool[i])
+			{
+				const char* pThreadName = &S.Pool[i]->ThreadName[0];
+				// MicroProfilePrintf(CB, Handle, "var ThreadGroupTime%d = [", i);
+				float fToMs = S.Pool[i]->nGpu ? fToMsGPU : fToMsCPU;
+				{
+					uint64_t nTicks = S.Pool[i]->nAggregateGroupTicks[j];
+					float fTime = nTicks / nAggregateFrames * fToMs;
+					float fTimeTotal = nTicks * fToMs;
+					if(fTimeTotal > 0.01f)
+					{
+						const char* pGroupName = S.GroupInfo[j].pName;
+						printf("\"%s\",\"%s\",%.3f,%.3f\n", pGroupName, pThreadName, fTime, fTimeTotal);
+					}
+				}
+			}
+		}
+	}
+
+	printf("\n\n");
 	printf("frametimecpu\n");
-	float fToMsCPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
 
 	const uint32_t nCount = MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY - 3;
 	const uint32_t nStart = S.nFrameCurrent;
@@ -1975,7 +2017,6 @@ void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFra
 
 	printf("\n\n");
 	printf("frametimegpu\n");
-	float fToMsGPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondGpu());
 
 	for(uint32_t i = nCount; i > 0; i--)
 	{
@@ -1984,7 +2025,6 @@ void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFra
 		uint64_t nTicks = S.Frames[nFrameNext].nFrameStartGpu - S.Frames[nFrame].nFrameStartGpu;
 		printf("%f,", nTicks * fToMsGPU);
 	}
-	printf("\n");
 }
 #undef printf
 
