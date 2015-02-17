@@ -176,9 +176,9 @@ var nOffsetBarsY = 0;
 var nBarsWidth = 80;
 var NameWidth = 200;
 var MouseButtonState = [0,0,0,0,0,0,0,0];
-var MouseDragKey = 0;
+var KeyShiftDown = 0;
 var MouseDragButton = 0;
-var MouseZoom = 0;
+var KeyCtrlDown = 0;
 var FlipToolTip = 0;
 var DetailedViewMouseX = 0;
 var DetailedViewMouseY = 0;
@@ -228,6 +228,10 @@ var nHoverTokenIndexNext = -1;
 var fFrameScale = 33.33;
 var fRangeBegin = 0;
 var fRangeEnd = -1;
+var fRangeBeginNext = 0;
+var fRangeEndNext = 0;
+var fRangeBeginHistory = -1;
+var fRangeEndHistory = -1;
 
 var ModeDetailed = 0;
 var ModeTimers = 1;
@@ -894,7 +898,8 @@ function DrawDetailedFrameHistory()
 	var fHeightScale = fHeight / ReferenceTime;
 	var fX = 0;
 	var FrameIndex = -1;
-
+	var MouseDragging = MouseDragState != MouseDragOff;
+	fRangeBeginHistory = fRangeEndHistory = -1;
 
 	var FrameFirst = -1;
 	var FrameLast = nWidth;
@@ -914,11 +919,11 @@ function DrawDetailedFrameHistory()
 		}
 		var fH = fHeightScale * fMs;
 		var bMouse = x > fX && x < fX + fWidth;
-		if(bMouse)
+		if(bMouse && !MouseDragging)
 		{
 			context.fillStyle = FRAME_HISTORY_COLOR_GPU;
-			fRangeBegin = Frames[i].framestart;
-			fRangeEnd = Frames[i].frameend;
+			fRangeBeginHistory = Frames[i].framestart;
+			fRangeEndHistory = Frames[i].frameend;
 			FrameIndex = i;
 		}
 		else
@@ -946,7 +951,7 @@ function DrawDetailedFrameHistory()
 	context.lineTo(X+W, Y+fHeight);
 	context.stroke();
 
-	if(FrameIndex>=0)
+	if(FrameIndex>=0 && !MouseDragging)
 	{
 		var StringArray = [];
 		StringArray.push("Frame");
@@ -958,7 +963,6 @@ function DrawDetailedFrameHistory()
 
 	}
 	ProfileLeave();
-
 }
 
 function DrawDetailedBackground(context)
@@ -1535,8 +1539,8 @@ function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOf
 				if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < fOffsetY+CSwitchHeight && DetailedViewMouseY >= fOffsetY)
 				{
 					nHoverCSCpuNext = ActiveCpu;
-					fRangeBegin = TimeIn;
-					fRangeEnd = TimeOut;
+					fRangeBeginNext = TimeIn;
+					fRangeEndNext = TimeOut;
 				}
 			}
 		}
@@ -1705,8 +1709,8 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 
 								if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
 								{
-									fRangeBegin = timestart;
-									fRangeEnd = timeend;
+									fRangeBeginNext = timestart;
+									fRangeEndNext = timeend;
 									nHoverTokenNext = index;
 									nHoverTokenIndexNext = j;
 									nHoverTokenLogIndexNext = nLog;
@@ -1791,7 +1795,25 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 
 	}
 }
+function DrawTextBox(context, text, x, y, align)
+{
+	var textsize = context.measureText(text).width;
+	var offsetx = 0;
+	var offsety = -FontHeight;
+	if(align == 'center')
+	{
+		offsetx = -textsize / 2.0;
+	}
+	else if(align == 'right')
+	{
+		offsetx = -textsize;
+	}
+	context.fillStyle = nBackColors[0];
+	context.fillRect(x + offsetx, y + offsety, textsize+2, FontHeight + 2);
+	context.fillStyle = 'white';
+	context.fillText(text, x, y);
 
+}
 function DrawDetailed(Animation)
 {
 	if(AnimationActive != Animation || !Initialized)
@@ -1803,6 +1825,7 @@ function DrawDetailed(Animation)
 	DebugDrawTextCount = 0;
 	nHoverCSCpuNext = -1;
 
+	fRangeBeginNext = fRangeEndNext = -1;
 
 	var start = new Date();
 	nDrawCount++;
@@ -1812,7 +1835,7 @@ function DrawDetailed(Animation)
 	var fScaleX = nWidth / fDetailedRange; 
 	var fOffsetY = -nOffsetY + BoxHeight;
 
-	if(DetailedRedrawState.fOffsetY == fOffsetY && DetailedRedrawState.fDetailedOffset == fDetailedOffset && DetailedRedrawState.fDetailedRange == fDetailedRange && !MouseZoom && !MouseDragKey && !MouseDragButton)
+	if(DetailedRedrawState.fOffsetY == fOffsetY && DetailedRedrawState.fDetailedOffset == fDetailedOffset && DetailedRedrawState.fDetailedRange == fDetailedRange && !KeyCtrlDown && !KeyShiftDown && !MouseDragButton)
 	{
 		Invalidate++;
 	}
@@ -1841,24 +1864,33 @@ function DrawDetailed(Animation)
 		DrawDetailedView(context, nMinWidth, false);
 	}
 
-	if(MouseDragKey || MouseZoom || MouseDragButton)
+	if(KeyShiftDown || KeyCtrlDown || MouseDragButton || MouseDragSelectRange())
 	{
 		nHoverToken = -1;
 		nHoverTokenIndex = -1;
 		nHoverTokenLogIndex = -1;
 
-		fRangeBegin = fRangeEnd = -1;
+		if(!MouseDragSelectRange())
+		{
+			fRangeBegin = fRangeEnd = -1;
+		}
 	}
 	else
 	{
 		nHoverToken = nHoverTokenNext;
 		nHoverTokenIndex = nHoverTokenIndexNext;
 		nHoverTokenLogIndex = nHoverTokenLogIndexNext;
-
+		if(fRangeBeginHistory < fRangeEndHistory)
+		{
+			fRangeBegin = fRangeBeginHistory;
+			fRangeEnd = fRangeEndHistory;
+		}
+		else
+		{
+			fRangeBegin = fRangeBeginNext;
+			fRangeEnd = fRangeEndNext;
+		}
 	}
-
-
-
 	if(fRangeBegin < fRangeEnd)
 	{
 		var X = (fRangeBegin - fDetailedOffset) * fScaleX;
@@ -1875,17 +1907,42 @@ function DrawDetailed(Animation)
 		context.moveTo(X+W, Y);
 		context.lineTo(X+W, Y+nHeight);
 		context.stroke();
-		var tRangeBeginWidth = context.measureText('' + fRangeBegin).width;
+		var Duration = (fRangeEnd - fRangeBegin).toFixed(2) + "ms";
+		var Center = ((fRangeBegin + fRangeEnd) / 2.0) - fDetailedOffset;
+		var DurationWidth = context.measureText(Duration+ "   ").width;
 
 		context.fillStyle = 'white';
-		context.fillText('' + fRangeBegin, X - tRangeBeginWidth-2, 9);
-		context.fillText('' + fRangeEnd, X + W, 9);
+		context.textAlign = 'right';
+		DrawTextBox(context, '' + fRangeBegin.toFixed(2), X-3, 9, 'right');
+		if(DurationWidth < W + 10)
+		{
+			context.textAlign = 'center';
+			DrawTextBox(context,'' + Duration,Center * fScaleX, 9, 'center');
+
+			var W0 = W - DurationWidth + FontWidth*1.5;
+			if(W0 > 6)
+			{
+				var Y0 = Y + FontHeight * 0.5;
+				W0 = W0 / 2.0;
+				var X0 = X + W0;
+				var X1 = X + W - W0;
+				context.strokeStyle = '#00ff00';
+				context.beginPath();
+				context.moveTo(X, Y0);
+				context.lineTo(X0, Y0);
+				context.moveTo(X0, Y0-2);
+				context.lineTo(X0, Y0+2);
+				context.moveTo(X1, Y0-2);
+				context.lineTo(X1, Y0+2);
+				context.moveTo(X1, Y0);
+				context.lineTo(X + W, Y0);
+				context.stroke();
+			}
+		}
+		context.textAlign = 'left';
+		DrawTextBox(context, '' + fRangeEnd.toFixed(2), X + W + 2, 9, 'left');
 	}
-
-
-
 	nHoverCSCpu = nHoverCSCpuNext;
-
 	ProfileLeave();
 }
 
@@ -1930,9 +1987,8 @@ function RequestRedraw()
 	Invalidate = 0;
 	Draw();
 }
-function Draw(SkipHistory)
+function Draw()
 {
-	SkipHistory = 0;
 	if(ProfileMode)
 	{
 		ProfileModeClear();
@@ -1949,24 +2005,21 @@ function Draw(SkipHistory)
 		DrawDetailed(false);
 		DrawHoverToolTip();
 	}
-	if(!SkipHistory)
-	{
-		DrawDetailedFrameHistory();
-	}
+
+	DrawDetailedFrameHistory();
 
 	if(ProfileMode)
 	{
 		ProfileLeave();
 		ProfileModeDraw(CanvasDetailedView);
 	}
-
-
 }
+
 function AutoRedraw(Timestamp)
 {
 	if(Mode == ModeDetailed)
 	{
-		if(ProfileMode == 2 || ((nHoverCSCpu >= 0 || nHoverToken != -1) && !MouseZoom && !MouseDragKey && !MouseDragButton)||(Invalidate<2 && !MouseZoom && !MouseDragKey && !MouseDragButton))
+		if(ProfileMode == 2 || ((nHoverCSCpu >= 0 || nHoverToken != -1) && !KeyCtrlDown && !KeyShiftDown && !MouseDragButton)||(Invalidate<2 && !KeyCtrlDown && !KeyShiftDown && !MouseDragButton))
 		{
 			Draw(1);
 		}
@@ -2054,38 +2107,61 @@ function ResizeCanvas()
 	RequestRedraw();
 }
 
-function MouseUpdateDrag(bPressed, evt)
+var MouseDragOff = 0;
+var MouseDragDown = 1;
+var MouseDragUp = 2;
+var MouseDragMove = 3;
+var MouseDragState = MouseDragOff;
+var MouseDragTarget = 0;
+var MouseDragButton = 0;
+var MouseDragKeyShift = 0;
+var MouseDragKeyCtrl = 0;
+var MouseDragX = 0;
+var MouseDragY = 0;
+var MouseDragXLast = 0;
+var MouseDragYLast = 0;
+var MouseDragXStart = 0;
+var MouseDragYStart = 0;
+
+function clamp(number, min, max)
 {
-   if(bPressed && (evt.button == 1 || evt.which == 1))
-    {
-    	
-		MouseDragButton = 1;
-    }
-    else
-    {
-    	MouseDragButton = 0;
-    }
+  return Math.max(min, Math.min(number, max));
 }
 
-function MouseMove(evt)
+function MouseDragPan()
 {
-    evt.preventDefault();
-    MouseUpdateDrag(1, evt);
- 	MouseHistory = 0;
-	MouseDetailed = 0;
-	HistoryViewMouseX = HistoryViewMouseY = -1;
-	if(evt.target == CanvasDetailedView)
+	return MouseDragButton == 1 || MouseDragKeyShift;
+}
+function MouseDragSelectRange()
+{
+	return MouseDragState == MouseDragMove && (MouseDragButton == 3 || (MouseDragKeyShift && MouseDragKeyCtrl));
+}
+function MouseHandleDrag()
+{
+	if(MouseDragTarget == CanvasDetailedView)
 	{
-		fRangeBegin = fRangeEnd = -1;
-		var rect = CanvasDetailedView.getBoundingClientRect();
-		var x = evt.clientX - rect.left;
-		var y = evt.clientY - rect.top;
 		if(Mode == ModeDetailed)
 		{
-		    if(MouseDragKey || MouseDragButton)
+			if(MouseDragSelectRange())
 			{
-				var X = x - DetailedViewMouseX;
-				var Y = y - DetailedViewMouseY;
+				var xStart = MouseDragXStart;
+				var xEnd = MouseDragX;
+				if(xStart > xEnd)
+				{
+					var Temp = xStart;
+					xStart = xEnd;
+					xEnd = Temp;
+				}
+				if(xEnd - xStart > 1)
+				{
+					fRangeBegin = fDetailedOffset + fDetailedRange * (xStart / nWidth);
+					fRangeEnd = fDetailedOffset + fDetailedRange * (xEnd / nWidth);
+				}
+			}
+			else if(MouseDragPan())
+			{
+				var X = MouseDragX - MouseDragXLast;
+				var Y = MouseDragY - MouseDragYLast;
 				if(X)
 				{
 					fDetailedOffset += -X * fDetailedRange / nWidth;
@@ -2096,26 +2172,223 @@ function MouseMove(evt)
 					nOffsetY = 0;
 				}
 			}
-			if(MouseZoom)
+			else if(MouseDragKeyCtrl)
 			{
-				if(y != DetailedViewMouseY)
+				if(MouseDragY != MouseDragYLast)
 				{
-					ZoomGraph(y - DetailedViewMouseY);
+					ZoomGraph(MouseDragY - MouseDragYLast);
 				}
 			}
 		}
 		else if(Mode == ModeTimers)
 		{
-		    if(MouseDragKey || MouseDragButton)
+			if(MouseDragKeyShift || MouseDragButton == 1)
 			{
-				var X = x - DetailedViewMouseX;
-				var Y = y - DetailedViewMouseY;
+				var X = MouseDragX - MouseDragXLast;
+				var Y = MouseDragY - MouseDragYLast;
 				nOffsetBarsY -= Y;
 				if(nOffsetBarsY < 0)
 				{
 					nOffsetBarsY = 0;
 				}
 			}
+
+		}
+
+	}
+	else if(MouseDragTarget == CanvasHistory)
+	{
+		function HistoryFrameTime(x)
+		{
+			var NumFrames = Frames.length;
+			var fBarWidth = nWidth / NumFrames;
+			var Index = clamp(Math.floor(NumFrames * x / nWidth), 0, NumFrames-1);
+			var Lerp = clamp((x/fBarWidth - Index) , 0, 1);
+			var time = Frames[Index].framestart + (Frames[Index].frameend - Frames[Index].framestart) * Lerp;
+			return time;
+		}
+		if(MouseDragSelectRange())
+		{
+			fRangeBegin = fRangeEnd = -1;
+
+			var xStart = MouseDragXStart;
+			var xEnd = MouseDragX;
+			if(xStart > xEnd)
+			{
+				var Temp = xStart;
+				xStart = xEnd;
+				xEnd = Temp;
+			}
+			if(xEnd - xStart > 2)
+			{
+				var timestart = HistoryFrameTime(xStart);
+				var timeend = HistoryFrameTime(xEnd);
+				fDetailedOffset = timestart;
+				fDetailedRange = timeend-timestart;
+			}
+		}
+		else if(MouseDragPan())
+		{
+			var Time = HistoryFrameTime(MouseDragX);
+			fDetailedOffset = Time - fDetailedRange / 2.0;
+		}
+	}
+}
+function MouseHandleDragEnd()
+{
+	if(MouseDragTarget == CanvasDetailedView)
+	{
+		if(MouseDragSelectRange())
+		{
+			ZoomTo(fRangeBegin, fRangeEnd);
+			fRangeBegin = fRangeEnd = -1;
+		}
+	}
+	else if(MouseDragTarget == CanvasHistory)
+	{
+		if(!MouseDragSelectRange() && !MouseDragPan())
+		{
+			ZoomTo(fRangeBegin, fRangeEnd);
+			fRangeBegin = fRangeEnd = -1;
+		}
+
+
+	}
+
+}
+
+function MouseHandleDragClick()
+{
+	if(MouseDragTarget == CanvasDetailedView)
+	{
+		ZoomTo(fRangeBegin, fRangeEnd);
+	}
+	else if(MouseDragTarget == CanvasHistory)
+	{
+		if(Mode == ModeDetailed)
+		{
+			ZoomTo(fRangeBegin, fRangeEnd);
+		}
+	}
+}
+
+function MapMouseButton(Event)
+{
+	if(event.button == 1 || event.which == 1)
+	{
+		return 1;
+	}
+	else if(event.button == 3 || event.which == 3)
+	{
+		return 3;
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+function MouseDragReset()
+{
+	MouseDragState = MouseDragOff;
+	MouseDragTarget = 0;
+	MouseDragKeyShift = 0;
+	MouseDragKeyCtrl = 0;
+	MouseDragButton = 0;
+}
+function MouseDragKeyUp()
+{
+	if((MouseDragKeyShift && !KeyShiftDown) || (MouseDragKeyCtrl && !KeyCtrlDown))
+	{
+		MouseHandleDragEnd();
+		MouseDragReset();
+	}
+}
+function MouseDrag(Source, Event)
+{
+	if(Source == MouseDragOff || (MouseDragTarget && MouseDragTarget != Event.target))
+	{
+		MouseDragReset();
+		return;
+	}
+
+	var LocalRect = Event.target.getBoundingClientRect();
+	MouseDragX = Event.clientX - LocalRect.left;
+	MouseDragY = Event.clientY - LocalRect.top;
+	// console.log('cur drag state ' + MouseDragState + ' Source ' + Source);
+	if(MouseDragState == MouseDragMove)
+	{
+		var dx = Math.abs(MouseDragX - MouseDragXStart);
+		var dy = Math.abs(MouseDragY - MouseDragYStart);
+		if((Source == MouseDragUp && MapMouseButton(Event) == MouseDragButton) ||
+			(MouseDragKeyCtrl && !KeyCtrlDown) ||
+			(MouseDragKeyShift && !KeyShiftDown))
+		{
+			MouseHandleDragEnd();
+			MouseDragReset();
+			return;
+		}
+		else
+		{
+			MouseHandleDrag();
+		}
+	}
+	else if(MouseDragState == MouseDragOff)
+	{
+		if(Source == MouseDragDown || KeyShiftDown || KeyCtrlDown)
+		{
+			MouseDragTarget = Event.target;
+			MouseDragButton = MapMouseButton(Event);
+			MouseDragState = MouseDragDown;
+			MouseDragXStart = MouseDragX;
+			MouseDragYStart = MouseDragY;
+			MouseDragKeyCtrl = 0;
+			MouseDragKeyShift = 0;
+
+			if(KeyShiftDown || KeyCtrlDown)
+			{
+				MouseDragKeyShift = KeyShiftDown;
+				MouseDragKeyCtrl = KeyCtrlDown;
+				MouseDragState = MouseDragMove;
+			}
+		}
+	}
+	else if(MouseDragState == MouseDragDown)
+	{
+		if(Source == MouseDragUp)
+		{
+			MouseHandleDragClick();
+			MouseDragReset();
+		}
+		else if(Source == MouseDragMove)
+		{
+			var dx = Math.abs(MouseDragX - MouseDragXStart);
+			var dy = Math.abs(MouseDragY - MouseDragYStart);
+			if(dx+dy>1)
+			{
+				MouseDragState = MouseDragMove;
+			}
+		}
+	}
+	MouseDragXLast = MouseDragX;
+	MouseDragYLast = MouseDragY;
+}
+
+function MouseMove(evt)
+{
+    evt.preventDefault();
+    MouseDrag(MouseDragMove, evt);
+ 	MouseHistory = 0;
+	MouseDetailed = 0;
+	HistoryViewMouseX = HistoryViewMouseY = -1;
+	var rect = evt.target.getBoundingClientRect();
+	var x = evt.clientX - rect.left;
+	var y = evt.clientY - rect.top;
+	if(evt.target == CanvasDetailedView)
+	{
+		if(!MouseDragSelectRange())
+		{
+			fRangeBegin = fRangeEnd = -1;
 		}
 		DetailedViewMouseX = x;
 		DetailedViewMouseY = y;
@@ -2123,51 +2396,23 @@ function MouseMove(evt)
 	else if(evt.target = CanvasHistory)
 	{
 		var Rect = CanvasHistory.getBoundingClientRect();
-		HistoryViewMouseX = evt.clientX - Rect.left;
-		HistoryViewMouseY = evt.clientY - Rect.top;
+		HistoryViewMouseX = x;
+		HistoryViewMouseY = y;
 	}
 	Draw();
 }
+
 function MouseButton(bPressed, evt)
 {
     evt.preventDefault();
- 	MouseUpdateDrag(bPressed, evt);
-	if(evt.target == CanvasHistory && Mode == ModeDetailed)
-	{
-		if(!bPressed)
-		{
-			if(evt.button == 0)
-			{
-				ZoomTo(fRangeBegin, fRangeEnd);
-			}
-		}
-	}
-	else if(evt.target == CanvasDetailedView)
-	{
-		var rect = CanvasDetailedView.getBoundingClientRect();
-		var x = evt.clientX - rect.left;
-		var y = evt.clientY - rect.top;
-		if(bPressed)
-		{
-			MouseButtonState[evt.button]=1;
-			if(evt.button == 0)
-			{
-			}
-		}
-		else
-		{
-			MouseButtonState[evt.button]=1;
-			if(evt.button == 0)
-			{
-				ZoomTo(fRangeBegin, fRangeEnd);
-			}
-		}
-	}
+	MouseDrag(bPressed ? MouseDragDown : MouseDragUp, evt);
 }
+
 function MouseOut(evt)
 {
-	MouseZoom = 0;
-	MouseDragKey = 0;
+	MouseDrag(MouseDragOff, evt);
+	KeyCtrlDown = 0;
+	KeyShiftDown = 0;
 	MouseDragButton = 0;
 	nHoverToken = -1;
 	fRangeBegin = fRangeEnd = -1;
@@ -2186,11 +2431,13 @@ function KeyUp(evt)
 {
 	if(evt.keyCode == 17)
 	{
-		MouseZoom = 0;
+		KeyCtrlDown = 0;
+		MouseDragKeyUp();
 	}
 	else if(evt.keyCode == 16)
 	{
-		MouseDragKey = 0;
+		KeyShiftDown = 0;
+		MouseDragKeyUp();
 	}
 	if(evt.keyCode == 18)
 	{
@@ -2208,12 +2455,11 @@ function KeyDown(evt)
 	}
 	if(evt.keyCode == 17)
 	{
-		MouseDragKey = 0;
-		MouseZoom = 1;
+		KeyCtrlDown = 1;
 	}
 	else if(evt.keyCode == 16)
 	{
-		MouseDragKey = 1;
+		KeyShiftDown = 1;
 	}
 	Invalidate = 0;
 }
