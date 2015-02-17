@@ -157,10 +157,18 @@ void WorkerThread(int threadId)
 							{
 								MICROPROFILE_SCOPEI("Thread2", "InnerWork2", c3); 
 								usleep(100);
+								#if 0
 								{
 									MICROPROFILE_SCOPEI("Thread2", "InnerWork3", c4); 
 									spinsleep(50000);
 								}
+								#else
+								for(uint32_t i = 0; i < 100; ++i)
+								{
+									MICROPROFILE_SCOPEI("Thread2xx", "Lotsofcounters", c4); 
+									spinsleep(50);
+								}
+								#endif
 							}
 						}
 					}

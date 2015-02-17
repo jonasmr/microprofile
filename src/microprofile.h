@@ -2037,6 +2037,9 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 {
 	uint32_t nRunning = S.nRunning;
 	S.nRunning = 0;
+	//stall pushing of timers
+	uint64_t nActiveGroup = S.nActiveGroup;
+	S.nActiveGroup = 0;
 	S.nPauseTicks = MP_TICK();
 
 	CB(Handle, g_MicroProfileHtml_begin_size-1, &g_MicroProfileHtml_begin[0]);
@@ -2309,6 +2312,8 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	MicroProfilePrintf(CB, Handle, "//CSwitch Size %d\n", nWrittenAfter - nWrittenBefore);
 
 	CB(Handle, g_MicroProfileHtml_end_size-1, &g_MicroProfileHtml_end[0]);
+
+	S.nActiveGroup = nActiveGroup;
 	S.nRunning = nRunning;
 
 #if MICROPROFILE_DEBUG

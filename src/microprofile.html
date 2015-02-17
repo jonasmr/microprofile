@@ -86,10 +86,12 @@ Click to Zoom to selected range<br>
         <li><a href="#">---</a></li>
     </ul>
 </li>
-<li id="ilContextSwitch"><a href="#">ContextSwitch</a>
-    <ul id='ContextSwitchMenu'>
+<li id="ilOptions"><a href="#">Options</a>
+    <ul id='OptionsMenu'>
         <li><a href="#" onclick="SetContextSwitch(1);">On</a></li>
         <li><a href="#" onclick="SetContextSwitch(0);">Off</a></li>
+		<li><a href="#" onclick="ToggleDisableMerge();">MergeDisable</a></li>
+		<li><a href="#" onclick="ToggleDisableLod();">LodDisable</a></li>
 <!--      	<li><a href="#" onclick="ToggleDebug();">DEBUG</a></li> -->
     </ul>
 </li>
@@ -198,6 +200,8 @@ var GroupsAllActive = 1;
 var nMinWidth = 0.01;//subpixel width
 var nMinWidthPan = 1.0;//subpixel width when panning
 var nContextSwitchEnabled = 1;
+var DisableLod = 0;
+var DisableMerge = 0;
 
 var nModDown = 0;
 var g_MSG = 'no';
@@ -657,7 +661,7 @@ function SetMode(NewMode, Groups)
 	var buttonGroups = document.getElementById('buttonGroups');
 	var ilThreads = document.getElementById('ilThreads');
 	var ilGroups = document.getElementById('ilGroups');
-	var ilContextSwitch = document.getElementById('ilContextSwitch');
+	var ilOptions = document.getElementById('ilOptions');
 	var ilTimersOptions = document.getElementById('ilTimersOptions');
 	if(NewMode == 'timers' || NewMode == ModeTimers)
 	{
@@ -675,7 +679,7 @@ function SetMode(NewMode, Groups)
 		}
 		buttonDetailed.style['text-decoration'] = 'none';
 		ilThreads.style['display'] = 'none';
-		ilContextSwitch.style['display'] = 'none';
+		ilOptions.style['display'] = 'none';
 		ilGroups.style['display'] = 'block';
 		ilTimersOptions.style['display'] = 'block';
 		Mode = ModeTimers;
@@ -687,7 +691,7 @@ function SetMode(NewMode, Groups)
 		buttonDetailed.style['text-decoration'] = 'underline';
 		ilThreads.style['display'] = 'block';
 		ilGroups.style['display'] = 'none';
-		ilContextSwitch.style['display'] = 'block';
+		ilOptions.style['display'] = 'block';
 		ilTimersOptions.style['display'] = 'none';
 		Mode = ModeDetailed;
 	}
@@ -720,7 +724,7 @@ function SetReferenceTime(TimeString)
 function SetContextSwitch(Enabled)
 {
 	nContextSwitchEnabled = Enabled ? 1 : 0;
-	var ReferenceMenu = document.getElementById('ContextSwitchMenu');
+	var ReferenceMenu = document.getElementById('OptionsMenu');
 	var Links = ReferenceMenu.getElementsByTagName('a');
 	if(nContextSwitchEnabled)
 	{
@@ -739,6 +743,38 @@ function SetContextSwitch(Enabled)
 function ToggleDebug()
 {
 	Debug = (Debug + 1) % 2;
+}
+
+function ToggleDisableMerge()
+{
+	DisableMerge = DisableMerge ? 0 : 1;
+	var ReferenceMenu = document.getElementById('OptionsMenu');
+	var Links = ReferenceMenu.getElementsByTagName('a');
+	if(DisableMerge)
+	{
+		Links[2].style['text-decoration'] = 'underline';
+	}
+	else
+	{
+		Links[2].style['text-decoration'] = 'none';
+	}
+
+}
+
+function ToggleDisableLod()
+{
+	DisableLod = DisableLod ? 0 : 1;
+	var ReferenceMenu = document.getElementById('OptionsMenu');
+	var Links = ReferenceMenu.getElementsByTagName('a');
+	if(DisableLod)
+	{
+		Links[3].style['text-decoration'] = 'underline';
+	}
+	else
+	{
+		Links[3].style['text-decoration'] = 'none';
+	}
+
 }
 
 function GatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)
@@ -1627,6 +1663,10 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 				{
 					LodIndex = LodData.length-1;
 				}
+				if(DisableLod)
+				{
+					LodIndex = 0;
+				}
 
 				context.fillStyle = 'white';
 				context.fillText(ThreadName, 0, fOffsetY);
@@ -1765,7 +1805,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 							var WNext = a[jnext+2];
 							var Delta = XNext - (X+W);
 							var YDelta = Math.abs(Y - YNext);							
-							if(Delta < 0.3 && YDelta < 0.5)
+							if(Delta < 0.3 && YDelta < 0.5 && !DisableMerge)
 							{
 								W = (XNext+WNext) - X;
 								j += 3;
@@ -2814,7 +2854,6 @@ function PreprocessLods()
 				TimeArray[nLog] = DestTimeArray;
 				IndexArray[nLog] = DestIndexArray;
 				TypeArray[nLog] = DestTypeArray;
-				var j;
 				for(var j = 0; j < NumFrames; ++j)
 				{
 					var OldStart = SourceLogStart[j][nLog];
@@ -2844,6 +2883,8 @@ function PreprocessGlobalArray()
 {
 	ProfileEnter("PreprocessGlobalArray");
 	var nNumLogs = Frames[0].ts.length;
+	var CaptureStart = Frames[0].framestart;
+	var CaptureEnd = Frames[Frames.length-1].frameend;
 	g_TypeArray = new Array(nNumLogs);
 	g_TimeArray = new Array(nNumLogs);
 	g_IndexArray = new Array(nNumLogs);
@@ -2868,15 +2909,20 @@ function PreprocessGlobalArray()
 		{
 			var Frame_ = Frames[i];	
 			Frame_.LogStart[nLog] = TimeArray.length;
-			Frame_.LogEnd[nLog] = Frame_.tt[nLog].length + TimeArray.length;
-			TypeArray = TypeArray.concat(Frame_.tt[nLog]);
-			TimeArray = TimeArray.concat(Frame_.ts[nLog]);
-			IndexArray = IndexArray.concat(Frame_.ti[nLog]);
-			// console.log(" " + TypeArray.length + " added " + Frame_.tt[nLog].length);
-			if(Frame_.tt.length != Frame_.ts.length || Frame_.ti.length != Frame_.ts.length)
+			var tt = Frame_.tt[nLog];
+			var ts = Frame_.ts[nLog];
+			var ti = Frame_.ti[nLog];
+			var len = tt.length;
+			for(var xx = 0; xx < len; ++xx)
 			{
-				console.log("ERRROR");
+				if(ts[xx] <= CaptureEnd)//discard markers after capture end. 
+				{
+					TypeArray.push(tt[xx]);
+					TimeArray.push(ts[xx]);
+					IndexArray.push(ti[xx]);
+				}
 			}
+			Frame_.LogStart[nLog] = TimeArray.length;
 		}
 		g_TypeArray[nLog] = TypeArray;
 		g_TimeArray[nLog] = TimeArray;
