@@ -13,4 +13,3 @@ solution "embed"
       configuration "Debug"
          defines { "DEBUG" }
          flags { "Symbols", "StaticRuntime" }
-         postbuildcommands { "\"$(TargetPath)\" ../../microprofile.h ../microprofile.h ../microprofile.html ____embed____ g_MicroProfileHtml MICROPROFILE_EMBED_HTML" }

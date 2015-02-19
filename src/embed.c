@@ -18,34 +18,66 @@ char* ReadFile(const char* pFile)
 	pData[size] = '\0';
 	return pData;
 }
-void DumpFile(FILE* pOut, const char* pTest)
+void DumpFile(FILE* pOut, const char* pEmbedData, const char* pPrefix, const char* pSuffix)
 {
-	size_t len = strlen(pTest);
-	for(size_t i = 0; i < len; ++i)
+
+	// fprintf(pOut, "const char %s_begin[] =\n\"", pSymbolArg);
+	// DumpFile(pOut, pEmbedStart, pSymbolArg, "_begin");
+	// fprintf(pOut, "\";\n\n");
+	// fprintf(pOut, "const size_t %s_begin_size = sizeof(%s_begin);\n", pSymbolArg, pSymbolArg);
+
+
+	size_t len = strlen(pEmbedData);
+	int nNumBlocks = 0;
+	while(len)
 	{
-		char c = pTest[i];
-		switch(c)
+		//split into 10k chunks.. because of visual studio..
+		size_t nChunk = len > (32<<10) ? (32<<10) : len;
+		len -= nChunk;
+		fprintf(pOut, "const char %s%s_%d[] =\n\"", pPrefix, pSuffix, nNumBlocks);
+		for(size_t i = 0; i < nChunk; ++i)
 		{
-			case '\n':
-			#ifdef _WIN32
-				fprintf(pOut, "\\n\"\n\""); 
-			#else
-				fprintf(pOut, "\\n\"\r\n\""); 
-			#endif
-				break;
-			case '\\':
-				fprintf(pOut, "\\"); 
-				break;
-			case '\"':
-				fprintf(pOut, "\\\""); 
-				break;
-			case '\'':
-				fprintf(pOut, "\\\'"); 
-				break;
-			default:
-				fprintf(pOut, "%c", c);
+			char c = *pEmbedData++;
+			switch(c)
+			{
+				case '\n':
+				#ifdef _WIN32
+					fprintf(pOut, "\\n\"\n\""); 
+				#else
+					fprintf(pOut, "\\n\"\r\n\""); 
+				#endif
+					break;
+				case '\\':
+					fprintf(pOut, "\\"); 
+					break;
+				case '\"':
+					fprintf(pOut, "\\\""); 
+					break;
+				case '\'':
+					fprintf(pOut, "\\\'"); 
+					break;
+				default:
+					fprintf(pOut, "%c", c);
+			}
 		}
+		fprintf(pOut, "\";\n\n");
+		fprintf(pOut, "const size_t %s%s_%d_size = sizeof(%s%s_%d);\n", pPrefix, pSuffix, nNumBlocks, pPrefix, pSuffix, nNumBlocks);
+		nNumBlocks++;
 	}
+	fprintf(pOut, "const char* %s%s[] = {\n", pPrefix, pSuffix);
+	for(int i = 0; i < nNumBlocks; ++i)
+	{
+		fprintf(pOut, "&%s%s_%d[0],\n", pPrefix, pSuffix, i);
+	}
+	fprintf(pOut, "};\n");
+
+	fprintf(pOut, "size_t %s%s_sizes[] = {\n", pPrefix, pSuffix);
+	for(int i = 0; i < nNumBlocks; ++i)
+	{
+		fprintf(pOut, "sizeof(%s%s_%d),\n", pPrefix, pSuffix, i);
+	}
+	fprintf(pOut, "};\n");
+	fprintf(pOut, "size_t %s%s_count = %d;\n", pPrefix, pSuffix, nNumBlocks);
 }
 
 
@@ -86,17 +118,10 @@ int main(int argc, char* argv[])
 	fwrite(pSrc, strlen(pSrc), 1, pOut);
 	fprintf(pOut, "\n\n///start embedded file from %s\n", pEmbedSourceArg);
 	fprintf(pOut, "#ifdef %s\n", pDefineArg);
-	fprintf(pOut, "const char %s_begin[] =\n\"", pSymbolArg);
-	DumpFile(pOut, pEmbedStart);
-	fprintf(pOut, "\";\n\n");
-	fprintf(pOut, "const size_t %s_begin_size = sizeof(%s_begin);\n", pSymbolArg, pSymbolArg);
-	fprintf(pOut, "const char %s_end[] =\n\"", pSymbolArg);
-	DumpFile(pOut, pEmbedEnd);
-	fprintf(pOut, "\";\n\n");
-	fprintf(pOut, "const size_t %s_end_size = sizeof(%s_end);\n", pSymbolArg, pSymbolArg);
-
-	fprintf(pOut, "#endif //%s\n", pDefineArg);
-	fprintf(pOut, "\n\n///end embedded file from %s\n", pEmbedSourceArg);
+	DumpFile(pOut, pEmbedStart, pSymbolArg, "_begin");
+	DumpFile(pOut, pEmbedEnd, pSymbolArg, "_end");
+    fprintf(pOut, "#endif //%s\n", pDefineArg);
+    fprintf(pOut, "\n\n///end embedded file from %s\n", pEmbedSourceArg);
 
 	fclose(pOut);
 	free(pSrc);

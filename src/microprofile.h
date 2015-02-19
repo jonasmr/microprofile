@@ -1889,10 +1889,13 @@ void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pC
 #if MICROPROFILE_WEBSERVER
 
 #define MICROPROFILE_EMBED_HTML
-extern const char g_MicroProfileHtml_begin[];
-extern const char g_MicroProfileHtml_end[];
-extern const size_t g_MicroProfileHtml_begin_size;
-extern const size_t g_MicroProfileHtml_end_size;
+
+extern const char* g_MicroProfileHtml_begin[];
+extern size_t g_MicroProfileHtml_begin_sizes[];
+extern size_t g_MicroProfileHtml_begin_count;
+extern const char* g_MicroProfileHtml_end[];
+extern size_t g_MicroProfileHtml_end_sizes[];
+extern size_t g_MicroProfileHtml_end_count;
 
 typedef void MicroProfileWriteCallback(void* Handle, size_t size, const char* pData);
 
@@ -2042,8 +2045,11 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	S.nActiveGroup = 0;
 	S.nPauseTicks = MP_TICK();
 
-	CB(Handle, g_MicroProfileHtml_begin_size-1, &g_MicroProfileHtml_begin[0]);
 
+	for(size_t i = 0; i < g_MicroProfileHtml_begin_count; ++i)
+	{
+		CB(Handle, g_MicroProfileHtml_begin_sizes[i]-1, g_MicroProfileHtml_begin[i]);
+	}
 	//dump info
 	uint64_t nTicks = MP_TICK();
 	float fToMsCPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
@@ -2311,7 +2317,11 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	uint32_t nWrittenAfter = S.nWebServerDataSent;
 	MicroProfilePrintf(CB, Handle, "//CSwitch Size %d\n", nWrittenAfter - nWrittenBefore);
 
-	CB(Handle, g_MicroProfileHtml_end_size-1, &g_MicroProfileHtml_end[0]);
+
+	for(size_t i = 0; i < g_MicroProfileHtml_end_count; ++i)
+	{
+		CB(Handle, g_MicroProfileHtml_end_sizes[i]-1, g_MicroProfileHtml_end[i]);
+	}
 
 	S.nActiveGroup = nActiveGroup;
 	S.nRunning = nRunning;
@@ -2497,8 +2507,10 @@ bool MicroProfileWebServerUpdate()
 				MicroProfileDumpHtml(MicroProfileWriteSocket, &Connection, nMaxFrames);
 				uint64_t nDataEnd = S.nWebServerDataSent;
 				uint64_t nTickEnd = MP_TICK();
-				float fMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu()) * (nTickEnd - nTickStart);
-				MicroProfilePrintf(MicroProfileWriteSocket, &Connection, "\n<!-- Sent %dkb in %6.2fms-->\n\n",((nDataEnd-nDataStart)>>10) + 1, fMs);
+				uint64_t nDiff = (nTickEnd - nTickStart);
+				float fMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu()) * nDiff;
+				int nKb = ((nDataEnd-nDataStart)>>10) + 1;
+				MicroProfilePrintf(MicroProfileWriteSocket, &Connection, "\n<!-- Sent %dkb in %.2fms-->\n\n",nKb, fMs);
 				MicroProfileFlushSocket(Connection);
 #if MICROPROFILE_DEBUG
 				printf("\nSent %lldkb, in %6.3fms\n\n", ((nDataEnd-nDataStart)>>10) + 1, fMs);
