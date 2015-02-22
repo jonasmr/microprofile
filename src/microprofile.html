@@ -1740,11 +1740,9 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 										BatchesTxt[txtidx].push(name);
 										BatchesTxtPos[txtidx].push(XText+1);
 										BatchesTxtPos[txtidx].push(Y+BoxHeight-FontAscent);
-
 										DebugDrawTextCount++;
 									}
 								}
-
 
 								if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
 								{
@@ -1754,7 +1752,6 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 									nHoverTokenIndexNext = j;
 									nHoverTokenLogIndexNext = nLog;
 									bHasSetHover = 1;
-									// nHoverFrame = i;
 								}
 							}
 							if(StackPos == 0 && time > fTimeEnd)
@@ -2901,6 +2898,7 @@ function PreprocessGlobalArray()
 	for(nLog = 0; nLog < nNumLogs; nLog++)
 	{
 		MinDelta[nLog] = 0;
+		var Discard = 0;
 		var TypeArray = new Array();
 		var TimeArray = new Array();
 		var IndexArray = new Array();
@@ -2908,13 +2906,18 @@ function PreprocessGlobalArray()
 		{
 			var Frame_ = Frames[i];	
 			Frame_.LogStart[nLog] = TimeArray.length;
+			var FrameDiscard = Frame_.frameend + 33;//if timestamps are more than 33ms after current frame, we assume buffer has wrapped.
 			var tt = Frame_.tt[nLog];
 			var ts = Frame_.ts[nLog];
 			var ti = Frame_.ti[nLog];
 			var len = tt.length;
 			for(var xx = 0; xx < len; ++xx)
 			{
-				if(ts[xx] <= CaptureEnd)//discard markers after capture end. 
+				if(ts[xx] > FrameDiscard)
+				{
+					Discard++;
+				}
+				else
 				{
 					TypeArray.push(tt[xx]);
 					TimeArray.push(ts[xx]);
@@ -2926,6 +2929,10 @@ function PreprocessGlobalArray()
 		g_TypeArray[nLog] = TypeArray;
 		g_TimeArray[nLog] = TimeArray;
 		g_IndexArray[nLog] = IndexArray;
+		if(Discard)
+		{
+			console.log('discarded ' + Discard + ' markers from ' + ThreadNames[nLog]);
+		}
 	}
 	MakeLod(0, MinDelta, g_TimeArray, g_TypeArray, g_IndexArray, LogStartArray);
 	ProfileLeave();
