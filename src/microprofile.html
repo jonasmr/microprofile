@@ -88,8 +88,8 @@ Click to Zoom to selected range<br>
 </li>
 <li id="ilOptions"><a href="#">Options</a>
     <ul id='OptionsMenu'>
-        <li><a href="#" onclick="SetContextSwitch(1);">On</a></li>
-        <li><a href="#" onclick="SetContextSwitch(0);">Off</a></li>
+        <li><a href="#" onclick="SetContextSwitch(1);">CSwitch On</a></li>
+        <li><a href="#" onclick="SetContextSwitch(0);">CSwitch Off</a></li>
 		<li><a href="#" onclick="ToggleDisableMerge();">MergeDisable</a></li>
 		<li><a href="#" onclick="ToggleDisableLod();">LodDisable</a></li>
 <!--      	<li><a href="#" onclick="ToggleDebug();">DEBUG</a></li> -->
@@ -1618,15 +1618,14 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 	var nNumLogs = Frames[0].ts.length;
 	var fTimeEnd = fDetailedOffset + fDetailedRange;
 
-	var FirstFrame = Frames.length-1;
-	for(var i = Frames.length-1; i > 0 ; --i)
+	var FirstFrame = 0;
+	for(var i = 0; i < Frames.length ; i++)
 	{
-		if(Frames[i].framestart > fDetailedOffset)
+		if(Frames[i].frameend < fDetailedOffset)
 		{
-			FirstFrame = i-1;
+			FirstFrame = i;
 		}
 	}
-
 	var nMinTimeMs = MinWidth / fScaleX;
 	{
 
@@ -2843,13 +2842,13 @@ function PreprocessLods()
 
 				for(var j = 0; j < SourceCount; ++j)
 				{
+					RemapArray[j] = DestTypeArray.length;
 					if(Duration[j] >= SplitTime)
 					{
 						DestTypeArray.push(SourceTypeArray[j]);
 						DestTimeArray.push(SourceTimeArray[j]);
 						DestIndexArray.push(SourceIndexArray[j]);
 					}
-					RemapArray[j] = DestTypeArray.length;
 				}
 				TimeArray[nLog] = DestTimeArray;
 				IndexArray[nLog] = DestIndexArray;
@@ -2922,7 +2921,7 @@ function PreprocessGlobalArray()
 					IndexArray.push(ti[xx]);
 				}
 			}
-			Frame_.LogStart[nLog] = TimeArray.length;
+			Frame_.LogEnd[nLog] = TimeArray.length;
 		}
 		g_TypeArray[nLog] = TypeArray;
 		g_TimeArray[nLog] = TimeArray;
