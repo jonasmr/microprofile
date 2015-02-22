@@ -2184,21 +2184,22 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 
 
 
-	uint32_t nNumFrames = (MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY - 1);
-	if(S.nFrameCurrentIndex < nNumFrames)
-		nNumFrames = S.nFrameCurrentIndex;
+	uint32_t nNumFrames = (MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY - 3); //leave a few to not overwrite
 	nNumFrames = MicroProfileMin(nNumFrames, (uint32_t)nMaxFrames);
 
 
+	uint32_t nFirstFrame = (S.nFrameCurrent + MICROPROFILE_MAX_FRAME_HISTORY - nNumFrames) % MICROPROFILE_MAX_FRAME_HISTORY;
+	uint32_t nLastFrame = (nFirstFrame + nNumFrames) % MICROPROFILE_MAX_FRAME_HISTORY;
+	MP_ASSERT(nLastFrame == (S.nFrameCurrent % MICROPROFILE_MAX_FRAME_HISTORY));
+	MP_ASSERT(nFirstFrame < MICROPROFILE_MAX_FRAME_HISTORY);
+	MP_ASSERT(nLastFrame  < MICROPROFILE_MAX_FRAME_HISTORY);
+	const int64_t nTickStart = S.Frames[nFirstFrame].nFrameStartCpu;
+	const int64_t nTickEnd = S.Frames[nLastFrame].nFrameStartCpu;
+	int64_t nTickStartGpu = S.Frames[nFirstFrame].nFrameStartGpu;
 #if MICROPROFILE_DEBUG
 	printf("dumping %d frames\n", nNumFrames);
+	printf("dumping frame %d to %d\n", nFirstFrame, nLastFrame);
 #endif
-	uint32_t nFirstFrame = (S.nFrameCurrent + MICROPROFILE_MAX_FRAME_HISTORY - nNumFrames) % MICROPROFILE_MAX_FRAME_HISTORY;
-	uint32_t nFirstFrameIndex = S.nFrameCurrentIndex - nNumFrames;
-	const int64_t nTickStart = S.Frames[nFirstFrame].nFrameStartCpu;
-	const int64_t nTickEnd = S.Frames[S.nFrameCurrent].nFrameStartCpu;
-	int64_t nTickStartGpu = S.Frames[nFirstFrame].nFrameStartGpu;
-
 
 
 	MicroProfilePrintf(CB, Handle, "var Frames = Array(%d);\n", nNumFrames);
@@ -2289,7 +2290,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 		float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
 		float fFrameMs = MicroProfileLogTickDifference(nTickStart, nFrameStart) * fToMs;
 		float fFrameEndMs = MicroProfileLogTickDifference(nTickStart, nFrameEnd) * fToMs;
-		MicroProfilePrintf(CB, Handle, "Frames[%d] = MakeFrame(%d, %f, %f, ts%d, tt%d, ti%d);\n", i, nFirstFrameIndex, fFrameMs, fFrameEndMs, i, i, i);
+		MicroProfilePrintf(CB, Handle, "Frames[%d] = MakeFrame(%d, %f, %f, ts%d, tt%d, ti%d);\n", i, 0, fFrameMs, fFrameEndMs, i, i, i);
 	}
 	
 	uint32_t nContextSwitchStart = 0;
