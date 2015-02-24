@@ -110,6 +110,7 @@ typedef uint16_t MicroProfileGroupId;
 
 #define MICROPROFILE_DECLARE(var)
 #define MICROPROFILE_DEFINE(var, group, name, color)
+#define MICROPROFILE_REGISTER_GROUP(group, color, category)
 #define MICROPROFILE_DECLARE_GPU(var)
 #define MICROPROFILE_DEFINE_GPU(var, name, color)
 #define MICROPROFILE_SCOPE(var) do{}while(0)
@@ -137,6 +138,8 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileSetForceEnable(a) do{} while(0)
 #define MicroProfileGetForceEnable() false
 #define MicroProfileSetEnableAllGroups(a) do{} while(0)
+#define MicroProfileEnableCategory(a) do{} while(0)
+#define MicroProfileDisableCategory(a) do{} while(0)
 #define MicroProfileGetEnableAllGroups() false
 #define MicroProfileSetForceMetaCounters(a)
 #define MicroProfileGetForceMetaCounters() 0
@@ -233,6 +236,7 @@ typedef uint32_t ThreadIdType;
 #define MP_ASSERT(a) do{if(!(a)){MP_BREAK();} }while(0)
 #define MICROPROFILE_DECLARE(var) extern MicroProfileToken g_mp_##var
 #define MICROPROFILE_DEFINE(var, group, name, color) MicroProfileToken g_mp_##var = MicroProfileGetToken(group, name, color, MicroProfileTokenTypeCpu)
+#define MICROPROFILE_REGISTER_GROUP(group, category, color) MicroProfileRegisterGroup(group, category, color)
 #define MICROPROFILE_DECLARE_GPU(var) extern MicroProfileToken g_mp_##var
 #define MICROPROFILE_DEFINE_GPU(var, name, color) MicroProfileToken g_mp_##var = MicroProfileGetToken("GPU", name, color, MicroProfileTokenTypeGpu)
 #define MICROPROFILE_TOKEN_PASTE0(a, b) a ## b
@@ -348,6 +352,8 @@ MICROPROFILE_API void MicroProfileInitThreadLog();
 MICROPROFILE_API void MicroProfileSetForceEnable(bool bForceEnable);
 MICROPROFILE_API bool MicroProfileGetForceEnable();
 MICROPROFILE_API void MicroProfileSetEnableAllGroups(bool bEnable); 
+MICROPROFILE_API void MicroProfileEnableCategory(const char* pCategory); 
+MICROPROFILE_API void MicroProfileDisableCategory(const char* pCategory); 
 MICROPROFILE_API bool MicroProfileGetEnableAllGroups();
 MICROPROFILE_API void MicroProfileSetForceMetaCounters(bool bEnable); 
 MICROPROFILE_API bool MicroProfileGetForceMetaCounters();
@@ -433,6 +439,7 @@ struct MicroProfileScopeGpuHandler
 
 #define MICROPROFILE_MAX_TIMERS 1024
 #define MICROPROFILE_MAX_GROUPS 48 //dont bump! no. of bits used it bitmask
+#define MICROPROFILE_MAX_CATEGORIES 16
 #define MICROPROFILE_MAX_GRAPHS 5
 #define MICROPROFILE_GRAPH_HISTORY 128
 #define MICROPROFILE_BUFFER_SIZE ((MICROPROFILE_PER_THREAD_BUFFER_SIZE)/sizeof(MicroProfileLogEntry))
@@ -528,6 +535,12 @@ struct MicroProfileTimer
 	uint32_t nCount;
 };
 
+struct MicroProfileCategory
+{
+	char pName[MICROPROFILE_NAME_MAX_LEN];
+	uint64_t nGroupMask;
+};
+
 struct MicroProfileGroupInfo
 {
 	char pName[MICROPROFILE_NAME_MAX_LEN];
@@ -535,6 +548,8 @@ struct MicroProfileGroupInfo
 	uint32_t nGroupIndex;
 	uint32_t nNumTimers;
 	uint32_t nMaxTimerNameLen;
+	uint32_t nColor;
+	uint32_t nCategory;
 	MicroProfileTokenType Type;
 };
 
@@ -634,6 +649,7 @@ struct MicroProfile
 {
 	uint32_t nTotalTimers;
 	uint32_t nGroupCount;
+	uint32_t nCategoryCount;
 	uint32_t nAggregateClear;
 	uint32_t nAggregateFlip;
 	uint32_t nAggregateFlipCount;
@@ -669,6 +685,7 @@ struct MicroProfile
 	float fReferenceTime;
 	float fRcpReferenceTime;
 
+	MicroProfileCategory	CategoryInfo[MICROPROFILE_MAX_CATEGORIES];
 	MicroProfileGroupInfo 	GroupInfo[MICROPROFILE_MAX_GROUPS];
 	MicroProfileTimerInfo 	TimerInfo[MICROPROFILE_MAX_TIMERS];
 	uint8_t					TimerToGroup[MICROPROFILE_MAX_TIMERS];
@@ -1009,6 +1026,13 @@ void MicroProfileInit()
 		{
 			S.GroupInfo[i].pName[0] = '\0';
 		}
+		for(int i = 0; i < MICROPROFILE_MAX_CATEGORIES; ++i)
+		{
+			S.CategoryInfo[i].pName[0] = '\0';
+			S.CategoryInfo[i].nGroupMask = 0;
+		}
+		strcpy(&S.CategoryInfo[0].pName[0], "default");
+		S.nCategoryCount = 1;
 		for(int i = 0; i < MICROPROFILE_MAX_TIMERS; ++i)
 		{
 			S.TimerInfo[i].pName[0] = '\0';
@@ -1207,12 +1231,47 @@ uint16_t MicroProfileGetGroup(const char* pGroup, MicroProfileTokenType Type)
 	S.GroupInfo[S.nGroupCount].nGroupIndex = S.nGroupCount;
 	S.GroupInfo[S.nGroupCount].Type = Type;
 	S.GroupInfo[S.nGroupCount].nMaxTimerNameLen = 0;
+	S.GroupInfo[S.nGroupCount].nColor = 0x88888888;
+	S.GroupInfo[S.nGroupCount].nCategory = 0;
+	S.CategoryInfo[0].nGroupMask |= (1ll << (uint64_t)S.nGroupCount);
 	nGroupIndex = S.nGroupCount++;
 	S.nGroupMask = (S.nGroupMask<<1)|1;
 	MP_ASSERT(nGroupIndex < MICROPROFILE_MAX_GROUPS);
 	return nGroupIndex;
 }
 
+void MicroProfileRegisterGroup(const char* pGroup, const char* pCategory, uint32_t nColor)
+{
+	int nCategoryIndex = -1;
+	for(uint32_t i = 0; i < S.nCategoryCount; ++i)
+	{
+		if(!MP_STRCASECMP(pCategory, S.CategoryInfo[i].pName))
+		{
+			nCategoryIndex = (int)i;
+			break;
+		}
+	}
+	if(-1 == nCategoryIndex && S.nCategoryCount < MICROPROFILE_MAX_CATEGORIES)
+	{
+		MP_ASSERT(S.CategoryInfo[S.nCategoryCount].pName[0] == '\0');
+		nCategoryIndex = (int)S.nCategoryCount++;
+		uint32_t nLen = (uint32_t)strlen(pCategory);
+		if(nLen > MICROPROFILE_NAME_MAX_LEN-1)
+			nLen = MICROPROFILE_NAME_MAX_LEN-1;
+		memcpy(&S.CategoryInfo[nCategoryIndex].pName[0], pCategory, nLen);
+		S.CategoryInfo[nCategoryIndex].pName[nLen] = '\0';	
+	}
+	uint16_t nGroup = MicroProfileGetGroup(pGroup, 0 != MP_STRCASECMP(pGroup, "gpu")?MicroProfileTokenTypeCpu : MicroProfileTokenTypeGpu);
+	S.GroupInfo[nGroup].nColor = nColor;
+	if(nCategoryIndex >= 0)
+	{
+		uint64_t nBit = 1ll << nGroup;
+		uint32_t nOldCategory = S.GroupInfo[nGroup].nCategory;
+		S.CategoryInfo[nOldCategory].nGroupMask &= ~nBit;
+		S.CategoryInfo[nCategoryIndex].nGroupMask |= nBit;
+		S.GroupInfo[nGroup].nCategory = nCategoryIndex;
+	}
+}
 
 MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, uint32_t nColor, MicroProfileTokenType Type)
 {
@@ -1744,6 +1803,40 @@ bool MicroProfileGetForceEnable()
 void MicroProfileSetEnableAllGroups(bool bEnableAllGroups)
 {
 	S.nAllGroupsWanted = bEnableAllGroups ? 1 : 0;
+}
+
+void MicroProfileEnableCategory(const char* pCategory, bool bEnabled)
+{
+	int nCategoryIndex = -1;
+	for(uint32_t i = 0; i < S.nCategoryCount; ++i)
+	{
+		if(!MP_STRCASECMP(pCategory, S.CategoryInfo[i].pName))
+		{
+			nCategoryIndex = (int)i;
+			break;
+		}
+	}
+	if(nCategoryIndex >= 0)
+	{
+		if(bEnabled)
+		{
+			S.nActiveGroupWanted |= S.CategoryInfo[nCategoryIndex].nGroupMask;
+		}
+		else
+		{
+			S.nActiveGroupWanted &= ~S.CategoryInfo[nCategoryIndex].nGroupMask;
+		}
+	}
+}
+
+
+void MicroProfileEnableCategory(const char* pCategory)
+{
+	MicroProfileEnableCategory(pCategory, true);
+}
+void MicroProfileDisableCategory(const char* pCategory)
+{
+	MicroProfileEnableCategory(pCategory, false);
 }
 
 bool MicroProfileGetEnableAllGroups()

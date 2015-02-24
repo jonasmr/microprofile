@@ -158,6 +158,14 @@ struct MicroProfileStringArray
 	uint32_t nNumStrings;
 };
 
+struct MicroProfileGroupMenuItem
+{
+	uint32_t nIsCategory;
+	uint32_t nCategoryIndex;
+	uint32_t nIndex;
+	const char* pName;
+};
+
 struct MicroProfileUI
 {
 	//menu/mouse over stuff
@@ -211,6 +219,10 @@ struct MicroProfileUI
 	MicroProfileStringArray LockedToolTips[MICROPROFILE_TOOLTIP_MAX_LOCKED];	
 	uint32_t  				nLockedToolTipColor[MICROPROFILE_TOOLTIP_MAX_LOCKED];	
 	int 					LockedToolTipFront;
+
+	MicroProfileGroupMenuItem 	GroupMenu[MICROPROFILE_MAX_GROUPS + MICROPROFILE_MAX_CATEGORIES];
+	uint32_t 					GroupMenuCount;
+
 
 };
 
@@ -1777,7 +1789,43 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 		MP_ASSERT(nIndex == nOptionSize);
 	}
 
-
+	if(UI.GroupMenuCount != S.nGroupCount + S.nCategoryCount)
+	{
+		UI.GroupMenuCount = S.nGroupCount + S.nCategoryCount;
+		for(uint32_t i = 0; i < S.nCategoryCount; ++i)
+		{
+			UI.GroupMenu[i].nIsCategory = 1;
+			UI.GroupMenu[i].nCategoryIndex = i;
+			UI.GroupMenu[i].nIndex = i;
+			UI.GroupMenu[i].pName = S.CategoryInfo[i].pName;
+		}
+		for(uint32_t i = 0; i < S.nGroupCount; ++i)
+		{
+			uint32_t idx = i + S.nCategoryCount;
+			UI.GroupMenu[idx].nIsCategory = 0;
+			UI.GroupMenu[idx].nCategoryIndex = S.GroupInfo[i].nCategory;
+			UI.GroupMenu[idx].nIndex = i;
+			UI.GroupMenu[idx].pName = S.GroupInfo[i].pName;
+		}
+		std::sort(&UI.GroupMenu[0], &UI.GroupMenu[UI.GroupMenuCount], 
+			[] (const MicroProfileGroupMenuItem& l, const MicroProfileGroupMenuItem& r) -> bool
+			{
+				if(l.nCategoryIndex < r.nCategoryIndex)
+				{
+					return true;
+				}
+				else if(r.nCategoryIndex < l.nCategoryIndex)
+				{
+					return false;
+				}
+				if(r.nIsCategory || l.nIsCategory)
+				{
+					return l.nIsCategory > r.nIsCategory;
+				}
+				return MP_STRCASECMP(l.pName, r.pName)<0;
+			}
+		);
+	}
 
 	typedef std::function<const char* (int, bool&)> SubmenuCallback; 
 	typedef std::function<void(int)> ClickCallback;
@@ -1814,16 +1862,27 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 			if(index == 0)
 			{
 				bSelected = S.nAllGroupsWanted != 0;
-				return "ALL";
+				return "[ALL]";
 			}
 			else
 			{
 				index = index-1;
-				if(index < S.nGroupCount)
+				if(index < UI.GroupMenuCount)
 				{
-					bSelected = 0 != (S.nActiveGroupWanted & (1ll << index));
-					if(S.GroupInfo[index].pName[0] != '\0')
-						return S.GroupInfo[index].pName;
+					MicroProfileGroupMenuItem& Item = UI.GroupMenu[index];
+					static char buffer[MICROPROFILE_NAME_MAX_LEN+32];
+					if(Item.nIsCategory)
+					{
+						uint64_t nGroupMask = S.CategoryInfo[Item.nIndex].nGroupMask;
+						bSelected = nGroupMask == (nGroupMask & S.nActiveGroupWanted);
+						snprintf(buffer, sizeof(buffer)-1, "[%s]", Item.pName);
+					}
+					else
+					{
+						bSelected = 0 != (S.nActiveGroupWanted & (1ll << Item.nIndex));
+						snprintf(buffer, sizeof(buffer)-1, "   %s", Item.pName);
+					}
+					return buffer;
 				}
 				return 0;
 			}
@@ -1973,8 +2032,27 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 			else
 			{
 				nIndex -= 1;
-				MP_ASSERT(nIndex < S.nGroupCount);
-				S.nActiveGroupWanted ^= (1ll << nIndex);
+				if(nIndex < UI.GroupMenuCount)
+				{
+					MicroProfileGroupMenuItem& Item = UI.GroupMenu[nIndex];
+					if(Item.nIsCategory)
+					{
+						uint64_t nGroupMask = S.CategoryInfo[Item.nIndex].nGroupMask;
+						if(nGroupMask != (nGroupMask & S.nActiveGroupWanted))
+						{
+							S.nActiveGroupWanted |= nGroupMask;
+						}
+						else
+						{
+							S.nActiveGroupWanted &= ~nGroupMask;
+						}
+					}
+					else
+					{
+						MP_ASSERT(Item.nIndex < S.nGroupCount);
+						S.nActiveGroupWanted ^= (1ll << Item.nIndex);
+					}
+				}
 			}
 		},
 		[](int nIndex)

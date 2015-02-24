@@ -40,6 +40,8 @@
 #include "microprofileui.h"
 
 
+
+
 #ifdef main
 #undef main
 #endif
@@ -111,6 +113,19 @@ void HandleEvent(SDL_Event* pEvt)
 		{
 			MicroProfileDumpFile("../dump.html", "../dump.csv");
 		}
+		if(pEvt->key.keysym.sym == 't')
+		{
+			static bool toggle = false;
+			if(toggle)
+			{
+				MicroProfileEnableCategory("ThreaDS");
+			}
+			else
+			{
+				MicroProfileDisableCategory("ThreaDS");
+			}
+			toggle = !toggle;
+		}
 		break;
 
 
@@ -165,6 +180,14 @@ void StopFakeWork();
 #endif
 int main(int argc, char* argv[])
 {
+
+	MICROPROFILE_REGISTER_GROUP("Thread0", "Threads", 0x88008800);
+	MICROPROFILE_REGISTER_GROUP("Thread1", "Threads", 0x88008800);
+	MICROPROFILE_REGISTER_GROUP("Thread2", "Threads", 0x88008800);
+	MICROPROFILE_REGISTER_GROUP("Thread2xx", "Threads", 0x88008800);
+	MICROPROFILE_REGISTER_GROUP("GPU", "main", 0x88fff00f);
+	MICROPROFILE_REGISTER_GROUP("MAIN", "main", 0x88fff00f);
+
 	printf("press 'z' to toggle microprofile drawing\n");
 	printf("press 'right shift' to pause microprofile update\n");
 	printf("press 'x' to toggle profiling\n");
