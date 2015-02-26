@@ -2150,6 +2150,15 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	float fAggregateMs = fToMsCPU * (nTicks - S.nAggregateFlipTick);
 	MicroProfilePrintf(CB, Handle, "var AggregateInfo = {'Frames':%d, 'Time':%f};\n", S.nAggregateFrames, fAggregateMs);
 
+	//categories
+	MicroProfilePrintf(CB, Handle, "var CategoryInfo = Array(%d);\n",S.nCategoryCount);
+	for(uint32_t i = 0; i < S.nCategoryCount; ++i)
+	{
+		MicroProfilePrintf(CB, Handle, "CategoryInfo[%d] = \"%s\";\n", i, S.CategoryInfo[i].pName);
+	}
+
+
+
 
 	//groups
 	MicroProfilePrintf(CB, Handle, "var GroupInfo = Array(%d);\n\n",S.nGroupCount);
@@ -2158,7 +2167,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	{
 		MP_ASSERT(i == S.GroupInfo[i].nGroupIndex);
 		float fToMs = S.GroupInfo[i].Type == MicroProfileTokenTypeCpu ? fToMsCPU : fToMsGPU;
-		MicroProfilePrintf(CB, Handle, "GroupInfo[%d] = MakeGroup(%d, \"%s\", %d, %d, %f, %f);\n", S.GroupInfo[i].nGroupIndex, S.GroupInfo[i].nGroupIndex, S.GroupInfo[i].pName, S.GroupInfo[i].nNumTimers, S.GroupInfo[i].Type == MicroProfileTokenTypeGpu?1:0, fToMs * S.AggregateGroup[i] / nAggregateFrames, fToMs * S.AggregateGroupMax[i]);
+		MicroProfilePrintf(CB, Handle, "GroupInfo[%d] = MakeGroup(%d, \"%s\", %d, %d, %d, %f, %f);\n", S.GroupInfo[i].nGroupIndex, S.GroupInfo[i].nGroupIndex, S.GroupInfo[i].pName, S.GroupInfo[i].nCategory, S.GroupInfo[i].nNumTimers, S.GroupInfo[i].Type == MicroProfileTokenTypeGpu?1:0, fToMs * S.AggregateGroup[i] / nAggregateFrames, fToMs * S.AggregateGroupMax[i]);
 	}
 	//timers
 

@@ -141,9 +141,9 @@ function InvertColorIndex(hexTripletColor) {
 		return 1;
 	}
 }
-function MakeGroup(id, name, numtimers, isgpu, average, max)
+function MakeGroup(id, name, category, numtimers, isgpu, average, max)
 {
-	var group = {"id":id, "name":name, "numtimers":numtimers, "isgpu":isgpu, "average" : average, "max" : max};
+	var group = {"id":id, "name":name, "category":category, "numtimers":numtimers, "isgpu":isgpu, "average" : average, "max" : max};
 	return group;
 }
 
@@ -551,20 +551,55 @@ function InitGroupMenu()
 {
 	var ulGroupMenu = document.getElementById('GroupSubMenu');
 	var MaxLen = 7;
-
-	GroupOrder = CreateOrderArray(GroupInfo, function(a){ return a.name; } );
-
-	for(var idx in GroupOrder)
+	var MenuArray = Array();
+	for(var i = 0; i < GroupInfo.length; ++i)
 	{
-		var name = GroupInfo[GroupOrder[idx]].name;
+		var x = {};
+		x.IsCategory = 0;
+		x.category = GroupInfo[i].category;
+		x.name = GroupInfo[i].name;
+		x.index = i;
+		MenuArray.push(x);
+	}
+	console.log('cat len ' + CategoryInfo.length);
+	for(var i = 0; i < CategoryInfo.length; ++i)
+	{
+		var x = {};
+		x.IsCategory = 1;
+		x.category = i;
+		x.name = CategoryInfo[i];
+		console.log('cat name ' + x.name);
+		console.log('cat name xx' + CategoryInfo[i]);
+		x.index = i;
+		MenuArray.push(x);
+	}
+	var OrderFunction = function(a){ return a.category + "__" + a.name; };
+	var OrderFunctionMenu = function(a){ return a.IsCategory ? (a.category + '') : (a.category + "__" + a.name); };
+	GroupOrder = CreateOrderArray(GroupInfo, OrderFunction);
+	var MenuOrder = CreateOrderArray(MenuArray, OrderFunctionMenu);
+
+	for(var idx in MenuOrder)
+	{
+		var MenuItem = MenuArray[MenuOrder[idx]];
+		var name = MenuItem.name;
 		var li = document.createElement('li');
 		if(name.length > MaxLen)
 		{
 			MaxLen = name.length;
 		}
-		li.innerText = name;
+		var jsfunc = '';
+		if(MenuItem.IsCategory)
+		{				
+			li.innerText = '[' + name + ']';
+			jsfunc = "ToggleCategory";
+		}
+		else
+		{
+			li.innerText = name;
+			jsfunc = "ToggleGroup";
+		}
 		var asText = li.innerHTML;
-		var html = '<a href="#" onclick="ToggleGroup(\'' + name + '\');">' + asText + '</a>';
+		var html = '<a href="#" onclick="' + jsfunc + '(\'' + name + '\');">' + asText + '</a>';
 		li.innerHTML = html;
 		ulGroupMenu.appendChild(li);
 	}
@@ -595,7 +630,16 @@ function UpdateGroupMenu()
 		}
 		else
 		{
-			bActive = GroupsActive[inner];
+			var CategoryString = inner.length>2 ? inner.substring(1, inner.length-2) : "";
+			var CategoryIdx = CategoryIndex(CategoryString);
+			if(inner[0] == '[' && inner[inner.length-1] == ']' && CategoryIdx >= 0)
+			{
+				bActive = IsCategoryActive(CategoryIdx);
+			}
+			else
+			{
+				bActive = GroupsActive[inner];
+			}
 		}
 		if(bActive)
 		{
@@ -607,7 +651,58 @@ function UpdateGroupMenu()
 		}
 	}
 }
+function CategoryIndex(CategoryName)
+{
+	for(var i = 0; i < CategoryInfo.length; ++i)
+	{
+		if(CategoryInfo[i] == CategoryName)
+		{
+			return i;
+		}
+	}
+	return -1;
+}
+function IsCategoryActive(CategoryIdx)
+{
+	for(var i = 0; i < GroupInfo.length; ++i)
+	{
+		if(GroupInfo[i].category == CategoryIdx)
+		{
+			var Name = GroupInfo[i].name;
+			if(!GroupsActive[Name])
+			{
+				return false;
+			}
+		}
+	}
+	return true;
 
+}
+function ToggleCategory(CategoryName)
+{
+	var CategoryIdx = CategoryIndex(CategoryName);
+	if(CategoryIdx < 0)
+		return;
+	var CategoryActive = IsCategoryActive(CategoryIdx);
+	for(var i = 0; i < GroupInfo.length; ++i)
+	{
+		if(GroupInfo[i].category == CategoryIdx)
+		{
+			var Name = GroupInfo[i].name;
+			if(CategoryActive)
+			{
+				GroupsActive[Name] = false;
+			}
+			else
+			{
+				GroupsActive[Name] = true;
+			}
+		}
+	}
+	UpdateGroupMenu();
+	WriteCookie();
+	RequestRedraw();
+}
 
 function ToggleGroup(GroupName)
 {

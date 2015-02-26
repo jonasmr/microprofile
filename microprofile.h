@@ -2150,6 +2150,15 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	float fAggregateMs = fToMsCPU * (nTicks - S.nAggregateFlipTick);
 	MicroProfilePrintf(CB, Handle, "var AggregateInfo = {'Frames':%d, 'Time':%f};\n", S.nAggregateFrames, fAggregateMs);
 
+	//categories
+	MicroProfilePrintf(CB, Handle, "var CategoryInfo = Array(%d);\n",S.nCategoryCount);
+	for(uint32_t i = 0; i < S.nCategoryCount; ++i)
+	{
+		MicroProfilePrintf(CB, Handle, "CategoryInfo[%d] = \"%s\";\n", i, S.CategoryInfo[i].pName);
+	}
+
+
+
 
 	//groups
 	MicroProfilePrintf(CB, Handle, "var GroupInfo = Array(%d);\n\n",S.nGroupCount);
@@ -2158,7 +2167,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	{
 		MP_ASSERT(i == S.GroupInfo[i].nGroupIndex);
 		float fToMs = S.GroupInfo[i].Type == MicroProfileTokenTypeCpu ? fToMsCPU : fToMsGPU;
-		MicroProfilePrintf(CB, Handle, "GroupInfo[%d] = MakeGroup(%d, \"%s\", %d, %d, %f, %f);\n", S.GroupInfo[i].nGroupIndex, S.GroupInfo[i].nGroupIndex, S.GroupInfo[i].pName, S.GroupInfo[i].nNumTimers, S.GroupInfo[i].Type == MicroProfileTokenTypeGpu?1:0, fToMs * S.AggregateGroup[i] / nAggregateFrames, fToMs * S.AggregateGroupMax[i]);
+		MicroProfilePrintf(CB, Handle, "GroupInfo[%d] = MakeGroup(%d, \"%s\", %d, %d, %d, %f, %f);\n", S.GroupInfo[i].nGroupIndex, S.GroupInfo[i].nGroupIndex, S.GroupInfo[i].pName, S.GroupInfo[i].nCategory, S.GroupInfo[i].nNumTimers, S.GroupInfo[i].Type == MicroProfileTokenTypeGpu?1:0, fToMs * S.AggregateGroup[i] / nAggregateFrames, fToMs * S.AggregateGroupMax[i]);
 	}
 	//timers
 
@@ -3251,9 +3260,9 @@ const char g_MicroProfileHtml_begin_0[] =
 "		return 1;\n"
 "	}\n"
 "}\n"
-"function MakeGroup(id, name, numtimers, isgpu, average, max)\n"
+"function MakeGroup(id, name, category, numtimers, isgpu, average, max)\n"
 "{\n"
-"	var group = {\"id\":id, \"name\":name, \"numtimers\":numtimers, \"isgpu\":isgpu, \"average\" : average, \"max\" : max};\n"
+"	var group = {\"id\":id, \"name\":name, \"category\":category, \"numtimers\":numtimers, \"isgpu\":isgpu, \"average\" : average, \"max\" : max};\n"
 "	return group;\n"
 "}\n"
 "\n"
@@ -3672,20 +3681,55 @@ const char g_MicroProfileHtml_end_0[] =
 "{\n"
 "	var ulGroupMenu = document.getElementById(\'GroupSubMenu\');\n"
 "	var MaxLen = 7;\n"
-"\n"
-"	GroupOrder = CreateOrderArray(GroupInfo, function(a){ return a.name; } );\n"
-"\n"
-"	for(var idx in GroupOrder)\n"
+"	var MenuArray = Array();\n"
+"	for(var i = 0; i < GroupInfo.length; ++i)\n"
 "	{\n"
-"		var name = GroupInfo[GroupOrder[idx]].name;\n"
+"		var x = {};\n"
+"		x.IsCategory = 0;\n"
+"		x.category = GroupInfo[i].category;\n"
+"		x.name = GroupInfo[i].name;\n"
+"		x.index = i;\n"
+"		MenuArray.push(x);\n"
+"	}\n"
+"	console.log(\'cat len \' + CategoryInfo.length);\n"
+"	for(var i = 0; i < CategoryInfo.length; ++i)\n"
+"	{\n"
+"		var x = {};\n"
+"		x.IsCategory = 1;\n"
+"		x.category = i;\n"
+"		x.name = CategoryInfo[i];\n"
+"		console.log(\'cat name \' + x.name);\n"
+"		console.log(\'cat name xx\' + CategoryInfo[i]);\n"
+"		x.index = i;\n"
+"		MenuArray.push(x);\n"
+"	}\n"
+"	var OrderFunction = function(a){ return a.category + \"__\" + a.name; };\n"
+"	var OrderFunctionMenu = function(a){ return a.IsCategory ? (a.category + \'\') : (a.category + \"__\" + a.name); };\n"
+"	GroupOrder = CreateOrderArray(GroupInfo, OrderFunction);\n"
+"	var MenuOrder = CreateOrderArray(MenuArray, OrderFunctionMenu);\n"
+"\n"
+"	for(var idx in MenuOrder)\n"
+"	{\n"
+"		var MenuItem = MenuArray[MenuOrder[idx]];\n"
+"		var name = MenuItem.name;\n"
 "		var li = document.createElement(\'li\');\n"
 "		if(name.length > MaxLen)\n"
 "		{\n"
 "			MaxLen = name.length;\n"
 "		}\n"
-"		li.innerText = name;\n"
+"		var jsfunc = \'\';\n"
+"		if(MenuItem.IsCategory)\n"
+"		{				\n"
+"			li.innerText = \'[\' + name + \']\';\n"
+"			jsfunc = \"ToggleCategory\";\n"
+"		}\n"
+"		else\n"
+"		{\n"
+"			li.innerText = name;\n"
+"			jsfunc = \"ToggleGroup\";\n"
+"		}\n"
 "		var asText = li.innerHTML;\n"
-"		var html = \'<a href=\"#\" onclick=\"ToggleGroup(\\'\' + name + \'\\');\">\' + asText + \'</a>\';\n"
+"		var html = \'<a href=\"#\" onclick=\"\' + jsfunc + \'(\\'\' + name + \'\\');\">\' + asText + \'</a>\';\n"
 "		li.innerHTML = html;\n"
 "		ulGroupMenu.appendChild(li);\n"
 "	}\n"
@@ -3716,7 +3760,16 @@ const char g_MicroProfileHtml_end_0[] =
 "		}\n"
 "		else\n"
 "		{\n"
-"			bActive = GroupsActive[inner];\n"
+"			var CategoryString = inner.length>2 ? inner.substring(1, inner.length-2) : \"\";\n"
+"			var CategoryIdx = CategoryIndex(CategoryString);\n"
+"			if(inner[0] == \'[\' && inner[inner.length-1] == \']\' && CategoryIdx >= 0)\n"
+"			{\n"
+"				bActive = IsCategoryActive(CategoryIdx);\n"
+"			}\n"
+"			else\n"
+"			{\n"
+"				bActive = GroupsActive[inner];\n"
+"			}\n"
 "		}\n"
 "		if(bActive)\n"
 "		{\n"
@@ -3728,7 +3781,58 @@ const char g_MicroProfileHtml_end_0[] =
 "		}\n"
 "	}\n"
 "}\n"
+"function CategoryIndex(CategoryName)\n"
+"{\n"
+"	for(var i = 0; i < CategoryInfo.length; ++i)\n"
+"	{\n"
+"		if(CategoryInfo[i] == CategoryName)\n"
+"		{\n"
+"			return i;\n"
+"		}\n"
+"	}\n"
+"	return -1;\n"
+"}\n"
+"function IsCategoryActive(CategoryIdx)\n"
+"{\n"
+"	for(var i = 0; i < GroupInfo.length; ++i)\n"
+"	{\n"
+"		if(GroupInfo[i].category == CategoryIdx)\n"
+"		{\n"
+"			var Name = GroupInfo[i].name;\n"
+"			if(!GroupsActive[Name])\n"
+"			{\n"
+"				return false;\n"
+"			}\n"
+"		}\n"
+"	}\n"
+"	return true;\n"
 "\n"
+"}\n"
+"function ToggleCategory(CategoryName)\n"
+"{\n"
+"	var CategoryIdx = CategoryIndex(CategoryName);\n"
+"	if(CategoryIdx < 0)\n"
+"		return;\n"
+"	var CategoryActive = IsCategoryActive(CategoryIdx);\n"
+"	for(var i = 0; i < GroupInfo.length; ++i)\n"
+"	{\n"
+"		if(GroupInfo[i].category == CategoryIdx)\n"
+"		{\n"
+"			var Name = GroupInfo[i].name;\n"
+"			if(CategoryActive)\n"
+"			{\n"
+"				GroupsActive[Name] = false;\n"
+"			}\n"
+"			else\n"
+"			{\n"
+"				GroupsActive[Name] = true;\n"
+"			}\n"
+"		}\n"
+"	}\n"
+"	UpdateGroupMenu();\n"
+"	WriteCookie();\n"
+"	RequestRedraw();\n"
+"}\n"
 "\n"
 "function ToggleGroup(GroupName)\n"
 "{\n"
@@ -4573,7 +4677,11 @@ const char g_MicroProfileHtml_end_0[] =
 "\n"
 "					if(TimersMeta)\n"
 "					{\n"
-"						context.fillStyle = \'white\';\n"
+"				";
+
+const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
+const char g_MicroProfileHtml_end_1[] =
+"		context.fillStyle = \'white\';\n"
 "						for(var j = 0; j < nMetaLen; ++j)\n"
 "						{\n"
 "							DrawMeta(Timer.meta[j]);\n"
@@ -4669,11 +4777,7 @@ const char g_MicroProfileHtml_end_0[] =
 "		var nNumColors = CSwitchColors.length;\n"
 "		for(var i = 0; i < Size; ++i)\n"
 "		{\n"
-"			";
-
-const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
-const char g_MicroProfileHtml_end_1[] =
-"var TimeIn = In[i];\n"
+"			var TimeIn = In[i];\n"
 "			var TimeOut = Out[i];\n"
 "			var ActiveCpu = Cpu[i];\n"
 "\n"
@@ -5989,7 +6093,11 @@ const char g_MicroProfileHtml_end_1[] =
 "				for(var j = 0; j < NumFrames; ++j)\n"
 "				{\n"
 "					var FrameArray = DestLogStart[j];\n"
-"	\n"
+"	";
+
+const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
+const char g_MicroProfileHtml_end_2[] =
+"\n"
 "					FrameArray[nLog] = 0;\n"
 "				}\n"
 "\n"
@@ -6069,11 +6177,7 @@ const char g_MicroProfileHtml_end_1[] =
 "	//create arrays that show how far back we need to start search in order to get all markers.\n"
 "	var nNumLogs = Frames[0].ts.length;\n"
 "	for(var i = 0; i < Frames.length; i++)\n"
-"	{";
-
-const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
-const char g_MicroProfileHtml_end_2[] =
-"\n"
+"	{\n"
 "		Frames[i].FirstFrameIndex = new Array(nNumLogs);\n"
 "	}\n"
 "\n"
