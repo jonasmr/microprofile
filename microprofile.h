@@ -2167,7 +2167,18 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	{
 		MP_ASSERT(i == S.GroupInfo[i].nGroupIndex);
 		float fToMs = S.GroupInfo[i].Type == MicroProfileTokenTypeCpu ? fToMsCPU : fToMsGPU;
-		MicroProfilePrintf(CB, Handle, "GroupInfo[%d] = MakeGroup(%d, \"%s\", %d, %d, %d, %f, %f);\n", S.GroupInfo[i].nGroupIndex, S.GroupInfo[i].nGroupIndex, S.GroupInfo[i].pName, S.GroupInfo[i].nCategory, S.GroupInfo[i].nNumTimers, S.GroupInfo[i].Type == MicroProfileTokenTypeGpu?1:0, fToMs * S.AggregateGroup[i] / nAggregateFrames, fToMs * S.AggregateGroupMax[i]);
+		MicroProfilePrintf(CB, Handle, "GroupInfo[%d] = MakeGroup(%d, \"%s\", %d, %d, %d, %f, %f, '#%02x%02x%02x');\n", 
+			S.GroupInfo[i].nGroupIndex, 
+			S.GroupInfo[i].nGroupIndex, 
+			S.GroupInfo[i].pName, 
+			S.GroupInfo[i].nCategory, 
+			S.GroupInfo[i].nNumTimers, 
+			S.GroupInfo[i].Type == MicroProfileTokenTypeGpu?1:0, 
+			fToMs * S.AggregateGroup[i] / nAggregateFrames, 
+			fToMs * S.AggregateGroupMax[i],
+			MICROPROFILE_UNPACK_RED(S.GroupInfo[i].nColor) & 0xff,
+			MICROPROFILE_UNPACK_GREEN(S.GroupInfo[i].nColor) & 0xff,
+			MICROPROFILE_UNPACK_BLUE(S.GroupInfo[i].nColor) & 0xff);
 	}
 	//timers
 
@@ -3211,20 +3222,13 @@ const char g_MicroProfileHtml_begin_0[] =
 "        <li><a href=\"#\" onclick=\"SetContextSwitch(0);\">CSwitch Off</a></li>\n"
 "		<li><a href=\"#\" onclick=\"ToggleDisableMerge();\">MergeDisable</a></li>\n"
 "		<li><a href=\"#\" onclick=\"ToggleDisableLod();\">LodDisable</a></li>\n"
+"		<li id=\'GroupColors\'><a href=\"#\" onclick=\"ToggleGroupColors();\">Group Colors</a></li>\n"
+"        <li id=\'TimersMeta\'><a href=\"#\" onclick=\"ToggleTimersMeta();\">Meta</a></li>\n"
 "<!--      	<li><a href=\"#\" onclick=\"ToggleDebug();\">DEBUG</a></li> -->\n"
 "    </ul>\n"
 "</li>\n"
-"<li id=\"ilTimersOptions\"><a href=\"#\">Options&nbsp;&nbsp;&nbsp;</a>\n"
-"    <ul id=\'TimersOptions\'>\n"
-"        <li id=\'TimersMeta\'><a href=\"#\" onclick=\"ToggleTimersMeta();\">Meta</a></li>\n"
-"    </ul>\n"
-"</li>\n"
-"\n"
-"\n"
 "</ul>\n"
-"\n"
 "</div>\n"
-"\n"
 "<script>\n"
 "function InvertColor(hexTripletColor) {\n"
 "	var color = hexTripletColor;\n"
@@ -3260,15 +3264,15 @@ const char g_MicroProfileHtml_begin_0[] =
 "		return 1;\n"
 "	}\n"
 "}\n"
-"function MakeGroup(id, name, category, numtimers, isgpu, average, max)\n"
+"function MakeGroup(id, name, category, numtimers, isgpu, average, max, color)\n"
 "{\n"
-"	var group = {\"id\":id, \"name\":name, \"category\":category, \"numtimers\":numtimers, \"isgpu\":isgpu, \"average\" : average, \"max\" : max};\n"
+"	var group = {\"id\":id, \"name\":name, \"category\":category, \"numtimers\":numtimers, \"isgpu\":isgpu, \"average\" : average, \"max\" : max, \"color\":color};\n"
 "	return group;\n"
 "}\n"
 "\n"
 "function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax, callaverage, callcount, meta)\n"
 "{\n"
-"	var timer = {\"id\":id, \"name\":name, \"len\":name.length, \"color\":color, \"textcolor\":InvertColor(color), \"group\":group, \"average\":average, \"max\":max, \"exclaverage\":exclaverage, \"exclmax\":exclmax, \"callaverage\":callaverage, \"callcount\":callcount, \"meta\":meta, \"textcolorindex\":InvertColorIndex(color)};\n"
+"	var timer = {\"id\":id, \"name\":name, \"len\":name.length, \"color\":color, \"timercolor\":color, \"textcolor\":InvertColor(color), \"group\":group, \"average\":average, \"max\":max, \"exclaverage\":exclaverage, \"exclmax\":exclmax, \"callaverage\":callaverage, \"callcount\":callcount, \"meta\":meta, \"textcolorindex\":InvertColorIndex(color)};\n"
 "	return timer;\n"
 "}\n"
 "function MakeFrame(id, framestart, frameend, ts, tt, ti)\n"
@@ -3332,7 +3336,7 @@ const char g_MicroProfileHtml_end_0[] =
 "var nContextSwitchEnabled = 1;\n"
 "var DisableLod = 0;\n"
 "var DisableMerge = 0;\n"
-"\n"
+"var GroupColors = 0;\n"
 "var nModDown = 0;\n"
 "var g_MSG = \'no\';\n"
 "var nDrawCount = 0;\n"
@@ -3691,15 +3695,12 @@ const char g_MicroProfileHtml_end_0[] =
 "		x.index = i;\n"
 "		MenuArray.push(x);\n"
 "	}\n"
-"	console.log(\'cat len \' + CategoryInfo.length);\n"
 "	for(var i = 0; i < CategoryInfo.length; ++i)\n"
 "	{\n"
 "		var x = {};\n"
 "		x.IsCategory = 1;\n"
 "		x.category = i;\n"
 "		x.name = CategoryInfo[i];\n"
-"		console.log(\'cat name \' + x.name);\n"
-"		console.log(\'cat name xx\' + CategoryInfo[i]);\n"
 "		x.index = i;\n"
 "		MenuArray.push(x);\n"
 "	}\n"
@@ -3861,22 +3862,39 @@ const char g_MicroProfileHtml_end_0[] =
 "	UpdateGroupMenu();\n"
 "	WriteCookie();\n"
 "	RequestRedraw();\n"
-"\n"
+"}\n"
+"function ToggleGroupColors()\n"
+"{\n"
+"	GroupColors = !GroupColors;\n"
+"	for(var i = 0; i < TimerInfo.length; ++i)\n"
+"	{\n"
+"		if(GroupColors)\n"
+"		{\n"
+"			TimerInfo[i].color = GroupInfo[TimerInfo[i].group].color;\n"
+"		}\n"
+"		else\n"
+"		{\n"
+"			TimerInfo[i].color = TimerInfo[i].timercolor;\n"
+"		}\n"
+"	}\n"
+"	UpdateOptionsMenu();\n"
+"	RequestRedraw();\n"
 "}\n"
 "\n"
-"function UpdateTimersOptions()\n"
+"function UpdateOptionsMenu()\n"
 "{\n"
 "	var ulTimersMeta = document.getElementById(\'TimersMeta\');\n"
 "	ulTimersMeta.style[\'text-decoration\'] = TimersMeta ? \'underline\' : \'none\';\n"
-"\n"
+"	var ulGroupColors = document.getElementById(\'GroupColors\');\n"
+"	ulGroupColors.style[\'text-decoration\'] = GroupColors ? \'underline\' : \'none\';\n"
 "}\n"
 "\n"
 "function ToggleTimersMeta()\n"
 "{\n"
 "	TimersMeta = TimersMeta ? 0 : 1;\n"
 "	WriteCookie();\n"
-"	UpdateTimersOptions();\n"
-"	Invalidate = 0;\n"
+"	UpdateOptionsMenu();\n"
+"	RequestRedraw();\n"
 "}\n"
 "\n"
 "function SetMode(NewMode, Groups)\n"
@@ -3886,8 +3904,8 @@ const char g_MicroProfileHtml_end_0[] =
 "	var buttonGroups = document.getElementById(\'buttonGroups\');\n"
 "	var ilThreads = document.getElementById(\'ilThreads\');\n"
 "	var ilGroups = document.getElementById(\'ilGroups\');\n"
-"	var ilOptions = document.getElementById(\'ilOptions\');\n"
-"	var ilTimersOptions = document.getElementById(\'ilTimersOptions\');\n"
+"	// var ilOptions = document.getElementById(\'ilOptions\');\n"
+"	// var ilTimersOptions = document.getElementById(\'ilTimersOptions\');\n"
 "	if(NewMode == \'timers\' || NewMode == ModeTimers)\n"
 "	{\n"
 "		if(Groups)\n"
@@ -3904,9 +3922,9 @@ const char g_MicroProfileHtml_end_0[] =
 "		}\n"
 "		buttonDetailed.style[\'text-decoration\'] = \'none\';\n"
 "		ilThreads.style[\'display\'] = \'none\';\n"
-"		ilOptions.style[\'display\'] = \'none\';\n"
+"		// ilOptions.style[\'display\'] = \'none\';\n"
 "		ilGroups.style[\'display\'] = \'block\';\n"
-"		ilTimersOptions.style[\'display\'] = \'block\';\n"
+"		// ilTimersOptions.style[\'display\'] = \'block\';\n"
 "		Mode = ModeTimers;\n"
 "	}\n"
 "	else if(NewMode == \'detailed\' || NewMode == ModeDetailed)\n"
@@ -3916,8 +3934,8 @@ const char g_MicroProfileHtml_end_0[] =
 "		buttonDetailed.style[\'text-decoration\'] = \'underline\';\n"
 "		ilThreads.style[\'display\'] = \'block\';\n"
 "		ilGroups.style[\'display\'] = \'none\';\n"
-"		ilOptions.style[\'display\'] = \'block\';\n"
-"		ilTimersOptions.style[\'display\'] = \'none\';\n"
+"		// ilOptions.style[\'display\'] = \'block\';\n"
+"		// ilTimersOptions.style[\'display\'] = \'none\';\n"
 "		Mode = ModeDetailed;\n"
 "	}\n"
 "	WriteCookie();\n"
@@ -4664,7 +4682,11 @@ const char g_MicroProfileHtml_end_0[] =
 "					context.textAlign = \'right\';\n"
 "					context.fillStyle = Timer.color;\n"
 "					context.fillText(Timer.name, NameWidth - 5, YText);\n"
-"					context.textAlign = \'left\';\n"
+"					context.textAlign = ";
+
+const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
+const char g_MicroProfileHtml_end_1[] =
+"\'left\';\n"
 "\n"
 "					DrawTimer(Average, Timer.color);\n"
 "					DrawTimer(Max,Timer.color);\n"
@@ -4677,11 +4699,7 @@ const char g_MicroProfileHtml_end_0[] =
 "\n"
 "					if(TimersMeta)\n"
 "					{\n"
-"				";
-
-const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
-const char g_MicroProfileHtml_end_1[] =
-"		context.fillStyle = \'white\';\n"
+"						context.fillStyle = \'white\';\n"
 "						for(var j = 0; j < nMetaLen; ++j)\n"
 "						{\n"
 "							DrawMeta(Timer.meta[j]);\n"
@@ -5783,7 +5801,7 @@ const char g_MicroProfileHtml_end_1[] =
 "	SetContextSwitch(nContextSwitchEnabled);\n"
 "	SetMode(NewMode, TimersGroups);\n"
 "	SetReferenceTime(ReferenceTimeString);\n"
-"	UpdateTimersOptions();\n"
+"	UpdateOptionsMenu();\n"
 "}\n"
 "function WriteCookie()\n"
 "{\n"
@@ -6078,7 +6096,11 @@ const char g_MicroProfileHtml_end_1[] =
 "				}\n"
 "				TimeArray[nLog] = DestTimeArray;\n"
 "				IndexArray[nLog] = DestIndexArray;\n"
-"				TypeArray[nLog] = DestTypeArray;\n"
+"				TypeArray";
+
+const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
+const char g_MicroProfileHtml_end_2[] =
+"[nLog] = DestTypeArray;\n"
 "				for(var j = 0; j < NumFrames; ++j)\n"
 "				{\n"
 "					var OldStart = SourceLogStart[j][nLog];\n"
@@ -6093,11 +6115,7 @@ const char g_MicroProfileHtml_end_1[] =
 "				for(var j = 0; j < NumFrames; ++j)\n"
 "				{\n"
 "					var FrameArray = DestLogStart[j];\n"
-"	";
-
-const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
-const char g_MicroProfileHtml_end_2[] =
-"\n"
+"	\n"
 "					FrameArray[nLog] = 0;\n"
 "				}\n"
 "\n"

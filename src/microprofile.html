@@ -92,20 +92,13 @@ Click to Zoom to selected range<br>
         <li><a href="#" onclick="SetContextSwitch(0);">CSwitch Off</a></li>
 		<li><a href="#" onclick="ToggleDisableMerge();">MergeDisable</a></li>
 		<li><a href="#" onclick="ToggleDisableLod();">LodDisable</a></li>
+		<li id='GroupColors'><a href="#" onclick="ToggleGroupColors();">Group Colors</a></li>
+        <li id='TimersMeta'><a href="#" onclick="ToggleTimersMeta();">Meta</a></li>
 <!--      	<li><a href="#" onclick="ToggleDebug();">DEBUG</a></li> -->
     </ul>
 </li>
-<li id="ilTimersOptions"><a href="#">Options&nbsp;&nbsp;&nbsp;</a>
-    <ul id='TimersOptions'>
-        <li id='TimersMeta'><a href="#" onclick="ToggleTimersMeta();">Meta</a></li>
-    </ul>
-</li>
-
-
 </ul>
-
 </div>
-
 <script>
 function InvertColor(hexTripletColor) {
 	var color = hexTripletColor;
@@ -141,15 +134,15 @@ function InvertColorIndex(hexTripletColor) {
 		return 1;
 	}
 }
-function MakeGroup(id, name, category, numtimers, isgpu, average, max)
+function MakeGroup(id, name, category, numtimers, isgpu, average, max, color)
 {
-	var group = {"id":id, "name":name, "category":category, "numtimers":numtimers, "isgpu":isgpu, "average" : average, "max" : max};
+	var group = {"id":id, "name":name, "category":category, "numtimers":numtimers, "isgpu":isgpu, "average" : average, "max" : max, "color":color};
 	return group;
 }
 
 function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax, callaverage, callcount, meta)
 {
-	var timer = {"id":id, "name":name, "len":name.length, "color":color, "textcolor":InvertColor(color), "group":group, "average":average, "max":max, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "meta":meta, "textcolorindex":InvertColorIndex(color)};
+	var timer = {"id":id, "name":name, "len":name.length, "color":color, "timercolor":color, "textcolor":InvertColor(color), "group":group, "average":average, "max":max, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "meta":meta, "textcolorindex":InvertColorIndex(color)};
 	return timer;
 }
 function MakeFrame(id, framestart, frameend, ts, tt, ti)
@@ -202,7 +195,7 @@ var nMinWidthPan = 1.0;//subpixel width when panning
 var nContextSwitchEnabled = 1;
 var DisableLod = 0;
 var DisableMerge = 0;
-
+var GroupColors = 0;
 var nModDown = 0;
 var g_MSG = 'no';
 var nDrawCount = 0;
@@ -561,15 +554,12 @@ function InitGroupMenu()
 		x.index = i;
 		MenuArray.push(x);
 	}
-	console.log('cat len ' + CategoryInfo.length);
 	for(var i = 0; i < CategoryInfo.length; ++i)
 	{
 		var x = {};
 		x.IsCategory = 1;
 		x.category = i;
 		x.name = CategoryInfo[i];
-		console.log('cat name ' + x.name);
-		console.log('cat name xx' + CategoryInfo[i]);
 		x.index = i;
 		MenuArray.push(x);
 	}
@@ -731,22 +721,39 @@ function ToggleGroup(GroupName)
 	UpdateGroupMenu();
 	WriteCookie();
 	RequestRedraw();
-
+}
+function ToggleGroupColors()
+{
+	GroupColors = !GroupColors;
+	for(var i = 0; i < TimerInfo.length; ++i)
+	{
+		if(GroupColors)
+		{
+			TimerInfo[i].color = GroupInfo[TimerInfo[i].group].color;
+		}
+		else
+		{
+			TimerInfo[i].color = TimerInfo[i].timercolor;
+		}
+	}
+	UpdateOptionsMenu();
+	RequestRedraw();
 }
 
-function UpdateTimersOptions()
+function UpdateOptionsMenu()
 {
 	var ulTimersMeta = document.getElementById('TimersMeta');
 	ulTimersMeta.style['text-decoration'] = TimersMeta ? 'underline' : 'none';
-
+	var ulGroupColors = document.getElementById('GroupColors');
+	ulGroupColors.style['text-decoration'] = GroupColors ? 'underline' : 'none';
 }
 
 function ToggleTimersMeta()
 {
 	TimersMeta = TimersMeta ? 0 : 1;
 	WriteCookie();
-	UpdateTimersOptions();
-	Invalidate = 0;
+	UpdateOptionsMenu();
+	RequestRedraw();
 }
 
 function SetMode(NewMode, Groups)
@@ -756,8 +763,8 @@ function SetMode(NewMode, Groups)
 	var buttonGroups = document.getElementById('buttonGroups');
 	var ilThreads = document.getElementById('ilThreads');
 	var ilGroups = document.getElementById('ilGroups');
-	var ilOptions = document.getElementById('ilOptions');
-	var ilTimersOptions = document.getElementById('ilTimersOptions');
+	// var ilOptions = document.getElementById('ilOptions');
+	// var ilTimersOptions = document.getElementById('ilTimersOptions');
 	if(NewMode == 'timers' || NewMode == ModeTimers)
 	{
 		if(Groups)
@@ -774,9 +781,9 @@ function SetMode(NewMode, Groups)
 		}
 		buttonDetailed.style['text-decoration'] = 'none';
 		ilThreads.style['display'] = 'none';
-		ilOptions.style['display'] = 'none';
+		// ilOptions.style['display'] = 'none';
 		ilGroups.style['display'] = 'block';
-		ilTimersOptions.style['display'] = 'block';
+		// ilTimersOptions.style['display'] = 'block';
 		Mode = ModeTimers;
 	}
 	else if(NewMode == 'detailed' || NewMode == ModeDetailed)
@@ -786,8 +793,8 @@ function SetMode(NewMode, Groups)
 		buttonDetailed.style['text-decoration'] = 'underline';
 		ilThreads.style['display'] = 'block';
 		ilGroups.style['display'] = 'none';
-		ilOptions.style['display'] = 'block';
-		ilTimersOptions.style['display'] = 'none';
+		// ilOptions.style['display'] = 'block';
+		// ilTimersOptions.style['display'] = 'none';
 		Mode = ModeDetailed;
 	}
 	WriteCookie();
@@ -2649,7 +2656,7 @@ function ReadCookie()
 	SetContextSwitch(nContextSwitchEnabled);
 	SetMode(NewMode, TimersGroups);
 	SetReferenceTime(ReferenceTimeString);
-	UpdateTimersOptions();
+	UpdateOptionsMenu();
 }
 function WriteCookie()
 {
