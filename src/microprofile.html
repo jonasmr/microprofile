@@ -722,9 +722,8 @@ function ToggleGroup(GroupName)
 	WriteCookie();
 	RequestRedraw();
 }
-function ToggleGroupColors()
+function UpdateGroupColors()
 {
-	GroupColors = !GroupColors;
 	for(var i = 0; i < TimerInfo.length; ++i)
 	{
 		if(GroupColors)
@@ -735,8 +734,16 @@ function ToggleGroupColors()
 		{
 			TimerInfo[i].color = TimerInfo[i].timercolor;
 		}
+		TimerInfo[i].textcolorindex = InvertColorIndex(TimerInfo[i].color);
 	}
+}
+
+function ToggleGroupColors()
+{
+	GroupColors = !GroupColors;
+	UpdateGroupColors();
 	UpdateOptionsMenu();
+	WriteCookie();
 	RequestRedraw();
 }
 
@@ -2650,6 +2657,14 @@ function ReadCookie()
 		{
 			nContextSwitchEnabled = 1;
 		}
+		if(Obj.GroupColors)
+		{
+			GroupColors = Obj.GroupColors;
+		}
+		else
+		{
+			GroupColors = 0;
+		}
 		TimersGroups = Obj.TimersGroups?1:0;
 		TimersMeta = Obj.TimersMeta?0:1;
 	}
@@ -2657,6 +2672,7 @@ function ReadCookie()
 	SetMode(NewMode, TimersGroups);
 	SetReferenceTime(ReferenceTimeString);
 	UpdateOptionsMenu();
+	UpdateGroupColors();
 }
 function WriteCookie()
 {
@@ -2670,6 +2686,7 @@ function WriteCookie()
 	Obj.nContextSwitchEnabled = nContextSwitchEnabled;
 	Obj.TimersGroups = TimersGroups?1:0;
 	Obj.TimersMeta = TimersMeta?0:1;
+	Obj.GroupColors = GroupColors;
 	var date = new Date();
 	date.setFullYear(2099);
 	var cookie = 'fisk=' + JSON.stringify(Obj) + ';expires=' + date;

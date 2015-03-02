@@ -2315,6 +2315,9 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 #endif
 
 
+	uint32_t* nTimerCounter = (uint32_t*)alloca(sizeof(uint32_t)* S.nTotalTimers);
+	memset(nTimerCounter, 0, sizeof(uint32_t) * S.nTotalTimers);
+
 	MicroProfilePrintf(CB, Handle, "var Frames = Array(%d);\n", nNumFrames);
 	for(uint32_t i = 0; i < nNumFrames; ++i)
 	{
@@ -2369,7 +2372,9 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 				MicroProfilePrintf(CB, Handle, "%d", (uint32_t)MicroProfileLogTimerIndex(pLog->Log[k]));
 				for(k = (k+1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 				{
-					MicroProfilePrintf(CB, Handle, ",%d", (uint32_t)MicroProfileLogTimerIndex(pLog->Log[k]));
+					uint32_t nTimerIndex = (uint32_t)MicroProfileLogTimerIndex(pLog->Log[k]);
+					MicroProfilePrintf(CB, Handle, ",%d", nTimerIndex);
+					nTimerCounter[nTimerIndex]++;
 				}
 			}
 			MicroProfilePrintf(CB, Handle, "];\n");
@@ -2436,6 +2441,53 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	{
 		CB(Handle, g_MicroProfileHtml_end_sizes[i]-1, g_MicroProfileHtml_end[i]);
 	}
+
+	uint32_t* nGroupCounter = (uint32_t*)alloca(sizeof(uint32_t)* S.nGroupCount);
+
+	memset(nGroupCounter, 0, sizeof(uint32_t) * S.nGroupCount);
+	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
+	{
+		uint32_t nGroupIndex = S.TimerInfo[i].nGroupIndex;
+		nGroupCounter[nGroupIndex] += nTimerCounter[i];
+	}
+
+	uint32_t* nGroupCounterSort = (uint32_t*)alloca(sizeof(uint32_t)* S.nGroupCount);
+	uint32_t* nTimerCounterSort = (uint32_t*)alloca(sizeof(uint32_t)* S.nTotalTimers);
+	for(uint32_t i = 0; i < S.nGroupCount; ++i)
+	{
+		nGroupCounterSort[i] = i;
+	}
+	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
+	{
+		nTimerCounterSort[i] = i;
+	}
+	std::sort(nGroupCounterSort, nGroupCounterSort + S.nGroupCount, 
+		[nGroupCounter](const uint32_t l, const uint32_t r)
+		{
+			return nGroupCounter[l] > nGroupCounter[r];
+		}
+	);
+
+	std::sort(nTimerCounterSort, nTimerCounterSort + S.nTotalTimers, 
+		[nTimerCounter](const uint32_t l, const uint32_t r)
+		{
+			return nTimerCounter[l] > nTimerCounter[r];
+		}
+	);
+
+	MicroProfilePrintf(CB, Handle, "\n<!--\nMarker Per Group\n");
+	for(uint32_t i = 0; i < S.nGroupCount; ++i)
+	{
+		uint32_t idx = nGroupCounterSort[i];
+		MicroProfilePrintf(CB, Handle, "%8d:%s\n", nGroupCounter[idx], S.GroupInfo[idx].pName);
+	}
+	MicroProfilePrintf(CB, Handle, "Marker Per Timer\n");
+	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
+	{
+		uint32_t idx = nTimerCounterSort[i];
+		MicroProfilePrintf(CB, Handle, "%8d:%s(%s)\n", nTimerCounter[idx], S.TimerInfo[idx].pName, S.GroupInfo[S.TimerInfo[idx].nGroupIndex].pName);
+	}
+	MicroProfilePrintf(CB, Handle, "\n-->\n");
 
 	S.nActiveGroup = nActiveGroup;
 	S.nRunning = nRunning;
@@ -3863,9 +3915,8 @@ const char g_MicroProfileHtml_end_0[] =
 "	WriteCookie();\n"
 "	RequestRedraw();\n"
 "}\n"
-"function ToggleGroupColors()\n"
+"function UpdateGroupColors()\n"
 "{\n"
-"	GroupColors = !GroupColors;\n"
 "	for(var i = 0; i < TimerInfo.length; ++i)\n"
 "	{\n"
 "		if(GroupColors)\n"
@@ -3876,8 +3927,16 @@ const char g_MicroProfileHtml_end_0[] =
 "		{\n"
 "			TimerInfo[i].color = TimerInfo[i].timercolor;\n"
 "		}\n"
+"		TimerInfo[i].textcolorindex = InvertColorIndex(TimerInfo[i].color);\n"
 "	}\n"
+"}\n"
+"\n"
+"function ToggleGroupColors()\n"
+"{\n"
+"	GroupColors = !GroupColors;\n"
+"	UpdateGroupColors();\n"
 "	UpdateOptionsMenu();\n"
+"	WriteCookie();\n"
 "	RequestRedraw();\n"
 "}\n"
 "\n"
@@ -4679,14 +4738,14 @@ const char g_MicroProfileHtml_end_0[] =
 "					context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];\n"
 "					context.fillRect(0, Y, Width, Height);\n"
 "\n"
-"					context.textAlign = \'right\';\n"
-"					context.fillStyle = Timer.color;\n"
-"					context.fillText(Timer.name, NameWidth - 5, YText);\n"
-"					context.textAlign = ";
+"					context";
 
 const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
 const char g_MicroProfileHtml_end_1[] =
-"\'left\';\n"
+".textAlign = \'right\';\n"
+"					context.fillStyle = Timer.color;\n"
+"					context.fillText(Timer.name, NameWidth - 5, YText);\n"
+"					context.textAlign = \'left\';\n"
 "\n"
 "					DrawTimer(Average, Timer.color);\n"
 "					DrawTimer(Max,Timer.color);\n"
@@ -5795,6 +5854,14 @@ const char g_MicroProfileHtml_end_1[] =
 "		{\n"
 "			nContextSwitchEnabled = 1;\n"
 "		}\n"
+"		if(Obj.GroupColors)\n"
+"		{\n"
+"			GroupColors = Obj.GroupColors;\n"
+"		}\n"
+"		else\n"
+"		{\n"
+"			GroupColors = 0;\n"
+"		}\n"
 "		TimersGroups = Obj.TimersGroups?1:0;\n"
 "		TimersMeta = Obj.TimersMeta?0:1;\n"
 "	}\n"
@@ -5802,6 +5869,7 @@ const char g_MicroProfileHtml_end_1[] =
 "	SetMode(NewMode, TimersGroups);\n"
 "	SetReferenceTime(ReferenceTimeString);\n"
 "	UpdateOptionsMenu();\n"
+"	UpdateGroupColors();\n"
 "}\n"
 "function WriteCookie()\n"
 "{\n"
@@ -5815,6 +5883,7 @@ const char g_MicroProfileHtml_end_1[] =
 "	Obj.nContextSwitchEnabled = nContextSwitchEnabled;\n"
 "	Obj.TimersGroups = TimersGroups?1:0;\n"
 "	Obj.TimersMeta = TimersMeta?0:1;\n"
+"	Obj.GroupColors = GroupColors;\n"
 "	var date = new Date();\n"
 "	date.setFullYear(2099);\n"
 "	var cookie = \'fisk=\' + JSON.stringify(Obj) + \';expires=\' + date;\n"
@@ -6086,7 +6155,11 @@ const char g_MicroProfileHtml_end_1[] =
 "\n"
 "				for(var j = 0; j < SourceCount; ++j)\n"
 "				{\n"
-"					RemapArray[j] = DestTypeArray.length;\n"
+"					RemapArray[j] = DestTypeAr";
+
+const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
+const char g_MicroProfileHtml_end_2[] =
+"ray.length;\n"
 "					if(Duration[j] >= SplitTime)\n"
 "					{\n"
 "						DestTypeArray.push(SourceTypeArray[j]);\n"
@@ -6096,11 +6169,7 @@ const char g_MicroProfileHtml_end_1[] =
 "				}\n"
 "				TimeArray[nLog] = DestTimeArray;\n"
 "				IndexArray[nLog] = DestIndexArray;\n"
-"				TypeArray";
-
-const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
-const char g_MicroProfileHtml_end_2[] =
-"[nLog] = DestTypeArray;\n"
+"				TypeArray[nLog] = DestTypeArray;\n"
 "				for(var j = 0; j < NumFrames; ++j)\n"
 "				{\n"
 "					var OldStart = SourceLogStart[j][nLog];\n"

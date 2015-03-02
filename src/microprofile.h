@@ -2315,6 +2315,9 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 #endif
 
 
+	uint32_t* nTimerCounter = (uint32_t*)alloca(sizeof(uint32_t)* S.nTotalTimers);
+	memset(nTimerCounter, 0, sizeof(uint32_t) * S.nTotalTimers);
+
 	MicroProfilePrintf(CB, Handle, "var Frames = Array(%d);\n", nNumFrames);
 	for(uint32_t i = 0; i < nNumFrames; ++i)
 	{
@@ -2369,7 +2372,9 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 				MicroProfilePrintf(CB, Handle, "%d", (uint32_t)MicroProfileLogTimerIndex(pLog->Log[k]));
 				for(k = (k+1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 				{
-					MicroProfilePrintf(CB, Handle, ",%d", (uint32_t)MicroProfileLogTimerIndex(pLog->Log[k]));
+					uint32_t nTimerIndex = (uint32_t)MicroProfileLogTimerIndex(pLog->Log[k]);
+					MicroProfilePrintf(CB, Handle, ",%d", nTimerIndex);
+					nTimerCounter[nTimerIndex]++;
 				}
 			}
 			MicroProfilePrintf(CB, Handle, "];\n");
@@ -2436,6 +2441,53 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	{
 		CB(Handle, g_MicroProfileHtml_end_sizes[i]-1, g_MicroProfileHtml_end[i]);
 	}
+
+	uint32_t* nGroupCounter = (uint32_t*)alloca(sizeof(uint32_t)* S.nGroupCount);
+
+	memset(nGroupCounter, 0, sizeof(uint32_t) * S.nGroupCount);
+	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
+	{
+		uint32_t nGroupIndex = S.TimerInfo[i].nGroupIndex;
+		nGroupCounter[nGroupIndex] += nTimerCounter[i];
+	}
+
+	uint32_t* nGroupCounterSort = (uint32_t*)alloca(sizeof(uint32_t)* S.nGroupCount);
+	uint32_t* nTimerCounterSort = (uint32_t*)alloca(sizeof(uint32_t)* S.nTotalTimers);
+	for(uint32_t i = 0; i < S.nGroupCount; ++i)
+	{
+		nGroupCounterSort[i] = i;
+	}
+	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
+	{
+		nTimerCounterSort[i] = i;
+	}
+	std::sort(nGroupCounterSort, nGroupCounterSort + S.nGroupCount, 
+		[nGroupCounter](const uint32_t l, const uint32_t r)
+		{
+			return nGroupCounter[l] > nGroupCounter[r];
+		}
+	);
+
+	std::sort(nTimerCounterSort, nTimerCounterSort + S.nTotalTimers, 
+		[nTimerCounter](const uint32_t l, const uint32_t r)
+		{
+			return nTimerCounter[l] > nTimerCounter[r];
+		}
+	);
+
+	MicroProfilePrintf(CB, Handle, "\n<!--\nMarker Per Group\n");
+	for(uint32_t i = 0; i < S.nGroupCount; ++i)
+	{
+		uint32_t idx = nGroupCounterSort[i];
+		MicroProfilePrintf(CB, Handle, "%8d:%s\n", nGroupCounter[idx], S.GroupInfo[idx].pName);
+	}
+	MicroProfilePrintf(CB, Handle, "Marker Per Timer\n");
+	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
+	{
+		uint32_t idx = nTimerCounterSort[i];
+		MicroProfilePrintf(CB, Handle, "%8d:%s(%s)\n", nTimerCounter[idx], S.TimerInfo[idx].pName, S.GroupInfo[S.TimerInfo[idx].nGroupIndex].pName);
+	}
+	MicroProfilePrintf(CB, Handle, "\n-->\n");
 
 	S.nActiveGroup = nActiveGroup;
 	S.nRunning = nRunning;
