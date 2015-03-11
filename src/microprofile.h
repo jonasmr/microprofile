@@ -2126,6 +2126,21 @@ void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFra
 		uint64_t nTicks = S.Frames[nFrameNext].nFrameStartGpu - S.Frames[nFrame].nFrameStartGpu;
 		printf("%f,", nTicks * fToMsGPU);
 	}
+	printf("\n\n");
+	printf("Meta Snapshot\n");//only single frame snapshot
+	for(int j = 0; j < MICROPROFILE_META_MAX; ++j)
+	{
+		if(S.MetaCounters[j].pName)
+		{
+			uint64_t nSum = 0;	
+			for(uint32_t i = 0; i < S.nTotalTimers; ++i)
+			{
+				MP_ASSERT(i == S.TimerInfo[i].nTimerIndex);
+				nSum += S.MetaCounters[j].nCounters[i];
+			}
+			printf("\"%s\",%lld\n",S.MetaCounters[j].pName, nSum); 
+		}
+	}
 }
 #undef printf
 
@@ -2156,9 +2171,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	{
 		MicroProfilePrintf(CB, Handle, "CategoryInfo[%d] = \"%s\";\n", i, S.CategoryInfo[i].pName);
 	}
-
-
-
 
 	//groups
 	MicroProfilePrintf(CB, Handle, "var GroupInfo = Array(%d);\n\n",S.nGroupCount);

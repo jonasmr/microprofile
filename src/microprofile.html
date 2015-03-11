@@ -56,9 +56,13 @@ Click to Zoom to selected range<br>
 </div>
 
 </li>
-<li><a href="#" onclick="SetMode('timers');" id="buttonTimers">Timers</a> 
-<li><a href="#" onclick="SetMode('timers', 1);" id="buttonGroups">Groups</a> 
-<li><a href="#" onclick="SetMode('detailed');" id="buttonDetailed">Detailed</a> 
+<li><a href="#" id='ModeSubMenuText'>Mode</a>
+    <ul id='ModeSubMenu'>
+		<li><a href="#" onclick="SetMode('timers', 0);" id="buttonTimers">Timers</a></li>
+		<li><a href="#" onclick="SetMode('timers', 1);" id="buttonGroups">Groups</a></li> 
+		<li><a href="#" onclick="SetMode('timers', 2);" id="buttonThreads">Threads</a></li>
+		<li><a href="#" onclick="SetMode('detailed', 0);" id="buttonDetailed">Detailed</a></li>
+	</ul>
 </li>
 <li><a href="#">Reference</a>
     <ul id='ReferenceSubMenu'>
@@ -86,10 +90,9 @@ Click to Zoom to selected range<br>
         <li><a href="#">---</a></li>
     </ul>
 </li>
-<li id="ilOptions"><a href="#">Options</a>
+<li id="ilOptions"><a href="#">Options&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</a>
     <ul id='OptionsMenu'>
-        <li><a href="#" onclick="SetContextSwitch(1);">CSwitch On</a></li>
-        <li><a href="#" onclick="SetContextSwitch(0);">CSwitch Off</a></li>
+        <li><a href="#" onclick="ToggleContextSwitch();">Context Switch</a></li>
 		<li><a href="#" onclick="ToggleDisableMerge();">MergeDisable</a></li>
 		<li><a href="#" onclick="ToggleDisableLod();">LodDisable</a></li>
 		<li id='GroupColors'><a href="#" onclick="ToggleGroupColors();">Group Colors</a></li>
@@ -768,42 +771,43 @@ function SetMode(NewMode, Groups)
 	var buttonTimers = document.getElementById('buttonTimers');
 	var buttonDetailed = document.getElementById('buttonDetailed');
 	var buttonGroups = document.getElementById('buttonGroups');
+	var buttonThreads = document.getElementById('buttonThreads');
 	var ilThreads = document.getElementById('ilThreads');
 	var ilGroups = document.getElementById('ilGroups');
-	// var ilOptions = document.getElementById('ilOptions');
-	// var ilTimersOptions = document.getElementById('ilTimersOptions');
+	var ModeElement = null;
 	if(NewMode == 'timers' || NewMode == ModeTimers)
 	{
-		if(Groups)
+		TimersGroups = Groups;
+		buttonTimers.style['text-decoration'] = TimersGroups ? 'none' : 'underline';
+		buttonGroups.style['text-decoration'] = TimersGroups == 1 ? 'underline' : 'none';
+		buttonThreads.style['text-decoration'] = TimersGroups == 2 ? 'underline' : 'none';
+		buttonDetailed.style['text-decoration'] = 'none';
+		if(TimersGroups == 0)
 		{
-			TimersGroups = 1;
-			buttonTimers.style['text-decoration'] = 'none';
-			buttonGroups.style['text-decoration'] = 'underline';
+			ilThreads.style['display'] = 'none';
 		}
 		else
 		{
-			TimersGroups = 0;
-			buttonTimers.style['text-decoration'] = 'underline';
-			buttonGroups.style['text-decoration'] = 'none';
+			ilThreads.style['display'] = 'block';
 		}
-		buttonDetailed.style['text-decoration'] = 'none';
-		ilThreads.style['display'] = 'none';
-		// ilOptions.style['display'] = 'none';
 		ilGroups.style['display'] = 'block';
-		// ilTimersOptions.style['display'] = 'block';
 		Mode = ModeTimers;
+		ModeElement = TimersGroups == 2 ? buttonThreads : TimersGroups == 1 ? buttonGroups : buttonTimers;
 	}
 	else if(NewMode == 'detailed' || NewMode == ModeDetailed)
 	{
 		buttonTimers.style['text-decoration'] = 'none';
 		buttonGroups.style['text-decoration'] = 'none';
+		buttonThreads.style['text-decoration'] = 'none';
 		buttonDetailed.style['text-decoration'] = 'underline';
 		ilThreads.style['display'] = 'block';
 		ilGroups.style['display'] = 'none';
-		// ilOptions.style['display'] = 'block';
-		// ilTimersOptions.style['display'] = 'none';
 		Mode = ModeDetailed;
+		ModeElement = buttonDetailed;
 	}
+	var ModeSubMenuText = document.getElementById('ModeSubMenuText');
+	ModeSubMenuText.innerText = 'Mode[' + ModeElement.innerText + ']';
+
 	WriteCookie();
 	RequestRedraw();
 
@@ -830,21 +834,16 @@ function SetReferenceTime(TimeString)
 
 }
 
+function ToggleContextSwitch()
+{
+	SetContextSwitch(nContextSwitchEnabled ? 0 : 1);
+}
 function SetContextSwitch(Enabled)
 {
 	nContextSwitchEnabled = Enabled ? 1 : 0;
 	var ReferenceMenu = document.getElementById('OptionsMenu');
 	var Links = ReferenceMenu.getElementsByTagName('a');
-	if(nContextSwitchEnabled)
-	{
-		Links[0].style['text-decoration'] = 'underline';
-		Links[1].style['text-decoration'] = 'none';
-	}
-	else
-	{
-		Links[0].style['text-decoration'] = 'none';	
-		Links[1].style['text-decoration'] = 'underline';		
-	}
+	Links[0].style['text-decoration'] = nContextSwitchEnabled ? 'underline' : 'none';
 	WriteCookie();
 	RequestRedraw();
 }
@@ -861,11 +860,11 @@ function ToggleDisableMerge()
 	var Links = ReferenceMenu.getElementsByTagName('a');
 	if(DisableMerge)
 	{
-		Links[2].style['text-decoration'] = 'underline';
+		Links[1].style['text-decoration'] = 'underline';
 	}
 	else
 	{
-		Links[2].style['text-decoration'] = 'none';
+		Links[1].style['text-decoration'] = 'none';
 	}
 
 }
@@ -877,11 +876,11 @@ function ToggleDisableLod()
 	var Links = ReferenceMenu.getElementsByTagName('a');
 	if(DisableLod)
 	{
-		Links[3].style['text-decoration'] = 'underline';
+		Links[2].style['text-decoration'] = 'underline';
 	}
 	else
 	{
-		Links[3].style['text-decoration'] = 'none';
+		Links[2].style['text-decoration'] = 'none';
 	}
 
 }
@@ -1472,103 +1471,147 @@ function DrawBarView()
 		context.fillText(Value, X + nWidthMeta - 6 - Value.length * FontWidth, YText);
 		X += nWidthMeta;
 	}
+	var InnerBoxHeight = BoxHeight-2;
+	var TimerLen = 6;
+	var TimerWidth = TimerLen * FontWidth;
+	var nWidthBars = nBarsWidth+2;
+	var nWidthMs = TimerWidth+2+10;
 
-	for(var idx in GroupOrder)
+
+	if(2 == TimersGroups)
 	{
-		var groupid = GroupOrder[idx];
-		var Group = GroupInfo[groupid];
-		if(GroupsAllActive || GroupsActive[Group.name])
+		for(var i = 0; i < ThreadNames.length; ++i)
 		{
-			var TimerArray = Group.TimerArray;
-			var InnerBoxHeight = BoxHeight-2;
-			var TimerLen = 6;
-			var TimerWidth = TimerLen * FontWidth;
-			var nWidthBars = nBarsWidth+2;
-			var nWidthMs = TimerWidth + 2 + 10;
-			var X = 0;
-			nColorIndex = 1-nColorIndex;
-			bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
-			context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-			context.fillRect(0, Y, Width, nHeight);
-			context.fillStyle = 'white';
-			context.fillText(Group.name, 1, Y+Height-FontAscent);
-			X += NameWidth;
-			DrawTimer(Group.average, 'white');
-			DrawTimer(Group.max, 'white');
-			Y += Height;
-			if(TimersGroups)
+			if(ThreadsActive[ThreadNames[i]] || ThreadsAllActive)
 			{
-				for(var i = 0; i < ThreadNames.length; ++i)
+				var X = 0;
+				var YText = Y+Height-FontAscent;
+				bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
+				nColorIndex = 1-nColorIndex;
+				context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+				context.fillRect(0, Y, Width, Height);
+				var ThreadColor = CSwitchColors[i % CSwitchColors.length];
+				context.fillStyle = ThreadColor;
+				context.fillText(ThreadNames[i], 1, YText);
+				context.textAlign = 'left';
+				Y += Height;
+				for(var idx in GroupOrder)
 				{
+					var groupid = GroupOrder[idx];
+					var Group = GroupInfo[groupid];
 					var PerThreadTimer = ThreadGroupTimeArray[i][groupid];
-					if(PerThreadTimer > 0.0001)
+					if(PerThreadTimer > 0.0001 && (GroupsAllActive || GroupsActive[Group.name]))
 					{
-						var YText = Y+Height-FontAscent;
-						bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
+						var X = 0;
 						nColorIndex = 1-nColorIndex;
+						bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
 						context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-						context.fillRect(0, Y, Width, Height);
-						var ThreadColor = CSwitchColors[i % CSwitchColors.length];
-						context.fillStyle = ThreadColor;
+						context.fillRect(0, Y, Width, nHeight);
+						context.fillStyle = 'white';
 						context.textAlign = 'right';
-						context.fillText(ThreadNames[i], NameWidth - 5, YText);
+						context.fillText(Group.name, NameWidth - 5, Y+Height-FontAscent);
 						context.textAlign = 'left';
-
-						X = NameWidth;
-						DrawTimer(PerThreadTimer, ThreadColor);
+						X += NameWidth;
+						DrawTimer(PerThreadTimer, 'white');
 						Y += Height;
 					}
 				}
 			}
-			else
+		}
+	}
+	else
+	{
+		for(var idx in GroupOrder)
+		{
+			var groupid = GroupOrder[idx];
+			var Group = GroupInfo[groupid];
+			if(GroupsAllActive || GroupsActive[Group.name])
 			{
-
-				for(var timerindex in TimerArray)
+				var TimerArray = Group.TimerArray;
+				var X = 0;
+				nColorIndex = 1-nColorIndex;
+				bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
+				context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+				context.fillRect(0, Y, Width, nHeight);
+				context.fillStyle = 'white';
+				context.fillText(Group.name, 1, Y+Height-FontAscent);
+				X += NameWidth;
+				DrawTimer(Group.average, 'white');
+				DrawTimer(Group.max, 'white');
+				Y += Height;
+				if(TimersGroups)
 				{
-					var timerid = TimerArray[timerindex];
-					var Timer = TimerInfo[timerid];
-					var Average = Timer.average;
-					var Max = Timer.max;
-					var ExclusiveMax = Timer.exclmax;
-					var ExclusiveAverage = Timer.exclaverage;
-					var CallAverage = Timer.callaverage;
-					var CallCount = Timer.callcount;
-					var YText = Y+Height-FontAscent;
-					X = NameWidth;
-
-					nColorIndex = 1-nColorIndex;
-					bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
-					if(bMouseIn)
+					for(var i = 0; i < ThreadNames.length; ++i)
 					{
-						nHoverToken = timerid;
-					}
-					context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-					context.fillRect(0, Y, Width, Height);
-
-					context.textAlign = 'right';
-					context.fillStyle = Timer.color;
-					context.fillText(Timer.name, NameWidth - 5, YText);
-					context.textAlign = 'left';
-
-					DrawTimer(Average, Timer.color);
-					DrawTimer(Max,Timer.color);
-					DrawTimer(CallAverage,Timer.color);
-					context.fillStyle = 'white';
-					context.fillText(CallCount, X, YText);
-					X += CountWidth;
-					DrawTimer(ExclusiveAverage,Timer.color);
-					DrawTimer(ExclusiveMax,Timer.color);
-
-					if(TimersMeta)
-					{
-						context.fillStyle = 'white';
-						for(var j = 0; j < nMetaLen; ++j)
+						var PerThreadTimer = ThreadGroupTimeArray[i][groupid];
+						if(PerThreadTimer > 0.0001 && (ThreadsActive[ThreadNames[i]] || ThreadsAllActive))
 						{
-							DrawMeta(Timer.meta[j]);
+							var YText = Y+Height-FontAscent;
+							bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
+							nColorIndex = 1-nColorIndex;
+							context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+							context.fillRect(0, Y, Width, Height);
+							var ThreadColor = CSwitchColors[i % CSwitchColors.length];
+							context.fillStyle = ThreadColor;
+							context.textAlign = 'right';
+							context.fillText(ThreadNames[i], NameWidth - 5, YText);
+							context.textAlign = 'left';
+
+							X = NameWidth;
+							DrawTimer(PerThreadTimer, ThreadColor);
+							Y += Height;
 						}
 					}
-					Y += Height;
-				}			
+				}
+				else
+				{
+					for(var timerindex in TimerArray)
+					{
+						var timerid = TimerArray[timerindex];
+						var Timer = TimerInfo[timerid];
+						var Average = Timer.average;
+						var Max = Timer.max;
+						var ExclusiveMax = Timer.exclmax;
+						var ExclusiveAverage = Timer.exclaverage;
+						var CallAverage = Timer.callaverage;
+						var CallCount = Timer.callcount;
+						var YText = Y+Height-FontAscent;
+						X = NameWidth;
+
+						nColorIndex = 1-nColorIndex;
+						bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
+						if(bMouseIn)
+						{
+							nHoverToken = timerid;
+						}
+						context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+						context.fillRect(0, Y, Width, Height);
+
+						context.textAlign = 'right';
+						context.fillStyle = Timer.color;
+						context.fillText(Timer.name, NameWidth - 5, YText);
+						context.textAlign = 'left';
+
+						DrawTimer(Average, Timer.color);
+						DrawTimer(Max,Timer.color);
+						DrawTimer(CallAverage,Timer.color);
+						context.fillStyle = 'white';
+						context.fillText(CallCount, X, YText);
+						X += CountWidth;
+						DrawTimer(ExclusiveAverage,Timer.color);
+						DrawTimer(ExclusiveMax,Timer.color);
+
+						if(TimersMeta)
+						{
+							context.fillStyle = 'white';
+							for(var j = 0; j < nMetaLen; ++j)
+							{
+								DrawMeta(Timer.meta[j]);
+							}
+						}
+						Y += Height;
+					}			
+				}
 			}
 		}
 	}
@@ -1578,9 +1621,17 @@ function DrawBarView()
 	context.fillStyle = 'white';
 	if(TimersGroups)
 	{
-		DrawHeaderSplitLeftRight('Group', 'Thread', NameWidth);
-		DrawHeaderSplit('Average');
-		DrawHeaderSplit('Max');
+		if(2 == TimersGroups)
+		{
+			DrawHeaderSplitLeftRight('Thread', 'Group', NameWidth);
+			DrawHeaderSplit('Average');
+		}
+		else
+		{
+			DrawHeaderSplitLeftRight('Group', 'Thread', NameWidth);
+			DrawHeaderSplit('Average');
+			DrawHeaderSplit('Max');
+		}
 	}
 	else
 	{
@@ -2665,7 +2716,7 @@ function ReadCookie()
 		{
 			GroupColors = 0;
 		}
-		TimersGroups = Obj.TimersGroups?1:0;
+		TimersGroups = Obj.TimersGroups?Obj.TimersGroups:0;
 		TimersMeta = Obj.TimersMeta?0:1;
 	}
 	SetContextSwitch(nContextSwitchEnabled);
@@ -2684,7 +2735,7 @@ function WriteCookie()
 	Obj.GroupsActive = GroupsActive;
 	Obj.GroupsAllActive = GroupsAllActive;
 	Obj.nContextSwitchEnabled = nContextSwitchEnabled;
-	Obj.TimersGroups = TimersGroups?1:0;
+	Obj.TimersGroups = TimersGroups?TimersGroups:0;
 	Obj.TimersMeta = TimersMeta?0:1;
 	Obj.GroupColors = GroupColors;
 	var date = new Date();
