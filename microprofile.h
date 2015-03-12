@@ -4707,17 +4707,18 @@ const char g_MicroProfileHtml_end_0[] =
 "					var PerThreadTimer = ThreadGroupTimeArray[i][groupid];\n"
 "					if(PerThreadTimer > 0.0001 && (GroupsAllActive || GroupsActive[Group.name]))\n"
 "					{\n"
+"						var GColor = GroupColors ? GroupInfo[groupid].color : \'white\';\n"
 "						var X = 0;\n"
 "						nColorIndex = 1-nColorIndex;\n"
 "						bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;\n"
 "						context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];\n"
 "						context.fillRect(0, Y, Width, nHeight);\n"
-"						context.fillStyle = \'white\';\n"
+"						context.fillStyle = GColor;\n"
 "						context.textAlign = \'right\';\n"
 "						context.fillText(Group.name, NameWidth - 5, Y+Height-FontAscent);\n"
 "						context.textAlign = \'left\';\n"
 "						X += NameWidth;\n"
-"						DrawTimer(PerThreadTimer, \'white\');\n"
+"						DrawTimer(PerThreadTimer, GColor);\n"
 "						Y += Height;\n"
 "					}\n"
 "				}\n"
@@ -4730,6 +4731,7 @@ const char g_MicroProfileHtml_end_0[] =
 "		{\n"
 "			var groupid = GroupOrder[idx];\n"
 "			var Group = GroupInfo[groupid];\n"
+"			var GColor = GroupColors ? GroupInfo[groupid].color : \'white\';\n"
 "			if(GroupsAllActive || GroupsActive[Group.name])\n"
 "			{\n"
 "				var TimerArray = Group.TimerArray;\n"
@@ -4738,17 +4740,17 @@ const char g_MicroProfileHtml_end_0[] =
 "				bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;\n"
 "				context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];\n"
 "				context.fillRect(0, Y, Width, nHeight);\n"
-"				context.fillStyle = \'white\';\n"
-"				context.fillText(Group.name, 1, Y+Height-FontAscent);\n"
-"				X += NameWidth;\n"
-"				DrawTimer(Group.average, \'white\');\n"
-"				DrawTimer(Group.max, \'white\');\n"
-"				Y += Height;\n"
-"			";
+"				context.fillStyle = GColor;\n"
+"				context.fillText(Group.name, 1, Y+He";
 
 const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
 const char g_MicroProfileHtml_end_1[] =
-"	if(TimersGroups)\n"
+"ight-FontAscent);\n"
+"				X += NameWidth;\n"
+"				DrawTimer(Group.average, GColor);\n"
+"				DrawTimer(Group.max, GColor);\n"
+"				Y += Height;\n"
+"				if(TimersGroups)\n"
 "				{\n"
 "					for(var i = 0; i < ThreadNames.length; ++i)\n"
 "					{\n"
@@ -6143,17 +6145,17 @@ const char g_MicroProfileHtml_end_1[] =
 "				StackIndex[StackPos] = j;\n"
 "				StackPos++;\n"
 "			}\n"
-"			else if(type == 0)\n"
+"			els";
+
+const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
+const char g_MicroProfileHtml_end_2[] =
+"e if(type == 0)\n"
 "			{\n"
 "				if(StackPos>0)\n"
 "				{\n"
 "					StackPos--;\n"
 "					var Duration = time - Stack[StackPos];\n"
-"					DurationArray[Stac";
-
-const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
-const char g_MicroProfileHtml_end_2[] =
-"kIndex[StackPos]] = Duration;\n"
+"					DurationArray[StackIndex[StackPos]] = Duration;\n"
 "					DurationArray[j] = Duration;\n"
 "				}\n"
 "				else\n"

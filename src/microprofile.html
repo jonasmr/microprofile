@@ -1502,17 +1502,18 @@ function DrawBarView()
 					var PerThreadTimer = ThreadGroupTimeArray[i][groupid];
 					if(PerThreadTimer > 0.0001 && (GroupsAllActive || GroupsActive[Group.name]))
 					{
+						var GColor = GroupColors ? GroupInfo[groupid].color : 'white';
 						var X = 0;
 						nColorIndex = 1-nColorIndex;
 						bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
 						context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
 						context.fillRect(0, Y, Width, nHeight);
-						context.fillStyle = 'white';
+						context.fillStyle = GColor;
 						context.textAlign = 'right';
 						context.fillText(Group.name, NameWidth - 5, Y+Height-FontAscent);
 						context.textAlign = 'left';
 						X += NameWidth;
-						DrawTimer(PerThreadTimer, 'white');
+						DrawTimer(PerThreadTimer, GColor);
 						Y += Height;
 					}
 				}
@@ -1525,6 +1526,7 @@ function DrawBarView()
 		{
 			var groupid = GroupOrder[idx];
 			var Group = GroupInfo[groupid];
+			var GColor = GroupColors ? GroupInfo[groupid].color : 'white';
 			if(GroupsAllActive || GroupsActive[Group.name])
 			{
 				var TimerArray = Group.TimerArray;
@@ -1533,11 +1535,11 @@ function DrawBarView()
 				bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
 				context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
 				context.fillRect(0, Y, Width, nHeight);
-				context.fillStyle = 'white';
+				context.fillStyle = GColor;
 				context.fillText(Group.name, 1, Y+Height-FontAscent);
 				X += NameWidth;
-				DrawTimer(Group.average, 'white');
-				DrawTimer(Group.max, 'white');
+				DrawTimer(Group.average, GColor);
+				DrawTimer(Group.max, GColor);
 				Y += Height;
 				if(TimersGroups)
 				{
