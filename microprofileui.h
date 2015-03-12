@@ -1405,6 +1405,24 @@ uint32_t MicroProfileDrawBarCallCount(int32_t nX, int32_t nY, const char* pName)
 	return 5 + nTextWidth;
 }
 
+uint32_t MicroProfileDrawBarMetaAverage(int32_t nX, int32_t nY, uint64_t* pCounters, const char* pName, uint32_t nTotalHeight)
+{
+	if(!pName)
+		return 0;
+
+	MicroProfileDrawLineVertical(nX-5, nY, nTotalHeight, UI.nOpacityBackground|g_nMicroProfileBackColors[0]|g_nMicroProfileBackColors[1]);
+	uint32_t nTextWidth = (1+MICROPROFILE_TEXT_WIDTH) * MicroProfileMax<uint32_t>(6, (uint32_t)strlen(pName));
+	float fRcpFrames = 1.f / (MicroProfileGet()->nAggregateFrames ? MicroProfileGet()->nAggregateFrames : 1);
+	MicroProfileLoopActiveGroupsDraw(nX, nY, pName, 
+		[=](uint32_t nTimer, uint32_t nIdx, uint64_t nGroupMask, uint32_t nX, uint32_t nY){
+			char sBuffer[SBUF_MAX];
+			int nLen = snprintf(sBuffer, SBUF_MAX-1, "%5.2f", pCounters[nTimer] * fRcpFrames);
+			MicroProfileDrawText(nX + nTextWidth - nLen * (MICROPROFILE_TEXT_WIDTH+1), nY, (uint32_t)-1, sBuffer, nLen);
+		});
+	return 5 + nTextWidth;
+}
+
+
 uint32_t MicroProfileDrawBarMetaCount(int32_t nX, int32_t nY, uint64_t* pCounters, const char* pName, uint32_t nTotalHeight)
 {
 	if(!pName)
@@ -1639,13 +1657,34 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 	MicroProfileCalcTimers(pTimers, pAverage, pMax, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, nActiveGroup, nNumTimers);
 	{
 		uint32_t nWidth = 0;
+		uint32_t nMetaIndex = 0;
 		for(uint32_t i = 1; i ; i <<= 1)
 		{
 			if(S.nBars & i)
 			{
-				nWidth += MICROPROFILE_BAR_WIDTH + 5 + 6 * (1+MICROPROFILE_TEXT_WIDTH);
-				if(i & MP_DRAW_CALL_COUNT)
-					nWidth += 5 + 6 * MICROPROFILE_TEXT_WIDTH;
+				if(i >= MP_DRAW_META_FIRST)
+				{
+					if(nMetaIndex < MICROPROFILE_META_MAX && S.MetaCounters[nMetaIndex].pName)
+					{
+						uint32_t nStrWidth = strlen(S.MetaCounters[nMetaIndex].pName);
+						if(S.nBars & MP_DRAW_TIMERS)
+							nWidth += 6 + (1+MICROPROFILE_TEXT_WIDTH) * (nStrWidth);
+						if(S.nBars & MP_DRAW_AVERAGE)
+							nWidth += 6 + (1+MICROPROFILE_TEXT_WIDTH) * (nStrWidth + 4);
+						if(S.nBars & MP_DRAW_MAX)
+							nWidth += 6 + (1+MICROPROFILE_TEXT_WIDTH) * (nStrWidth + 4);
+					}
+				}
+				else
+				{
+					nWidth += MICROPROFILE_BAR_WIDTH + 6 + 6 * (1+MICROPROFILE_TEXT_WIDTH);
+					if(i & MP_DRAW_CALL_COUNT)
+						nWidth += 6 + 6 * MICROPROFILE_TEXT_WIDTH;
+				}
+			}
+			if(i >= MP_DRAW_META_FIRST)
+			{
+				++nMetaIndex;
 			}
 		}
 		nWidth += (1+nMaxTimerNameLen) * (MICROPROFILE_TEXT_WIDTH+1);
@@ -1688,7 +1727,20 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 	{
 		if(S.nBars & (MP_DRAW_META_FIRST<<i))
 		{
-			nX += MicroProfileDrawBarMetaCount(nX, nY, &S.MetaCounters[i].nCounters[0], S.MetaCounters[i].pName, nTotalHeight) + 1; 
+			uint32_t nBufferSize = strlen(S.MetaCounters[i].pName) + 32;
+			char* buffer = (char*)alloca(nBufferSize);
+			if(S.nBars & MP_DRAW_TIMERS)
+				nX += MicroProfileDrawBarMetaCount(nX, nY, &S.MetaCounters[i].nCounters[0], S.MetaCounters[i].pName, nTotalHeight) + 1; 
+			if(S.nBars & MP_DRAW_AVERAGE)
+			{
+				snprintf(buffer, nBufferSize-1, "%s Avg", S.MetaCounters[i].pName);
+				nX += MicroProfileDrawBarMetaAverage(nX, nY, &S.MetaCounters[i].nAggregate[0], buffer, nTotalHeight) + 1; 
+			}
+			if(S.nBars & MP_DRAW_MAX)				
+			{
+				snprintf(buffer, nBufferSize-1, "%s Max", S.MetaCounters[i].pName);
+				nX += MicroProfileDrawBarMetaCount(nX, nY, &S.MetaCounters[i].nAggregateMax[0], buffer, nTotalHeight) + 1; 
+			}
 		}
 	}
 	nX += MicroProfileDrawBarLegend(nX, nY, nTotalHeight) + 1;

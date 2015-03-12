@@ -143,6 +143,8 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileGetEnableAllGroups() false
 #define MicroProfileSetForceMetaCounters(a)
 #define MicroProfileGetForceMetaCounters() 0
+#define MicroProfileEnableMetaCounter(c) do{}while(0)
+#define MicroProfileDisableMetaCounter(c) do{}while(0)
 #define MicroProfileDumpFile(html,csv) do{} while(0)
 #define MicroProfileWebServerPort() ((uint32_t)-1)
 
@@ -357,6 +359,8 @@ MICROPROFILE_API void MicroProfileDisableCategory(const char* pCategory);
 MICROPROFILE_API bool MicroProfileGetEnableAllGroups();
 MICROPROFILE_API void MicroProfileSetForceMetaCounters(bool bEnable); 
 MICROPROFILE_API bool MicroProfileGetForceMetaCounters();
+MICROPROFILE_API void MicroProfileEnableMetaCounter(const char* pMet);
+MICROPROFILE_API void MicroProfileDisableMetaCounter(const char* pMet);
 MICROPROFILE_API void MicroProfileSetAggregateFrames(int frames);
 MICROPROFILE_API int MicroProfileGetAggregateFrames();
 MICROPROFILE_API int MicroProfileGetCurrentAggregateFrames();
@@ -715,6 +719,19 @@ struct MicroProfile
 	struct 
 	{
 		uint64_t nCounters[MICROPROFILE_MAX_TIMERS];
+
+		uint64_t nAccum[MICROPROFILE_MAX_TIMERS];
+		uint64_t nAccumMax[MICROPROFILE_MAX_TIMERS];
+
+		uint64_t nAggregate[MICROPROFILE_MAX_TIMERS];
+		uint64_t nAggregateMax[MICROPROFILE_MAX_TIMERS];
+
+		uint64_t nSum;
+		uint64_t nSumAccum;
+		uint64_t nSumAccumMax;
+		uint64_t nSumAggregate;
+		uint64_t nSumAggregateMax;
+
 		const char* pName;
 	} MetaCounters[MICROPROFILE_META_MAX];
 
@@ -1561,14 +1578,16 @@ void MicroProfileFlip()
 				}
 				for(uint32_t j = 0; j < MICROPROFILE_META_MAX; ++j)
 				{
-					if(S.MetaCounters[j].pName)
+					if(S.MetaCounters[j].pName && 0 != (S.nActiveBars & (MP_DRAW_META_FIRST<<j)))
 					{
+						auto& Meta = S.MetaCounters[j];
 						for(uint32_t i = 0; i < S.nTotalTimers; ++i)
 						{
-							S.MetaCounters[j].nCounters[i] = 0;
+							Meta.nCounters[i] = 0;
 						}
 					}
 				}
+
 			}
 			{
 				MICROPROFILE_SCOPE(g_MicroProfileThreadLoop);
@@ -1697,6 +1716,24 @@ void MicroProfileFlip()
 					S.AccumGroup[i] += pFrameGroup[i];
 					S.AccumGroupMax[i] = MicroProfileMax(S.AccumGroupMax[i], pFrameGroup[i]);
 				}
+
+				for(uint32_t j = 0; j < MICROPROFILE_META_MAX; ++j)
+				{
+					if(S.MetaCounters[j].pName && 0 != (S.nActiveBars & (MP_DRAW_META_FIRST<<j)))
+					{
+						auto& Meta = S.MetaCounters[j];
+						uint64_t nSum = 0;;
+						for(uint32_t i = 0; i < S.nTotalTimers; ++i)
+						{
+							uint64_t nCounter = Meta.nCounters[i];
+							Meta.nAccumMax[i] = MicroProfileMax(Meta.nAccumMax[i], nCounter);
+							Meta.nAccum[i] += nCounter;
+							nSum += nCounter;
+						}
+						Meta.nSumAccum += nSum;
+						Meta.nSumAccumMax = MicroProfileMax(Meta.nSumAccumMax, nSum);
+					}
+				}			
 			}
 			for(uint32_t i = 0; i < MICROPROFILE_MAX_GRAPHS; ++i)
 			{
@@ -1743,6 +1780,26 @@ void MicroProfileFlip()
 				memset(&pLog->nGroupTicks[0], 0, sizeof(pLog->nGroupTicks));
 			}
 		}
+
+		for(uint32_t j = 0; j < MICROPROFILE_META_MAX; ++j)
+		{
+			if(S.MetaCounters[j].pName && 0 != (S.nActiveBars & (MP_DRAW_META_FIRST<<j)))
+			{
+				auto& Meta = S.MetaCounters[j];
+				memcpy(&Meta.nAggregateMax[0], &Meta.nAccumMax[0], sizeof(Meta.nAggregateMax[0]) * S.nTotalTimers);
+				memcpy(&Meta.nAggregate[0], &Meta.nAccum[0], sizeof(Meta.nAggregate[0]) * S.nTotalTimers);
+				Meta.nSumAggregate = Meta.nSumAccum;
+				Meta.nSumAggregateMax = Meta.nSumAccumMax;
+				if(nAggregateClear)
+				{
+					memset(&Meta.nAccumMax[0], 0, sizeof(Meta.nAccumMax[0]) * S.nTotalTimers);
+					memset(&Meta.nAccum[0], 0, sizeof(Meta.nAccum[0]) * S.nTotalTimers);
+ 					Meta.nSumAccum = 0;
+ 					Meta.nSumAccumMax = 0;
+				}
+			}
+		}
+
 
 
 
@@ -1853,6 +1910,30 @@ bool MicroProfileGetForceMetaCounters()
 {
 	return 0 != S.nForceMetaCounters;
 }
+
+void MicroProfileEnableMetaCounter(const char* pMeta)
+{
+	for(uint32_t i = 0; i < MICROPROFILE_META_MAX; ++i)
+	{
+		if(S.MetaCounters[i].pName && 0 == MP_STRCASECMP(S.MetaCounters[i].pName, pMeta))
+		{
+			S.nBars |= (MP_DRAW_META_FIRST<<i);
+			return;
+		}
+	}
+}
+void MicroProfileDisableMetaCounter(const char* pMeta)
+{
+	for(uint32_t i = 0; i < MICROPROFILE_META_MAX; ++i)
+	{
+		if(S.MetaCounters[i].pName && 0 == MP_STRCASECMP(S.MetaCounters[i].pName, pMeta))
+		{
+			S.nBars &= ~(MP_DRAW_META_FIRST<<i);
+			return;
+		}
+	}
+}
+
 
 void MicroProfileSetAggregateFrames(int nFrames)
 {
@@ -2127,18 +2208,13 @@ void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFra
 		printf("%f,", nTicks * fToMsGPU);
 	}
 	printf("\n\n");
-	printf("Meta Snapshot\n");//only single frame snapshot
+	printf("Meta\n");//only single frame snapshot
+	printf("name,average,max,total\n");
 	for(int j = 0; j < MICROPROFILE_META_MAX; ++j)
 	{
 		if(S.MetaCounters[j].pName)
 		{
-			uint64_t nSum = 0;	
-			for(uint32_t i = 0; i < S.nTotalTimers; ++i)
-			{
-				MP_ASSERT(i == S.TimerInfo[i].nTimerIndex);
-				nSum += S.MetaCounters[j].nCounters[i];
-			}
-			printf("\"%s\",%lld\n",S.MetaCounters[j].pName, nSum); 
+			printf("\"%s\",%f,%lld,%lld\n",S.MetaCounters[j].pName, S.MetaCounters[j].nSumAggregate / (float)nAggregateFrames, S.MetaCounters[j].nSumAggregateMax,S.MetaCounters[j].nSumAggregate);
 		}
 	}
 }
