@@ -2251,6 +2251,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	//groups
 	MicroProfilePrintf(CB, Handle, "var GroupInfo = Array(%d);\n\n",S.nGroupCount);
 	uint32_t nAggregateFrames = S.nAggregateFrames ? S.nAggregateFrames : 1;
+	float fRcpAggregateFrames = 1.f / nAggregateFrames;
 	for(uint32_t i = 0; i < S.nGroupCount; ++i)
 	{
 		MP_ASSERT(i == S.GroupInfo[i].nGroupIndex);
@@ -2299,7 +2300,32 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 			}
 		}
 		MicroProfilePrintf(CB, Handle, "];\n");
-		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x', %f, %f, %f, %f, %f, %d, Meta%d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
+		MicroProfilePrintf(CB, Handle, "var MetaAvg%d = [", i);
+		bOnce = true;
+		for(int j = 0; j < MICROPROFILE_META_MAX; ++j)
+		{
+			if(S.MetaCounters[j].pName)
+			{
+				MicroProfilePrintf(CB, Handle, bOnce ? "%f" : ",%f", fRcpAggregateFrames * S.MetaCounters[j].nAggregate[i]);
+				bOnce = false;
+			}
+		}
+		MicroProfilePrintf(CB, Handle, "];\n");
+		MicroProfilePrintf(CB, Handle, "var MetaMax%d = [", i);
+		bOnce = true;
+		for(int j = 0; j < MICROPROFILE_META_MAX; ++j)
+		{
+			if(S.MetaCounters[j].pName)
+			{
+				MicroProfilePrintf(CB, Handle, bOnce ? "%d" : ",%d", S.MetaCounters[j].nAggregateMax[i]);
+				bOnce = false;
+			}
+		}
+		MicroProfilePrintf(CB, Handle, "];\n");
+
+
+
+		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x', %f, %f, %f, %f, %f, %d, Meta%d, MetaAvg%d, MetaMax%d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
 		MICROPROFILE_UNPACK_RED(S.TimerInfo[i].nColor) & 0xff,
 		MICROPROFILE_UNPACK_GREEN(S.TimerInfo[i].nColor) & 0xff,
 		MICROPROFILE_UNPACK_BLUE(S.TimerInfo[i].nColor) & 0xff,
@@ -2309,7 +2335,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 		pMaxExclusive[nIdx],
 		pCallAverage[nIdx],
 		S.Aggregate[i].nCount,
-		i
+		i,i,i
 		);
 
 	}
@@ -3413,9 +3439,9 @@ const char g_MicroProfileHtml_begin_0[] =
 "	return group;\n"
 "}\n"
 "\n"
-"function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax, callaverage, callcount, meta)\n"
+"function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax, callaverage, callcount, meta, metaavg, metamax)\n"
 "{\n"
-"	var timer = {\"id\":id, \"name\":name, \"len\":name.length, \"color\":color, \"timercolor\":color, \"textcolor\":InvertColor(color), \"group\":group, \"average\":average, \"max\":max, \"exclaverage\":exclaverage, \"exclmax\":exclmax, \"callaverage\":callaverage, \"callcount\":callcount, \"meta\":meta, \"textcolorindex\":InvertColorIndex(color)};\n"
+"	var timer = {\"id\":id, \"name\":name, \"len\":name.length, \"color\":color, \"timercolor\":color, \"textcolor\":InvertColor(color), \"group\":group, \"average\":average, \"max\":max, \"exclaverage\":exclaverage, \"exclmax\":exclmax, \"callaverage\":callaverage, \"callcount\":callcount, \"meta\":meta, \"textcolorindex\":InvertColorIndex(color), \"metaavg\":metaavg, \"metamax\":metamax};\n"
 "	return timer;\n"
 "}\n"
 "function MakeFrame(id, framestart, frameend, ts, tt, ti)\n"
@@ -4894,6 +4920,8 @@ const char g_MicroProfileHtml_end_1[] =
 "							for(var j = 0; j < nMetaLen; ++j)\n"
 "							{\n"
 "								DrawMeta(Timer.meta[j]);\n"
+"								DrawMeta(Timer.metaavg[j]);\n"
+"								DrawMeta(Timer.metamax[j]);\n"
 "							}\n"
 "						}\n"
 "						Y += Height;\n"
@@ -4934,6 +4962,8 @@ const char g_MicroProfileHtml_end_1[] =
 "			for(var i = 0; i < nMetaLen; ++i)\n"
 "			{\n"
 "				DrawHeaderSplitSingle(MetaNames[i], nWidthMeta);\n"
+"				DrawHeaderSplitSingle(MetaNames[i] + \" Avg\", nWidthMeta+4);\n"
+"				DrawHeaderSplitSingle(MetaNames[i] + \" Max\", nWidthMeta+4);\n"
 "			}\n"
 "		}\n"
 "	}\n"
@@ -6210,7 +6240,11 @@ const char g_MicroProfileHtml_end_1[] =
 "		var TypeArray = LodData[0].TypeArray[nLog];\n"
 "		var TimeArray = LodData[0].TimeArray[nLog];\n"
 "		var DurationArray = Array(LodData[0].TypeArray[nLog].length);\n"
-"		for(var j = 0; j < TypeArray.length; ++j)\n"
+"		for(var j = 0; j < T";
+
+const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
+const char g_MicroProfileHtml_end_2[] =
+"ypeArray.length; ++j)\n"
 "		{\n"
 "			var type = TypeArray[j];\n"
 "			var time = TimeArray[j];\n"
@@ -6221,11 +6255,7 @@ const char g_MicroProfileHtml_end_1[] =
 "				StackIndex[StackPos] = j;\n"
 "				StackPos++;\n"
 "			}\n"
-"			els";
-
-const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
-const char g_MicroProfileHtml_end_2[] =
-"e if(type == 0)\n"
+"			else if(type == 0)\n"
 "			{\n"
 "				if(StackPos>0)\n"
 "				{\n"

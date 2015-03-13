@@ -2251,6 +2251,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	//groups
 	MicroProfilePrintf(CB, Handle, "var GroupInfo = Array(%d);\n\n",S.nGroupCount);
 	uint32_t nAggregateFrames = S.nAggregateFrames ? S.nAggregateFrames : 1;
+	float fRcpAggregateFrames = 1.f / nAggregateFrames;
 	for(uint32_t i = 0; i < S.nGroupCount; ++i)
 	{
 		MP_ASSERT(i == S.GroupInfo[i].nGroupIndex);
@@ -2299,7 +2300,32 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 			}
 		}
 		MicroProfilePrintf(CB, Handle, "];\n");
-		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x', %f, %f, %f, %f, %f, %d, Meta%d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
+		MicroProfilePrintf(CB, Handle, "var MetaAvg%d = [", i);
+		bOnce = true;
+		for(int j = 0; j < MICROPROFILE_META_MAX; ++j)
+		{
+			if(S.MetaCounters[j].pName)
+			{
+				MicroProfilePrintf(CB, Handle, bOnce ? "%f" : ",%f", fRcpAggregateFrames * S.MetaCounters[j].nAggregate[i]);
+				bOnce = false;
+			}
+		}
+		MicroProfilePrintf(CB, Handle, "];\n");
+		MicroProfilePrintf(CB, Handle, "var MetaMax%d = [", i);
+		bOnce = true;
+		for(int j = 0; j < MICROPROFILE_META_MAX; ++j)
+		{
+			if(S.MetaCounters[j].pName)
+			{
+				MicroProfilePrintf(CB, Handle, bOnce ? "%d" : ",%d", S.MetaCounters[j].nAggregateMax[i]);
+				bOnce = false;
+			}
+		}
+		MicroProfilePrintf(CB, Handle, "];\n");
+
+
+
+		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x', %f, %f, %f, %f, %f, %d, Meta%d, MetaAvg%d, MetaMax%d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
 		MICROPROFILE_UNPACK_RED(S.TimerInfo[i].nColor) & 0xff,
 		MICROPROFILE_UNPACK_GREEN(S.TimerInfo[i].nColor) & 0xff,
 		MICROPROFILE_UNPACK_BLUE(S.TimerInfo[i].nColor) & 0xff,
@@ -2309,7 +2335,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 		pMaxExclusive[nIdx],
 		pCallAverage[nIdx],
 		S.Aggregate[i].nCount,
-		i
+		i,i,i
 		);
 
 	}

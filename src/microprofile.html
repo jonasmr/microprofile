@@ -143,9 +143,9 @@ function MakeGroup(id, name, category, numtimers, isgpu, average, max, color)
 	return group;
 }
 
-function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax, callaverage, callcount, meta)
+function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax, callaverage, callcount, meta, metaavg, metamax)
 {
-	var timer = {"id":id, "name":name, "len":name.length, "color":color, "timercolor":color, "textcolor":InvertColor(color), "group":group, "average":average, "max":max, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "meta":meta, "textcolorindex":InvertColorIndex(color)};
+	var timer = {"id":id, "name":name, "len":name.length, "color":color, "timercolor":color, "textcolor":InvertColor(color), "group":group, "average":average, "max":max, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "meta":meta, "textcolorindex":InvertColorIndex(color), "metaavg":metaavg, "metamax":metamax};
 	return timer;
 }
 function MakeFrame(id, framestart, frameend, ts, tt, ti)
@@ -1609,6 +1609,8 @@ function DrawBarView()
 							for(var j = 0; j < nMetaLen; ++j)
 							{
 								DrawMeta(Timer.meta[j]);
+								DrawMeta(Timer.metaavg[j]);
+								DrawMeta(Timer.metamax[j]);
 							}
 						}
 						Y += Height;
@@ -1649,6 +1651,8 @@ function DrawBarView()
 			for(var i = 0; i < nMetaLen; ++i)
 			{
 				DrawHeaderSplitSingle(MetaNames[i], nWidthMeta);
+				DrawHeaderSplitSingle(MetaNames[i] + " Avg", nWidthMeta+4);
+				DrawHeaderSplitSingle(MetaNames[i] + " Max", nWidthMeta+4);
 			}
 		}
 	}
