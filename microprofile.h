@@ -681,6 +681,7 @@ struct MicroProfile
 	uint32_t nToggleRunning;
 	uint32_t nMaxGroupSize;
 	uint32_t nDumpFileNextFrame;
+	uint32_t nAutoClearFrames;
 	char HtmlDumpPath[512];
 	char CsvDumpPath[512];
 
@@ -1483,11 +1484,12 @@ void MicroProfileFlip()
 			}
 		}
 	}
-	uint32_t nAggregateClear = S.nAggregateClear, nAggregateFlip = 0;
+	uint32_t nAggregateClear = S.nAggregateClear || S.nAutoClearFrames, nAggregateFlip = 0;
 	if(S.nDumpFileNextFrame)
 	{
 		MicroProfileDumpToFile();
 		S.nDumpFileNextFrame = 0;
+		S.nAutoClearFrames = MICROPROFILE_GPU_FRAME_DELAY + 3;
 	}
 	if(S.nWebServerDataSent == (uint64_t)-1)
 	{
@@ -1497,9 +1499,16 @@ void MicroProfileFlip()
 
 	if(MicroProfileWebServerUpdate())
 	{	
+		S.nAutoClearFrames = MICROPROFILE_GPU_FRAME_DELAY + 3;
+	}
+
+	if(S.nAutoClearFrames)
+	{
 		nAggregateClear = 1;
 		nAggregateFlip = 1;
+		S.nAutoClearFrames -= 1;
 	}
+
 
 	if(S.nRunning || S.nForceEnable)
 	{
