@@ -1489,7 +1489,7 @@ void MicroProfileFlip()
 	{
 		MicroProfileDumpToFile();
 		S.nDumpFileNextFrame = 0;
-		S.nAutoClearFrames = MICROPROFILE_GPU_FRAME_DELAY + 3;
+		S.nAutoClearFrames = MICROPROFILE_GPU_FRAME_DELAY + 3; //hide spike from dumping webpage
 	}
 	if(S.nWebServerDataSent == (uint64_t)-1)
 	{
@@ -1499,7 +1499,7 @@ void MicroProfileFlip()
 
 	if(MicroProfileWebServerUpdate())
 	{	
-		S.nAutoClearFrames = MICROPROFILE_GPU_FRAME_DELAY + 3;
+		S.nAutoClearFrames = MICROPROFILE_GPU_FRAME_DELAY + 3; //hide spike from dumping webpage
 	}
 
 	if(S.nAutoClearFrames)
