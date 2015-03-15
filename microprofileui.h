@@ -1755,7 +1755,7 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 	{
 		uint32_t nY0 = nY + i * (nHeight + 1);
 		bool bInside = (UI.nActiveMenu == -1) && ((UI.nMouseY >= nY0) && (UI.nMouseY < (nY0 + nHeight + 1)));
-		MicroProfileDrawBox(nX, nY0, nTimerWidth, nY0 + (nHeight+1)+1, UI.nOpacityBackground | (g_nMicroProfileBackColors[nColorIndex++ & 1] + ((bInside) ? 0x002c2c2c : 0)));
+		MicroProfileDrawBox(nX, nY0, nTimerWidth, nY0 + (nHeight+1)+1, 0xff0000000 | (g_nMicroProfileBackColors[nColorIndex++ & 1] + ((bInside) ? 0x002c2c2c : 0)));
 	}
 	nX += MicroProfileDrawBarLegend(nX, nY, nTotalHeight, nTimerWidth-5) + 1;
 
