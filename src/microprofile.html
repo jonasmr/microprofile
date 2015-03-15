@@ -170,6 +170,7 @@ var nHeight = CanvasDetailedView.height;
 var ReferenceTime = 33;
 var nHistoryHeight = 70;
 var nOffsetY = 0;
+var nOffsetBarsX = 0;
 var nOffsetBarsY = 0;
 var nBarsWidth = 80;
 var NameWidth = 200;
@@ -1399,6 +1400,11 @@ function DrawBarView()
 
 
 	var Y = -nOffsetBarsY + BoxHeight;
+	if(TimersGroups)
+	{
+		nOffsetBarsX = 0;
+	}
+	var XBase = -nOffsetBarsX;
 	var nColorIndex = 0;
 
 	context.fillStyle = 'white';
@@ -1421,7 +1427,10 @@ function DrawBarView()
 		X += nWidthBars;
 		context.fillStyle = nBackColorOffset;
 		X += nWidthMs;
-		context.fillRect(X-3, 0, 1, nHeight);
+		if(X >= NameWidth)
+		{
+			context.fillRect(X-3, 0, 1, nHeight);
+		}
 	}
 	function DrawHeaderSplitSingle(Header, Width)
 	{
@@ -1429,7 +1438,10 @@ function DrawBarView()
 		context.fillText(Header, X, Height-FontAscent);
 		X += Width;
 		context.fillStyle = nBackColorOffset;
-		context.fillRect(X-3, 0, 1, nHeight);
+		if(X >= NameWidth)
+		{
+			context.fillRect(X-3, 0, 1, nHeight);
+		}
 	}
 	function DrawHeaderSplitLeftRight(HeaderLeft, HeaderRight, Width)
 	{
@@ -1441,7 +1453,10 @@ function DrawBarView()
 		context.fillText(HeaderRight, X-5, Height-FontAscent);
 		context.textAlign = 'left';
 		context.fillStyle = nBackColorOffset;
-		context.fillRect(X-3, 0, 1, nHeight);
+		if(X >= NameWidth)
+		{
+			context.fillRect(X-3, 0, 1, nHeight);
+		}
 	}
 	function DrawTimer(Value, Color)
 	{
@@ -1530,7 +1545,7 @@ function DrawBarView()
 			if(GroupsAllActive || GroupsActive[Group.name])
 			{
 				var TimerArray = Group.TimerArray;
-				var X = 0;
+				var X = XBase;
 				nColorIndex = 1-nColorIndex;
 				bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
 				context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
@@ -1540,6 +1555,14 @@ function DrawBarView()
 				X += NameWidth;
 				DrawTimer(Group.average, GColor);
 				DrawTimer(Group.max, GColor);
+
+				context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+				context.fillRect(0, Y, NameWidth, nHeight);
+				context.fillStyle = GColor;
+				context.fillText(Group.name, 1, Y+Height-FontAscent);
+
+
+
 				Y += Height;
 				if(TimersGroups)
 				{
@@ -1578,7 +1601,7 @@ function DrawBarView()
 						var CallAverage = Timer.callaverage;
 						var CallCount = Timer.callcount;
 						var YText = Y+Height-FontAscent;
-						X = NameWidth;
+						X = NameWidth + XBase;
 
 						nColorIndex = 1-nColorIndex;
 						bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
@@ -1588,11 +1611,6 @@ function DrawBarView()
 						}
 						context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
 						context.fillRect(0, Y, Width, Height);
-
-						context.textAlign = 'right';
-						context.fillStyle = Timer.color;
-						context.fillText(Timer.name, NameWidth - 5, YText);
-						context.textAlign = 'left';
 
 						DrawTimer(Average, Timer.color);
 						DrawTimer(Max,Timer.color);
@@ -1613,6 +1631,14 @@ function DrawBarView()
 								DrawMeta(Timer.metamax[j]);
 							}
 						}
+						context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+						context.fillRect(0, Y, NameWidth, Height);
+						context.textAlign = 'right';
+						context.fillStyle = Timer.color;
+						context.fillText(Timer.name, NameWidth - 5, YText);
+						context.textAlign = 'left';
+
+
 						Y += Height;
 					}			
 				}
@@ -1639,7 +1665,7 @@ function DrawBarView()
 	}
 	else
 	{
-		DrawHeaderSplitLeftRight('Group', 'Timer', NameWidth);
+		X = NameWidth + XBase;
 		DrawHeaderSplit('Average');
 		DrawHeaderSplit('Max');
 		DrawHeaderSplit('Call Average');
@@ -1655,6 +1681,13 @@ function DrawBarView()
 				DrawHeaderSplitSingle(MetaNames[i] + " Max", nWidthMeta+4);
 			}
 		}
+		X = 0;
+		context.fillStyle = nBackColorOffset;
+		context.fillRect(0, 0, NameWidth, Height);
+		context.fillStyle = 'white';
+	
+		DrawHeaderSplitLeftRight('Group', 'Timer', NameWidth);
+	
 	}
 
 	ProfileLeave();
@@ -2389,9 +2422,14 @@ function MouseHandleDrag()
 				var X = MouseDragX - MouseDragXLast;
 				var Y = MouseDragY - MouseDragYLast;
 				nOffsetBarsY -= Y;
+				nOffsetBarsX -= X;
 				if(nOffsetBarsY < 0)
 				{
 					nOffsetBarsY = 0;
+				}
+				if(nOffsetBarsX < 0)
+				{
+					nOffsetBarsX = 0;
 				}
 			}
 
