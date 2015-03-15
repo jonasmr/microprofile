@@ -269,6 +269,9 @@ var GroupOrder = Array();
 var ThreadOrder = Array();
 var TimersGroups = 0;
 var TimersMeta = 1;
+var MetaLengths = Array();
+var MetaLengthsAvg = Array();
+var MetaLengthsMax = Array();
 
 
 function ProfileModeClear()
@@ -1369,6 +1372,18 @@ function DrawHoverToolTip()
 	ProfileLeave();
 }
 
+function FormatMeta(Value, Dec)
+{
+	if(!Value)
+	{
+		Value = "0";
+	}
+	else
+	{
+		Value = '' + Value.toFixed(Dec);
+	}
+	return Value;
+}
 
 function DrawBarView()
 {
@@ -1473,18 +1488,13 @@ function DrawBarView()
 		context.fillText(("      " + Value.toFixed(2)).slice(-TimerLen), X, YText);
 		X += nWidthMs;
 	}
-	function DrawMeta(Value)
+	function DrawMeta(Value, Width, Dec)
 	{
-		if(!Value)
-		{
-			Value = "0";
-		}
-		else
-		{
-			Value = '' + Value;
-		}
-		context.fillText(Value, X + nWidthMeta - 6 - Value.length * FontWidth, YText);
-		X += nWidthMeta;
+		Value = FormatMeta(Value, Dec);
+		X += (FontWidth*Width);
+		context.textAlign = 'right';
+		context.fillText(Value, X-FontWidth, YText);
+		context.textAlign = 'left';
 	}
 	var InnerBoxHeight = BoxHeight-2;
 	var TimerLen = 6;
@@ -1626,9 +1636,10 @@ function DrawBarView()
 							context.fillStyle = 'white';
 							for(var j = 0; j < nMetaLen; ++j)
 							{
-								DrawMeta(Timer.meta[j]);
-								DrawMeta(Timer.metaavg[j]);
-								DrawMeta(Timer.metamax[j]);
+								// var Len = MetaNames[j].length + 1;
+								DrawMeta(Timer.meta[j], MetaLengths[j], 0);
+								DrawMeta(Timer.metaavg[j], MetaLengthsAvg[j], 2);
+								DrawMeta(Timer.metamax[j], MetaLengthsMax[j], 0);
 							}
 						}
 						context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
@@ -1676,9 +1687,9 @@ function DrawBarView()
 		{
 			for(var i = 0; i < nMetaLen; ++i)
 			{
-				DrawHeaderSplitSingle(MetaNames[i], nWidthMeta);
-				DrawHeaderSplitSingle(MetaNames[i] + " Avg", nWidthMeta+4);
-				DrawHeaderSplitSingle(MetaNames[i] + " Max", nWidthMeta+4);
+				DrawHeaderSplitSingle(MetaNames[i], MetaLengths[i] * FontWidth);
+				DrawHeaderSplitSingle(MetaNames[i] + " Avg", MetaLengthsAvg[i] * FontWidth);
+				DrawHeaderSplitSingle(MetaNames[i] + " Max", MetaLengthsMax[i] * FontWidth);
 			}
 		}
 		X = 0;
@@ -3208,6 +3219,47 @@ function PreprocessFindFirstFrames()
 	}
 	ProfileLeave();
 }
+function PreprocessMeta()
+{
+	MetaLengths = Array(MetaNames.length);
+	MetaLengthsAvg = Array(MetaNames.length);
+	MetaLengthsMax = Array(MetaNames.length);
+	for(var i = 0; i < MetaNames.length; ++i)
+	{
+		MetaLengths[i] = MetaNames[i].length+1;
+		MetaLengthsAvg[i] = MetaNames[i].length+5;
+		MetaLengthsMax[i] = MetaNames[i].length+5;
+		if(MetaLengths[i]<12)
+			MetaLengths[i] = 12;
+		if(MetaLengthsAvg[i]<12)
+			MetaLengthsAvg[i] = 12;
+		if(MetaLengthsMax[i]<12)
+			MetaLengthsMax[i] = 12;
+	}
+	for(var i = 0; i < TimerInfo.length; ++i)
+	{
+		var Timer = TimerInfo[i];
+		for(var j = 0; j < MetaNames.length; ++j)
+		{
+			var Len = FormatMeta(Timer.meta[j],0).length + 2;
+			var LenAvg = FormatMeta(Timer.meta[j],2).length + 2;
+			var LenMax = FormatMeta(Timer.meta[j],0).length + 2;
+			if(Len > MetaLengths[j])
+			{
+				MetaLengths[j] = Len;
+			}
+			if(LenAvg > MetaLengthsAvg[j])
+			{
+				MetaLengthsAvg[j] = LenAvg;
+			}
+			if(LenMax > MetaLengthsMax[j])
+			{
+				MetaLengthsMax[j] = LenMax;
+			}
+		}
+	}
+}
+
 function Preprocess()
 {
 	var ProfileModeOld = ProfileMode;
@@ -3221,6 +3273,7 @@ function Preprocess()
 	PreprocessFindFirstFrames();
 	PreprocessGlobalArray();
 	PreprocessLods();
+	PreprocessMeta();
 	ProfileLeave();
 	ProfileModeDump();
 	ProfileMode = ProfileModeOld;
