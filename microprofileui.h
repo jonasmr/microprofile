@@ -1725,7 +1725,7 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 
 	for(int i = 0; i < MICROPROFILE_META_MAX; ++i)
 	{
-		if(S.nBars & (MP_DRAW_META_FIRST<<i))
+		if(0 != (S.nBars & (MP_DRAW_META_FIRST<<i)) && S.MetaCounters[i].pName)
 		{
 			uint32_t nBufferSize = strlen(S.MetaCounters[i].pName) + 32;
 			char* buffer = (char*)alloca(nBufferSize);
