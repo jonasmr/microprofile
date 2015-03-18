@@ -1981,7 +1981,7 @@ void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Typ
 }
 
 
-void MicroProfileCalcAllTimers(float* pTimers, float* pAverage, float* pMax, float* pCallAverage, float* pExclusive, float* pAverageExclusive, float* pMaxExclusive, uint32_t nSize)
+void MicroProfileCalcAllTimers(float* pTimers, float* pAverage, float* pMax, float* pCallAverage, float* pExclusive, float* pAverageExclusive, float* pMaxExclusive, float* pTotal, uint32_t nSize)
 {
 	for(uint32_t i = 0; i < S.nTotalTimers && i < nSize; ++i)
 	{
@@ -2006,6 +2006,7 @@ void MicroProfileCalcAllTimers(float* pTimers, float* pAverage, float* pMax, flo
 		float fAveragePrcExclusive = MicroProfileMin(fAverageMsExclusive * fToPrc, 1.f);
 		float fMaxMsExclusive = fToMs * (S.AggregateMaxExclusive[nTimer]);
 		float fMaxPrcExclusive = MicroProfileMin(fMaxMsExclusive * fToPrc, 1.f);
+		float fTotalMs = fToMs * S.Aggregate[nTimer].nTicks;
 		pTimers[nIdx] = fMs;
 		pTimers[nIdx+1] = fPrc;
 		pAverage[nIdx] = fAverageMs;
@@ -2020,6 +2021,8 @@ void MicroProfileCalcAllTimers(float* pTimers, float* pAverage, float* pMax, flo
 		pAverageExclusive[nIdx+1] = fAveragePrcExclusive;
 		pMaxExclusive[nIdx] = fMaxMsExclusive;
 		pMaxExclusive[nIdx+1] = fMaxPrcExclusive;
+		pTotal[nIdx] = fTotalMs;
+		pTotal[nIdx+1] = 0.f;
 	}
 }
 
@@ -2138,15 +2141,16 @@ void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFra
 
 	uint32_t nNumTimers = S.nTotalTimers;
 	uint32_t nBlockSize = 2 * nNumTimers;
-	float* pTimers = (float*)alloca(nBlockSize * 7 * sizeof(float));
+	float* pTimers = (float*)alloca(nBlockSize * 8 * sizeof(float));
 	float* pAverage = pTimers + nBlockSize;
 	float* pMax = pTimers + 2 * nBlockSize;
 	float* pCallAverage = pTimers + 3 * nBlockSize;
 	float* pTimersExclusive = pTimers + 4 * nBlockSize;
 	float* pAverageExclusive = pTimers + 5 * nBlockSize;
 	float* pMaxExclusive = pTimers + 6 * nBlockSize;
+	float* pTotal = pTimers + 7 * nBlockSize;
 
-	MicroProfileCalcAllTimers(pTimers, pAverage, pMax, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, nNumTimers);
+	MicroProfileCalcAllTimers(pTimers, pAverage, pMax, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, pTotal, nNumTimers);
 
 	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
 	{
@@ -2265,13 +2269,14 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	{
 		MP_ASSERT(i == S.GroupInfo[i].nGroupIndex);
 		float fToMs = S.GroupInfo[i].Type == MicroProfileTokenTypeCpu ? fToMsCPU : fToMsGPU;
-		MicroProfilePrintf(CB, Handle, "GroupInfo[%d] = MakeGroup(%d, \"%s\", %d, %d, %d, %f, %f, '#%02x%02x%02x');\n", 
+		MicroProfilePrintf(CB, Handle, "GroupInfo[%d] = MakeGroup(%d, \"%s\", %d, %d, %d, %f, %f, %f, '#%02x%02x%02x');\n", 
 			S.GroupInfo[i].nGroupIndex, 
 			S.GroupInfo[i].nGroupIndex, 
 			S.GroupInfo[i].pName, 
 			S.GroupInfo[i].nCategory, 
 			S.GroupInfo[i].nNumTimers, 
 			S.GroupInfo[i].Type == MicroProfileTokenTypeGpu?1:0, 
+			fToMs * S.AggregateGroup[i], 
 			fToMs * S.AggregateGroup[i] / nAggregateFrames, 
 			fToMs * S.AggregateGroupMax[i],
 			MICROPROFILE_UNPACK_RED(S.GroupInfo[i].nColor) & 0xff,
@@ -2282,15 +2287,16 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 
 	uint32_t nNumTimers = S.nTotalTimers;
 	uint32_t nBlockSize = 2 * nNumTimers;
-	float* pTimers = (float*)alloca(nBlockSize * 7 * sizeof(float));
+	float* pTimers = (float*)alloca(nBlockSize * 8 * sizeof(float));
 	float* pAverage = pTimers + nBlockSize;
 	float* pMax = pTimers + 2 * nBlockSize;
 	float* pCallAverage = pTimers + 3 * nBlockSize;
 	float* pTimersExclusive = pTimers + 4 * nBlockSize;
 	float* pAverageExclusive = pTimers + 5 * nBlockSize;
 	float* pMaxExclusive = pTimers + 6 * nBlockSize;
+	float* pTotal = pTimers + 7 * nBlockSize;
 
-	MicroProfileCalcAllTimers(pTimers, pAverage, pMax, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, nNumTimers);
+	MicroProfileCalcAllTimers(pTimers, pAverage, pMax, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, pTotal, nNumTimers);
 
 	MicroProfilePrintf(CB, Handle, "\nvar TimerInfo = Array(%d);\n\n", S.nTotalTimers);
 	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
@@ -2334,18 +2340,18 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 
 
 
-		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x', %f, %f, %f, %f, %f, %d, Meta%d, MetaAvg%d, MetaMax%d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
-		MICROPROFILE_UNPACK_RED(S.TimerInfo[i].nColor) & 0xff,
-		MICROPROFILE_UNPACK_GREEN(S.TimerInfo[i].nColor) & 0xff,
-		MICROPROFILE_UNPACK_BLUE(S.TimerInfo[i].nColor) & 0xff,
-		pAverage[nIdx],
-		pMax[nIdx],
-		pAverageExclusive[nIdx],
-		pMaxExclusive[nIdx],
-		pCallAverage[nIdx],
-		S.Aggregate[i].nCount,
-		i,i,i
-		);
+		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x', %f, %f, %f, %f, %f, %d, %f, Meta%d, MetaAvg%d, MetaMax%d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
+			MICROPROFILE_UNPACK_RED(S.TimerInfo[i].nColor) & 0xff,
+			MICROPROFILE_UNPACK_GREEN(S.TimerInfo[i].nColor) & 0xff,
+			MICROPROFILE_UNPACK_BLUE(S.TimerInfo[i].nColor) & 0xff,
+			pAverage[nIdx],
+			pMax[nIdx],
+			pAverageExclusive[nIdx],
+			pMaxExclusive[nIdx],
+			pCallAverage[nIdx],
+			S.Aggregate[i].nCount,
+			pTotal[nIdx],
+			i,i,i);
 
 	}
 
@@ -2385,7 +2391,34 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 			MicroProfilePrintf(CB, Handle, "ThreadGroupTime%d,", i);
 		}
 	}
+	MicroProfilePrintf(CB, Handle, "];\n");
+
+
+	for(uint32_t i = 0; i < S.nNumLogs; ++i)
+	{
+		if(S.Pool[i])
+		{
+			MicroProfilePrintf(CB, Handle, "var ThreadGroupTimeTotal%d = [", i);
+			float fToMs = S.Pool[i]->nGpu ? fToMsGPU : fToMsCPU;
+			for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
+			{
+				MicroProfilePrintf(CB, Handle, "%f,", S.Pool[i]->nAggregateGroupTicks[j] * fToMs);
+			}
+			MicroProfilePrintf(CB, Handle, "];\n");
+		}
+	}
+	MicroProfilePrintf(CB, Handle, "\nvar ThreadGroupTimeTotalArray = [");
+	for(uint32_t i = 0; i < S.nNumLogs; ++i)
+	{
+		if(S.Pool[i])
+		{
+			MicroProfilePrintf(CB, Handle, "ThreadGroupTimeTotal%d,", i);
+		}
+	}
 	MicroProfilePrintf(CB, Handle, "];");
+
+
+
 
 	MicroProfilePrintf(CB, Handle, "\nvar ThreadIds = [");
 	for(uint32_t i = 0; i < S.nNumLogs; ++i)

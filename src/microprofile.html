@@ -137,15 +137,15 @@ function InvertColorIndex(hexTripletColor) {
 		return 1;
 	}
 }
-function MakeGroup(id, name, category, numtimers, isgpu, average, max, color)
+function MakeGroup(id, name, category, numtimers, isgpu, total, average, max, color)
 {
-	var group = {"id":id, "name":name, "category":category, "numtimers":numtimers, "isgpu":isgpu, "average" : average, "max" : max, "color":color};
+	var group = {"id":id, "name":name, "category":category, "numtimers":numtimers, "isgpu":isgpu, "total": total, "average" : average, "max" : max, "color":color};
 	return group;
 }
 
-function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax, callaverage, callcount, meta, metaavg, metamax)
+function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax)
 {
-	var timer = {"id":id, "name":name, "len":name.length, "color":color, "timercolor":color, "textcolor":InvertColor(color), "group":group, "average":average, "max":max, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "meta":meta, "textcolorindex":InvertColorIndex(color), "metaavg":metaavg, "metamax":metamax};
+	var timer = {"id":id, "name":name, "len":name.length, "color":color, "timercolor":color, "textcolor":InvertColor(color), "group":group, "average":average, "max":max, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "total":total, "meta":meta, "textcolorindex":InvertColorIndex(color), "metaavg":metaavg, "metamax":metamax};
 	return timer;
 }
 function MakeFrame(id, framestart, frameend, ts, tt, ti)
@@ -1525,7 +1525,8 @@ function DrawBarView()
 					var groupid = GroupOrder[idx];
 					var Group = GroupInfo[groupid];
 					var PerThreadTimer = ThreadGroupTimeArray[i][groupid];
-					if(PerThreadTimer > 0.0001 && (GroupsAllActive || GroupsActive[Group.name]))
+					var PerThreadTimerTotal = ThreadGroupTimeTotalArray[i][groupid];
+					if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (GroupsAllActive || GroupsActive[Group.name]))
 					{
 						var GColor = GroupColors ? GroupInfo[groupid].color : 'white';
 						var X = 0;
@@ -1539,6 +1540,9 @@ function DrawBarView()
 						context.textAlign = 'left';
 						X += NameWidth;
 						DrawTimer(PerThreadTimer, GColor);
+						X += nWidthBars + nWidthMs;	
+						DrawTimer(PerThreadTimerTotal, GColor);
+
 						Y += Height;
 					}
 				}
@@ -1565,6 +1569,7 @@ function DrawBarView()
 				X += NameWidth;
 				DrawTimer(Group.average, GColor);
 				DrawTimer(Group.max, GColor);
+				DrawTimer(Group.total, GColor);
 
 				context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
 				context.fillRect(0, Y, NameWidth, nHeight);
@@ -1579,7 +1584,8 @@ function DrawBarView()
 					for(var i = 0; i < ThreadNames.length; ++i)
 					{
 						var PerThreadTimer = ThreadGroupTimeArray[i][groupid];
-						if(PerThreadTimer > 0.0001 && (ThreadsActive[ThreadNames[i]] || ThreadsAllActive))
+						var PerThreadTimerTotal = ThreadGroupTimeTotalArray[i][groupid];
+						if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (ThreadsActive[ThreadNames[i]] || ThreadsAllActive))
 						{
 							var YText = Y+Height-FontAscent;
 							bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
@@ -1591,9 +1597,10 @@ function DrawBarView()
 							context.textAlign = 'right';
 							context.fillText(ThreadNames[i], NameWidth - 5, YText);
 							context.textAlign = 'left';
-
 							X = NameWidth;
 							DrawTimer(PerThreadTimer, ThreadColor);
+							X += nWidthBars + nWidthMs;	
+							DrawTimer(PerThreadTimerTotal, ThreadColor);
 							Y += Height;
 						}
 					}
@@ -1624,6 +1631,7 @@ function DrawBarView()
 
 						DrawTimer(Average, Timer.color);
 						DrawTimer(Max,Timer.color);
+						DrawTimer(Timer.total,Timer.color);
 						DrawTimer(CallAverage,Timer.color);
 						context.fillStyle = 'white';
 						context.fillText(CallCount, X, YText);
@@ -1672,6 +1680,7 @@ function DrawBarView()
 			DrawHeaderSplitLeftRight('Group', 'Thread', NameWidth);
 			DrawHeaderSplit('Average');
 			DrawHeaderSplit('Max');
+			DrawHeaderSplit('Total');
 		}
 	}
 	else
@@ -1679,6 +1688,7 @@ function DrawBarView()
 		X = NameWidth + XBase;
 		DrawHeaderSplit('Average');
 		DrawHeaderSplit('Max');
+		DrawHeaderSplit('Total');
 		DrawHeaderSplit('Call Average');
 		DrawHeaderSplitSingle('Count', CountWidth);
 		DrawHeaderSplit('Excl Average');
