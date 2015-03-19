@@ -2680,7 +2680,7 @@ void MicroProfileClearGraph()
 
 void MicroProfileMouseButton(uint32_t nLeft, uint32_t nRight)
 {
-	bool bCanRelease = abs(UI.nMouseDownX - UI.nMouseX) + abs(UI.nMouseDownY - UI.nMouseY) < 3;
+	bool bCanRelease = abs((int)(UI.nMouseDownX - UI.nMouseX)) + abs((int)(UI.nMouseDownY - UI.nMouseY)) < 3;
 
 	if(0 == nLeft && UI.nMouseDownLeft && bCanRelease)
 	{
