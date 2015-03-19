@@ -1981,7 +1981,7 @@ void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Typ
 }
 
 
-void MicroProfileCalcAllTimers(float* pTimers, float* pAverage, float* pMax, float* pCallAverage, float* pExclusive, float* pAverageExclusive, float* pMaxExclusive, uint32_t nSize)
+void MicroProfileCalcAllTimers(float* pTimers, float* pAverage, float* pMax, float* pCallAverage, float* pExclusive, float* pAverageExclusive, float* pMaxExclusive, float* pTotal, uint32_t nSize)
 {
 	for(uint32_t i = 0; i < S.nTotalTimers && i < nSize; ++i)
 	{
@@ -2006,6 +2006,7 @@ void MicroProfileCalcAllTimers(float* pTimers, float* pAverage, float* pMax, flo
 		float fAveragePrcExclusive = MicroProfileMin(fAverageMsExclusive * fToPrc, 1.f);
 		float fMaxMsExclusive = fToMs * (S.AggregateMaxExclusive[nTimer]);
 		float fMaxPrcExclusive = MicroProfileMin(fMaxMsExclusive * fToPrc, 1.f);
+		float fTotalMs = fToMs * S.Aggregate[nTimer].nTicks;
 		pTimers[nIdx] = fMs;
 		pTimers[nIdx+1] = fPrc;
 		pAverage[nIdx] = fAverageMs;
@@ -2020,6 +2021,8 @@ void MicroProfileCalcAllTimers(float* pTimers, float* pAverage, float* pMax, flo
 		pAverageExclusive[nIdx+1] = fAveragePrcExclusive;
 		pMaxExclusive[nIdx] = fMaxMsExclusive;
 		pMaxExclusive[nIdx+1] = fMaxPrcExclusive;
+		pTotal[nIdx] = fTotalMs;
+		pTotal[nIdx+1] = 0.f;
 	}
 }
 
@@ -2138,15 +2141,16 @@ void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFra
 
 	uint32_t nNumTimers = S.nTotalTimers;
 	uint32_t nBlockSize = 2 * nNumTimers;
-	float* pTimers = (float*)alloca(nBlockSize * 7 * sizeof(float));
+	float* pTimers = (float*)alloca(nBlockSize * 8 * sizeof(float));
 	float* pAverage = pTimers + nBlockSize;
 	float* pMax = pTimers + 2 * nBlockSize;
 	float* pCallAverage = pTimers + 3 * nBlockSize;
 	float* pTimersExclusive = pTimers + 4 * nBlockSize;
 	float* pAverageExclusive = pTimers + 5 * nBlockSize;
 	float* pMaxExclusive = pTimers + 6 * nBlockSize;
+	float* pTotal = pTimers + 7 * nBlockSize;
 
-	MicroProfileCalcAllTimers(pTimers, pAverage, pMax, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, nNumTimers);
+	MicroProfileCalcAllTimers(pTimers, pAverage, pMax, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, pTotal, nNumTimers);
 
 	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
 	{
@@ -2265,13 +2269,14 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	{
 		MP_ASSERT(i == S.GroupInfo[i].nGroupIndex);
 		float fToMs = S.GroupInfo[i].Type == MicroProfileTokenTypeCpu ? fToMsCPU : fToMsGPU;
-		MicroProfilePrintf(CB, Handle, "GroupInfo[%d] = MakeGroup(%d, \"%s\", %d, %d, %d, %f, %f, '#%02x%02x%02x');\n", 
+		MicroProfilePrintf(CB, Handle, "GroupInfo[%d] = MakeGroup(%d, \"%s\", %d, %d, %d, %f, %f, %f, '#%02x%02x%02x');\n", 
 			S.GroupInfo[i].nGroupIndex, 
 			S.GroupInfo[i].nGroupIndex, 
 			S.GroupInfo[i].pName, 
 			S.GroupInfo[i].nCategory, 
 			S.GroupInfo[i].nNumTimers, 
 			S.GroupInfo[i].Type == MicroProfileTokenTypeGpu?1:0, 
+			fToMs * S.AggregateGroup[i], 
 			fToMs * S.AggregateGroup[i] / nAggregateFrames, 
 			fToMs * S.AggregateGroupMax[i],
 			MICROPROFILE_UNPACK_RED(S.GroupInfo[i].nColor) & 0xff,
@@ -2282,15 +2287,16 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 
 	uint32_t nNumTimers = S.nTotalTimers;
 	uint32_t nBlockSize = 2 * nNumTimers;
-	float* pTimers = (float*)alloca(nBlockSize * 7 * sizeof(float));
+	float* pTimers = (float*)alloca(nBlockSize * 8 * sizeof(float));
 	float* pAverage = pTimers + nBlockSize;
 	float* pMax = pTimers + 2 * nBlockSize;
 	float* pCallAverage = pTimers + 3 * nBlockSize;
 	float* pTimersExclusive = pTimers + 4 * nBlockSize;
 	float* pAverageExclusive = pTimers + 5 * nBlockSize;
 	float* pMaxExclusive = pTimers + 6 * nBlockSize;
+	float* pTotal = pTimers + 7 * nBlockSize;
 
-	MicroProfileCalcAllTimers(pTimers, pAverage, pMax, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, nNumTimers);
+	MicroProfileCalcAllTimers(pTimers, pAverage, pMax, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, pTotal, nNumTimers);
 
 	MicroProfilePrintf(CB, Handle, "\nvar TimerInfo = Array(%d);\n\n", S.nTotalTimers);
 	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
@@ -2334,18 +2340,18 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 
 
 
-		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x', %f, %f, %f, %f, %f, %d, Meta%d, MetaAvg%d, MetaMax%d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
-		MICROPROFILE_UNPACK_RED(S.TimerInfo[i].nColor) & 0xff,
-		MICROPROFILE_UNPACK_GREEN(S.TimerInfo[i].nColor) & 0xff,
-		MICROPROFILE_UNPACK_BLUE(S.TimerInfo[i].nColor) & 0xff,
-		pAverage[nIdx],
-		pMax[nIdx],
-		pAverageExclusive[nIdx],
-		pMaxExclusive[nIdx],
-		pCallAverage[nIdx],
-		S.Aggregate[i].nCount,
-		i,i,i
-		);
+		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x', %f, %f, %f, %f, %f, %d, %f, Meta%d, MetaAvg%d, MetaMax%d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
+			MICROPROFILE_UNPACK_RED(S.TimerInfo[i].nColor) & 0xff,
+			MICROPROFILE_UNPACK_GREEN(S.TimerInfo[i].nColor) & 0xff,
+			MICROPROFILE_UNPACK_BLUE(S.TimerInfo[i].nColor) & 0xff,
+			pAverage[nIdx],
+			pMax[nIdx],
+			pAverageExclusive[nIdx],
+			pMaxExclusive[nIdx],
+			pCallAverage[nIdx],
+			S.Aggregate[i].nCount,
+			pTotal[nIdx],
+			i,i,i);
 
 	}
 
@@ -2385,7 +2391,34 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 			MicroProfilePrintf(CB, Handle, "ThreadGroupTime%d,", i);
 		}
 	}
+	MicroProfilePrintf(CB, Handle, "];\n");
+
+
+	for(uint32_t i = 0; i < S.nNumLogs; ++i)
+	{
+		if(S.Pool[i])
+		{
+			MicroProfilePrintf(CB, Handle, "var ThreadGroupTimeTotal%d = [", i);
+			float fToMs = S.Pool[i]->nGpu ? fToMsGPU : fToMsCPU;
+			for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
+			{
+				MicroProfilePrintf(CB, Handle, "%f,", S.Pool[i]->nAggregateGroupTicks[j] * fToMs);
+			}
+			MicroProfilePrintf(CB, Handle, "];\n");
+		}
+	}
+	MicroProfilePrintf(CB, Handle, "\nvar ThreadGroupTimeTotalArray = [");
+	for(uint32_t i = 0; i < S.nNumLogs; ++i)
+	{
+		if(S.Pool[i])
+		{
+			MicroProfilePrintf(CB, Handle, "ThreadGroupTimeTotal%d,", i);
+		}
+	}
 	MicroProfilePrintf(CB, Handle, "];");
+
+
+
 
 	MicroProfilePrintf(CB, Handle, "\nvar ThreadIds = [");
 	for(uint32_t i = 0; i < S.nNumLogs; ++i)
@@ -3442,15 +3475,15 @@ const char g_MicroProfileHtml_begin_0[] =
 "		return 1;\n"
 "	}\n"
 "}\n"
-"function MakeGroup(id, name, category, numtimers, isgpu, average, max, color)\n"
+"function MakeGroup(id, name, category, numtimers, isgpu, total, average, max, color)\n"
 "{\n"
-"	var group = {\"id\":id, \"name\":name, \"category\":category, \"numtimers\":numtimers, \"isgpu\":isgpu, \"average\" : average, \"max\" : max, \"color\":color};\n"
+"	var group = {\"id\":id, \"name\":name, \"category\":category, \"numtimers\":numtimers, \"isgpu\":isgpu, \"total\": total, \"average\" : average, \"max\" : max, \"color\":color};\n"
 "	return group;\n"
 "}\n"
 "\n"
-"function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax, callaverage, callcount, meta, metaavg, metamax)\n"
+"function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax)\n"
 "{\n"
-"	var timer = {\"id\":id, \"name\":name, \"len\":name.length, \"color\":color, \"timercolor\":color, \"textcolor\":InvertColor(color), \"group\":group, \"average\":average, \"max\":max, \"exclaverage\":exclaverage, \"exclmax\":exclmax, \"callaverage\":callaverage, \"callcount\":callcount, \"meta\":meta, \"textcolorindex\":InvertColorIndex(color), \"metaavg\":metaavg, \"metamax\":metamax};\n"
+"	var timer = {\"id\":id, \"name\":name, \"len\":name.length, \"color\":color, \"timercolor\":color, \"textcolor\":InvertColor(color), \"group\":group, \"average\":average, \"max\":max, \"exclaverage\":exclaverage, \"exclmax\":exclmax, \"callaverage\":callaverage, \"callcount\":callcount, \"total\":total, \"meta\":meta, \"textcolorindex\":InvertColorIndex(color), \"metaavg\":metaavg, \"metamax\":metamax};\n"
 "	return timer;\n"
 "}\n"
 "function MakeFrame(id, framestart, frameend, ts, tt, ti)\n"
@@ -4841,7 +4874,8 @@ const char g_MicroProfileHtml_end_0[] =
 "					var groupid = GroupOrder[idx];\n"
 "					var Group = GroupInfo[groupid];\n"
 "					var PerThreadTimer = ThreadGroupTimeArray[i][groupid];\n"
-"					if(PerThreadTimer > 0.0001 && (GroupsAllActive || GroupsActive[Group.name]))\n"
+"					var PerThreadTimerTotal = ThreadGroupTimeTotalArray[i][groupid];\n"
+"					if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (GroupsAllActive || GroupsActive[Group.name]))\n"
 "					{\n"
 "						var GColor = GroupColors ? GroupInfo[groupid].color : \'white\';\n"
 "						var X = 0;\n"
@@ -4855,6 +4889,9 @@ const char g_MicroProfileHtml_end_0[] =
 "						context.textAlign = \'left\';\n"
 "						X += NameWidth;\n"
 "						DrawTimer(PerThreadTimer, GColor);\n"
+"						X += nWidthBars + nWidthMs;	\n"
+"						DrawTimer(PerThreadTimerTotal, GColor);\n"
+"\n"
 "						Y += Height;\n"
 "					}\n"
 "				}\n"
@@ -4862,17 +4899,17 @@ const char g_MicroProfileHtml_end_0[] =
 "		}\n"
 "	}\n"
 "	else\n"
-"	{\n"
+"	";
+
+const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
+const char g_MicroProfileHtml_end_1[] =
+"{\n"
 "		for(var idx in GroupOrder)\n"
 "		{\n"
 "			var groupid = GroupOrder[idx];\n"
 "			var Group = GroupInfo[groupid];\n"
 "			var GColor = GroupColors ? GroupInfo[groupid].color : \'white\';\n"
-"			if(Grou";
-
-const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
-const char g_MicroProfileHtml_end_1[] =
-"psAllActive || GroupsActive[Group.name])\n"
+"			if(GroupsAllActive || GroupsActive[Group.name])\n"
 "			{\n"
 "				var TimerArray = Group.TimerArray;\n"
 "				var X = XBase;\n"
@@ -4885,6 +4922,7 @@ const char g_MicroProfileHtml_end_1[] =
 "				X += NameWidth;\n"
 "				DrawTimer(Group.average, GColor);\n"
 "				DrawTimer(Group.max, GColor);\n"
+"				DrawTimer(Group.total, GColor);\n"
 "\n"
 "				context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];\n"
 "				context.fillRect(0, Y, NameWidth, nHeight);\n"
@@ -4899,7 +4937,8 @@ const char g_MicroProfileHtml_end_1[] =
 "					for(var i = 0; i < ThreadNames.length; ++i)\n"
 "					{\n"
 "						var PerThreadTimer = ThreadGroupTimeArray[i][groupid];\n"
-"						if(PerThreadTimer > 0.0001 && (ThreadsActive[ThreadNames[i]] || ThreadsAllActive))\n"
+"						var PerThreadTimerTotal = ThreadGroupTimeTotalArray[i][groupid];\n"
+"						if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (ThreadsActive[ThreadNames[i]] || ThreadsAllActive))\n"
 "						{\n"
 "							var YText = Y+Height-FontAscent;\n"
 "							bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;\n"
@@ -4911,9 +4950,10 @@ const char g_MicroProfileHtml_end_1[] =
 "							context.textAlign = \'right\';\n"
 "							context.fillText(ThreadNames[i], NameWidth - 5, YText);\n"
 "							context.textAlign = \'left\';\n"
-"\n"
 "							X = NameWidth;\n"
 "							DrawTimer(PerThreadTimer, ThreadColor);\n"
+"							X += nWidthBars + nWidthMs;	\n"
+"							DrawTimer(PerThreadTimerTotal, ThreadColor);\n"
 "							Y += Height;\n"
 "						}\n"
 "					}\n"
@@ -4944,6 +4984,7 @@ const char g_MicroProfileHtml_end_1[] =
 "\n"
 "						DrawTimer(Average, Timer.color);\n"
 "						DrawTimer(Max,Timer.color);\n"
+"						DrawTimer(Timer.total,Timer.color);\n"
 "						DrawTimer(CallAverage,Timer.color);\n"
 "						context.fillStyle = \'white\';\n"
 "						context.fillText(CallCount, X, YText);\n"
@@ -4992,6 +5033,7 @@ const char g_MicroProfileHtml_end_1[] =
 "			DrawHeaderSplitLeftRight(\'Group\', \'Thread\', NameWidth);\n"
 "			DrawHeaderSplit(\'Average\');\n"
 "			DrawHeaderSplit(\'Max\');\n"
+"			DrawHeaderSplit(\'Total\');\n"
 "		}\n"
 "	}\n"
 "	else\n"
@@ -4999,6 +5041,7 @@ const char g_MicroProfileHtml_end_1[] =
 "		X = NameWidth + XBase;\n"
 "		DrawHeaderSplit(\'Average\');\n"
 "		DrawHeaderSplit(\'Max\');\n"
+"		DrawHeaderSplit(\'Total\');\n"
 "		DrawHeaderSplit(\'Call Average\');\n"
 "		DrawHeaderSplitSingle(\'Count\', CountWidth);\n"
 "		DrawHeaderSplit(\'Excl Average\');\n"
@@ -6216,7 +6259,11 @@ const char g_MicroProfileHtml_end_1[] =
 "		var TimeArray = LodData[0].TimeArray[nLog];\n"
 "		var DeltaTimes = new Array(TypeArray.length);\n"
 "\n"
-"		for(var j = 0; j < TypeArray.length; ++j)\n"
+"		for(var j";
+
+const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
+const char g_MicroProfileHtml_end_2[] =
+" = 0; j < TypeArray.length; ++j)\n"
 "		{\n"
 "			var type = TypeArray[j];\n"
 "			var time = TimeArray[j];\n"
@@ -6244,11 +6291,7 @@ const char g_MicroProfileHtml_end_1[] =
 "		var SplitIndex = DeltaTimes.length;\n"
 "\n"
 "		var j = 0;\n"
-"		for(j = 0; ";
-
-const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
-const char g_MicroProfileHtml_end_2[] =
-"j < NumLodSplits; ++j)\n"
+"		for(j = 0; j < NumLodSplits; ++j)\n"
 "		{\n"
 "			SplitIndex = Math.floor(SplitIndex / 2);\n"
 "			while(SplitIndex > 0 && !DeltaTimes[SplitIndex])\n"
