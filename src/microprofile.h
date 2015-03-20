@@ -411,6 +411,11 @@ MICROPROFILE_API const char* MicroProfileGetThreadName();
 #define MicroProfileGetThreadName() "<implement MicroProfileGetThreadName to get threadnames>"
 #endif
 
+#if !defined(MICROPROFILE_THREAD_NAME_FROM_ID)
+#define MICROPROFILE_THREAD_NAME_FROM_ID(a) ""
+#endif
+
+
 struct MicroProfileScopeHandler
 {
 	MicroProfileToken nToken;
@@ -2854,6 +2859,31 @@ bool MicroProfileWebServerUpdate()
 
 
 #if MICROPROFILE_CONTEXT_SWITCH_TRACE
+//functions that need to be implemented per platform.
+void* MicroProfileTraceThread(void* unused);
+bool MicroProfileIsLocalThread(uint32_t nThreadId);
+
+
+void MicroProfileStartContextSwitchTrace()
+{
+    if(!S.bContextSwitchRunning)
+    {
+        S.bContextSwitchRunning    = true;
+        S.bContextSwitchStop = false;
+        MicroProfileThreadStart(&S.ContextSwitchThread, MicroProfileTraceThread);
+    }
+}
+
+void MicroProfileStopContextSwitchTrace()
+{
+    if(S.bContextSwitchRunning)
+    {
+        S.bContextSwitchStop = true;
+        MicroProfileThreadJoin(&S.ContextSwitchThread);
+    }
+}
+
+
 #ifdef _WIN32
 #define INITGUID
 #include <evntrace.h>
@@ -2911,7 +2941,7 @@ struct MicroProfileKernelTraceProperties : public EVENT_TRACE_PROPERTIES
 	char dummy[sizeof(KERNEL_LOGGER_NAME)];
 };
 
-void MicroProfileContextSwitchStopTrace()
+void MicroProfileContextSwitchShutdownTrace()
 {
 	TRACEHANDLE SessionHandle = 0;
 	MicroProfileKernelTraceProperties sessionProperties;
@@ -2946,7 +2976,7 @@ void MicroProfileContextSwitchStopTrace()
 void* MicroProfileTraceThread(void* unused)
 {
 
-	MicroProfileContextSwitchStopTrace();
+	MicroProfileContextSwitchShutdownTrace();
 	ULONG status = ERROR_SUCCESS;
 	TRACEHANDLE SessionHandle = 0;
 	MicroProfileKernelTraceProperties sessionProperties;
@@ -2984,29 +3014,10 @@ void* MicroProfileTraceThread(void* unused)
 	TRACEHANDLE hLog = OpenTrace(&log);
 	ProcessTrace(&hLog, 1, 0, 0);
 	CloseTrace(hLog);
-	MicroProfileContextSwitchStopTrace();
+	MicroProfileContextSwitchShutdownTrace();
 
 	S.bContextSwitchRunning = false;
 	return 0;
-}
-
-void MicroProfileStartContextSwitchTrace()
-{
-	if(!S.bContextSwitchRunning)
-	{
-		S.bContextSwitchRunning	= true;
-		S.bContextSwitchStop = false;
-		MicroProfileThreadStart(&S.ContextSwitchThread, MicroProfileTraceThread);
-	}
-}
-
-void MicroProfileStopContextSwitchTrace()
-{
-	if(S.bContextSwitchRunning)
-	{
-		S.bContextSwitchStop = true;
-		MicroProfileThreadJoin(&S.ContextSwitchThread);
-	}
 }
 
 bool MicroProfileIsLocalThread(uint32_t nThreadId) 
@@ -3087,33 +3098,11 @@ void* MicroProfileTraceThread(void* unused)
 	return 0;
 }
 
-void MicroProfileStartContextSwitchTrace()
-{
-	if(!S.bContextSwitchRunning)
-	{
-		S.bContextSwitchRunning	= true;
-		S.bContextSwitchStop = false;
-		MicroProfileThreadStart(&S.ContextSwitchThread, MicroProfileTraceThread);
-	}
-}
-
-void MicroProfileStopContextSwitchTrace()
-{
-	if(S.bContextSwitchRunning)
-	{
-		S.bContextSwitchStop = true;
-		MicroProfileThreadJoin(&S.ContextSwitchThread);
-	}
-}
-
 bool MicroProfileIsLocalThread(uint32_t nThreadId) 
 {
 	return false;
 }
 
-
-#else
-#error "context switch trace not supported/implemented on platform"
 #endif
 #else
 

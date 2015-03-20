@@ -1052,7 +1052,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			for(uint32_t i = nContextSwitchStart; i != nContextSwitchEnd; i = (i+1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE)
 			{
 				MicroProfileContextSwitch CS = S.ContextSwitch[i];
-				uint32_t nThreadId = CS.nThreadIn;
+				ThreadIdType nThreadId = CS.nThreadIn;
 				if(nThreadId)
 				{
 					bool bSeen = false;
@@ -1082,12 +1082,13 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			nStart = 0;
 		for(uint32_t i = nStart; i < nNumThreads; ++i)
 		{
-			uint32_t nThreadId = nThreads[i];
+			ThreadIdType nThreadId = nThreads[i];
 			if(nThreadId)
 			{
 				char ThreadName[MicroProfileThreadLog::THREAD_MAX_LEN + 16];
 				const char* cLocal = MicroProfileIsLocalThread(nThreadId) ? "*": " ";
-				int nStrLen = snprintf(ThreadName, sizeof(ThreadName)-1, "%04x: %s", nThreadId, i < nNumThreadsBase ? &S.Pool[i]->ThreadName[0] : cLocal );
+
+				int nStrLen = snprintf(ThreadName, sizeof(ThreadName)-1, "%04x: %s", nThreadId, cLocal, i < nNumThreadsBase ? &S.Pool[i]->ThreadName[0] : MICROPROFILE_THREAD_NAME_FROM_ID(nThreadId) );
 				uint32_t nThreadColor = -1;
 				if(nThreadId == nContextSwitchHoverThreadAfter || nThreadId == nContextSwitchHoverThreadBefore)
 					nThreadColor = UI.nHoverColorShared|0x906060;
