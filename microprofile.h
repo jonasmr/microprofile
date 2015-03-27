@@ -5426,7 +5426,7 @@ const char g_MicroProfileHtml_end_1[] =
 "			}\n"
 "		}\n"
 "\n"
-"		if(nContextSwitchEnabled) //non instrumented threads.\n"
+"		if(0 && nContextSwitchEnabled) //non instrumented threads.\n"
 "		{\n"
 "			var ContextSwitchThreads = CSwitchOnlyThreads;\n"
 "			for(var i = 0; i < ContextSwitchThreads.length; ++i)\n"
@@ -6260,11 +6260,11 @@ const char g_MicroProfileHtml_end_1[] =
 "\n"
 "CanvasDetailedView.addEventListener(\'mousemove\', MouseMove, false);\n"
 "CanvasDetailedView.addEventListener(\'mousedown\', function(evt) { MouseButton(true, evt); });\n"
-"CanvasDetail";
+"CanvasD";
 
 const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
 const char g_MicroProfileHtml_end_2[] =
-"edView.addEventListener(\'mouseup\', function(evt) { MouseButton(false, evt); } );\n"
+"etailedView.addEventListener(\'mouseup\', function(evt) { MouseButton(false, evt); } );\n"
 "CanvasDetailedView.addEventListener(\'mouseout\', MouseOut);\n"
 "CanvasDetailedView.addEventListener(\"contextmenu\", function (e) { e.preventDefault(); }, false);\n"
 "CanvasDetailedView.addEventListener(mousewheelevt, MouseWheel, false);\n"

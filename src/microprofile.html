@@ -2084,7 +2084,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 			}
 		}
 
-		if(nContextSwitchEnabled) //non instrumented threads.
+		if(0 && nContextSwitchEnabled) //non instrumented threads.
 		{
 			var ContextSwitchThreads = CSwitchOnlyThreads;
 			for(var i = 0; i < ContextSwitchThreads.length; ++i)
