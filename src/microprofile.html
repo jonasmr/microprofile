@@ -247,6 +247,7 @@ var ProfileFpsCount = 0;
 var ProfileLastTimeStamp = new Date();
 
 var CSwitchCache = {};
+var CSwitchOnlyThreads = [];
 var ProfileData = {};
 var ProfileStackTime = {};
 var ProfileStackName = {};
@@ -1715,6 +1716,94 @@ function DrawBarView()
 }
 
 
+//preprocess context switch data to contain array per thread
+function PreprocessContextSwitchCacheItem(ThreadId)
+{
+	console.log('context switch preparing ' + ThreadId);
+	var CSObject = CSwitchCache[ThreadId];
+	if(ThreadId > 0 && !CSObject)
+	{
+		CSArrayIn = new Array();
+		CSArrayOut = new Array();
+		CSArrayCpu = new Array();
+		var nCount = CSwitchTime.length;
+		var j = 0;
+		var TimeIn = -1.0;
+		for(var i = 0; i < nCount; ++i)
+		{	
+			var ThreadIn = CSwitchThreadInOutCpu[j];
+			var ThreadOut = CSwitchThreadInOutCpu[j+1];
+			var Cpu = CSwitchThreadInOutCpu[j+2];
+			if(TimeIn < 0)
+			{
+				if(ThreadIn == ThreadId)
+				{
+					TimeIn = CSwitchTime[i];
+				}
+			}
+			else
+			{
+				if(ThreadOut == ThreadId)
+				{
+					var TimeOut = CSwitchTime[i];
+					CSArrayIn.push(TimeIn);
+					CSArrayOut.push(TimeOut);
+					CSArrayCpu.push(Cpu);
+					TimeIn = -1;
+				}
+			}
+			j += 3;
+		}
+		CSObject = new Object();
+		CSObject.Size = CSArrayIn.length;
+		CSObject.In = CSArrayIn;
+		CSObject.Out = CSArrayOut;
+		CSObject.Cpu = CSArrayCpu;
+		CSwitchCache[ThreadId] = CSObject;
+	}
+
+}
+function PreprocessContextSwitchCache()
+{
+	ProfileEnter("PreprocessContextSwitchCache");
+	var AllThreads = {};
+	var nCount = CSwitchTime.length;
+	for(var i = 0; i < nCount; ++i)
+	{	
+		var nThreadIn = CSwitchThreadInOutCpu[j];
+		if(!AllThreads[nThreadIn])
+		{
+			AllThreads[nThreadIn] = '' + nThreadIn;
+		}
+	}
+	for(var key in AllThreads)
+	{
+		var value = AllThreads[key];
+		var FoundThread = false;
+		for(var i = 0; i < ThreadIds.length; ++i)
+		{
+			if(ThreadIds[i] == key)
+			{
+				FoundThread = true;
+			}
+		}
+		if(!FoundThread)
+		{
+			console.log('CS only thread' + value);
+			CSwitchOnlyThreads.push(value);
+		}
+	}
+	for(var i = 0; i < CSwitchOnlyThreads.length; ++i)
+	{
+		PreprocessContextSwitchCacheItem(CSwitchOnlyThreads[i]);
+	}
+	for(var i = 0; i < ThreadIds.length; ++i)
+	{
+		PreprocessContextSwitchCacheItem(ThreadIds[i]);	
+	}
+	ProfileLeave();
+}
+
 function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled)
 {
 	ProfileEnter("DrawContextSwitchBars");
@@ -1994,6 +2083,22 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 				}
 			}
 		}
+
+		if(nContextSwitchEnabled) //non instrumented threads.
+		{
+			var ContextSwitchThreads = CSwitchOnlyThreads;
+			for(var i = 0; i < ContextSwitchThreads.length; ++i)
+			{
+				var ThreadId = ContextSwitchThreads[i];
+				var ThreadName = '' + ThreadId;
+				DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled);
+				context.fillStyle = 'white';
+				context.fillText(ThreadName, 0, fOffsetY);
+				fOffsetY += CSwitchHeight+1;
+			}
+		}
+
+
 		{
 			for(var i = 0; i < Batches.length; ++i)
 			{
@@ -3284,6 +3389,7 @@ function Preprocess()
 	PreprocessGlobalArray();
 	PreprocessLods();
 	PreprocessMeta();
+	PreprocessContextSwitchCache();
 	ProfileLeave();
 	ProfileModeDump();
 	ProfileMode = ProfileModeOld;
