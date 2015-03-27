@@ -1770,27 +1770,22 @@ function PreprocessContextSwitchCache()
 	var nCount = CSwitchTime.length;
 	for(var i = 0; i < nCount; ++i)
 	{	
-		var nThreadIn = CSwitchThreadInOutCpu[j];
+		var nThreadIn = CSwitchThreadInOutCpu[i];
 		if(!AllThreads[nThreadIn])
 		{
-			AllThreads[nThreadIn] = '' + nThreadIn;
-		}
-	}
-	for(var key in AllThreads)
-	{
-		var value = AllThreads[key];
-		var FoundThread = false;
-		for(var i = 0; i < ThreadIds.length; ++i)
-		{
-			if(ThreadIds[i] == key)
-			{
-				FoundThread = true;
-			}
-		}
-		if(!FoundThread)
-		{
-			console.log('CS only thread' + value);
-			CSwitchOnlyThreads.push(value);
+		    AllThreads[nThreadIn] = '' + nThreadIn;
+		    var FoundThread = false;
+		    for(var i = 0; i < ThreadIds.length; ++i)
+		    {
+		        if(ThreadIds[i] == nThreadIn)
+		        {
+		            FoundThread = true;
+		        }
+		    }
+		    if(!FoundThread)
+		    {
+		        CSwitchOnlyThreads.push(nThreadIn);
+		    }
 		}
 	}
 	for(var i = 0; i < CSwitchOnlyThreads.length; ++i)
@@ -1808,46 +1803,6 @@ function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOf
 {
 	ProfileEnter("DrawContextSwitchBars");
 	var CSObject = CSwitchCache[ThreadId];
-	if(ThreadId > 0 && !CSObject)
-	{
-		CSArrayIn = new Array();
-		CSArrayOut = new Array();
-		CSArrayCpu = new Array();
-		var nCount = CSwitchTime.length;
-		var j = 0;
-		var TimeIn = -1.0;
-		for(var i = 0; i < nCount; ++i)
-		{	
-			var ThreadIn = CSwitchThreadInOutCpu[j];
-			var ThreadOut = CSwitchThreadInOutCpu[j+1];
-			var Cpu = CSwitchThreadInOutCpu[j+2];
-			if(TimeIn < 0)
-			{
-				if(ThreadIn == ThreadId)
-				{
-					TimeIn = CSwitchTime[i];
-				}
-			}
-			else
-			{
-				if(ThreadOut == ThreadId)
-				{
-					var TimeOut = CSwitchTime[i];
-					CSArrayIn.push(TimeIn);
-					CSArrayOut.push(TimeOut);
-					CSArrayCpu.push(Cpu);
-					TimeIn = -1;
-				}
-			}
-			j += 3;
-		}
-		CSObject = new Object();
-		CSObject.Size = CSArrayIn.length;
-		CSObject.In = CSArrayIn;
-		CSObject.Out = CSArrayOut;
-		CSObject.Cpu = CSArrayCpu;
-		CSwitchCache[ThreadId] = CSObject;
-	}
 	if(CSObject)
 	{
 		var Size = CSObject.Size;		
@@ -2084,7 +2039,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 			}
 		}
 
-		if(0 && nContextSwitchEnabled) //non instrumented threads.
+		if(nContextSwitchEnabled) //non instrumented threads.
 		{
 			var ContextSwitchThreads = CSwitchOnlyThreads;
 			for(var i = 0; i < ContextSwitchThreads.length; ++i)
@@ -2093,8 +2048,8 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 				var ThreadName = '' + ThreadId;
 				DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled);
 				context.fillStyle = 'white';
-				context.fillText(ThreadName, 0, fOffsetY);
-				fOffsetY += CSwitchHeight+1;
+				context.fillText(ThreadName, 0, fOffsetY+5);
+				fOffsetY += BoxHeight + 1;
 			}
 		}
 
