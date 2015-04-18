@@ -1102,8 +1102,16 @@ function DrawCaptureInfo(context)
 	var Diff = CurrentDate - DumpDate;
 	var DiffString = TimeString(Diff) + " ago";
 	context.fillText(new Date(DumpDate*1000).toLocaleString(), nWidth, FontHeight);
-	context.fillText(DumpHost, nWidth, FontHeight*2);
-	context.fillText(DiffString, nWidth, FontHeight*3);
+	if(Mode == ModeTimers)
+	{
+		context.fillText("Timer Frames: " + AggregateInfo.Frames, nWidth, FontHeight*2);
+	}
+	else
+	{
+		context.fillText("Detailed Frames "+ Frames.length, nWidth, FontHeight*2);
+	}
+	context.fillText(DumpHost, nWidth, FontHeight*3);
+	context.fillText(DiffString, nWidth, FontHeight*4);
 	context.textAlign = 'left';
 	DrawFlashMessage(context);
 }

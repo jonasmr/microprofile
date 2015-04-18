@@ -2796,56 +2796,39 @@ bool MicroProfileWebServerUpdate()
 		if(nReceived > 0)
 		{
 			Req[nReceived] = '\0';
- 			printf("got request \n%s\n", Req);
 #define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nExpires: Tue, 01 Jan 2199 16:00:00 GMT\r\n\r\n"
 			char* pHttp = strstr(Req, "HTTP/");
-			char* pGet = strstr(Req, "GET / ");
-			char* pGetParam = strstr(Req, "GET /?");
+			char* pGet = strstr(Req, "GET /");
 			char* pHost = strstr(Req, "Host: ");
-			if(pHost)
+			auto Terminate = [](char* pString)
 			{
-				pHost += sizeof("Host: ")-1;
-				char* pEnd = pHost;
+				char* pEnd = pString;
 				while(*pEnd != '\0')
 				{
 					if(*pEnd == '\r' || *pEnd == '\n')
 					{
 						*pEnd = '\0';
-						break;
+						return;
 					}
 					pEnd++;
 				}
+			};
+			if(pHost)
+			{
+				pHost += sizeof("Host: ")-1;
+				Terminate(pHost);
 			}
 
-			if(pHttp && (pGet || pGetParam))
+			if(pHttp && pGet)
 			{
 				int nMaxFrames = MICROPROFILE_WEBSERVER_MAXFRAMES;
-				if(pGetParam)
+				*pHttp = '\0';
+				pGet += sizeof("GET /")-1;
+				Terminate(pGet);
+				int nFrames = atoi(pGet);
+				if(nFrames)
 				{
-					*pHttp = '\0';
-					pGetParam += sizeof("GET /?")-1;
-					while(pGetParam) //split url pairs foo=bar&lala=lele etc
-					{
-						char* pSplit = strstr(pGetParam, "&");
-						if(pSplit)
-						{
-							*pSplit++ = '\0';
-						}
-						char* pKey = pGetParam;
-						char* pValue = strstr(pGetParam, "=");
-						if(pValue)
-						{
-							*pValue++ = '\0';
-						}
-						if(0 == MP_STRCASECMP(pKey, "frames"))
-						{
-							if(pValue)
-							{
-								nMaxFrames = atoi(pValue);
-							}
-						}
-						pGetParam = pSplit;
-					}
+					nMaxFrames = nFrames;
 				}
 				uint64_t nTickStart = MP_TICK();
 				send(Connection, MICROPROFILE_HTML_HEADER, sizeof(MICROPROFILE_HTML_HEADER)-1, 0);
@@ -4460,8 +4443,16 @@ const char g_MicroProfileHtml_end_0[] =
 "	var Diff = CurrentDate - DumpDate;\n"
 "	var DiffString = TimeString(Diff) + \" ago\";\n"
 "	context.fillText(new Date(DumpDate*1000).toLocaleString(), nWidth, FontHeight);\n"
-"	context.fillText(DumpHost, nWidth, FontHeight*2);\n"
-"	context.fillText(DiffString, nWidth, FontHeight*3);\n"
+"	if(Mode == ModeTimers)\n"
+"	{\n"
+"		context.fillText(\"Timer Frames: \" + AggregateInfo.Frames, nWidth, FontHeight*2);\n"
+"	}\n"
+"	else\n"
+"	{\n"
+"		context.fillText(\"Detailed Frames \"+ Frames.length, nWidth, FontHeight*2);\n"
+"	}\n"
+"	context.fillText(DumpHost, nWidth, FontHeight*3);\n"
+"	context.fillText(DiffString, nWidth, FontHeight*4);\n"
 "	context.textAlign = \'left\';\n"
 "	DrawFlashMessage(context);\n"
 "}\n"
@@ -4922,18 +4913,18 @@ const char g_MicroProfileHtml_end_0[] =
 "		context.fillStyle = Color;\n"
 "		context.fillRect(X+1, Y+1, Prc * nBarsWidth, InnerBoxHeight);\n"
 "		X += nWidthBars;\n"
-"		context.fillStyle = \'white\';\n"
+"		context.fillStyle =";
+
+const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
+const char g_MicroProfileHtml_end_1[] =
+" \'white\';\n"
 "		context.fillText((\"      \" + Value.toFixed(2)).slice(-TimerLen), X, YText);\n"
 "		X += nWidthMs;\n"
 "	}\n"
 "	function DrawMeta(Value, Width, Dec)\n"
 "	{\n"
 "		Value = FormatMeta(Value, Dec);\n"
-"		X += (FontWidth*W";
-
-const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
-const char g_MicroProfileHtml_end_1[] =
-"idth);\n"
+"		X += (FontWidth*Width);\n"
 "		context.textAlign = \'right\';\n"
 "		context.fillText(Value, X-FontWidth, YText);\n"
 "		context.textAlign = \'left\';\n"
@@ -6268,7 +6259,11 @@ const char g_MicroProfileHtml_end_1[] =
 "	{\n"
 "		FlipToolTip = 1;\n"
 "	}\n"
-"	if(evt.keyCode == 17)\n"
+"	if(evt.keyCode";
+
+const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
+const char g_MicroProfileHtml_end_2[] =
+" == 17)\n"
 "	{\n"
 "		KeyCtrlDown = 1;\n"
 "	}\n"
@@ -6282,11 +6277,7 @@ const char g_MicroProfileHtml_end_1[] =
 "function ReadCookie()\n"
 "{\n"
 "	var result = document.cookie.match(/fisk=([^;]+)/);\n"
-"	var NewMode = Mod";
-
-const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
-const char g_MicroProfileHtml_end_2[] =
-"eDetailed;\n"
+"	var NewMode = ModeDetailed;\n"
 "	var ReferenceTimeString = \'33ms\';\n"
 "	if(result && result.length > 0)\n"
 "	{\n"

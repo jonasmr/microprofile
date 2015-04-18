@@ -2796,56 +2796,39 @@ bool MicroProfileWebServerUpdate()
 		if(nReceived > 0)
 		{
 			Req[nReceived] = '\0';
- 			printf("got request \n%s\n", Req);
 #define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nExpires: Tue, 01 Jan 2199 16:00:00 GMT\r\n\r\n"
 			char* pHttp = strstr(Req, "HTTP/");
-			char* pGet = strstr(Req, "GET / ");
-			char* pGetParam = strstr(Req, "GET /?");
+			char* pGet = strstr(Req, "GET /");
 			char* pHost = strstr(Req, "Host: ");
-			if(pHost)
+			auto Terminate = [](char* pString)
 			{
-				pHost += sizeof("Host: ")-1;
-				char* pEnd = pHost;
+				char* pEnd = pString;
 				while(*pEnd != '\0')
 				{
 					if(*pEnd == '\r' || *pEnd == '\n')
 					{
 						*pEnd = '\0';
-						break;
+						return;
 					}
 					pEnd++;
 				}
+			};
+			if(pHost)
+			{
+				pHost += sizeof("Host: ")-1;
+				Terminate(pHost);
 			}
 
-			if(pHttp && (pGet || pGetParam))
+			if(pHttp && pGet)
 			{
 				int nMaxFrames = MICROPROFILE_WEBSERVER_MAXFRAMES;
-				if(pGetParam)
+				*pHttp = '\0';
+				pGet += sizeof("GET /")-1;
+				Terminate(pGet);
+				int nFrames = atoi(pGet);
+				if(nFrames)
 				{
-					*pHttp = '\0';
-					pGetParam += sizeof("GET /?")-1;
-					while(pGetParam) //split url pairs foo=bar&lala=lele etc
-					{
-						char* pSplit = strstr(pGetParam, "&");
-						if(pSplit)
-						{
-							*pSplit++ = '\0';
-						}
-						char* pKey = pGetParam;
-						char* pValue = strstr(pGetParam, "=");
-						if(pValue)
-						{
-							*pValue++ = '\0';
-						}
-						if(0 == MP_STRCASECMP(pKey, "frames"))
-						{
-							if(pValue)
-							{
-								nMaxFrames = atoi(pValue);
-							}
-						}
-						pGetParam = pSplit;
-					}
+					nMaxFrames = nFrames;
 				}
 				uint64_t nTickStart = MP_TICK();
 				send(Connection, MICROPROFILE_HTML_HEADER, sizeof(MICROPROFILE_HTML_HEADER)-1, 0);
