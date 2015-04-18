@@ -2238,7 +2238,7 @@ void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFra
 }
 #undef printf
 
-void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFrames)
+void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFrames, const char* pHost)
 {
 	uint32_t nRunning = S.nRunning;
 	S.nRunning = 0;
@@ -2257,6 +2257,10 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	float fToMsCPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
 	float fToMsGPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondGpu());
 	float fAggregateMs = fToMsCPU * (nTicks - S.nAggregateFlipTick);
+	MicroProfilePrintf(CB, Handle, "var DumpHost = '%s';\n", pHost ? pHost : "");
+	time_t CaptureTime;
+	time(&CaptureTime);
+	MicroProfilePrintf(CB, Handle, "var DumpUtcCaptureTime = %ld;\n", CaptureTime);
 	MicroProfilePrintf(CB, Handle, "var AggregateInfo = {'Frames':%d, 'Time':%f};\n", S.nAggregateFrames, fAggregateMs);
 
 	//categories
@@ -2675,7 +2679,7 @@ void MicroProfileDumpToFile()
 		FILE* F = fopen(S.HtmlDumpPath, "w");
 		if(F)
 		{
-			MicroProfileDumpHtml(MicroProfileWriteFile, F, MICROPROFILE_WEBSERVER_MAXFRAMES);
+			MicroProfileDumpHtml(MicroProfileWriteFile, F, MICROPROFILE_WEBSERVER_MAXFRAMES, S.HtmlDumpPath);
 			fclose(F);
 		}
 	}
@@ -2792,11 +2796,27 @@ bool MicroProfileWebServerUpdate()
 		if(nReceived > 0)
 		{
 			Req[nReceived] = '\0';
-// 			printf("got request \n%s\n", Req);
-#define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n"
+ 			printf("got request \n%s\n", Req);
+#define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nExpires: Tue, 01 Jan 2199 16:00:00 GMT\r\n\r\n"
 			char* pHttp = strstr(Req, "HTTP/");
 			char* pGet = strstr(Req, "GET / ");
 			char* pGetParam = strstr(Req, "GET /?");
+			char* pHost = strstr(Req, "Host: ");
+			if(pHost)
+			{
+				pHost += sizeof("Host: ")-1;
+				char* pEnd = pHost;
+				while(*pEnd != '\0')
+				{
+					if(*pEnd == '\r' || *pEnd == '\n')
+					{
+						*pEnd = '\0';
+						break;
+					}
+					pEnd++;
+				}
+			}
+
 			if(pHttp && (pGet || pGetParam))
 			{
 				int nMaxFrames = MICROPROFILE_WEBSERVER_MAXFRAMES;
@@ -2831,7 +2851,7 @@ bool MicroProfileWebServerUpdate()
 				send(Connection, MICROPROFILE_HTML_HEADER, sizeof(MICROPROFILE_HTML_HEADER)-1, 0);
 				uint64_t nDataStart = S.nWebServerDataSent;
 				S.WebServerPut = 0;
-				MicroProfileDumpHtml(MicroProfileWriteSocket, &Connection, nMaxFrames);
+				MicroProfileDumpHtml(MicroProfileWriteSocket, &Connection, nMaxFrames, pHost);
 				uint64_t nDataEnd = S.nWebServerDataSent;
 				uint64_t nTickEnd = MP_TICK();
 				uint64_t nDiff = (nTickEnd - nTickStart);
@@ -3371,7 +3391,7 @@ const char g_MicroProfileHtml_begin_0[] =
 "<canvas id=\"History\" height=\"70\" style=\"background-color:#474747;margin:0px;padding:0px;\"></canvas><canvas id=\"DetailedView\" height=\"200\" style=\"background-color:#474747;margin:0px;padding:0px;\"></canvas>\n"
 "<div id=\"root\" class=\"root\">\n"
 "<ul id=\"nav\">\n"
-"<li><a href=\"#\" onclick=\"ToggleDebugMode();\">?</a>\n"
+"<li><a href=\"javascript:void(0)\" onclick=\"ToggleDebugMode();\">?</a>\n"
 "<div class=\"help\" style=\"left:20px;top:20px;width:220px;\">\n"
 "Use Cursor to Inspect<br>\n"
 "Shift-Drag to Pan view<br>\n"
@@ -3383,48 +3403,48 @@ const char g_MicroProfileHtml_begin_0[] =
 "</div>\n"
 "\n"
 "</li>\n"
-"<li><a href=\"#\" id=\'ModeSubMenuText\'>Mode</a>\n"
+"<li><a id=\'ModeSubMenuText\'>Mode</a>\n"
 "    <ul id=\'ModeSubMenu\'>\n"
-"		<li><a href=\"#\" onclick=\"SetMode(\'timers\', 0);\" id=\"buttonTimers\">Timers</a></li>\n"
-"		<li><a href=\"#\" onclick=\"SetMode(\'timers\', 1);\" id=\"buttonGroups\">Groups</a></li> \n"
-"		<li><a href=\"#\" onclick=\"SetMode(\'timers\', 2);\" id=\"buttonThreads\">Threads</a></li>\n"
-"		<li><a href=\"#\" onclick=\"SetMode(\'detailed\', 0);\" id=\"buttonDetailed\">Detailed</a></li>\n"
+"		<li><a href=\"javascript:void(0)\" onclick=\"SetMode(\'timers\', 0);\" id=\"buttonTimers\">Timers</a></li>\n"
+"		<li><a href=\"javascript:void(0)\" onclick=\"SetMode(\'timers\', 1);\" id=\"buttonGroups\">Groups</a></li> \n"
+"		<li><a href=\"javascript:void(0)\" onclick=\"SetMode(\'timers\', 2);\" id=\"buttonThreads\">Threads</a></li>\n"
+"		<li><a href=\"javascript:void(0)\" onclick=\"SetMode(\'detailed\', 0);\" id=\"buttonDetailed\">Detailed</a></li>\n"
 "	</ul>\n"
 "</li>\n"
-"<li><a href=\"#\">Reference</a>\n"
+"<li><a>Reference</a>\n"
 "    <ul id=\'ReferenceSubMenu\'>\n"
-"        <li><a href=\"#\" onclick=\"SetReferenceTime(\'5ms\');\">5ms</a></li>\n"
-"        <li><a href=\"#\" onclick=\"SetReferenceTime(\'10ms\');\">10ms</a></li>\n"
-"        <li><a href=\"#\" onclick=\"SetReferenceTime(\'15ms\');\">15ms</a></li>\n"
-"        <li><a href=\"#\" onclick=\"SetReferenceTime(\'20ms\');\">20ms</a></li>\n"
-"        <li><a href=\"#\" onclick=\"SetReferenceTime(\'33ms\');\">33ms</a></li>\n"
-"        <li><a href=\"#\" onclick=\"SetReferenceTime(\'50ms\');\">50ms</a></li>\n"
-"        <li><a href=\"#\" onclick=\"SetReferenceTime(\'100ms\');\">100ms</a></li>\n"
-"        <li><a href=\"#\" onclick=\"SetReferenceTime(\'250ms\');\">250ms</a></li>\n"
-"        <li><a href=\"#\" onclick=\"SetReferenceTime(\'500ms\');\">500ms</a></li>\n"
-"        <li><a href=\"#\" onclick=\"SetReferenceTime(\'1000ms\');\">1000ms</a></li>\n"
+"        <li><a href=\"javascript:void(0)\" onclick=\"SetReferenceTime(\'5ms\');\">5ms</a></li>\n"
+"        <li><a href=\"javascript:void(0)\" onclick=\"SetReferenceTime(\'10ms\');\">10ms</a></li>\n"
+"        <li><a href=\"javascript:void(0)\" onclick=\"SetReferenceTime(\'15ms\');\">15ms</a></li>\n"
+"        <li><a href=\"javascript:void(0)\" onclick=\"SetReferenceTime(\'20ms\');\">20ms</a></li>\n"
+"        <li><a href=\"javascript:void(0)\" onclick=\"SetReferenceTime(\'33ms\');\">33ms</a></li>\n"
+"        <li><a href=\"javascript:void(0)\" onclick=\"SetReferenceTime(\'50ms\');\">50ms</a></li>\n"
+"        <li><a href=\"javascript:void(0)\" onclick=\"SetReferenceTime(\'100ms\');\">100ms</a></li>\n"
+"        <li><a href=\"javascript:void(0)\" onclick=\"SetReferenceTime(\'250ms\');\">250ms</a></li>\n"
+"        <li><a href=\"javascript:void(0)\" onclick=\"SetReferenceTime(\'500ms\');\">500ms</a></li>\n"
+"        <li><a href=\"javascript:void(0)\" onclick=\"SetReferenceTime(\'1000ms\');\">1000ms</a></li>\n"
 "    </ul>\n"
 "</li>\n"
-"<li id=\"ilThreads\"><a href=\"#\">Threads</a>\n"
+"<li id=\"ilThreads\"><a>Threads</a>\n"
 "    <ul id=\"ThreadSubMenu\">\n"
-"        <li><a href=\"#\" onclick=\"ToggleThread();\">All</a></li>\n"
-"        <li><a href=\"#\">---</a></li>\n"
+"        <li><a href=\"javascript:void(0)\" onclick=\"ToggleThread();\">All</a></li>\n"
+"        <li><a>---</a></li>\n"
 "    </ul>\n"
 "</li>\n"
-"<li id=\"ilGroups\"><a href=\"#\">Groups</a>\n"
+"<li id=\"ilGroups\"><a>Groups</a>\n"
 "    <ul id=\"GroupSubMenu\">\n"
-"        <li><a href=\"#\" onclick=\"ToggleGroup();\">All</a></li>\n"
-"        <li><a href=\"#\">---</a></li>\n"
+"        <li><a href=\"javascript:void(0)\" onclick=\"ToggleGroup();\">All</a></li>\n"
+"        <li><a>---</a></li>\n"
 "    </ul>\n"
 "</li>\n"
-"<li id=\"ilOptions\"><a href=\"#\">Options&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</a>\n"
+"<li id=\"ilOptions\"><a>Options&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</a>\n"
 "    <ul id=\'OptionsMenu\'>\n"
-"        <li><a href=\"#\" onclick=\"ToggleContextSwitch();\">Context Switch</a></li>\n"
-"		<li><a href=\"#\" onclick=\"ToggleDisableMerge();\">MergeDisable</a></li>\n"
-"		<li><a href=\"#\" onclick=\"ToggleDisableLod();\">LodDisable</a></li>\n"
-"		<li id=\'GroupColors\'><a href=\"#\" onclick=\"ToggleGroupColors();\">Group Colors</a></li>\n"
-"        <li id=\'TimersMeta\'><a href=\"#\" onclick=\"ToggleTimersMeta();\">Meta</a></li>\n"
-"<!--      	<li><a href=\"#\" onclick=\"ToggleDebug();\">DEBUG</a></li> -->\n"
+"        <li><a href=\"javascript:void(0)\" onclick=\"ToggleContextSwitch();\">Context Switch</a></li>\n"
+"		<li><a href=\"javascript:void(0)\" onclick=\"ToggleDisableMerge();\">MergeDisable</a></li>\n"
+"		<li><a href=\"javascript:void(0)\" onclick=\"ToggleDisableLod();\">LodDisable</a></li>\n"
+"		<li id=\'GroupColors\'><a href=\"javascript:void(0)\" onclick=\"ToggleGroupColors();\">Group Colors</a></li>\n"
+"        <li id=\'TimersMeta\'><a href=\"javascript:void(0)\" onclick=\"ToggleTimersMeta();\">Meta</a></li>\n"
+"<!--      	<li><a href=\"javascript:void(0)\" onclick=\"ToggleDebug();\">DEBUG</a></li> -->\n"
 "    </ul>\n"
 "</li>\n"
 "</ul>\n"
@@ -3527,6 +3547,7 @@ const char g_MicroProfileHtml_end_0[] =
 "var FontWidth = 1;\n"
 "var FontAscent = 3; //Set manually\n"
 "var Font = \'Bold \' + FontHeight + \'px Courier New\';\n"
+"var FontFlash = \'Bold \' + 35 + \'px Courier New\';\n"
 "var BoxHeight = FontHeight + 2;\n"
 "var ThreadsActive = new Object();\n"
 "var ThreadsAllActive = 1;\n"
@@ -3786,7 +3807,7 @@ const char g_MicroProfileHtml_end_0[] =
 "		}\n"
 "		li.innerText = name;\n"
 "		var asText = li.innerHTML;\n"
-"		var html = \'<a href=\"#\" onclick=\"ToggleThread(\\'\' + name + \'\\');\">\' + asText + \'</a>\';\n"
+"		var html = \'<a href=\"javascript:void(0)\" onclick=\"ToggleThread(\\'\' + name + \'\\');\">\' + asText + \'</a>\';\n"
 "		li.innerHTML = html;\n"
 "		ulThreadMenu.appendChild(li);\n"
 "	}\n"
@@ -3856,7 +3877,7 @@ const char g_MicroProfileHtml_end_0[] =
 "	Invalidate = 0;\n"
 "	UpdateThreadMenu();\n"
 "	WriteCookie();\n"
-"	Draw();\n"
+"	Draw(1);\n"
 "\n"
 "}\n"
 "\n"
@@ -3935,7 +3956,7 @@ const char g_MicroProfileHtml_end_0[] =
 "			jsfunc = \"ToggleGroup\";\n"
 "		}\n"
 "		var asText = li.innerHTML;\n"
-"		var html = \'<a href=\"#\" onclick=\"\' + jsfunc + \'(\\'\' + name + \'\\');\">\' + asText + \'</a>\';\n"
+"		var html = \'<a href=\"javascript:void(0)\" onclick=\"\' + jsfunc + \'(\\'\' + name + \'\\');\">\' + asText + \'</a>\';\n"
 "		li.innerHTML = html;\n"
 "		ulGroupMenu.appendChild(li);\n"
 "	}\n"
@@ -4372,6 +4393,79 @@ const char g_MicroProfileHtml_end_0[] =
 "\n"
 "}\n"
 "\n"
+"var FlashFrames = 10;\n"
+"var FlashFrameCounter = 0;\n"
+"var FlashMessage = \'\';\n"
+"function TimeString(Diff)\n"
+"{\n"
+"	var DiffString = \"0 sec\";\n"
+"	var DiffTable = [1,60,60*60,60*60*24];\n"
+"	var DiffNameTable = [\"sec\", \"min\", \"hr\", \"day\"];\n"
+"	for(var i = 0; i < DiffTable.length; ++i)\n"
+"	{\n"
+"		if(Diff >= DiffTable[i])\n"
+"		{\n"
+"			DiffString = Math.floor(Diff / DiffTable[i]) + \" \" + DiffNameTable[i];\n"
+"		}\n"
+"	}\n"
+"	return DiffString;\n"
+"\n"
+"}\n"
+"function ShowFlashMessage(Message, FrameCount)\n"
+"{\n"
+"	FlashMessage = Message;\n"
+"	FlashFrameCounter = FrameCount;\n"
+"}\n"
+"function FlashOldMessage()\n"
+"{\n"
+"	var DumpDate = DumpUtcCaptureTime;\n"
+"	var CurrentDate = Date.now() / 1000;\n"
+"	var Diff = CurrentDate - DumpDate;\n"
+"	var Limit = 10*60;//flash old message when loading captures older than 10 minutes \n"
+"	if(Diff > Limit)\n"
+"	{\n"
+"		ShowFlashMessage(\"Captured \" + TimeString(Diff) + \" ago\", 100);\n"
+"	}\n"
+"\n"
+"}\n"
+"\n"
+"function DrawFlashMessage(context)\n"
+"{\n"
+"	if(FlashFrameCounter > 0)\n"
+"	{\n"
+"		if(FlashFrameCounter>1)\n"
+"		{\n"
+"			var FlashPrc = Math.sin(FlashFrameCounter / FlashFrames);\n"
+"			context.font = FontFlash;\n"
+"			context.globalAlpha = FlashPrc * 0.35 + 0.5;\n"
+"			context.textAlign = \'center\';\n"
+"			context.fillStyle = \'red\';\n"
+"			context.fillText(FlashMessage, nWidth * 0.5, 50);\n"
+"			context.globalAlpha = 1;\n"
+"			context.textAlign = \'left\';\n"
+"			context.font = Font;\n"
+"		}\n"
+"		FlashFrameCounter -= 1;\n"
+"\n"
+"	}\n"
+"}\n"
+"\n"
+"function DrawCaptureInfo(context)\n"
+"{\n"
+"	context.fillStyle = \'white\';\n"
+"	context.textAlign = \'right\';\n"
+"	context.font = Font;\n"
+"	var DumpDate = DumpUtcCaptureTime;\n"
+"	var CurrentDate = Date.now() / 1000;\n"
+"	var Diff = CurrentDate - DumpDate;\n"
+"	var DiffString = TimeString(Diff) + \" ago\";\n"
+"	context.fillText(new Date(DumpDate*1000).toLocaleString(), nWidth, FontHeight);\n"
+"	context.fillText(DumpHost, nWidth, FontHeight*2);\n"
+"	context.fillText(DiffString, nWidth, FontHeight*3);\n"
+"	context.textAlign = \'left\';\n"
+"	DrawFlashMessage(context);\n"
+"}\n"
+"\n"
 "function DrawDetailedFrameHistory()\n"
 "{\n"
 "	ProfileEnter(\"DrawDetailedFrameHistory\");\n"
@@ -4437,6 +4531,11 @@ const char g_MicroProfileHtml_end_0[] =
 "	context.moveTo(X+W, Y);\n"
 "	context.lineTo(X+W, Y+fHeight);\n"
 "	context.stroke();\n"
+"\n"
+"\n"
+"\n"
+"\n"
+"	DrawCaptureInfo(context);\n"
 "\n"
 "	if(FrameIndex>=0 && !MouseDragging)\n"
 "	{\n"
@@ -4830,7 +4929,11 @@ const char g_MicroProfileHtml_end_0[] =
 "	function DrawMeta(Value, Width, Dec)\n"
 "	{\n"
 "		Value = FormatMeta(Value, Dec);\n"
-"		X += (FontWidth*Width);\n"
+"		X += (FontWidth*W";
+
+const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
+const char g_MicroProfileHtml_end_1[] =
+"idth);\n"
 "		context.textAlign = \'right\';\n"
 "		context.fillText(Value, X-FontWidth, YText);\n"
 "		context.textAlign = \'left\';\n"
@@ -4883,11 +4986,7 @@ const char g_MicroProfileHtml_end_0[] =
 "						DrawTimer(PerThreadTimerTotal, GColor);\n"
 "\n"
 "						Y += Height;\n"
-"			";
-
-const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
-const char g_MicroProfileHtml_end_1[] =
-"		}\n"
+"					}\n"
 "				}\n"
 "			}\n"
 "		}\n"
@@ -5688,27 +5787,28 @@ const char g_MicroProfileHtml_end_1[] =
 "function RequestRedraw()\n"
 "{\n"
 "	Invalidate = 0;\n"
-"	Draw();\n"
+"	Draw(1);\n"
 "}\n"
-"function Draw()\n"
+"function Draw(RedrawMode)\n"
 "{\n"
 "	if(ProfileMode)\n"
 "	{\n"
 "		ProfileModeClear();\n"
 "		ProfileEnter(\"Total\");\n"
 "	}\n"
-"\n"
-"	if(Mode == ModeTimers)\n"
+"	if(RedrawMode == 1)\n"
 "	{\n"
-"		DrawBarView();\n"
-"		DrawHoverToolTip();\n"
+"		if(Mode == ModeTimers)\n"
+"		{\n"
+"			DrawBarView();\n"
+"			DrawHoverToolTip();\n"
+"		}\n"
+"		else if(Mode == ModeDetailed)\n"
+"		{\n"
+"			DrawDetailed(false);\n"
+"			DrawHoverToolTip();\n"
+"		}\n"
 "	}\n"
-"	else if(Mode == ModeDetailed)\n"
-"	{\n"
-"		DrawDetailed(false);\n"
-"		DrawHoverToolTip();\n"
-"	}\n"
-"\n"
 "	DrawDetailedFrameHistory();\n"
 "\n"
 "	if(ProfileMode)\n"
@@ -5720,21 +5820,28 @@ const char g_MicroProfileHtml_end_1[] =
 "\n"
 "function AutoRedraw(Timestamp)\n"
 "{\n"
+"	var RedrawMode = 0;\n"
 "	if(Mode == ModeDetailed)\n"
 "	{\n"
 "		if(ProfileMode == 2 || ((nHoverCSCpu >= 0 || nHoverToken != -1) && !KeyCtrlDown && !KeyShiftDown && !MouseDragButton)||(Invalidate<2 && !KeyCtrlDown && !KeyShiftDown && !MouseDragButton))\n"
 "		{\n"
-"			Draw(1);\n"
+"			RedrawMode = 1;\n"
 "		}\n"
 "	}\n"
 "	else\n"
 "	{\n"
 "		if(Invalidate < 1)\n"
 "		{\n"
-"			Draw(1);\n"
+"			RedrawMode = 1;\n"
 "		}\n"
-"\n"
-"\n"
+"	}\n"
+"	if(RedrawMode)\n"
+"	{\n"
+"		Draw(RedrawMode);\n"
+"	}\n"
+"	else if(FlashFrameCounter>0)\n"
+"	{\n"
+"		Draw(0);\n"
 "	}\n"
 "	requestAnimationFrame(AutoRedraw);\n"
 "}\n"
@@ -6107,7 +6214,7 @@ const char g_MicroProfileHtml_end_1[] =
 "		HistoryViewMouseX = x;\n"
 "		HistoryViewMouseY = y;\n"
 "	}\n"
-"	Draw();\n"
+"	Draw(1);\n"
 "}\n"
 "\n"
 "function MouseButton(bPressed, evt)\n"
@@ -6131,7 +6238,7 @@ const char g_MicroProfileHtml_end_1[] =
 "    var e = window.event || e;\n"
 "    var delta = (e.wheelDelta || e.detail * (-120));\n"
 "    ZoomGraph((-4 * delta / 120.0) | 0);\n"
-"    Draw();\n"
+"    Draw(1);\n"
 "}\n"
 "\n"
 "\n"
@@ -6175,7 +6282,11 @@ const char g_MicroProfileHtml_end_1[] =
 "function ReadCookie()\n"
 "{\n"
 "	var result = document.cookie.match(/fisk=([^;]+)/);\n"
-"	var NewMode = ModeDetailed;\n"
+"	var NewMode = Mod";
+
+const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
+const char g_MicroProfileHtml_end_2[] =
+"eDetailed;\n"
 "	var ReferenceTimeString = \'33ms\';\n"
 "	if(result && result.length > 0)\n"
 "	{\n"
@@ -6260,11 +6371,7 @@ const char g_MicroProfileHtml_end_1[] =
 "\n"
 "CanvasDetailedView.addEventListener(\'mousemove\', MouseMove, false);\n"
 "CanvasDetailedView.addEventListener(\'mousedown\', function(evt) { MouseButton(true, evt); });\n"
-"CanvasD";
-
-const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
-const char g_MicroProfileHtml_end_2[] =
-"etailedView.addEventListener(\'mouseup\', function(evt) { MouseButton(false, evt); } );\n"
+"CanvasDetailedView.addEventListener(\'mouseup\', function(evt) { MouseButton(false, evt); } );\n"
 "CanvasDetailedView.addEventListener(\'mouseout\', MouseOut);\n"
 "CanvasDetailedView.addEventListener(\"contextmenu\", function (e) { e.preventDefault(); }, false);\n"
 "CanvasDetailedView.addEventListener(mousewheelevt, MouseWheel, false);\n"
@@ -6751,7 +6858,8 @@ const char g_MicroProfileHtml_end_2[] =
 "UpdateThreadMenu();\n"
 "ResizeCanvas();\n"
 "Preprocess();\n"
-"Draw();\n"
+"FlashOldMessage();\n"
+"Draw(1);\n"
 "AutoRedraw();\n"
 "\n"
 "</script>\n"

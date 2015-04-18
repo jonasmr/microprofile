@@ -44,7 +44,7 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 <canvas id="History" height="70" style="background-color:#474747;margin:0px;padding:0px;"></canvas><canvas id="DetailedView" height="200" style="background-color:#474747;margin:0px;padding:0px;"></canvas>
 <div id="root" class="root">
 <ul id="nav">
-<li><a href="#" onclick="ToggleDebugMode();">?</a>
+<li><a href="javascript:void(0)" onclick="ToggleDebugMode();">?</a>
 <div class="help" style="left:20px;top:20px;width:220px;">
 Use Cursor to Inspect<br>
 Shift-Drag to Pan view<br>
@@ -56,48 +56,48 @@ Click to Zoom to selected range<br>
 </div>
 
 </li>
-<li><a href="#" id='ModeSubMenuText'>Mode</a>
+<li><a id='ModeSubMenuText'>Mode</a>
     <ul id='ModeSubMenu'>
-		<li><a href="#" onclick="SetMode('timers', 0);" id="buttonTimers">Timers</a></li>
-		<li><a href="#" onclick="SetMode('timers', 1);" id="buttonGroups">Groups</a></li> 
-		<li><a href="#" onclick="SetMode('timers', 2);" id="buttonThreads">Threads</a></li>
-		<li><a href="#" onclick="SetMode('detailed', 0);" id="buttonDetailed">Detailed</a></li>
+		<li><a href="javascript:void(0)" onclick="SetMode('timers', 0);" id="buttonTimers">Timers</a></li>
+		<li><a href="javascript:void(0)" onclick="SetMode('timers', 1);" id="buttonGroups">Groups</a></li> 
+		<li><a href="javascript:void(0)" onclick="SetMode('timers', 2);" id="buttonThreads">Threads</a></li>
+		<li><a href="javascript:void(0)" onclick="SetMode('detailed', 0);" id="buttonDetailed">Detailed</a></li>
 	</ul>
 </li>
-<li><a href="#">Reference</a>
+<li><a>Reference</a>
     <ul id='ReferenceSubMenu'>
-        <li><a href="#" onclick="SetReferenceTime('5ms');">5ms</a></li>
-        <li><a href="#" onclick="SetReferenceTime('10ms');">10ms</a></li>
-        <li><a href="#" onclick="SetReferenceTime('15ms');">15ms</a></li>
-        <li><a href="#" onclick="SetReferenceTime('20ms');">20ms</a></li>
-        <li><a href="#" onclick="SetReferenceTime('33ms');">33ms</a></li>
-        <li><a href="#" onclick="SetReferenceTime('50ms');">50ms</a></li>
-        <li><a href="#" onclick="SetReferenceTime('100ms');">100ms</a></li>
-        <li><a href="#" onclick="SetReferenceTime('250ms');">250ms</a></li>
-        <li><a href="#" onclick="SetReferenceTime('500ms');">500ms</a></li>
-        <li><a href="#" onclick="SetReferenceTime('1000ms');">1000ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetReferenceTime('5ms');">5ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetReferenceTime('10ms');">10ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetReferenceTime('15ms');">15ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetReferenceTime('20ms');">20ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetReferenceTime('33ms');">33ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetReferenceTime('50ms');">50ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetReferenceTime('100ms');">100ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetReferenceTime('250ms');">250ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetReferenceTime('500ms');">500ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetReferenceTime('1000ms');">1000ms</a></li>
     </ul>
 </li>
-<li id="ilThreads"><a href="#">Threads</a>
+<li id="ilThreads"><a>Threads</a>
     <ul id="ThreadSubMenu">
-        <li><a href="#" onclick="ToggleThread();">All</a></li>
-        <li><a href="#">---</a></li>
+        <li><a href="javascript:void(0)" onclick="ToggleThread();">All</a></li>
+        <li><a>---</a></li>
     </ul>
 </li>
-<li id="ilGroups"><a href="#">Groups</a>
+<li id="ilGroups"><a>Groups</a>
     <ul id="GroupSubMenu">
-        <li><a href="#" onclick="ToggleGroup();">All</a></li>
-        <li><a href="#">---</a></li>
+        <li><a href="javascript:void(0)" onclick="ToggleGroup();">All</a></li>
+        <li><a>---</a></li>
     </ul>
 </li>
-<li id="ilOptions"><a href="#">Options&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</a>
+<li id="ilOptions"><a>Options&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</a>
     <ul id='OptionsMenu'>
-        <li><a href="#" onclick="ToggleContextSwitch();">Context Switch</a></li>
-		<li><a href="#" onclick="ToggleDisableMerge();">MergeDisable</a></li>
-		<li><a href="#" onclick="ToggleDisableLod();">LodDisable</a></li>
-		<li id='GroupColors'><a href="#" onclick="ToggleGroupColors();">Group Colors</a></li>
-        <li id='TimersMeta'><a href="#" onclick="ToggleTimersMeta();">Meta</a></li>
-<!--      	<li><a href="#" onclick="ToggleDebug();">DEBUG</a></li> -->
+        <li><a href="javascript:void(0)" onclick="ToggleContextSwitch();">Context Switch</a></li>
+		<li><a href="javascript:void(0)" onclick="ToggleDisableMerge();">MergeDisable</a></li>
+		<li><a href="javascript:void(0)" onclick="ToggleDisableLod();">LodDisable</a></li>
+		<li id='GroupColors'><a href="javascript:void(0)" onclick="ToggleGroupColors();">Group Colors</a></li>
+        <li id='TimersMeta'><a href="javascript:void(0)" onclick="ToggleTimersMeta();">Meta</a></li>
+<!--      	<li><a href="javascript:void(0)" onclick="ToggleDebug();">DEBUG</a></li> -->
     </ul>
 </li>
 </ul>
@@ -189,6 +189,7 @@ var FontHeight = 10;
 var FontWidth = 1;
 var FontAscent = 3; //Set manually
 var Font = 'Bold ' + FontHeight + 'px Courier New';
+var FontFlash = 'Bold ' + 35 + 'px Courier New';
 var BoxHeight = FontHeight + 2;
 var ThreadsActive = new Object();
 var ThreadsAllActive = 1;
@@ -448,7 +449,7 @@ function InitThreadMenu()
 		}
 		li.innerText = name;
 		var asText = li.innerHTML;
-		var html = '<a href="#" onclick="ToggleThread(\'' + name + '\');">' + asText + '</a>';
+		var html = '<a href="javascript:void(0)" onclick="ToggleThread(\'' + name + '\');">' + asText + '</a>';
 		li.innerHTML = html;
 		ulThreadMenu.appendChild(li);
 	}
@@ -518,7 +519,7 @@ function ToggleThread(ThreadName)
 	Invalidate = 0;
 	UpdateThreadMenu();
 	WriteCookie();
-	Draw();
+	Draw(1);
 
 }
 
@@ -597,7 +598,7 @@ function InitGroupMenu()
 			jsfunc = "ToggleGroup";
 		}
 		var asText = li.innerHTML;
-		var html = '<a href="#" onclick="' + jsfunc + '(\'' + name + '\');">' + asText + '</a>';
+		var html = '<a href="javascript:void(0)" onclick="' + jsfunc + '(\'' + name + '\');">' + asText + '</a>';
 		li.innerHTML = html;
 		ulGroupMenu.appendChild(li);
 	}
@@ -1034,6 +1035,79 @@ function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast)
 
 }
 
+var FlashFrames = 10;
+var FlashFrameCounter = 0;
+var FlashMessage = '';
+function TimeString(Diff)
+{
+	var DiffString = "0 sec";
+	var DiffTable = [1,60,60*60,60*60*24];
+	var DiffNameTable = ["sec", "min", "hr", "day"];
+	for(var i = 0; i < DiffTable.length; ++i)
+	{
+		if(Diff >= DiffTable[i])
+		{
+			DiffString = Math.floor(Diff / DiffTable[i]) + " " + DiffNameTable[i];
+		}
+	}
+	return DiffString;
+
+}
+function ShowFlashMessage(Message, FrameCount)
+{
+	FlashMessage = Message;
+	FlashFrameCounter = FrameCount;
+}
+function FlashOldMessage()
+{
+	var DumpDate = DumpUtcCaptureTime;
+	var CurrentDate = Date.now() / 1000;
+	var Diff = CurrentDate - DumpDate;
+	var Limit = 10*60;//flash old message when loading captures older than 10 minutes 
+	if(Diff > Limit)
+	{
+		ShowFlashMessage("Captured " + TimeString(Diff) + " ago", 100);
+	}
+
+}
+
+function DrawFlashMessage(context)
+{
+	if(FlashFrameCounter > 0)
+	{
+		if(FlashFrameCounter>1)
+		{
+			var FlashPrc = Math.sin(FlashFrameCounter / FlashFrames);
+			context.font = FontFlash;
+			context.globalAlpha = FlashPrc * 0.35 + 0.5;
+			context.textAlign = 'center';
+			context.fillStyle = 'red';
+			context.fillText(FlashMessage, nWidth * 0.5, 50);
+			context.globalAlpha = 1;
+			context.textAlign = 'left';
+			context.font = Font;
+		}
+		FlashFrameCounter -= 1;
+
+	}
+}
+
+function DrawCaptureInfo(context)
+{
+	context.fillStyle = 'white';
+	context.textAlign = 'right';
+	context.font = Font;
+	var DumpDate = DumpUtcCaptureTime;
+	var CurrentDate = Date.now() / 1000;
+	var Diff = CurrentDate - DumpDate;
+	var DiffString = TimeString(Diff) + " ago";
+	context.fillText(new Date(DumpDate*1000).toLocaleString(), nWidth, FontHeight);
+	context.fillText(DumpHost, nWidth, FontHeight*2);
+	context.fillText(DiffString, nWidth, FontHeight*3);
+	context.textAlign = 'left';
+	DrawFlashMessage(context);
+}
+
 function DrawDetailedFrameHistory()
 {
 	ProfileEnter("DrawDetailedFrameHistory");
@@ -1099,6 +1173,11 @@ function DrawDetailedFrameHistory()
 	context.moveTo(X+W, Y);
 	context.lineTo(X+W, Y+fHeight);
 	context.stroke();
+
+
+
+
+	DrawCaptureInfo(context);
 
 	if(FrameIndex>=0 && !MouseDragging)
 	{
@@ -2346,27 +2425,28 @@ function ZoomTo(fZoomBegin, fZoomEnd)
 function RequestRedraw()
 {
 	Invalidate = 0;
-	Draw();
+	Draw(1);
 }
-function Draw()
+function Draw(RedrawMode)
 {
 	if(ProfileMode)
 	{
 		ProfileModeClear();
 		ProfileEnter("Total");
 	}
-
-	if(Mode == ModeTimers)
+	if(RedrawMode == 1)
 	{
-		DrawBarView();
-		DrawHoverToolTip();
+		if(Mode == ModeTimers)
+		{
+			DrawBarView();
+			DrawHoverToolTip();
+		}
+		else if(Mode == ModeDetailed)
+		{
+			DrawDetailed(false);
+			DrawHoverToolTip();
+		}
 	}
-	else if(Mode == ModeDetailed)
-	{
-		DrawDetailed(false);
-		DrawHoverToolTip();
-	}
-
 	DrawDetailedFrameHistory();
 
 	if(ProfileMode)
@@ -2378,21 +2458,28 @@ function Draw()
 
 function AutoRedraw(Timestamp)
 {
+	var RedrawMode = 0;
 	if(Mode == ModeDetailed)
 	{
 		if(ProfileMode == 2 || ((nHoverCSCpu >= 0 || nHoverToken != -1) && !KeyCtrlDown && !KeyShiftDown && !MouseDragButton)||(Invalidate<2 && !KeyCtrlDown && !KeyShiftDown && !MouseDragButton))
 		{
-			Draw(1);
+			RedrawMode = 1;
 		}
 	}
 	else
 	{
 		if(Invalidate < 1)
 		{
-			Draw(1);
+			RedrawMode = 1;
 		}
-
-
+	}
+	if(RedrawMode)
+	{
+		Draw(RedrawMode);
+	}
+	else if(FlashFrameCounter>0)
+	{
+		Draw(0);
 	}
 	requestAnimationFrame(AutoRedraw);
 }
@@ -2765,7 +2852,7 @@ function MouseMove(evt)
 		HistoryViewMouseX = x;
 		HistoryViewMouseY = y;
 	}
-	Draw();
+	Draw(1);
 }
 
 function MouseButton(bPressed, evt)
@@ -2789,7 +2876,7 @@ function MouseWheel(e)
     var e = window.event || e;
     var delta = (e.wheelDelta || e.detail * (-120));
     ZoomGraph((-4 * delta / 120.0) | 0);
-    Draw();
+    Draw(1);
 }
 
 
@@ -3405,7 +3492,8 @@ InitFrameInfo();
 UpdateThreadMenu();
 ResizeCanvas();
 Preprocess();
-Draw();
+FlashOldMessage();
+Draw(1);
 AutoRedraw();
 
 </script>

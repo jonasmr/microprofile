@@ -2238,7 +2238,7 @@ void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFra
 }
 #undef printf
 
-void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFrames)
+void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFrames, const char* pHost)
 {
 	uint32_t nRunning = S.nRunning;
 	S.nRunning = 0;
@@ -2257,6 +2257,10 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	float fToMsCPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
 	float fToMsGPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondGpu());
 	float fAggregateMs = fToMsCPU * (nTicks - S.nAggregateFlipTick);
+	MicroProfilePrintf(CB, Handle, "var DumpHost = '%s';\n", pHost ? pHost : "");
+	time_t CaptureTime;
+	time(&CaptureTime);
+	MicroProfilePrintf(CB, Handle, "var DumpUtcCaptureTime = %ld;\n", CaptureTime);
 	MicroProfilePrintf(CB, Handle, "var AggregateInfo = {'Frames':%d, 'Time':%f};\n", S.nAggregateFrames, fAggregateMs);
 
 	//categories
@@ -2675,7 +2679,7 @@ void MicroProfileDumpToFile()
 		FILE* F = fopen(S.HtmlDumpPath, "w");
 		if(F)
 		{
-			MicroProfileDumpHtml(MicroProfileWriteFile, F, MICROPROFILE_WEBSERVER_MAXFRAMES);
+			MicroProfileDumpHtml(MicroProfileWriteFile, F, MICROPROFILE_WEBSERVER_MAXFRAMES, S.HtmlDumpPath);
 			fclose(F);
 		}
 	}
@@ -2792,11 +2796,27 @@ bool MicroProfileWebServerUpdate()
 		if(nReceived > 0)
 		{
 			Req[nReceived] = '\0';
-// 			printf("got request \n%s\n", Req);
-#define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n"
+ 			printf("got request \n%s\n", Req);
+#define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nExpires: Tue, 01 Jan 2199 16:00:00 GMT\r\n\r\n"
 			char* pHttp = strstr(Req, "HTTP/");
 			char* pGet = strstr(Req, "GET / ");
 			char* pGetParam = strstr(Req, "GET /?");
+			char* pHost = strstr(Req, "Host: ");
+			if(pHost)
+			{
+				pHost += sizeof("Host: ")-1;
+				char* pEnd = pHost;
+				while(*pEnd != '\0')
+				{
+					if(*pEnd == '\r' || *pEnd == '\n')
+					{
+						*pEnd = '\0';
+						break;
+					}
+					pEnd++;
+				}
+			}
+
 			if(pHttp && (pGet || pGetParam))
 			{
 				int nMaxFrames = MICROPROFILE_WEBSERVER_MAXFRAMES;
@@ -2831,7 +2851,7 @@ bool MicroProfileWebServerUpdate()
 				send(Connection, MICROPROFILE_HTML_HEADER, sizeof(MICROPROFILE_HTML_HEADER)-1, 0);
 				uint64_t nDataStart = S.nWebServerDataSent;
 				S.WebServerPut = 0;
-				MicroProfileDumpHtml(MicroProfileWriteSocket, &Connection, nMaxFrames);
+				MicroProfileDumpHtml(MicroProfileWriteSocket, &Connection, nMaxFrames, pHost);
 				uint64_t nDataEnd = S.nWebServerDataSent;
 				uint64_t nTickEnd = MP_TICK();
 				uint64_t nDiff = (nTickEnd - nTickStart);
