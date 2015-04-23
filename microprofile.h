@@ -496,6 +496,10 @@ struct MicroProfileScopeGpuHandler
 #define MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE (1)
 #endif
 
+#ifndef MICROPROFILE_MINIZ
+#define MICROPROFILE_MINIZ 0
+#endif
+
 #ifdef _WIN32
 #include <basetsd.h>
 typedef UINT_PTR MpSocket;
@@ -2722,6 +2726,120 @@ void MicroProfileWriteSocket(void* Handle, size_t nSize, const char* pData)
 	}
 }
 
+#if MICROPROFILE_MINIZ
+#ifndef MICROPROFILE_COMPRESS_BUFFER_SIZE
+#define MICROPROFILE_COMPRESS_BUFFER_SIZE (256<<10)
+#endif
+
+#define MICROPROFILE_COMPRESS_CHUNK (MICROPROFILE_COMPRESS_BUFFER_SIZE/2)
+struct MicroProfileCompressedSocketState
+{
+	unsigned char DeflateOut[MICROPROFILE_COMPRESS_CHUNK];
+	unsigned char DeflateIn[MICROPROFILE_COMPRESS_CHUNK];
+	mz_stream Stream;
+	MpSocket Socket;
+	uint32_t nSize;
+	uint32_t nCompressedSize;
+	uint32_t nFlushes;
+	uint32_t nMemmoveBytes;
+};
+
+void MicroProfileCompressedSocketFlush(MicroProfileCompressedSocketState* pState)
+{
+	mz_stream& Stream = pState->Stream;
+	unsigned char* pSendStart = &pState->DeflateOut[0];
+	unsigned char* pSendEnd = &pState->DeflateOut[MICROPROFILE_COMPRESS_CHUNK - Stream.avail_out];
+	if(pSendStart != pSendEnd)
+	{
+		send(pState->Socket, pSendStart, pSendEnd - pSendStart, 0);
+		pState->nCompressedSize += pSendEnd - pSendStart;
+	}
+	Stream.next_out = &pState->DeflateOut[0];
+	Stream.avail_out = MICROPROFILE_COMPRESS_CHUNK;
+
+}
+void MicroProfileCompressedSocketStart(MicroProfileCompressedSocketState* pState, MpSocket Socket)
+{
+	mz_stream& Stream = pState->Stream;
+	memset(&Stream, 0, sizeof(Stream));
+	Stream.next_out = &pState->DeflateOut[0];
+	Stream.avail_out = MICROPROFILE_COMPRESS_CHUNK;
+	Stream.next_in = &pState->DeflateIn[0];
+	Stream.avail_in = 0;
+	mz_deflateInit(&Stream, Z_DEFAULT_COMPRESSION);
+	pState->Socket = Socket;
+	pState->nSize = 0;
+	pState->nCompressedSize = 0;
+	pState->nFlushes = 0;
+	pState->nMemmoveBytes = 0;
+
+}
+void MicroProfileCompressedSocketFinish(MicroProfileCompressedSocketState* pState)
+{
+	mz_stream& Stream = pState->Stream;
+	MicroProfileCompressedSocketFlush(pState);
+	int r = mz_deflate(&Stream, MZ_FINISH);
+	MP_ASSERT(r == MZ_STREAM_END);
+	MicroProfileCompressedSocketFlush(pState);
+	r = mz_deflateEnd(&Stream);
+	MP_ASSERT(r == MZ_OK);
+}
+
+void MicroProfileCompressedWriteSocket(void* Handle, size_t nSize, const char* pData)
+{
+	MicroProfileCompressedSocketState* pState = (MicroProfileCompressedSocketState*)Handle;
+	mz_stream& Stream = pState->Stream;
+	const unsigned char* pDeflateInEnd = Stream.next_in + Stream.avail_in;
+	const unsigned char* pDeflateInStart = &pState->DeflateIn[0];
+	const unsigned char* pDeflateInRealEnd = &pState->DeflateIn[MICROPROFILE_COMPRESS_CHUNK];	
+	pState->nSize += nSize;
+	if(nSize <= pDeflateInRealEnd - pDeflateInEnd)
+	{
+		memcpy((void*)pDeflateInEnd, pData, nSize);
+		Stream.avail_in += nSize;
+		MP_ASSERT(Stream.next_in + Stream.avail_in <= pDeflateInRealEnd);
+		return;
+	}
+	int Flush = 0;
+	while(nSize)
+	{
+		pDeflateInEnd = Stream.next_in + Stream.avail_in;
+		if(Flush)
+		{
+			pState->nFlushes++;
+			MicroProfileCompressedSocketFlush(pState);
+			pDeflateInRealEnd = &pState->DeflateIn[MICROPROFILE_COMPRESS_CHUNK];	
+			if(pDeflateInEnd == pDeflateInRealEnd)
+			{
+				if(Stream.avail_in)
+				{
+					MP_ASSERT(pDeflateInStart != Stream.next_in);
+					memmove((void*)pDeflateInStart, Stream.next_in, Stream.avail_in);
+					pState->nMemmoveBytes += Stream.avail_in;
+				}
+				Stream.next_in = pDeflateInStart;
+				pDeflateInEnd = Stream.next_in + Stream.avail_in;
+			}
+		}
+		size_t nSpace = pDeflateInRealEnd - pDeflateInEnd;
+		size_t nBytes = MicroProfileMin(nSpace, nSize);
+		MP_ASSERT(nBytes + pDeflateInEnd <= pDeflateInRealEnd);
+		memcpy((void*)pDeflateInEnd, pData, nBytes); 
+		Stream.avail_in += nBytes;
+		nSize -= nBytes;
+		pData += nBytes;
+		int r = mz_deflate(&Stream, MZ_NO_FLUSH);
+		Flush = r == MZ_BUF_ERROR || nBytes == 0 || Stream.avail_out == 0 ? 1 : 0;
+		MP_ASSERT(r == MZ_BUF_ERROR || r == MZ_OK);
+		if(r == MZ_BUF_ERROR)
+		{
+			r = mz_deflate(&Stream, MZ_SYNC_FLUSH);
+		}
+	}
+}
+#endif
+
+
 #ifndef MicroProfileSetNonBlocking //fcntl doesnt work on a some unix like platforms..
 void MicroProfileSetNonBlocking(MpSocket Socket, int NonBlocking)
 {
@@ -2796,7 +2914,11 @@ bool MicroProfileWebServerUpdate()
 		if(nReceived > 0)
 		{
 			Req[nReceived] = '\0';
+#if MICROPROFILE_MINIZ
+#define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nContent-Encoding: deflate\r\nExpires: Tue, 01 Jan 2199 16:00:00 GMT\r\n\r\n"
+#else
 #define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nExpires: Tue, 01 Jan 2199 16:00:00 GMT\r\n\r\n"
+#endif
 			char* pHttp = strstr(Req, "HTTP/");
 			char* pGet = strstr(Req, "GET /");
 			char* pHost = strstr(Req, "Host: ");
@@ -2834,18 +2956,36 @@ bool MicroProfileWebServerUpdate()
 				send(Connection, MICROPROFILE_HTML_HEADER, sizeof(MICROPROFILE_HTML_HEADER)-1, 0);
 				uint64_t nDataStart = S.nWebServerDataSent;
 				S.WebServerPut = 0;
+#if 0 == MICROPROFILE_MINIZ
 				MicroProfileDumpHtml(MicroProfileWriteSocket, &Connection, nMaxFrames, pHost);
 				uint64_t nDataEnd = S.nWebServerDataSent;
 				uint64_t nTickEnd = MP_TICK();
 				uint64_t nDiff = (nTickEnd - nTickStart);
 				float fMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu()) * nDiff;
 				int nKb = ((nDataEnd-nDataStart)>>10) + 1;
+				int nCompressedKb = nKb;
 				MicroProfilePrintf(MicroProfileWriteSocket, &Connection, "\n<!-- Sent %dkb in %.2fms-->\n\n",nKb, fMs);
 				MicroProfileFlushSocket(Connection);
-#if MICROPROFILE_DEBUG
-				printf("\nSent %lldkb, in %6.3fms\n\n", ((nDataEnd-nDataStart)>>10) + 1, fMs);
+#else
+				MicroProfileCompressedSocketState CompressState;
+				MicroProfileCompressedSocketStart(&CompressState, Connection);
+				MicroProfileDumpHtml(MicroProfileCompressedWriteSocket, &CompressState, nMaxFrames, pHost);
+				S.nWebServerDataSent += CompressState.nSize;
+				uint64_t nDataEnd = S.nWebServerDataSent;
+				uint64_t nTickEnd = MP_TICK();
+				uint64_t nDiff = (nTickEnd - nTickStart);
+				float fMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu()) * nDiff;
+				int nKb = ((nDataEnd-nDataStart)>>10) + 1;
+				int nCompressedKb = ((CompressState.nCompressedSize)>>10) + 1;
+				MicroProfilePrintf(MicroProfileCompressedWriteSocket, &CompressState, "\n<!-- Sent %dkb(compressed %dkb) in %.2fms-->\n\n", nKb, nCompressedKb, fMs);
+				MicroProfileCompressedSocketFinish(&CompressState);
+				MicroProfileFlushSocket(Connection);
+				printf("memmoves %dkb, flushes %d\n", CompressState.nMemmoveBytes >> 10, CompressState.nFlushes);
 #endif
-				bServed = true;
+
+#if 1
+				printf("\n<!-- Sent %dkb(compressed %dkb) in %.2fms-->\n\n", nKb, nCompressedKb, fMs);
+#endif
 			}
 		}
 #ifdef _WIN32

@@ -29,6 +29,14 @@
 #include <unistd.h>
 #endif
 
+//generate zipped results
+#define MICROPROFILE_MINIZ 1
+#if MICROPROFILE_MINIZ
+#include "miniz.c"
+#endif
+
+
+
 #define MICROPROFILE_MAX_FRAME_HISTORY (2<<10)
 #define MICROPROFILE_IMPL
 #include "microprofile.h"
