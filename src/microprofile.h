@@ -2980,10 +2980,9 @@ bool MicroProfileWebServerUpdate()
 				MicroProfilePrintf(MicroProfileCompressedWriteSocket, &CompressState, "\n<!-- Sent %dkb(compressed %dkb) in %.2fms-->\n\n", nKb, nCompressedKb, fMs);
 				MicroProfileCompressedSocketFinish(&CompressState);
 				MicroProfileFlushSocket(Connection);
-				printf("memmoves %dkb, flushes %d\n", CompressState.nMemmoveBytes >> 10, CompressState.nFlushes);
 #endif
 
-#if 1
+#if MICROPROFILE_DEBUG
 				printf("\n<!-- Sent %dkb(compressed %dkb) in %.2fms-->\n\n", nKb, nCompressedKb, fMs);
 #endif
 			}

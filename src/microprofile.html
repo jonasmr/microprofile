@@ -1032,7 +1032,124 @@ function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast)
 	Result.FrameCallAverage = (CallCount / FrameCount).toFixed(3);
 	Result.FrameMax = FrameMax.toFixed(3);
 	return Result;
+}
 
+function PreprocessCalculateAllTimers()
+{
+	ProfileEnter("CalculateAllTimers");
+	var nFrameFirst = 0;
+	var nFrameLast = Frames.length;
+	var FrameCount = nFrameLast - nFrameFirst;
+	if(0 == FrameCount)
+		return;
+	for(var j = 0; j < TimerInfo.length; j++)
+	{
+		TimerInfo[j].CallCount = 0;
+		TimerInfo[j].Sum = 0;
+		TimerInfo[j].Max = 0;
+		TimerInfo[j].FrameMax = 0;
+	}
+
+
+	var nNumLogs = Frames[0].ts.length;
+	var StackPosArray = Array(nNumLogs);
+	var StackArray = Array(nNumLogs);
+	for(var i = 0; i < nNumLogs; ++i)
+	{
+		StackPosArray[i] = 0;
+		StackArray[i] = Array(20);
+	}
+
+	for(var i = nFrameFirst; i < nFrameLast; i++)
+	{
+		for(var j = 0; j < TimerInfo.length; j++)
+		{
+			TimerInfo[j].FrameSum = 0;
+		}
+
+		var fr = Frames[i];
+		for(nLog = 0; nLog < nNumLogs; nLog++)
+		{
+			var StackPos = StackPosArray[nLog];
+			var Stack = StackArray[nLog];
+			var ts = fr.ts[nLog];
+			var ti = fr.ti[nLog];
+			var tt = fr.tt[nLog];
+			var count = ts.length;
+			for(j = 0; j < count; j++)
+			{
+				var type = tt[j];
+				var index = ti[j];
+				var time = ts[j];
+				if(type == 1) //enter
+				{
+					//push
+					Stack[StackPos] = time;
+					if(StackArray[nLog][StackPos] != time)
+					{
+						console.log('fail fail fail');
+					}
+					StackPos++;
+				}
+				else if(type == 0) // leave
+				{
+					var timestart;
+					var timeend = time;
+					if(StackPos>0)
+					{
+						StackPos--;
+						timestart = Stack[StackPos];
+					}
+					else
+					{
+						timestart = Frames[nFrameFirst].framestart;
+					}
+					// if(index == TimerIndex)
+					{
+						var TimeDelta = timeend - timestart;
+						TimerInfo[index].CallCount++;
+						TimerInfo[index].FrameSum += TimeDelta;
+						TimerInfo[index].Sum += TimeDelta;
+						if(TimeDelta > TimerInfo[index].Max)
+							TimerInfo[index].Max = TimeDelta;
+					}
+				}
+				else
+				{
+					//meta
+				}
+			}
+			for(var j = 0; j < TimerInfo.length; j++)
+			{
+				if(TimerInfo[j].FrameSum > TimerInfo[j].FrameMax)
+				{
+					TimerInfo[j].FrameMax = TimerInfo[j].FrameSum;
+				}
+			}
+			StackPosArray[nLog] = StackPos;
+		}
+
+
+	}
+
+	for(var j = 0; j < TimerInfo.length; j++)
+	{
+		var CallCount = TimerInfo[j].CallCount;
+		var Sum = TimerInfo[j].Sum.toFixed(3);
+		var Max = TimerInfo[j].Max.toFixed(3);
+		var Average = (TimerInfo[j].Sum / TimerInfo[j].CallCount).toFixed(3);
+		var FrameAverage = (TimerInfo[j].Sum / FrameCount).toFixed(3);
+		var FrameCallAverage = (TimerInfo[j].CallCount / FrameCount).toFixed(3);
+		var FrameMax = TimerInfo[j].FrameMax.toFixed(3);
+		TimerInfo[j].CallCount = CallCount;
+		TimerInfo[j].Sum = Sum;
+		TimerInfo[j].Max  = Max ;
+		TimerInfo[j].Average = Average;
+		TimerInfo[j].FrameAverage = FrameAverage;
+		TimerInfo[j].FrameCallAverage = FrameCallAverage;
+		TimerInfo[j].FrameMax = FrameMax;
+	}
+	ProfileLeave();
 }
 
 var FlashFrames = 10;
@@ -3431,10 +3548,7 @@ function Preprocess()
 	ProfileMode = 1;
 	ProfileModeClear();
 	ProfileEnter("Preprocess");
-	for(var i = 0; i < TimerInfo.length; i++)
-	{
-		var v = CalculateTimers(TimerInfo[i], i);
-	}
+	PreprocessCalculateAllTimers();
 	PreprocessFindFirstFrames();
 	PreprocessGlobalArray();
 	PreprocessLods();
