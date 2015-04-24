@@ -2751,7 +2751,7 @@ void MicroProfileCompressedSocketFlush(MicroProfileCompressedSocketState* pState
 	unsigned char* pSendEnd = &pState->DeflateOut[MICROPROFILE_COMPRESS_CHUNK - Stream.avail_out];
 	if(pSendStart != pSendEnd)
 	{
-		send(pState->Socket, pSendStart, pSendEnd - pSendStart, 0);
+		send(pState->Socket, (const char*)pSendStart, pSendEnd - pSendStart, 0);
 		pState->nCompressedSize += pSendEnd - pSendStart;
 	}
 	Stream.next_out = &pState->DeflateOut[0];
