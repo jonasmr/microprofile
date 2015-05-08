@@ -936,7 +936,74 @@ function GatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)
 			}
 		}
 	}
+}
+function CalculateAllTimers(fBegin, fEnd)
+{
+	var Sum = [];
+	var Count = [];
+	var Sorted = [];
+	for(var i = 0; i < TimerInfo.length; ++i)
+	{
+		Sum.push(0.0);
+		Count.push(0);
+		Sorted.push(i);
+	}
+	var nFrameFirst = 0;
+	var nFrameLast = Frames.length;
 
+	var nNumLogs = Frames[0].ts.length;
+	var StackPosArray = Array(nNumLogs);
+	var StackArray = Array(nNumLogs);
+	for(var i = 0; i < nNumLogs; ++i)
+	{
+		StackPosArray[i] = 0;
+		StackArray[i] = Array(20);
+	}
+
+	for(var i = nFrameFirst; i < nFrameLast; i++)
+	{
+		var fr = Frames[i];
+		for(nLog = 0; nLog < nNumLogs; nLog++)
+		{
+			var StackPos = StackPosArray[nLog];
+			var Stack = StackArray[nLog];
+			var ts = fr.ts[nLog];
+			var ti = fr.ti[nLog];
+			var tt = fr.tt[nLog];
+			var count = ts.length;
+			for(j = 0; j < count; j++)
+			{
+				var type = tt[j];
+				var index = ti[j];
+				var time = ts[j];
+				if(type == 1 && time < fEnd) //enter
+				{
+					Stack[StackPos] = time < fBegin ? fBegin : time;
+					if(StackArray[nLog][StackPos] != time)
+					{
+						console.log('fail fail fail');
+					}
+					StackPos++;
+				}
+				else if(type == 0) // leave
+				{
+					if(StackPos>0)
+					{
+						var timeend = time;
+						StackPos--;
+						timestart = Stack[StackPos];
+						var TimeDelta = timeend - timestart;
+						Sum[index] += TimeDelta;
+						Count[index]++;
+					}
+				}
+			}
+			StackPosArray[nLog] = StackPos;
+		}
+	}
+	Sorted.sort(function(a,b){ return Sum[b] - Sum[a]; } );
+	var Result = {"Sorted" : Sorted, "Sum" : Sum, "Count" : Count};
+	return Result;
 }
 function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast)
 {
@@ -1317,6 +1384,25 @@ function DrawDetailedFrameHistory()
 	}
 	ProfileLeave();
 }
+function TimeToString(Time)
+{
+	if(Time > 1000)
+	{
+		return (Time/1000.0).toFixed(0) +"s";
+	}
+	else if(Time > 0.9)
+	{
+		return Time.toFixed(0) + "ms";
+	}
+	else if(Time > 0.0009)
+	{
+		return (Time*1000).toFixed(0) + "us";
+	}
+	else
+	{
+		return (Time*1000000).toFixed(0) + "ns";
+	}
+}
 
 function DrawDetailedBackground(context)
 {
@@ -1332,6 +1418,8 @@ function DrawDetailedBackground(context)
 	var fStart = Math.floor(fDetailedOffset * fRcpStep) * fStep;
 	var fHeight = CanvasDetailedView.height;
 	var fScaleX = nWidth / fDetailedRange; 
+	var HeaderString = TimeToString(fStep);
+	context.textAlign = 'center';
 	for(f = fStart; f < fMsEnd; )
 	{
 		var fNext = f + fStep;
@@ -1340,8 +1428,12 @@ function DrawDetailedBackground(context)
 		context.fillStyle = nBackColors[nColorIndex];
 		context.fillRect(X, 0, W+2, fHeight);
 		nColorIndex = 1 - nColorIndex;
+		context.fillStyle = '#777777'
+		context.fillText(HeaderString, X + W * 0.5, 10);
+		context.fillText(HeaderString, X + W * 0.5, nHeight - 10);
 		f = fNext;
 	}
+	context.textAlign = 'left';
 	var fScaleX = nWidth / fDetailedRange; 
 	context.globalAlpha = 0.5;
 	context.strokeStyle = '#bbbbbb';
