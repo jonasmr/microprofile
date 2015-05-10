@@ -36,7 +36,8 @@ ul li ul{ display:block;float:none;width:100%;}
 ul li ul li{ display:block;float:none;width:100%;}
 li li a{ display:block;float:none;width:100%;text-align:left;}
 #nav li:hover div {margin-left:0;}
-.help {position:absolute;z-index:5;text-align:left;padding:2px;margin-left:-999em;background-color: #313131;}
+.help {position:absolute;z-index:5;text-align:left;padding:2px;margin-left:-999em;background-color: #313131;width:300px;}
+.helpstart {position:absolute;z-index:5;text-align:left;padding:2px;background-color: #313131;width:300px;display:none}
 .root {z-index:1;position:absolute;top:0px;left:0px;}
 </style>
 </head>
@@ -45,16 +46,28 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 <div id="root" class="root">
 <ul id="nav">
 <li><a href="javascript:void(0)" onclick="ToggleDebugMode();">?</a>
-<div class="help" style="left:20px;top:20px;width:220px;">
-Use Cursor to Inspect<br>
-Shift-Drag to Pan view<br>
-Ctrl-Drag to Zoom view<br>
-Click to Zoom to selected range<br>
+<div class="helpstart" id="helpwindow" style="left:20px;top:20px">
+History View:<br>
+Click + Drag: Pan View<br>
+Right Click + Drag : Zoom on region<br>
+Click Frame : Center on frame<br>
+<hr>
+Main View:<br>
+Ctrl + Mouse up/down: Zoom<br>
+Mousewheel : Zoom<br>
+Right Click + Drag: Zoom to region<br>
+Ctrl + Drag: Pan<br>
+Click + Drag: Pan<br>
+<hr>
+<table style="width:100%">
+<tr>
+<td width="50%" align="left"><a href='javascript:void(0)' onclick="ShowHelp(0, 0);">Close</a></td>
+<td width="50%" align="right"><a href='javascript:void(0)' onclick="ShowHelp(0, 1);">Close, Never Show</a></td>
+</tr>
+</table>
 </div>
-
 <div class="help" id="divFrameInfo" style="left:20px;top:300px;width:auto;">
 </div>
-
 </li>
 <li><a id='ModeSubMenuText'>Mode</a>
     <ul id='ModeSubMenu'>
@@ -97,6 +110,7 @@ Click to Zoom to selected range<br>
 		<li><a href="javascript:void(0)" onclick="ToggleDisableLod();">LodDisable</a></li>
 		<li id='GroupColors'><a href="javascript:void(0)" onclick="ToggleGroupColors();">Group Colors</a></li>
         <li id='TimersMeta'><a href="javascript:void(0)" onclick="ToggleTimersMeta();">Meta</a></li>
+        <li id='ShowHelp'><a href="javascript:void(0)" onclick="ShowHelp(1,1);">Help</a></li>
 <!--      	<li><a href="javascript:void(0)" onclick="ToggleDebug();">DEBUG</a></li> -->
     </ul>
 </li>
@@ -224,7 +238,7 @@ var nHoverCounterDelta = 8;
 var nHoverTokenNext = -1;
 var nHoverTokenLogIndexNext = -1;
 var nHoverTokenIndexNext = -1;
-
+var nHideHelp = 0;
 
 
 var fFrameScale = 33.33;
@@ -772,6 +786,23 @@ function ToggleTimersMeta()
 	RequestRedraw();
 }
 
+function ShowHelp(Show, Forever)
+{
+	var HelpWindow = document.getElementById('helpwindow');
+	if(Show)
+	{
+		HelpWindow.style['display'] = 'block';
+	}
+	else
+	{
+		HelpWindow.style['display'] = 'none';
+	}
+	if(Forever)
+	{
+		nHideHelp = Show ? 0 : 1;
+		WriteCookie();
+	}
+}
 function SetMode(NewMode, Groups)
 {
 	var buttonTimers = document.getElementById('buttonTimers');
@@ -1242,7 +1273,7 @@ function ShowFlashMessage(Message, FrameCount)
 	FlashMessage = Message;
 	FlashFrameCounter = FrameCount;
 }
-function FlashOldMessage()
+function OnPageReady()
 {
 	var DumpDate = DumpUtcCaptureTime;
 	var CurrentDate = Date.now() / 1000;
@@ -1252,7 +1283,10 @@ function FlashOldMessage()
 	{
 		ShowFlashMessage("Captured " + TimeString(Diff) + " ago", 100);
 	}
-
+	if(!nHideHelp)
+	{
+		ShowHelp(1,0);
+	}
 }
 
 function DrawFlashMessage(context)
@@ -3145,6 +3179,10 @@ function ReadCookie()
 		{
 			GroupColors = 0;
 		}
+		if(Obj.nHideHelp)
+		{
+			nHideHelp = 1;
+		}
 		TimersGroups = Obj.TimersGroups?Obj.TimersGroups:0;
 		TimersMeta = Obj.TimersMeta?0:1;
 	}
@@ -3167,6 +3205,10 @@ function WriteCookie()
 	Obj.TimersGroups = TimersGroups?TimersGroups:0;
 	Obj.TimersMeta = TimersMeta?0:1;
 	Obj.GroupColors = GroupColors;
+	if(nHideHelp)
+	{
+		Obj.nHideHelp = 1;
+	}
 	var date = new Date();
 	date.setFullYear(2099);
 	var cookie = 'fisk=' + JSON.stringify(Obj) + ';expires=' + date;
@@ -3392,7 +3434,6 @@ function PreprocessLods()
 {
 	ProfileEnter("PreprocessLods");
 	var nNumLogs = Frames[0].ts.length;
-	// debugger;
 	var SplitArrays = PreprocessBuildSplitArray();
 	var DurationArrays = PreprocessBuildDurationArray();
 	var Source = LodData[0];
@@ -3401,16 +3442,11 @@ function PreprocessLods()
 
 	for(var i = 0; i < NumLodSplits-1; ++i)
 	{
-		// debugger;
-		// console.log("doing lod split " + i);
-		// var LodObject = new Object();
 		var DestLogStart = Array(SourceLogStart.length);
 		for(var j = 0; j < DestLogStart.length; ++j)
 		{
 			DestLogStart[j] = Array(nNumLogs);
-			// console.log("destlogstart " + j + " " + DestLogStart[j].length);
 		}
-		//LodObject.LogStart = DestLogStart;
 		var MinDelta = Array(nNumLogs);
 		var TimeArray = Array(nNumLogs);
 		var IndexArray = Array(nNumLogs);
@@ -3661,7 +3697,7 @@ InitFrameInfo();
 UpdateThreadMenu();
 ResizeCanvas();
 Preprocess();
-FlashOldMessage();
+OnPageReady();
 Draw(1);
 AutoRedraw();
 
