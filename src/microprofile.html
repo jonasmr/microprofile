@@ -2897,11 +2897,7 @@ function MouseHandleDragEnd()
 {
 	if(MouseDragTarget == CanvasDetailedView)
 	{
-		if(MouseDragSelectRange())
-		{
-			ZoomTo(fRangeBegin, fRangeEnd);
-			fRangeBegin = fRangeEnd = -1;
-		}
+
 	}
 	else if(MouseDragTarget == CanvasHistory)
 	{
@@ -3102,8 +3098,16 @@ function KeyUp(evt)
 	{
 		FlipToolTip = 0;
 	}
+	if(evt.keyCode == 32)
+	{
+		if(MouseDragSelectRange())
+		{
+			ZoomTo(fRangeBegin, fRangeEnd);
+			fRangeBegin = fRangeEnd = -1;
+			MouseHandleDragEnd();
+		}
+	}
 	Invalidate = 0;
-
 }
 
 function KeyDown(evt)

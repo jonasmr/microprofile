@@ -2939,7 +2939,6 @@ bool MicroProfileWebServerUpdate()
 #else
 #define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nExpires: Tue, 01 Jan 2199 16:00:00 GMT\r\n\r\n"
 #endif
-			//printf("got request %s\n", Req);
 			char* pHttp = strstr(Req, "HTTP/");
 			char* pGet = strstr(Req, "GET /");
 			char* pHost = strstr(Req, "Host: ");
@@ -6404,11 +6403,7 @@ const char g_MicroProfileHtml_end_2[] =
 "{\n"
 "	if(MouseDragTarget == CanvasDetailedView)\n"
 "	{\n"
-"		if(MouseDragSelectRange())\n"
-"		{\n"
-"			ZoomTo(fRangeBegin, fRangeEnd);\n"
-"			fRangeBegin = fRangeEnd = -1;\n"
-"		}\n"
+"\n"
 "	}\n"
 "	else if(MouseDragTarget == CanvasHistory)\n"
 "	{\n"
@@ -6609,8 +6604,16 @@ const char g_MicroProfileHtml_end_2[] =
 "	{\n"
 "		FlipToolTip = 0;\n"
 "	}\n"
+"	if(evt.keyCode == 32)\n"
+"	{\n"
+"		if(MouseDragSelectRange())\n"
+"		{\n"
+"			ZoomTo(fRangeBegin, fRangeEnd);\n"
+"			fRangeBegin = fRangeEnd = -1;\n"
+"			MouseHandleDragEnd();\n"
+"		}\n"
+"	}\n"
 "	Invalidate = 0;\n"
-"\n"
 "}\n"
 "\n"
 "function KeyDown(evt)\n"
