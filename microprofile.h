@@ -2352,11 +2352,15 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 		MicroProfilePrintf(CB, Handle, "];\n");
 
 
-
-		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x', %f, %f, %f, %f, %f, %d, %f, Meta%d, MetaAvg%d, MetaMax%d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
-			MICROPROFILE_UNPACK_RED(S.TimerInfo[i].nColor) & 0xff,
-			MICROPROFILE_UNPACK_GREEN(S.TimerInfo[i].nColor) & 0xff,
-			MICROPROFILE_UNPACK_BLUE(S.TimerInfo[i].nColor) & 0xff,
+		uint32_t nColor = S.TimerInfo[i].nColor;
+		uint32_t nColorDark = (nColor >> 1) & ~0x80808080;
+		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x','#%02x%02x%02x', %f, %f, %f, %f, %f, %d, %f, Meta%d, MetaAvg%d, MetaMax%d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
+			MICROPROFILE_UNPACK_RED(nColor) & 0xff,
+			MICROPROFILE_UNPACK_GREEN(nColor) & 0xff,
+			MICROPROFILE_UNPACK_BLUE(nColor) & 0xff,
+			MICROPROFILE_UNPACK_RED(nColorDark) & 0xff,
+			MICROPROFILE_UNPACK_GREEN(nColorDark) & 0xff,
+			MICROPROFILE_UNPACK_BLUE(nColorDark) & 0xff,
 			pAverage[nIdx],
 			pMax[nIdx],
 			pAverageExclusive[nIdx],
@@ -3644,9 +3648,9 @@ const char g_MicroProfileHtml_begin_0[] =
 "	return group;\n"
 "}\n"
 "\n"
-"function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax)\n"
+"function MakeTimer(id, name, group, color, colordark, average, max, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax)\n"
 "{\n"
-"	var timer = {\"id\":id, \"name\":name, \"len\":name.length, \"color\":color, \"timercolor\":color, \"textcolor\":InvertColor(color), \"group\":group, \"average\":average, \"max\":max, \"exclaverage\":exclaverage, \"exclmax\":exclmax, \"callaverage\":callaverage, \"callcount\":callcount, \"total\":total, \"meta\":meta, \"textcolorindex\":InvertColorIndex(color), \"metaavg\":metaavg, \"metamax\":metamax};\n"
+"	var timer = {\"id\":id, \"name\":name, \"len\":name.length, \"color\":color, \"colordark\":colordark,\"timercolor\":color, \"textcolor\":InvertColor(color), \"group\":group, \"average\":average, \"max\":max, \"exclaverage\":exclaverage, \"exclmax\":exclmax, \"callaverage\":callaverage, \"callcount\":callcount, \"total\":total, \"meta\":meta, \"textcolorindex\":InvertColorIndex(color), \"metaavg\":metaavg, \"metamax\":metamax};\n"
 "	return timer;\n"
 "}\n"
 "function MakeFrame(id, framestart, frameend, ts, tt, ti)\n"
@@ -4916,6 +4920,10 @@ const char g_MicroProfileHtml_end_0[] =
 "	}\n"
 "	ProfileLeave();\n"
 "}\n"
+"function TimeToMsString(Time)\n"
+"{\n"
+"	return Time.toFixed(3) + \"ms\";\n"
+"}\n"
 "function TimeToString(Time)\n"
 "{\n"
 "	if(Time > 1000)\n"
@@ -5105,13 +5113,13 @@ const char g_MicroProfileHtml_end_0[] =
 "\n"
 "			StringArray.push(\"Time\");\n"
 "			StringArray.push((fRangeEnd-fRangeBegin).toFixed(3));\n"
-"			StringArray.push(\"\");\n"
-"			StringArray.push(\"\");\n"
-"			StringArray.push(\"Total\");\n"
-"";
+"			StringArray";
 
 const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
 const char g_MicroProfileHtml_end_1[] =
+".push(\"\");\n"
+"			StringArray.push(\"\");\n"
+"			StringArray.push(\"Total\");\n"
 "			StringArray.push(\"\" + TimerInfo[nHoverToken].Sum);\n"
 "			StringArray.push(\"Max\");\n"
 "			StringArray.push(\"\" + TimerInfo[nHoverToken].Max);\n"
@@ -5825,18 +5833,35 @@ const char g_MicroProfileHtml_end_1[] =
 "\n"
 "									var XText = X < 0 ? 0 : X;\n"
 "									var WText = W - (XText-X);\n"
-"									var name = TimerInfo[index].name;\n"
-"									var len = TimerInfo[index].len;\n"
-"									var sublen = Math.floor((WText-2)/FontWidth);\n"
-"									if(sublen >= 2)\n"
+"									if(XText + WText > nWidth)\n"
 "									{\n"
-"										if(sublen < len)\n"
-"											name = name.substr(0, sublen);\n"
+"										WText = nWidth - XText;\n"
+"									}\n"
+"									var Name = TimerInfo[index].name;\n"
+"									var NameLen = TimerInfo[index].len;\n"
+"									var BarTextLen = Math.floor((WText-2)/FontWidth);\n"
+"									var TimeText = TimeToMsString(timeend-timestart);\n"
+"									var TimeTextLen = TimeText.length;\n"
+"\n"
+"									if(BarTextLen >= 2)\n"
+"									{\n"
+"										if(BarTextLen < NameLen)\n"
+"											Name = Name.substr(0, BarTextLen);\n"
 "										var txtidx = TimerInfo[index].textcolorindex;\n"
-"										BatchesTxt[txtidx].push(name);\n"
-"										BatchesTxtPos[txtidx].push(XText+1);\n"
-"										BatchesTxtPos[txtidx].push(Y+BoxHeight-FontAscent);\n"
+"										var YPos = Y+BoxHeight-FontAscent;\n"
+"										BatchesTxt[txtidx].push(Name);\n"
+"										BatchesTxtPos[txtidx].push(XText+2);\n"
+"\n"
+"										BatchesTxtPos[txtidx].push(YPos);\n"
 "										DebugDrawTextCount++;\n"
+"										if(BarTextLen - NameLen > TimeTextLen)\n"
+"										{\n"
+"											BatchesTxt[txtidx].push(TimeText);\n"
+"											BatchesTxtPos[txtidx].push(XText+WText-2 - TimeTextLen * FontWidth);\n"
+"											BatchesTxtPos[txtidx].push(YPos);\n"
+"											DebugDrawTextCount++;\n"
+"										}\n"
+"\n"
 "									}\n"
 "								}\n"
 "\n"
@@ -5892,6 +5917,53 @@ const char g_MicroProfileHtml_end_1[] =
 "				var a = Batches[i];\n"
 "				if(a.length)\n"
 "				{\n"
+"					context.fillStyle = TimerInfo[i].colordark;\n"
+"					if(!DisableMerge)\n"
+"					{\n"
+"						for(var j = 0; j < a.length; j += 3)\n"
+"						{						\n"
+"							var X = a[j];\n"
+"							var Y = a[j+1];\n"
+"							var BaseWidth = j + 2;\n"
+"							var W = a[BaseWidth];\n"
+"							while(j+1 < a.length && W < 1)\n"
+"							{\n"
+"								var jnext = j+3;\n"
+"								var XNext = a[jnext];\n"
+"								var YNext = a[jnext+1];\n"
+"								var WNext = a[jnext+2];\n"
+"								var Delta = XNext - (X+W);\n"
+"								var YDelta = Math.abs(Y - YNext);							\n"
+"								if(Delta < 0.3 && YDelta < 0.5 && WNext < 1)\n"
+"								{\n"
+"									W = (XNext+WNext) - X;\n"
+"									a[BaseWidth] = W;\n"
+"									a[jnext+2] = 0;\n"
+"									j += 3;\n"
+"								}\n"
+"								else\n"
+"								{\n"
+"									break;\n"
+"								}\n"
+"\n"
+"							}\n"
+"						}\n"
+"					}\n"
+"					var off = 0.7;\n"
+"					var off2 = 2*off;\n"
+"					context.fillStyle = TimerInfo[i].colordark;\n"
+"					for(var j = 0; j < a.length; j += 3)\n"
+"					{						\n"
+"						var X = a[j];\n"
+"						var Y = a[j+1];\n"
+"						var W = a[j+2];\n"
+"						if(W >= 1)\n"
+"						{\n"
+"							context.fillRect(X, Y, W, BoxHeight-1);\n"
+"						}\n"
+"					}\n"
+"	\n"
+"\n"
 "					if(i == nHoverToken)\n"
 "					{\n"
 "						context.fillStyle = nHoverColor;\n"
@@ -5905,26 +5977,10 @@ const char g_MicroProfileHtml_end_1[] =
 "						var X = a[j];\n"
 "						var Y = a[j+1];\n"
 "						var W = a[j+2];\n"
-"						while(j+1 < a.length)\n"
+"						if(W > 0)\n"
 "						{\n"
-"							var jnext = j+3;\n"
-"							var XNext = a[jnext];\n"
-"							var YNext = a[jnext+1];\n"
-"							var WNext = a[jnext+2];\n"
-"							var Delta = XNext - (X+W);\n"
-"							var YDelta = Math.abs(Y - YNext);							\n"
-"							if(Delta < 0.3 && YDelta < 0.5 && !DisableMerge)\n"
-"							{\n"
-"								W = (XNext+WNext) - X;\n"
-"								j += 3;\n"
-"							}\n"
-"							else\n"
-"							{\n"
-"								break;\n"
-"							}\n"
-"\n"
+"							context.fillRect(X+off, Y+off, W-off2, BoxHeight-1-off2);\n"
 "						}\n"
-"						context.fillRect(X, Y, W, BoxHeight-1);\n"
 "					}\n"
 "				}\n"
 "			}	\n"
@@ -6336,6 +6392,10 @@ const char g_MicroProfileHtml_end_1[] =
 "				}\n"
 "			}\n"
 "		}\n"
+"";
+
+const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
+const char g_MicroProfileHtml_end_2[] =
 "		else if(Mode == ModeTimers)\n"
 "		{\n"
 "			if(MouseDragKeyShift || MouseDragButton == 1)\n"
@@ -6391,11 +6451,7 @@ const char g_MicroProfileHtml_end_1[] =
 "		else if(MouseDragPan())\n"
 "		{\n"
 "			var Time = HistoryFrameTime(MouseDragX);\n"
-"			fDetailedOffset = Time - fDeta";
-
-const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
-const char g_MicroProfileHtml_end_2[] =
-"iledRange / 2.0;\n"
+"			fDetailedOffset = Time - fDetailedRange / 2.0;\n"
 "		}\n"
 "	}\n"
 "}\n"

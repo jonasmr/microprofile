@@ -157,9 +157,9 @@ function MakeGroup(id, name, category, numtimers, isgpu, total, average, max, co
 	return group;
 }
 
-function MakeTimer(id, name, group, color, average, max, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax)
+function MakeTimer(id, name, group, color, colordark, average, max, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax)
 {
-	var timer = {"id":id, "name":name, "len":name.length, "color":color, "timercolor":color, "textcolor":InvertColor(color), "group":group, "average":average, "max":max, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "total":total, "meta":meta, "textcolorindex":InvertColorIndex(color), "metaavg":metaavg, "metamax":metamax};
+	var timer = {"id":id, "name":name, "len":name.length, "color":color, "colordark":colordark,"timercolor":color, "textcolor":InvertColor(color), "group":group, "average":average, "max":max, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "total":total, "meta":meta, "textcolorindex":InvertColorIndex(color), "metaavg":metaavg, "metamax":metamax};
 	return timer;
 }
 function MakeFrame(id, framestart, frameend, ts, tt, ti)
@@ -1418,6 +1418,10 @@ function DrawDetailedFrameHistory()
 	}
 	ProfileLeave();
 }
+function TimeToMsString(Time)
+{
+	return Time.toFixed(3) + "ms";
+}
 function TimeToString(Time)
 {
 	if(Time > 1000)
@@ -2323,18 +2327,35 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 
 									var XText = X < 0 ? 0 : X;
 									var WText = W - (XText-X);
-									var name = TimerInfo[index].name;
-									var len = TimerInfo[index].len;
-									var sublen = Math.floor((WText-2)/FontWidth);
-									if(sublen >= 2)
+									if(XText + WText > nWidth)
 									{
-										if(sublen < len)
-											name = name.substr(0, sublen);
+										WText = nWidth - XText;
+									}
+									var Name = TimerInfo[index].name;
+									var NameLen = TimerInfo[index].len;
+									var BarTextLen = Math.floor((WText-2)/FontWidth);
+									var TimeText = TimeToMsString(timeend-timestart);
+									var TimeTextLen = TimeText.length;
+
+									if(BarTextLen >= 2)
+									{
+										if(BarTextLen < NameLen)
+											Name = Name.substr(0, BarTextLen);
 										var txtidx = TimerInfo[index].textcolorindex;
-										BatchesTxt[txtidx].push(name);
-										BatchesTxtPos[txtidx].push(XText+1);
-										BatchesTxtPos[txtidx].push(Y+BoxHeight-FontAscent);
+										var YPos = Y+BoxHeight-FontAscent;
+										BatchesTxt[txtidx].push(Name);
+										BatchesTxtPos[txtidx].push(XText+2);
+
+										BatchesTxtPos[txtidx].push(YPos);
 										DebugDrawTextCount++;
+										if(BarTextLen - NameLen > TimeTextLen)
+										{
+											BatchesTxt[txtidx].push(TimeText);
+											BatchesTxtPos[txtidx].push(XText+WText-2 - TimeTextLen * FontWidth);
+											BatchesTxtPos[txtidx].push(YPos);
+											DebugDrawTextCount++;
+										}
+
 									}
 								}
 
@@ -2390,6 +2411,53 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 				var a = Batches[i];
 				if(a.length)
 				{
+					context.fillStyle = TimerInfo[i].colordark;
+					if(!DisableMerge)
+					{
+						for(var j = 0; j < a.length; j += 3)
+						{						
+							var X = a[j];
+							var Y = a[j+1];
+							var BaseWidth = j + 2;
+							var W = a[BaseWidth];
+							while(j+1 < a.length && W < 1)
+							{
+								var jnext = j+3;
+								var XNext = a[jnext];
+								var YNext = a[jnext+1];
+								var WNext = a[jnext+2];
+								var Delta = XNext - (X+W);
+								var YDelta = Math.abs(Y - YNext);							
+								if(Delta < 0.3 && YDelta < 0.5 && WNext < 1)
+								{
+									W = (XNext+WNext) - X;
+									a[BaseWidth] = W;
+									a[jnext+2] = 0;
+									j += 3;
+								}
+								else
+								{
+									break;
+								}
+
+							}
+						}
+					}
+					var off = 0.7;
+					var off2 = 2*off;
+					context.fillStyle = TimerInfo[i].colordark;
+					for(var j = 0; j < a.length; j += 3)
+					{						
+						var X = a[j];
+						var Y = a[j+1];
+						var W = a[j+2];
+						if(W >= 1)
+						{
+							context.fillRect(X, Y, W, BoxHeight-1);
+						}
+					}
+	
+
 					if(i == nHoverToken)
 					{
 						context.fillStyle = nHoverColor;
@@ -2403,26 +2471,10 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 						var X = a[j];
 						var Y = a[j+1];
 						var W = a[j+2];
-						while(j+1 < a.length)
+						if(W > 0)
 						{
-							var jnext = j+3;
-							var XNext = a[jnext];
-							var YNext = a[jnext+1];
-							var WNext = a[jnext+2];
-							var Delta = XNext - (X+W);
-							var YDelta = Math.abs(Y - YNext);							
-							if(Delta < 0.3 && YDelta < 0.5 && !DisableMerge)
-							{
-								W = (XNext+WNext) - X;
-								j += 3;
-							}
-							else
-							{
-								break;
-							}
-
+							context.fillRect(X+off, Y+off, W-off2, BoxHeight-1-off2);
 						}
-						context.fillRect(X, Y, W, BoxHeight-1);
 					}
 				}
 			}	
