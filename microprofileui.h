@@ -141,6 +141,7 @@ MICROPROFILEUI_API void MicroProfileDumpTimers();
 #define snprintf _snprintf
 #endif
 #include <stdlib.h>
+#include <stdarg.h>
 #include <math.h>
 #include <algorithm>
 
