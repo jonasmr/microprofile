@@ -248,6 +248,8 @@ var fRangeBeginNext = 0;
 var fRangeEndNext = 0;
 var fRangeBeginHistory = -1;
 var fRangeEndHistory = -1;
+var fRangeBeginSelect = 0;
+var fRangeEndSelect = -1;
 
 var ModeDetailed = 0;
 var ModeTimers = 1;
@@ -2266,8 +2268,8 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 				}
 
 				context.fillStyle = 'white';
-				context.fillText(ThreadName, 0, fOffsetY);
 				fOffsetY += BoxHeight;
+				context.fillText(ThreadName, 0, fOffsetY);
 				if(nContextSwitchEnabled)
 				{
 					DrawContextSwitchBars(context, ThreadIds[nLog], fScaleX, fOffsetY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled);
@@ -2512,6 +2514,66 @@ function DrawTextBox(context, text, x, y, align)
 	context.fillText(text, x, y);
 
 }
+function DrawRange(context, fBegin, fEnd, ColorBack, ColorFront, Offset)
+{
+	if(fBegin < fEnd)
+	{
+		var fScaleX = nWidth / fDetailedRange; 
+		var X = (fBegin - fDetailedOffset) * fScaleX;
+		var YSpace = (FontHeight+2);
+		var Y = YSpace * (Offset);
+		var W = (fEnd - fBegin) * fScaleX;
+		context.globalAlpha = 0.1;
+		context.fillStyle = ColorBack;
+		context.fillRect(X, 0, W, nHeight);
+		context.globalAlpha = 1;
+		context.strokeStyle = ColorFront;
+		context.beginPath();
+		context.moveTo(X, 0);
+		context.lineTo(X, nHeight);
+		context.moveTo(X+W, 0);
+		context.lineTo(X+W, nHeight);
+		context.stroke();
+		var Duration = (fEnd - fBegin).toFixed(2) + "ms";
+		var Center = ((fBegin + fEnd) / 2.0) - fDetailedOffset;
+		var DurationWidth = context.measureText(Duration+ "   ").width;
+
+		context.fillStyle = 'white';
+		context.textAlign = 'right';
+		var TextPosY = Y + YSpace;
+		DrawTextBox(context, '' + fBegin.toFixed(2), X-3, TextPosY, 'right');
+		if(DurationWidth < W + 10)
+		{
+			context.textAlign = 'center';
+			DrawTextBox(context,'' + Duration,Center * fScaleX, TextPosY, 'center');
+
+			var W0 = W - DurationWidth + FontWidth*1.5;
+			if(W0 > 6)
+			{
+				var Y0 = Y + FontHeight * 0.5;
+				W0 = W0 / 2.0;
+				var X0 = X + W0;
+				var X1 = X + W - W0;
+				context.strokeStyle = ColorFront;
+				context.beginPath();
+				context.moveTo(X, Y0);
+				context.lineTo(X0, Y0);
+				context.moveTo(X0, Y0-2);
+				context.lineTo(X0, Y0+2);
+				context.moveTo(X1, Y0-2);
+				context.lineTo(X1, Y0+2);
+				context.moveTo(X1, Y0);
+				context.lineTo(X + W, Y0);
+				context.stroke();
+			}
+		}
+		context.textAlign = 'left';
+		DrawTextBox(context, '' + fEnd.toFixed(2), X + W + 2, TextPosY, 'left');
+	}
+
+
+}
+
 function DrawDetailed(Animation)
 {
 	if(AnimationActive != Animation || !Initialized)
@@ -2567,11 +2629,7 @@ function DrawDetailed(Animation)
 		nHoverToken = -1;
 		nHoverTokenIndex = -1;
 		nHoverTokenLogIndex = -1;
-
-		if(!MouseDragSelectRange())
-		{
-			fRangeBegin = fRangeEnd = -1;
-		}
+		fRangeBegin = fRangeEnd = -1;
 	}
 	else
 	{
@@ -2589,57 +2647,16 @@ function DrawDetailed(Animation)
 			fRangeEnd = fRangeEndNext;
 		}
 	}
-	if(fRangeBegin < fRangeEnd)
-	{
-		var X = (fRangeBegin - fDetailedOffset) * fScaleX;
-		var Y = 0;
-		var W = (fRangeEnd - fRangeBegin) * fScaleX;
-		context.globalAlpha = 0.1;
-		context.fillStyle = '#009900';
-		context.fillRect(X, Y, W, nHeight);
-		context.globalAlpha = 1;
-		context.strokeStyle = '#00ff00';
-		context.beginPath();
-		context.moveTo(X, Y);
-		context.lineTo(X, Y+nHeight);
-		context.moveTo(X+W, Y);
-		context.lineTo(X+W, Y+nHeight);
-		context.stroke();
-		var Duration = (fRangeEnd - fRangeBegin).toFixed(2) + "ms";
-		var Center = ((fRangeBegin + fRangeEnd) / 2.0) - fDetailedOffset;
-		var DurationWidth = context.measureText(Duration+ "   ").width;
 
-		context.fillStyle = 'white';
-		context.textAlign = 'right';
-		DrawTextBox(context, '' + fRangeBegin.toFixed(2), X-3, 9, 'right');
-		if(DurationWidth < W + 10)
-		{
-			context.textAlign = 'center';
-			DrawTextBox(context,'' + Duration,Center * fScaleX, 9, 'center');
+	DrawTextBox(context, TimeToMsString(fDetailedOffset), 0, FontHeight, 'left');
+	context.textAlign = 'right';
+	DrawTextBox(context, TimeToMsString(fDetailedOffset + fDetailedRange), nWidth, FontHeight, 'right');
+	context.textAlign = 'left';
 
-			var W0 = W - DurationWidth + FontWidth*1.5;
-			if(W0 > 6)
-			{
-				var Y0 = Y + FontHeight * 0.5;
-				W0 = W0 / 2.0;
-				var X0 = X + W0;
-				var X1 = X + W - W0;
-				context.strokeStyle = '#00ff00';
-				context.beginPath();
-				context.moveTo(X, Y0);
-				context.lineTo(X0, Y0);
-				context.moveTo(X0, Y0-2);
-				context.lineTo(X0, Y0+2);
-				context.moveTo(X1, Y0-2);
-				context.lineTo(X1, Y0+2);
-				context.moveTo(X1, Y0);
-				context.lineTo(X + W, Y0);
-				context.stroke();
-			}
-		}
-		context.textAlign = 'left';
-		DrawTextBox(context, '' + fRangeEnd.toFixed(2), X + W + 2, 9, 'left');
-	}
+	DrawRange(context, fRangeBeginSelect, fRangeEndSelect, '#59d0ff', '#00ddff', 0);
+	DrawRange(context, fRangeBegin, fRangeEnd, '#009900', '#00ff00', fRangeBeginSelect < fRangeEndSelect ? 1 : 0);
+
+
 	nHoverCSCpu = nHoverCSCpuNext;
 	ProfileLeave();
 }
@@ -2862,6 +2879,8 @@ function MouseHandleDrag()
 				{
 					fRangeBegin = fDetailedOffset + fDetailedRange * (xStart / nWidth);
 					fRangeEnd = fDetailedOffset + fDetailedRange * (xEnd / nWidth);
+					fRangeBeginSelect = fDetailedOffset + fDetailedRange * (xStart / nWidth);
+					fRangeEndSelect = fDetailedOffset + fDetailedRange * (xEnd / nWidth);
 				}
 			}
 			else if(MouseDragPan())
@@ -3152,12 +3171,16 @@ function KeyUp(evt)
 	}
 	if(evt.keyCode == 32)
 	{
-		if(MouseDragSelectRange())
+		if(fRangeBeginSelect < fRangeEndSelect)
 		{
-			ZoomTo(fRangeBegin, fRangeEnd);
-			fRangeBegin = fRangeEnd = -1;
+			ZoomTo(fRangeBeginSelect, fRangeEndSelect);
+			fRangeBeginSelect = fRangeEndSelect = -1;
 			MouseHandleDragEnd();
 		}
+	}
+	if(evt.keyCode == 27)
+	{
+		fRangeBeginSelect = fRangeEndSelect = -1;		
 	}
 	Invalidate = 0;
 }
