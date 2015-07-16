@@ -1089,7 +1089,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 				char ThreadName[MicroProfileThreadLog::THREAD_MAX_LEN + 16];
 				const char* cLocal = MicroProfileIsLocalThread(nThreadId) ? "*": " ";
 
-				int nStrLen = snprintf(ThreadName, sizeof(ThreadName)-1, "%04x: %s", nThreadId, cLocal, i < nNumThreadsBase ? &S.Pool[i]->ThreadName[0] : MICROPROFILE_THREAD_NAME_FROM_ID(nThreadId) );
+				int nStrLen = snprintf(ThreadName, sizeof(ThreadName)-1, "%04x: %s%s", nThreadId, cLocal, i < nNumThreadsBase ? &S.Pool[i]->ThreadName[0] : MICROPROFILE_THREAD_NAME_FROM_ID(nThreadId) );
 				uint32_t nThreadColor = -1;
 				if(nThreadId == nContextSwitchHoverThreadAfter || nThreadId == nContextSwitchHoverThreadBefore)
 					nThreadColor = UI.nHoverColorShared|0x906060;
@@ -2881,7 +2881,7 @@ void MicroProfileLoadPreset(const char* pSuffix)
 			const char* pGroupName = pBuffer + Header.nGroups[i];	
 			for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
 			{
-				if(S.GroupInfo[j].pName && 0 == MP_STRCASECMP(pGroupName, S.GroupInfo[j].pName))
+				if(0 == MP_STRCASECMP(pGroupName, S.GroupInfo[j].pName))
 				{
 					S.nActiveGroupWanted |= (1ll << j);
 				}

@@ -109,10 +109,12 @@ void HandleEvent(SDL_Event* pEvt)
 		{
 			MicroProfileDumpTimers();
 		}
+#if MICROPROFILE_WEBSERVER
 		if(pEvt->key.keysym.sym == 'd')
 		{
 			MicroProfileDumpFile("../dump.html", "../dump.csv");
 		}
+#endif
 		if(pEvt->key.keysym.sym == 't')
 		{
 			static bool toggle = false;
