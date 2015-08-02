@@ -237,17 +237,19 @@ int main(int argc, char* argv[])
 	
 	MicroProfileInitUI();
 
-	MicroProfileCustomGroup("Custom1", 2, 30, 100.f, MICROPROFILE_CUSTOM_BARS);
-	MicroProfileCustomGroupAddTimer("Custom1", "spin", "sleep");
-	MicroProfileCustomGroupAddTimer("Custom1", "long", "inner 5ms");
+	MicroProfileCustomGroup("Custom1", 2, 30, 10.f, MICROPROFILE_CUSTOM_BARS);
+	MicroProfileCustomGroupAddTimer("Custom1", "MicroProfile", "Draw");
+	MicroProfileCustomGroupAddTimer("Custom1", "MicroProfile", "Detailed View");
 
-	MicroProfileCustomGroup("Custom2", 2, 100, 50.f, MICROPROFILE_CUSTOM_BARS|MICROPROFILE_CUSTOM_BAR_SOURCE_MAX);
-	MicroProfileCustomGroupAddTimer("Custom2", "spin", "sleep");
-	MicroProfileCustomGroupAddTimer("Custom2", "long", "inner 5ms");
+	MicroProfileCustomGroup("Custom2", 2, 100, 20.f, MICROPROFILE_CUSTOM_BARS|MICROPROFILE_CUSTOM_BAR_SOURCE_MAX);
+	MicroProfileCustomGroupAddTimer("Custom2", "MicroProfile", "Draw");
+	MicroProfileCustomGroupAddTimer("Custom2", "MicroProfile", "Detailed View");
 
-	MicroProfileCustomGroup("Custom3", 2, 10, 500.f, MICROPROFILE_CUSTOM_STACK|MICROPROFILE_CUSTOM_STACK_SOURCE_MAX);
-	MicroProfileCustomGroupAddTimer("Custom3", "spin", "sleep");
-	MicroProfileCustomGroupAddTimer("Custom3", "long", "inner 5ms");
+
+	MicroProfileCustomGroup("Custom3", 2, 10, 5.f, MICROPROFILE_CUSTOM_STACK|MICROPROFILE_CUSTOM_STACK_SOURCE_MAX);
+	MicroProfileCustomGroupAddTimer("Custom3", "MicroProfile", "Draw");
+	MicroProfileCustomGroupAddTimer("Custom3", "MicroProfile", "Detailed View");
+
 
 
 	MicroProfileCustomGroup("ThreadSafe", 6, 10, 600.f, MICROPROFILE_CUSTOM_BARS | MICROPROFILE_CUSTOM_STACK);

@@ -163,6 +163,7 @@ MICROPROFILEUI_API void MicroProfileDumpTimers();
 MICROPROFILEUI_API void MicroProfileInitUI();
 
 MICROPROFILEUI_API void MicroProfileCustomGroupEnable(const char* pCustomName);
+MICROPROFILEUI_API void MicroProfileCustomGroupEnable(uint32_t nIndex);
 MICROPROFILEUI_API void MicroProfileCustomGroupDisable();
 MICROPROFILEUI_API void MicroProfileCustomGroup(const char* pCustomName, uint32_t nMaxTimers, uint32_t nAggregateFrames, float fReferenceTime, uint32_t nFlags);
 MICROPROFILEUI_API void MicroProfileCustomGroupAddTimer(const char* pCustomName, const char* pGroup, const char* pTimer);
@@ -1855,6 +1856,7 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 	pMenuText[nNumMenuItems++] = "Options";
 	pMenuText[nNumMenuItems++] = "Preset";
 	const int nPauseIndex = nNumMenuItems;
+	pMenuText[nNumMenuItems++] = "Custom";
 	pMenuText[nNumMenuItems++] = S.nRunning ? "Pause" : "Unpause";
 	pMenuText[nNumMenuItems++] = "Help";
 
@@ -2118,7 +2120,31 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 				return 0;
 			}
 		},
-
+		[] (int index, bool& bSelected) -> const char*{
+			if((uint32_t)-1 == UI.nCustomActive)
+			{
+				bSelected = index == 0;
+			}
+			else
+			{
+				bSelected = index-2 == UI.nCustomActive;
+			}
+			switch(index)
+			{
+			case 0: return "Disable";
+			case 1: return "--";
+			default:
+				index -= 2;
+				if(index < UI.nCustomCount)
+				{
+					return UI.Custom[index].pName;
+				}
+				else
+				{
+					return 0;
+				}
+			}
+		},
 		[] (int index, bool& bSelected) -> const char*{
 			return 0;
 		},
@@ -2259,6 +2285,17 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 			else if(nIndex >= 0 && nIndex < nNumPresets)
 			{
 				MicroProfileLoadPreset(g_MicroProfilePresetNames[nIndex]);
+			}
+		},
+		[](int nIndex)
+		{
+			if(nIndex == 0)
+			{
+				MicroProfileCustomGroupDisable();
+			}
+			else
+			{
+				MicroProfileCustomGroupEnable(nIndex-2);
 			}
 		},
 		[](int nIndex)
@@ -2644,12 +2681,17 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 			uint32_t nExtraOffset = 1 + ((pCustom->nFlags & MICROPROFILE_CUSTOM_STACK) != 0 ? 3 : 0);
 			uint32_t nOffsetYBase = nHeight - (nExtraOffset+nCount)* (1+MICROPROFILE_TEXT_HEIGHT) - MICROPROFILE_CUSTOM_PADDING;
 			uint32_t nOffsetY = nOffsetYBase;
+			float fReference = pCustom->fReference;
+			float fRcpReference = 1.f / fReference;
+			uint32_t nReducedWidth = UI.nWidth - MICROPROFILE_CUSTOM_PADDING;
+
 			char Buffer[MICROPROFILE_NAME_MAX_LEN*2+1];
 			float* pTime = (float*)alloca(sizeof(float)*nCount);
 			float* pTimeAvg = (float*)alloca(sizeof(float)*nCount);
 			float* pTimeMax = (float*)alloca(sizeof(float)*nCount);
 			uint32_t* pColors = (uint32_t*)alloca(sizeof(uint32_t)*nCount);
 			uint32_t nMaxOffsetX = 0;
+			MicroProfileDrawBox(MICROPROFILE_CUSTOM_PADDING-1, nOffsetY-1, MICROPROFILE_CUSTOM_PADDING+nReducedWidth+1, UI.nHeight - MICROPROFILE_CUSTOM_PADDING+1, 0x88000000|g_nMicroProfileBackColors[0]);
 
 			for(uint32_t i = 0; i < nCount; ++i)
 			{
@@ -2683,10 +2725,8 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 				nOffsetX += (nSize+2) * (MICROPROFILE_TEXT_WIDTH+1);
 				nMaxOffsetX = MicroProfileMax(nMaxOffsetX, nOffsetX);
 			}
-			float fReference = pCustom->fReference;
-			float fRcpReference = 1.f / fReference;
-			uint32_t nReducedWidth = UI.nWidth - MICROPROFILE_CUSTOM_PADDING;
 			uint32_t nMaxWidth = nReducedWidth- nMaxOffsetX;
+
 			if(pCustom->nFlags & MICROPROFILE_CUSTOM_BARS)
 			{
 				nOffsetY = nOffsetYBase;
@@ -2724,10 +2764,7 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 					}
 				}
 			}
-
 		}
-
-
 
 #if MICROPROFILE_DRAWCURSOR
 		{
@@ -3123,19 +3160,22 @@ void MicroProfileCustomGroup(const char* pCustomName, uint32_t nMaxTimers, uint3
 	UI.Custom[nIndex].nAggregateFrames = nAggregateFrames;
 }
 
-void MicroProfileCustomGroupEnable(const char* pCustomName)
+void MicroProfileCustomGroupEnable(uint32_t nIndex)
 {
-	MicroProfile& S = *MicroProfileGet();
-	uint32_t nIndex = MicroProfileCustomGroupFind(pCustomName);
-	if((uint32_t)-1 == nIndex)
+	if(nIndex < UI.nCustomCount)
 	{
-		return;
+		MicroProfile& S = *MicroProfileGet();
+		S.nForceEnableMaskUI = UI.Custom[nIndex].nGroupMask;
+		S.nAggregateFrames = UI.Custom[nIndex].nAggregateFrames;
+		UI.nCustomActive = nIndex;
 	}
-	S.nForceEnableMaskUI = UI.Custom[nIndex].nGroupMask;
-	S.nAggregateFrames = UI.Custom[nIndex].nAggregateFrames;
-	UI.nCustomActive = nIndex;
 	//todo: enable graph!
 	//todo: make sure everything is ticked.
+}
+void MicroProfileCustomGroupEnable(const char* pCustomName)
+{
+	uint32_t nIndex = MicroProfileCustomGroupFind(pCustomName);
+	MicroProfileCustomGroupEnable(nIndex);
 }
 void MicroProfileCustomGroupDisable()
 {
@@ -3153,7 +3193,9 @@ void MicroProfileCustomGroupAddTimer(const char* pCustomName, const char* pGroup
 	}
 	uint32_t nTimerIndex = UI.Custom[nIndex].nNumTimers;
 	MP_ASSERT(nTimerIndex < UI.Custom[nIndex].nMaxTimers);
-	UI.Custom[nIndex].pTimers[nTimerIndex] = MicroProfileFindToken(pGroup, pTimer);
+	uint64_t nToken = MicroProfileFindToken(pGroup, pTimer);
+	MP_ASSERT(nToken != MICROPROFILE_INVALID_TOKEN); //Timer must be registered first.
+	UI.Custom[nIndex].pTimers[nTimerIndex] = nToken;
 	UI.Custom[nIndex].nNumTimers++;
 }
 
