@@ -115,6 +115,11 @@ void HandleEvent(SDL_Event* pEvt)
 			MicroProfileDumpFile("../dump.html", "../dump.csv");
 		}
 #endif
+		if(pEvt->key.keysym.sym == 'l')
+		{
+			MicroProfileCustomGroupToggle("Custom1");
+		}
+
 		if(pEvt->key.keysym.sym == 't')
 		{
 			static bool toggle = false;
@@ -237,7 +242,7 @@ int main(int argc, char* argv[])
 	
 	MicroProfileInitUI();
 
-	MicroProfileCustomGroup("Custom1", 2, 30, 10.f, MICROPROFILE_CUSTOM_BARS);
+	MicroProfileCustomGroup("Custom1", 2, 30, 2.f, MICROPROFILE_CUSTOM_BARS);
 	MicroProfileCustomGroupAddTimer("Custom1", "MicroProfile", "Draw");
 	MicroProfileCustomGroupAddTimer("Custom1", "MicroProfile", "Detailed View");
 
@@ -259,7 +264,6 @@ int main(int argc, char* argv[])
 	MicroProfileCustomGroupAddTimer("ThreadSafe", "ThreadSafe", "inner2");
 	MicroProfileCustomGroupAddTimer("ThreadSafe", "ThreadSafe", "inner3");
 	MicroProfileCustomGroupAddTimer("ThreadSafe", "ThreadSafe", "inner4");
-	MicroProfileCustomGroupEnable("ThreadSafe");
 #endif
 
 	StartFakeWork();

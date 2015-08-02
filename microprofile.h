@@ -679,7 +679,7 @@ struct MicroProfile
 	uint32_t nForceEnable;
 	uint32_t nForceMetaCounters;
 
-	uint64_t nForceEnableMaskUI;
+	uint64_t nForceGroupUI;
 	uint64_t nActiveGroupWanted;
 	uint32_t nAllGroupsWanted;
 	uint32_t nAllThreadsWanted;
@@ -1848,6 +1848,7 @@ void MicroProfileFlip()
 	if(S.nForceEnable || (S.nDisplay && S.nRunning))
 		nNewActiveGroup = S.nAllGroupsWanted ? S.nGroupMask : S.nActiveGroupWanted;
 	nNewActiveGroup |= S.nForceGroup;
+	nNewActiveGroup |= S.nForceGroupUI;
 	if(S.nActiveGroup != nNewActiveGroup)
 		S.nActiveGroup = nNewActiveGroup;
 	uint32_t nNewActiveBars = 0;
