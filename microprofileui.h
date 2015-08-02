@@ -101,6 +101,19 @@
 #define MICROPROFILE_BAR_WIDTH 100
 #endif
 
+#ifndef MICROPROFILE_CUSTOM_MAX
+#define MICROPROFILE_CUSTOM_MAX 8 
+#endif
+
+#ifndef MICROPROFILE_CUSTOM_MAX_TIMERS
+#define MICROPROFILE_CUSTOM_MAX_TIMERS 64
+#endif
+
+#ifndef MICROPROFILE_CUSTOM_PADDING
+#define MICROPROFILE_CUSTOM_PADDING 12
+#endif
+
+
 #define MICROPROFILE_FRAME_HISTORY_HEIGHT 50
 #define MICROPROFILE_FRAME_HISTORY_WIDTH 7
 #define MICROPROFILE_FRAME_HISTORY_COLOR_CPU 0xffff7f27 //255 127 39
@@ -113,6 +126,17 @@
 #define MICROPROFILE_TOOLTIP_MAX_STRINGS (32 + MICROPROFILE_MAX_GROUPS*2)
 #define MICROPROFILE_TOOLTIP_STRING_BUFFER_SIZE (4*1024)
 #define MICROPROFILE_TOOLTIP_MAX_LOCKED 3
+
+
+enum
+{
+	MICROPROFILE_CUSTOM_BARS = 0x1,
+	MICROPROFILE_CUSTOM_BAR_SOURCE_MAX = 0x2,
+	MICROPROFILE_CUSTOM_BAR_SOURCE_AVG = 0,
+	MICROPROFILE_CUSTOM_STACK = 0x4,
+	MICROPROFILE_CUSTOM_STACK_SOURCE_MAX = 0x8,
+	MICROPROFILE_CUSTOM_STACK_SOURCE_AVG = 0,
+};
 
 
 MICROPROFILEUI_API void MicroProfileUIInit();
@@ -135,6 +159,13 @@ MICROPROFILEUI_API void MicroProfileDrawText(int nX, int nY, uint32_t nColor, co
 MICROPROFILEUI_API void MicroProfileDrawBox(int nX, int nY, int nX1, int nY1, uint32_t nColor, MicroProfileBoxType = MicroProfileBoxTypeFlat);
 MICROPROFILEUI_API void MicroProfileDrawLine2D(uint32_t nVertices, float* pVertices, uint32_t nColor);
 MICROPROFILEUI_API void MicroProfileDumpTimers();
+
+MICROPROFILEUI_API void MicroProfileInitUI();
+
+MICROPROFILEUI_API void MicroProfileCustomGroupEnable(const char* pCustomName);
+MICROPROFILEUI_API void MicroProfileCustomGroupDisable();
+MICROPROFILEUI_API void MicroProfileCustomGroup(const char* pCustomName, uint32_t nMaxTimers, uint32_t nAggregateFrames, float fReferenceTime, uint32_t nFlags);
+MICROPROFILEUI_API void MicroProfileCustomGroupAddTimer(const char* pCustomName, const char* pGroup, const char* pTimer);
 
 #ifdef MICROPROFILEUI_IMPL
 #ifdef _WIN32
@@ -165,6 +196,18 @@ struct MicroProfileGroupMenuItem
 	uint32_t nCategoryIndex;
 	uint32_t nIndex;
 	const char* pName;
+};
+
+struct MicroProfileCustom
+{
+	char pName[MICROPROFILE_NAME_MAX_LEN];
+	uint32_t nFlags;
+	uint32_t nAggregateFrames;	
+	uint32_t nNumTimers;
+	uint32_t nMaxTimers;
+	uint64_t nGroupMask;
+	float fReference;
+	uint64_t* pTimers;
 };
 
 struct MicroProfileUI
@@ -228,6 +271,13 @@ struct MicroProfileUI
 	uint32_t 					GroupMenuCount;
 
 
+	uint32_t					nCustomActive;
+	uint32_t					nCustomTimerCount;
+	uint32_t 					nCustomCount;
+	MicroProfileCustom 			Custom[MICROPROFILE_CUSTOM_MAX];
+	uint64_t					CustomTimer[MICROPROFILE_CUSTOM_MAX_TIMERS];
+
+
 };
 
 MicroProfileUI g_MicroProfileUI;
@@ -287,7 +337,9 @@ void MicroProfileInitUI()
 		UI.nWidth = 100;
 		UI.nHeight = 100;
 
-
+		UI.nCustomActive = (uint32_t)-1;
+		UI.nCustomTimerCount = 0;
+		UI.nCustomCount = 0;
 	}
 }
 
@@ -2581,6 +2633,102 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 				}
 			}
 		}
+
+
+		if((uint32_t)-1 != UI.nCustomActive)
+		{
+			MP_ASSERT(UI.nCustomActive < MICROPROFILE_CUSTOM_MAX);
+			MicroProfileCustom* pCustom = &UI.Custom[UI.nCustomActive];
+			uint32_t nCount = pCustom->nNumTimers;
+			uint32_t nAggregateFrames = S.nAggregateFrames ? S.nAggregateFrames : 1;
+			uint32_t nExtraOffset = 1 + ((pCustom->nFlags & MICROPROFILE_CUSTOM_STACK) != 0 ? 3 : 0);
+			uint32_t nOffsetYBase = nHeight - (nExtraOffset+nCount)* (1+MICROPROFILE_TEXT_HEIGHT) - MICROPROFILE_CUSTOM_PADDING;
+			uint32_t nOffsetY = nOffsetYBase;
+			char Buffer[MICROPROFILE_NAME_MAX_LEN*2+1];
+			float* pTime = (float*)alloca(sizeof(float)*nCount);
+			float* pTimeAvg = (float*)alloca(sizeof(float)*nCount);
+			float* pTimeMax = (float*)alloca(sizeof(float)*nCount);
+			uint32_t* pColors = (uint32_t*)alloca(sizeof(uint32_t)*nCount);
+			uint32_t nMaxOffsetX = 0;
+
+			for(uint32_t i = 0; i < nCount; ++i)
+			{
+				uint16_t nTimerIndex = MicroProfileGetTimerIndex(pCustom->pTimers[i]);
+				uint16_t nGroupIndex = MicroProfileGetGroupIndex(pCustom->pTimers[i]);
+				float fToMs = MicroProfileTickToMsMultiplier(S.GroupInfo[nGroupIndex].Type == MicroProfileTokenTypeGpu ? MicroProfileTicksPerSecondGpu() : MicroProfileTicksPerSecondCpu());
+				pTime[i] = S.Frame[nTimerIndex].nTicks * fToMs;
+				pTimeAvg[i] = fToMs * (S.Aggregate[nTimerIndex].nTicks / nAggregateFrames);
+				pTimeMax[i] = fToMs * (S.AggregateMax[nTimerIndex]);
+				pColors[i] = S.TimerInfo[nTimerIndex].nColor;
+			}
+
+			MicroProfileDrawText(MICROPROFILE_CUSTOM_PADDING + 3*MICROPROFILE_TEXT_WIDTH, nOffsetY, (uint32_t)-1, "Avg", sizeof("Avg")-1);
+			MicroProfileDrawText(MICROPROFILE_CUSTOM_PADDING + 13*MICROPROFILE_TEXT_WIDTH, nOffsetY, (uint32_t)-1, "Max", sizeof("Max")-1);
+			for(uint32_t i = 0; i < nCount; ++i)
+			{
+				nOffsetY += (1+MICROPROFILE_TEXT_HEIGHT);
+				uint16_t nTimerIndex = MicroProfileGetTimerIndex(pCustom->pTimers[i]);
+				uint16_t nGroupIndex = MicroProfileGetGroupIndex(pCustom->pTimers[i]);
+				MicroProfileTimerInfo* pTimerInfo = &S.TimerInfo[nTimerIndex];
+				int nSize;
+				uint32_t nOffsetX = MICROPROFILE_CUSTOM_PADDING;
+				nSize = snprintf(Buffer, sizeof(Buffer)-1, "%6.2f", pTimeAvg[i]);
+				MicroProfileDrawText(nOffsetX, nOffsetY, (uint32_t)-1, Buffer, nSize);
+				nOffsetX += (nSize+2) * (MICROPROFILE_TEXT_WIDTH+1);
+				nSize = snprintf(Buffer, sizeof(Buffer)-1, "%6.2f", pTimeMax[i]);
+				MicroProfileDrawText(nOffsetX, nOffsetY, (uint32_t)-1, Buffer, nSize);
+				nOffsetX += (nSize+2) * (MICROPROFILE_TEXT_WIDTH+1);
+				nSize = snprintf(Buffer, sizeof(Buffer)-1, "%s:%s", S.GroupInfo[nGroupIndex].pName, pTimerInfo->pName);
+				MicroProfileDrawText(nOffsetX, nOffsetY, pTimerInfo->nColor, Buffer, nSize);
+				nOffsetX += (nSize+2) * (MICROPROFILE_TEXT_WIDTH+1);
+				nMaxOffsetX = MicroProfileMax(nMaxOffsetX, nOffsetX);
+			}
+			float fReference = pCustom->fReference;
+			float fRcpReference = 1.f / fReference;
+			uint32_t nReducedWidth = UI.nWidth - MICROPROFILE_CUSTOM_PADDING;
+			uint32_t nMaxWidth = nReducedWidth- nMaxOffsetX;
+			if(pCustom->nFlags & MICROPROFILE_CUSTOM_BARS)
+			{
+				nOffsetY = nOffsetYBase;
+				float* pMs = pCustom->nFlags & MICROPROFILE_CUSTOM_BAR_SOURCE_MAX ? pTimeMax : pTimeAvg;
+				const char* pString = pCustom->nFlags & MICROPROFILE_CUSTOM_BAR_SOURCE_MAX ? "Max" : "Avg";
+				MicroProfileDrawText(nMaxOffsetX, nOffsetY, (uint32_t)-1, pString, strlen(pString));
+				int nSize = snprintf(Buffer, sizeof(Buffer)-1, "%6.2fms", fReference);
+				MicroProfileDrawText(nReducedWidth - (1+nSize) * (MICROPROFILE_TEXT_WIDTH+1), nOffsetY, (uint32_t)-1, Buffer, nSize);
+				for(uint32_t i = 0; i < nCount; ++i)
+				{
+					nOffsetY += (1+MICROPROFILE_TEXT_HEIGHT);
+					uint32_t nWidth = MicroProfileMin(nMaxWidth, (uint32_t)(nMaxWidth * pMs[i] * fRcpReference));
+					MicroProfileDrawBox(nMaxOffsetX, nOffsetY, nMaxOffsetX+nWidth, nOffsetY+MICROPROFILE_TEXT_HEIGHT, pColors[i]|0xff000000);
+				}
+			}
+			if(pCustom->nFlags & MICROPROFILE_CUSTOM_STACK)
+			{
+				nOffsetY += 2*(1+MICROPROFILE_TEXT_HEIGHT);
+				const char* pString = pCustom->nFlags & MICROPROFILE_CUSTOM_STACK_SOURCE_MAX ? "Max" : "Avg";
+				MicroProfileDrawText(MICROPROFILE_CUSTOM_PADDING, nOffsetY, (uint32_t)-1, pString, strlen(pString));
+				int nSize = snprintf(Buffer, sizeof(Buffer)-1, "%6.2fms", fReference);
+				MicroProfileDrawText(nReducedWidth - (1+nSize) * (MICROPROFILE_TEXT_WIDTH+1), nOffsetY, (uint32_t)-1, Buffer, nSize);
+				nOffsetY += (1+MICROPROFILE_TEXT_HEIGHT);
+				float fPosX = MICROPROFILE_CUSTOM_PADDING;
+				float* pMs = pCustom->nFlags & MICROPROFILE_CUSTOM_STACK_SOURCE_MAX ? pTimeMax : pTimeAvg;
+				for(uint32_t i = 0; i < nCount; ++i)
+				{
+					float fWidth = pMs[i] * fRcpReference * nReducedWidth;
+					uint32_t nX = fPosX;
+					fPosX += fWidth;
+					uint32_t nXEnd = fPosX;
+					if(nX < nXEnd)
+					{
+						MicroProfileDrawBox(nX, nOffsetY, nXEnd, nOffsetY+MICROPROFILE_TEXT_HEIGHT, pColors[i]|0xff000000);
+					}
+				}
+			}
+
+		}
+
+
+
 #if MICROPROFILE_DRAWCURSOR
 		{
 			float fCursor[8] = 
@@ -2930,6 +3078,84 @@ void MicroProfileLoadPreset(const char* pSuffix)
 	}
 }
 
+uint32_t MicroProfileCustomGroupFind(const char* pCustomName)
+{
+	for(uint32_t i = 0; i < UI.nCustomCount; ++i)
+	{
+		if(!MP_STRCASECMP(pCustomName, UI.Custom[i].pName))
+		{
+			return i;
+		}
+	}
+	return (uint32_t)-1;
+}
+
+uint32_t MicroProfileCustomGroup(const char* pCustomName)
+{
+	for(uint32_t i = 0; i < UI.nCustomCount; ++i)
+	{
+		if(!MP_STRCASECMP(pCustomName, UI.Custom[i].pName))
+		{
+			return i;
+		}
+	}
+	MP_ASSERT(UI.nCustomCount < MICROPROFILE_CUSTOM_MAX);
+	uint32_t nIndex = UI.nCustomCount;
+	UI.nCustomCount++;
+	memset(&UI.Custom[nIndex], 0, sizeof(UI.Custom[nIndex]));
+	uint32_t nLen = (uint32_t)strlen(pCustomName);
+	if(nLen > MICROPROFILE_NAME_MAX_LEN-1)
+		nLen = MICROPROFILE_NAME_MAX_LEN-1;
+	memcpy(&UI.Custom[nIndex].pName[0], pCustomName, nLen);
+	UI.Custom[nIndex].pName[nLen] = '\0';
+	return nIndex;
+}
+void MicroProfileCustomGroup(const char* pCustomName, uint32_t nMaxTimers, uint32_t nAggregateFrames, float fReferenceTime, uint32_t nFlags)
+{
+	uint32_t nIndex = MicroProfileCustomGroup(pCustomName);
+	MP_ASSERT(UI.Custom[nIndex].pTimers == 0);//only call once!
+	UI.Custom[nIndex].pTimers = &UI.CustomTimer[UI.nCustomTimerCount];
+	UI.Custom[nIndex].nMaxTimers = nMaxTimers;
+	UI.Custom[nIndex].fReference = fReferenceTime;
+	UI.nCustomTimerCount += nMaxTimers;	
+	MP_ASSERT(UI.nCustomTimerCount <= MICROPROFILE_CUSTOM_MAX_TIMERS); //bump MICROPROFILE_CUSTOM_MAX_TIMERS
+	UI.Custom[nIndex].nFlags = nFlags;
+	UI.Custom[nIndex].nAggregateFrames = nAggregateFrames;
+}
+
+void MicroProfileCustomGroupEnable(const char* pCustomName)
+{
+	MicroProfile& S = *MicroProfileGet();
+	uint32_t nIndex = MicroProfileCustomGroupFind(pCustomName);
+	if((uint32_t)-1 == nIndex)
+	{
+		return;
+	}
+	S.nForceEnableMaskUI = UI.Custom[nIndex].nGroupMask;
+	S.nAggregateFrames = UI.Custom[nIndex].nAggregateFrames;
+	UI.nCustomActive = nIndex;
+	//todo: enable graph!
+	//todo: make sure everything is ticked.
+}
+void MicroProfileCustomGroupDisable()
+{
+	MicroProfile& S = *MicroProfileGet();
+	S.nForceEnableMaskUI = 0;
+	UI.nCustomActive = (uint32_t)-1;
+}
+
+void MicroProfileCustomGroupAddTimer(const char* pCustomName, const char* pGroup, const char* pTimer)
+{
+	uint32_t nIndex = MicroProfileCustomGroupFind(pCustomName);
+	if((uint32_t)-1 == nIndex)
+	{
+		return;
+	}
+	uint32_t nTimerIndex = UI.Custom[nIndex].nNumTimers;
+	MP_ASSERT(nTimerIndex < UI.Custom[nIndex].nMaxTimers);
+	UI.Custom[nIndex].pTimers[nTimerIndex] = MicroProfileFindToken(pGroup, pTimer);
+	UI.Custom[nIndex].nNumTimers++;
+}
 
 #undef UI
 

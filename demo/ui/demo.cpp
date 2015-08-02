@@ -234,6 +234,30 @@ int main(int argc, char* argv[])
 	MicroProfileDrawInit();
 	MP_ASSERT(glGetError() == 0);
 	MicroProfileToggleDisplayMode();
+	
+	MicroProfileInitUI();
+
+	MicroProfileCustomGroup("Custom1", 2, 30, 100.f, MICROPROFILE_CUSTOM_BARS);
+	MicroProfileCustomGroupAddTimer("Custom1", "spin", "sleep");
+	MicroProfileCustomGroupAddTimer("Custom1", "long", "inner 5ms");
+
+	MicroProfileCustomGroup("Custom2", 2, 100, 50.f, MICROPROFILE_CUSTOM_BARS|MICROPROFILE_CUSTOM_BAR_SOURCE_MAX);
+	MicroProfileCustomGroupAddTimer("Custom2", "spin", "sleep");
+	MicroProfileCustomGroupAddTimer("Custom2", "long", "inner 5ms");
+
+	MicroProfileCustomGroup("Custom3", 2, 10, 500.f, MICROPROFILE_CUSTOM_STACK|MICROPROFILE_CUSTOM_STACK_SOURCE_MAX);
+	MicroProfileCustomGroupAddTimer("Custom3", "spin", "sleep");
+	MicroProfileCustomGroupAddTimer("Custom3", "long", "inner 5ms");
+
+
+	MicroProfileCustomGroup("ThreadSafe", 6, 10, 600.f, MICROPROFILE_CUSTOM_BARS | MICROPROFILE_CUSTOM_STACK);
+	MicroProfileCustomGroupAddTimer("ThreadSafe", "ThreadSafe", "main");
+	MicroProfileCustomGroupAddTimer("ThreadSafe", "ThreadSafe", "inner0");
+	MicroProfileCustomGroupAddTimer("ThreadSafe", "ThreadSafe", "inner1");
+	MicroProfileCustomGroupAddTimer("ThreadSafe", "ThreadSafe", "inner2");
+	MicroProfileCustomGroupAddTimer("ThreadSafe", "ThreadSafe", "inner3");
+	MicroProfileCustomGroupAddTimer("ThreadSafe", "ThreadSafe", "inner4");
+	MicroProfileCustomGroupEnable("ThreadSafe");
 #endif
 
 	StartFakeWork();

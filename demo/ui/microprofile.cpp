@@ -416,8 +416,6 @@ void MicroProfileDrawBox(int nX0, int nY0, int nX1, int nY1, uint32_t nColor, Mi
 {
 	if(Type == MicroProfileBoxTypeFlat)
 	{
-		MP_ASSERT(nX0 <= nX1);
-		MP_ASSERT(nY0 <= nY1);
 		nColor = ((nColor&0xff)<<16)|((nColor>>16)&0xff)|(0xff00ff00&nColor);
 		MicroProfileVertex* pVertex = PushVertices(GL_TRIANGLES, 6);
 		Q0(pVertex, nX, (float)nX0);

@@ -679,6 +679,7 @@ struct MicroProfile
 	uint32_t nForceEnable;
 	uint32_t nForceMetaCounters;
 
+	uint64_t nForceEnableMaskUI;
 	uint64_t nActiveGroupWanted;
 	uint32_t nAllGroupsWanted;
 	uint32_t nAllThreadsWanted;
