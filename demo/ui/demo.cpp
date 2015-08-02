@@ -242,7 +242,7 @@ int main(int argc, char* argv[])
 	
 	MicroProfileInitUI();
 
-	MicroProfileCustomGroup("Custom1", 2, 30, 2.f, MICROPROFILE_CUSTOM_BARS);
+	MicroProfileCustomGroup("Custom1", 2, 47, 2.f, MICROPROFILE_CUSTOM_BARS);
 	MicroProfileCustomGroupAddTimer("Custom1", "MicroProfile", "Draw");
 	MicroProfileCustomGroupAddTimer("Custom1", "MicroProfile", "Detailed View");
 
@@ -251,7 +251,7 @@ int main(int argc, char* argv[])
 	MicroProfileCustomGroupAddTimer("Custom2", "MicroProfile", "Detailed View");
 
 
-	MicroProfileCustomGroup("Custom3", 2, 10, 5.f, MICROPROFILE_CUSTOM_STACK|MICROPROFILE_CUSTOM_STACK_SOURCE_MAX);
+	MicroProfileCustomGroup("Custom3", 2, 0, 5.f, MICROPROFILE_CUSTOM_STACK|MICROPROFILE_CUSTOM_STACK_SOURCE_MAX);
 	MicroProfileCustomGroupAddTimer("Custom3", "MicroProfile", "Draw");
 	MicroProfileCustomGroupAddTimer("Custom3", "MicroProfile", "Detailed View");
 

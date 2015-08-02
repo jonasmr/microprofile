@@ -166,7 +166,7 @@ MICROPROFILEUI_API void MicroProfileCustomGroupToggle(const char* pCustomName);
 MICROPROFILEUI_API void MicroProfileCustomGroupEnable(const char* pCustomName);
 MICROPROFILEUI_API void MicroProfileCustomGroupEnable(uint32_t nIndex);
 MICROPROFILEUI_API void MicroProfileCustomGroupDisable();
-MICROPROFILEUI_API void MicroProfileCustomGroup(const char* pCustomName, uint32_t nMaxTimers, uint32_t nAggregateFrames, float fReferenceTime, uint32_t nFlags);
+MICROPROFILEUI_API void MicroProfileCustomGroup(const char* pCustomName, uint32_t nMaxTimers, uint32_t nAggregateFlip, float fReferenceTime, uint32_t nFlags);
 MICROPROFILEUI_API void MicroProfileCustomGroupAddTimer(const char* pCustomName, const char* pGroup, const char* pTimer);
 
 #ifdef MICROPROFILEUI_IMPL
@@ -204,7 +204,7 @@ struct MicroProfileCustom
 {
 	char pName[MICROPROFILE_NAME_MAX_LEN];
 	uint32_t nFlags;
-	uint32_t nAggregateFrames;	
+	uint32_t nAggregateFlip;	
 	uint32_t nNumTimers;
 	uint32_t nMaxTimers;
 	uint64_t nGroupMask;
@@ -3159,7 +3159,7 @@ uint32_t MicroProfileCustomGroup(const char* pCustomName)
 	UI.Custom[nIndex].pName[nLen] = '\0';
 	return nIndex;
 }
-void MicroProfileCustomGroup(const char* pCustomName, uint32_t nMaxTimers, uint32_t nAggregateFrames, float fReferenceTime, uint32_t nFlags)
+void MicroProfileCustomGroup(const char* pCustomName, uint32_t nMaxTimers, uint32_t nAggregateFlip, float fReferenceTime, uint32_t nFlags)
 {
 	uint32_t nIndex = MicroProfileCustomGroup(pCustomName);
 	MP_ASSERT(UI.Custom[nIndex].pTimers == 0);//only call once!
@@ -3169,7 +3169,7 @@ void MicroProfileCustomGroup(const char* pCustomName, uint32_t nMaxTimers, uint3
 	UI.nCustomTimerCount += nMaxTimers;	
 	MP_ASSERT(UI.nCustomTimerCount <= MICROPROFILE_CUSTOM_MAX_TIMERS); //bump MICROPROFILE_CUSTOM_MAX_TIMERS
 	UI.Custom[nIndex].nFlags = nFlags;
-	UI.Custom[nIndex].nAggregateFrames = nAggregateFrames;
+	UI.Custom[nIndex].nAggregateFlip = nAggregateFlip;
 }
 
 void MicroProfileCustomGroupEnable(uint32_t nIndex)
@@ -3178,7 +3178,7 @@ void MicroProfileCustomGroupEnable(uint32_t nIndex)
 	{
 		MicroProfile& S = *MicroProfileGet();
 		S.nForceGroupUI = UI.Custom[nIndex].nGroupMask;
-		S.nAggregateFrames = UI.Custom[nIndex].nAggregateFrames;
+		MicroProfileSetAggregateFrames(UI.Custom[nIndex].nAggregateFlip);
 		S.fReferenceTime = UI.Custom[nIndex].fReference;
 		S.fRcpReferenceTime = 1.f / UI.Custom[nIndex].fReference;
 		UI.nCustomActive = nIndex;
