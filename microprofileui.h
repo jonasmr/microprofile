@@ -805,13 +805,26 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 	UI.pRangeLog = 0;
 	uint64_t nFrameStartCpu = pFrameCurrent->nFrameStartCpu;
 	uint64_t nFrameStartGpu = pFrameCurrent->nFrameStartGpu;
-	float fToMsCpu = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
-	float fToMsGpu = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondGpu());
+	int64_t nTicksPerSecondCpu = MicroProfileTicksPerSecondCpu();
+	int64_t nTicksPerSecondGpu = MicroProfileTicksPerSecondGpu();
+	float fToMsCpu = MicroProfileTickToMsMultiplier(nTicksPerSecondCpu);
+	float fToMsGpu = MicroProfileTickToMsMultiplier(nTicksPerSecondGpu);
 
 	float fDetailedOffset = UI.fDetailedOffset;
 	float fDetailedRange = UI.fDetailedRange;
+
+
 	int64_t nDetailedOffsetTicksCpu = MicroProfileMsToTick(fDetailedOffset, MicroProfileTicksPerSecondCpu());
 	int64_t nDetailedOffsetTicksGpu = MicroProfileMsToTick(fDetailedOffset, MicroProfileTicksPerSecondGpu());
+
+
+	int64_t nTickReferenceCpu, nTickReferenceGpu;
+	if(MicroProfileGetGpuTickReference(&nTickReferenceCpu, &nTickReferenceGpu))
+	{
+		nDetailedOffsetTicksGpu = (nDetailedOffsetTicksCpu - nTickReferenceCpu) * nTicksPerSecondGpu / nTicksPerSecondCpu + nTickReferenceGpu;
+	}
+
+
 	int64_t nBaseTicksCpu = nDetailedOffsetTicksCpu + nFrameStartCpu;
 	int64_t nBaseTicksGpu = nDetailedOffsetTicksGpu + nFrameStartGpu;
 	int64_t nBaseTicksEndCpu = nBaseTicksCpu + MicroProfileMsToTick(fDetailedRange, MicroProfileTicksPerSecondCpu());
@@ -1856,8 +1869,8 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 	pMenuText[nNumMenuItems++] = "Timers";
 	pMenuText[nNumMenuItems++] = "Options";
 	pMenuText[nNumMenuItems++] = "Preset";
-	const int nPauseIndex = nNumMenuItems;
 	pMenuText[nNumMenuItems++] = "Custom";
+	const int nPauseIndex = nNumMenuItems;
 	pMenuText[nNumMenuItems++] = S.nRunning ? "Pause" : "Unpause";
 	pMenuText[nNumMenuItems++] = "Help";
 
@@ -2618,7 +2631,7 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 				}
 			}
 
-			if(UI.nActiveMenu == 7)
+			if(UI.nActiveMenu == 8)
 			{
 				if(S.nDisplay & MP_DRAW_DETAILED)
 				{

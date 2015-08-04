@@ -165,9 +165,9 @@ const char g_MicroProfileHtml_begin_0[] =
 "	var timer = {\"id\":id, \"name\":name, \"len\":name.length, \"color\":color, \"colordark\":colordark,\"timercolor\":color, \"textcolor\":InvertColor(color), \"group\":group, \"average\":average, \"max\":max, \"exclaverage\":exclaverage, \"exclmax\":exclmax, \"callaverage\":callaverage, \"callcount\":callcount, \"total\":total, \"meta\":meta, \"textcolorindex\":InvertColorIndex(color), \"metaavg\":metaavg, \"metamax\":metamax};\n"
 "	return timer;\n"
 "}\n"
-"function MakeFrame(id, framestart, frameend, ts, tt, ti)\n"
+"function MakeFrame(id, framestart, frameend, framestartgpu, frameendgpu, ts, tt, ti)\n"
 "{\n"
-"	var frame = {\"id\":id, \"framestart\":framestart, \"frameend\":frameend, \"ts\":ts, \"tt\":tt, \"ti\":ti};\n"
+"	var frame = {\"id\":id, \"framestart\":framestart, \"frameend\":frameend, \"framestartgpu\":framestartgpu, \"frameendgpu\":frameendgpu, \"ts\":ts, \"tt\":tt, \"ti\":ti};\n"
 "	return frame;\n"
 "}\n"
 "\n"
@@ -262,6 +262,8 @@ const char g_MicroProfileHtml_end_0[] =
 "var fRangeEndNext = 0;\n"
 "var fRangeBeginHistory = -1;\n"
 "var fRangeEndHistory = -1;\n"
+"var fRangeBeginHistoryGpu = -1;\n"
+"var fRangeEndHistoryGpu = -1;\n"
 "var fRangeBeginSelect = 0;\n"
 "var fRangeEndSelect = -1;\n"
 "\n"
@@ -1365,6 +1367,7 @@ const char g_MicroProfileHtml_end_0[] =
 "	var FrameIndex = -1;\n"
 "	var MouseDragging = MouseDragState != MouseDragOff;\n"
 "	fRangeBeginHistory = fRangeEndHistory = -1;\n"
+"	fRangeBeginHistoryGpu = fRangeEndHistoryGpu = -1;\n"
 "\n"
 "	var FrameFirst = -1;\n"
 "	var FrameLast = nWidth;\n"
@@ -1389,6 +1392,11 @@ const char g_MicroProfileHtml_end_0[] =
 "			context.fillStyle = FRAME_HISTORY_COLOR_GPU;\n"
 "			fRangeBeginHistory = Frames[i].framestart;\n"
 "			fRangeEndHistory = Frames[i].frameend;\n"
+"			if(Frames[i].framestartgpu)\n"
+"			{\n"
+"				fRangeBeginHistoryGpu = Frames[i].framestartgpu;\n"
+"				fRangeEndHistoryGpu = Frames[i].frameendgpu;\n"
+"			}\n"
 "			FrameIndex = i;\n"
 "		}\n"
 "		else\n"
@@ -1609,7 +1617,11 @@ const char g_MicroProfileHtml_end_0[] =
 "\n"
 "			StringArray.push(\"Timer Capture\");\n"
 "			StringArray.push(\"\");\n"
-"			StringArray.push(\"Frames\");\n"
+"			StringArray.push(\"Fram";
+
+const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
+const char g_MicroProfileHtml_end_1[] =
+"es\");\n"
 "			StringArray.push(AggregateInfo.Frames);\n"
 "			StringArray.push(\"Time\");\n"
 "			StringArray.push(AggregateInfo.Time.toFixed(2) + \"ms\");\n"
@@ -1626,11 +1638,7 @@ const char g_MicroProfileHtml_end_0[] =
 "\n"
 "\n"
 "			StringArray.push(\"Time\");\n"
-"			StringArray.pus";
-
-const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
-const char g_MicroProfileHtml_end_1[] =
-"h((fRangeEnd-fRangeBegin).toFixed(3));\n"
+"			StringArray.push((fRangeEnd-fRangeBegin).toFixed(3));\n"
 "			StringArray.push(\"\");\n"
 "			StringArray.push(\"\");\n"
 "			StringArray.push(\"Total\");\n"
@@ -2587,9 +2595,9 @@ const char g_MicroProfileHtml_end_1[] =
 "		}\n"
 "		context.textAlign = \'left\';\n"
 "		DrawTextBox(context, \'\' + fEnd.toFixed(2), X + W + 2, TextPosY, \'left\');\n"
+"		Offset += 1;\n"
 "	}\n"
-"\n"
-"\n"
+"	return Offset;\n"
 "}\n"
 "\n"
 "function DrawDetailed(Animation)\n"
@@ -2604,6 +2612,8 @@ const char g_MicroProfileHtml_end_1[] =
 "	nHoverCSCpuNext = -1;\n"
 "\n"
 "	fRangeBeginNext = fRangeEndNext = -1;\n"
+"	var fRangeBeginGpu = -1;\n"
+"	var fRangeEndGpu = -1;\n"
 "\n"
 "	var start = new Date();\n"
 "	nDrawCount++;\n"
@@ -2658,6 +2668,8 @@ const char g_MicroProfileHtml_end_1[] =
 "		{\n"
 "			fRangeBegin = fRangeBeginHistory;\n"
 "			fRangeEnd = fRangeEndHistory;\n"
+"			fRangeBeginGpu = fRangeBeginHistoryGpu;\n"
+"			fRangeEndGpu = fRangeEndHistoryGpu;\n"
 "		}\n"
 "		else\n"
 "		{\n"
@@ -2671,9 +2683,10 @@ const char g_MicroProfileHtml_end_1[] =
 "	DrawTextBox(context, TimeToMsString(fDetailedOffset + fDetailedRange), nWidth, FontHeight, \'right\');\n"
 "	context.textAlign = \'left\';\n"
 "\n"
-"	DrawRange(context, fRangeBeginSelect, fRangeEndSelect, \'#59d0ff\', \'#00ddff\', 0);\n"
-"	DrawRange(context, fRangeBegin, fRangeEnd, \'#009900\', \'#00ff00\', fRangeBeginSelect < fRangeEndSelect ? 1 : 0);\n"
-"\n"
+"	var Offset = 0;\n"
+"	Offset = DrawRange(context, fRangeBeginSelect, fRangeEndSelect, \'#59d0ff\', \'#00ddff\', Offset);\n"
+"	Offset = DrawRange(context, fRangeBegin, fRangeEnd, \'#009900\', \'#00ff00\', Offset);\n"
+"	Offset = DrawRange(context, fRangeBeginGpu, fRangeEndGpu, \'#996600\', \'#775500\', Offset);\n"
 "\n"
 "	nHoverCSCpu = nHoverCSCpuNext;\n"
 "	ProfileLeave();\n"
@@ -2866,7 +2879,11 @@ const char g_MicroProfileHtml_end_1[] =
 "\n"
 "function clamp(number, min, max)\n"
 "{\n"
-"  return Math.max(min, Math.min(number, max));\n"
+"  return Math.max(min, Math.min(number,";
+
+const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
+const char g_MicroProfileHtml_end_2[] =
+" max));\n"
 "}\n"
 "\n"
 "function MouseDragPan()\n"
@@ -2890,11 +2907,7 @@ const char g_MicroProfileHtml_end_1[] =
 "				if(xStart > xEnd)\n"
 "				{\n"
 "					var Temp = xStart;\n"
-"					xStart = xEnd;";
-
-const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
-const char g_MicroProfileHtml_end_2[] =
-"\n"
+"					xStart = xEnd;\n"
 "					xEnd = Temp;\n"
 "				}\n"
 "				if(xEnd - xStart > 1)\n"

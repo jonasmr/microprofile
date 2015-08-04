@@ -387,10 +387,12 @@ MICROPROFILE_API uint32_t MicroProfileWebServerPort();
 MICROPROFILE_API uint32_t MicroProfileGpuInsertTimeStamp();
 MICROPROFILE_API uint64_t MicroProfileGpuGetTimeStamp(uint32_t nKey);
 MICROPROFILE_API uint64_t MicroProfileTicksPerSecondGpu();
+MICROPROFILE_API int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu);
 #else
 #define MicroProfileGpuInsertTimeStamp() 1
 #define MicroProfileGpuGetTimeStamp(a) 0
 #define MicroProfileTicksPerSecondGpu() 1
+#define MicroProfileGetGpuTickReference(a,b) 0
 #endif
 
 #if MICROPROFILE_GPU_TIMERS_D3D11
@@ -2260,6 +2262,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	}
 	//dump info
 	uint64_t nTicks = MP_TICK();
+
 	float fToMsCPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
 	float fToMsGPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondGpu());
 	float fAggregateMs = fToMsCPU * (nTicks - S.nAggregateFlipTick);
@@ -2484,6 +2487,18 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	const int64_t nTickStart = S.Frames[nFirstFrame].nFrameStartCpu;
 	const int64_t nTickEnd = S.Frames[nLastFrame].nFrameStartCpu;
 	int64_t nTickStartGpu = S.Frames[nFirstFrame].nFrameStartGpu;
+
+	int64_t nTickReferenceCpu, nTickReferenceGpu;
+	int64_t nTicksPerSecondCpu = MicroProfileTicksPerSecondCpu();
+	int64_t nTicksPerSecondGpu = MicroProfileTicksPerSecondGpu();
+	int nTickReference = 0;
+	if(MicroProfileGetGpuTickReference(&nTickReferenceCpu, &nTickReferenceGpu))
+	{
+		nTickStartGpu = (nTickStart - nTickReferenceCpu) * nTicksPerSecondGpu / nTicksPerSecondCpu + nTickReferenceGpu;
+		nTickReference = 1;
+	}
+
+
 #if MICROPROFILE_DEBUG
 	printf("dumping %d frames\n", nNumFrames);
 	printf("dumping frame %d to %d\n", nFirstFrame, nLastFrame);
@@ -2506,7 +2521,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 			uint32_t nLogStart = S.Frames[nFrameIndex].nLogStart[j];
 			uint32_t nLogEnd = S.Frames[nFrameIndexNext].nLogStart[j];
 
-			float fToMs = MicroProfileTickToMsMultiplier(pLog->nGpu ? MicroProfileTicksPerSecondGpu() : MicroProfileTicksPerSecondCpu());
+			float fToMs = MicroProfileTickToMsMultiplier(pLog->nGpu ? nTicksPerSecondGpu : nTicksPerSecondCpu);
 			MicroProfilePrintf(CB, Handle, "var ts_%d_%d = [", i, j);
 			if(nLogStart != nLogEnd)
 			{
@@ -2580,10 +2595,17 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 		int64_t nFrameStart = S.Frames[nFrameIndex].nFrameStartCpu;
 		int64_t nFrameEnd = S.Frames[nFrameIndexNext].nFrameStartCpu;
 
-		float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+		float fToMs = MicroProfileTickToMsMultiplier(nTicksPerSecondCpu);
 		float fFrameMs = MicroProfileLogTickDifference(nTickStart, nFrameStart) * fToMs;
 		float fFrameEndMs = MicroProfileLogTickDifference(nTickStart, nFrameEnd) * fToMs;
-		MicroProfilePrintf(CB, Handle, "Frames[%d] = MakeFrame(%d, %f, %f, ts%d, tt%d, ti%d);\n", i, 0, fFrameMs, fFrameEndMs, i, i, i);
+		float fFrameGpuMs = 0;
+		float fFrameGpuEndMs = 0;
+		if(nTickReference)
+		{
+			fFrameGpuMs = MicroProfileLogTickDifference(nTickStartGpu, S.Frames[nFrameIndex].nFrameStartGpu) * fToMsGPU;
+			fFrameGpuEndMs = MicroProfileLogTickDifference(nTickStartGpu, S.Frames[nFrameIndexNext].nFrameStartGpu) * fToMsGPU;
+		}
+		MicroProfilePrintf(CB, Handle, "Frames[%d] = MakeFrame(%d, %f, %f, %f, %f, ts%d, tt%d, ti%d);\n", i, 0, fFrameMs, fFrameEndMs, fFrameGpuMs, fFrameGpuEndMs, i, i, i);
 	}
 	
 	uint32_t nContextSwitchStart = 0;
@@ -3445,6 +3467,13 @@ void MicroProfileGpuShutdown()
 		S.GPU.m_QueryFrames[i].m_pRateQuery = 0;
 	}
 }
+
+int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu)
+{
+	return 0;
+}
+
+
 #elif MICROPROFILE_GPU_TIMERS_GL
 void MicroProfileGpuInitGL()
 {
@@ -3470,6 +3499,20 @@ uint64_t MicroProfileTicksPerSecondGpu()
 {
 	return 1000000000ll;
 }
+
+int MicroProfileGetGpuTickReference(int64_t* pOutCpu, int64_t* pOutGpu)
+{
+	int64_t nGpuTimeStamp;
+	glGetInteger64v(GL_TIMESTAMP, &nGpuTimeStamp);
+	if(nGpuTimeStamp)
+	{
+		*pOutCpu = MP_TICK();
+		*pOutGpu = nGpuTimeStamp;
+		return 1;
+	}
+	return 0;
+}
+
 
 #endif
 

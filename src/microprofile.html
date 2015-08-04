@@ -162,9 +162,9 @@ function MakeTimer(id, name, group, color, colordark, average, max, exclaverage,
 	var timer = {"id":id, "name":name, "len":name.length, "color":color, "colordark":colordark,"timercolor":color, "textcolor":InvertColor(color), "group":group, "average":average, "max":max, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "total":total, "meta":meta, "textcolorindex":InvertColorIndex(color), "metaavg":metaavg, "metamax":metamax};
 	return timer;
 }
-function MakeFrame(id, framestart, frameend, ts, tt, ti)
+function MakeFrame(id, framestart, frameend, framestartgpu, frameendgpu, ts, tt, ti)
 {
-	var frame = {"id":id, "framestart":framestart, "frameend":frameend, "ts":ts, "tt":tt, "ti":ti};
+	var frame = {"id":id, "framestart":framestart, "frameend":frameend, "framestartgpu":framestartgpu, "frameendgpu":frameendgpu, "ts":ts, "tt":tt, "ti":ti};
 	return frame;
 }
 
@@ -248,6 +248,8 @@ var fRangeBeginNext = 0;
 var fRangeEndNext = 0;
 var fRangeBeginHistory = -1;
 var fRangeEndHistory = -1;
+var fRangeBeginHistoryGpu = -1;
+var fRangeEndHistoryGpu = -1;
 var fRangeBeginSelect = 0;
 var fRangeEndSelect = -1;
 
@@ -1351,6 +1353,7 @@ function DrawDetailedFrameHistory()
 	var FrameIndex = -1;
 	var MouseDragging = MouseDragState != MouseDragOff;
 	fRangeBeginHistory = fRangeEndHistory = -1;
+	fRangeBeginHistoryGpu = fRangeEndHistoryGpu = -1;
 
 	var FrameFirst = -1;
 	var FrameLast = nWidth;
@@ -1375,6 +1378,11 @@ function DrawDetailedFrameHistory()
 			context.fillStyle = FRAME_HISTORY_COLOR_GPU;
 			fRangeBeginHistory = Frames[i].framestart;
 			fRangeEndHistory = Frames[i].frameend;
+			if(Frames[i].framestartgpu)
+			{
+				fRangeBeginHistoryGpu = Frames[i].framestartgpu;
+				fRangeEndHistoryGpu = Frames[i].frameendgpu;
+			}
 			FrameIndex = i;
 		}
 		else
@@ -2569,9 +2577,9 @@ function DrawRange(context, fBegin, fEnd, ColorBack, ColorFront, Offset)
 		}
 		context.textAlign = 'left';
 		DrawTextBox(context, '' + fEnd.toFixed(2), X + W + 2, TextPosY, 'left');
+		Offset += 1;
 	}
-
-
+	return Offset;
 }
 
 function DrawDetailed(Animation)
@@ -2586,6 +2594,8 @@ function DrawDetailed(Animation)
 	nHoverCSCpuNext = -1;
 
 	fRangeBeginNext = fRangeEndNext = -1;
+	var fRangeBeginGpu = -1;
+	var fRangeEndGpu = -1;
 
 	var start = new Date();
 	nDrawCount++;
@@ -2640,6 +2650,8 @@ function DrawDetailed(Animation)
 		{
 			fRangeBegin = fRangeBeginHistory;
 			fRangeEnd = fRangeEndHistory;
+			fRangeBeginGpu = fRangeBeginHistoryGpu;
+			fRangeEndGpu = fRangeEndHistoryGpu;
 		}
 		else
 		{
@@ -2653,9 +2665,10 @@ function DrawDetailed(Animation)
 	DrawTextBox(context, TimeToMsString(fDetailedOffset + fDetailedRange), nWidth, FontHeight, 'right');
 	context.textAlign = 'left';
 
-	DrawRange(context, fRangeBeginSelect, fRangeEndSelect, '#59d0ff', '#00ddff', 0);
-	DrawRange(context, fRangeBegin, fRangeEnd, '#009900', '#00ff00', fRangeBeginSelect < fRangeEndSelect ? 1 : 0);
-
+	var Offset = 0;
+	Offset = DrawRange(context, fRangeBeginSelect, fRangeEndSelect, '#59d0ff', '#00ddff', Offset);
+	Offset = DrawRange(context, fRangeBegin, fRangeEnd, '#009900', '#00ff00', Offset);
+	Offset = DrawRange(context, fRangeBeginGpu, fRangeEndGpu, '#996600', '#775500', Offset);
 
 	nHoverCSCpu = nHoverCSCpuNext;
 	ProfileLeave();
