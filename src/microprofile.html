@@ -246,6 +246,8 @@ var fRangeBegin = 0;
 var fRangeEnd = -1;
 var fRangeBeginNext = 0;
 var fRangeEndNext = 0;
+var fRangeBeginGpuNext = 0;
+var fRangeEndGpuNext = 0;
 var fRangeBeginHistory = -1;
 var fRangeEndHistory = -1;
 var fRangeBeginHistoryGpu = -1;
@@ -956,9 +958,9 @@ function GatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)
 			{
 				StackPos++;
 			}
-			else
+			else if(type > 3)
 			{
-				var nMetaCount = type - 2;
+				var nMetaCount = type - 3;
 				var nMetaIndex = MetaNames[index];
 				if(nMetaIndex in HoverInfo)
 				{
@@ -2185,6 +2187,7 @@ function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOf
 					nHoverCSCpuNext = ActiveCpu;
 					fRangeBeginNext = TimeIn;
 					fRangeEndNext = TimeOut;
+					fRangeBeginGpuNext = fRangeEndGpuNext = -1;
 				}
 			}
 		}
@@ -2307,7 +2310,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 					if(type == 1)
 					{
 						//push
-						Stack[StackPos] = time;
+						Stack[StackPos] = j;
 						StackPos++;
 						if(StackPos > MaxDepth)
 						{
@@ -2320,7 +2323,8 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 						{
 							StackPos--;
 
-							var timestart = Stack[StackPos];
+							var StartIndex = Stack[StackPos];
+							var timestart = TimeArray[StartIndex];
 							var timeend = time;
 							var X = (timestart - fDetailedOffset) * fScaleX;
 							var Y = fOffsetY + StackPos * BoxHeight;
@@ -2373,6 +2377,20 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 								{
 									fRangeBeginNext = timestart;
 									fRangeEndNext = timeend;
+									if(TypeArray[StartIndex+1] == 3 && TypeArray[j+1] == 3)
+									{
+										fRangeBeginGpuNext = fRangeBeginNext;
+										fRangeEndGpuNext = fRangeEndNext;
+										//cpu tick is stored following
+										fRangeBeginNext = TimeArray[StartIndex+1];
+										fRangeEndNext = TimeArray[j+1];
+									}
+									else
+									{
+										fRangeBeginGpuNext = -1;
+										fRangeEndGpuNext = -1;
+									}
+
 									nHoverTokenNext = index;
 									nHoverTokenIndexNext = j;
 									nHoverTokenLogIndexNext = nLog;
@@ -2522,7 +2540,7 @@ function DrawTextBox(context, text, x, y, align)
 	context.fillText(text, x, y);
 
 }
-function DrawRange(context, fBegin, fEnd, ColorBack, ColorFront, Offset)
+function DrawRange(context, fBegin, fEnd, ColorBack, ColorFront, Offset, Name)
 {
 	if(fBegin < fEnd)
 	{
@@ -2577,6 +2595,7 @@ function DrawRange(context, fBegin, fEnd, ColorBack, ColorFront, Offset)
 		}
 		context.textAlign = 'left';
 		DrawTextBox(context, '' + fEnd.toFixed(2), X + W + 2, TextPosY, 'left');
+		DrawTextBox(context, Name, X + W + 2, nHeight - FontHeight - YSpace*Offset, 'left');
 		Offset += 1;
 	}
 	return Offset;
@@ -2594,6 +2613,7 @@ function DrawDetailed(Animation)
 	nHoverCSCpuNext = -1;
 
 	fRangeBeginNext = fRangeEndNext = -1;
+	fRangeBeginGpuNext = fRangeEndGpuNext = -1;
 	var fRangeBeginGpu = -1;
 	var fRangeEndGpu = -1;
 
@@ -2657,6 +2677,8 @@ function DrawDetailed(Animation)
 		{
 			fRangeBegin = fRangeBeginNext;
 			fRangeEnd = fRangeEndNext;
+			fRangeBeginGpu = fRangeBeginGpuNext;
+			fRangeEndGpu = fRangeEndGpuNext;
 		}
 	}
 
@@ -2666,9 +2688,9 @@ function DrawDetailed(Animation)
 	context.textAlign = 'left';
 
 	var Offset = 0;
-	Offset = DrawRange(context, fRangeBeginSelect, fRangeEndSelect, '#59d0ff', '#00ddff', Offset);
-	Offset = DrawRange(context, fRangeBegin, fRangeEnd, '#009900', '#00ff00', Offset);
-	Offset = DrawRange(context, fRangeBeginGpu, fRangeEndGpu, '#996600', '#775500', Offset);
+	Offset = DrawRange(context, fRangeBeginSelect, fRangeEndSelect, '#59d0ff', '#00ddff', Offset, "Selection");
+	Offset = DrawRange(context, fRangeBegin, fRangeEnd, '#009900', '#00ff00', Offset, "Cpu");
+	Offset = DrawRange(context, fRangeBeginGpu, fRangeEndGpu, '#996600', '#775500', Offset, "Gpu");
 
 	nHoverCSCpu = nHoverCSCpuNext;
 	ProfileLeave();
@@ -3638,14 +3660,18 @@ function PreprocessGlobalArray()
 			var ts = Frame_.ts[nLog];
 			var ti = Frame_.ti[nLog];
 			var len = tt.length;
+			var DiscardLast = 0;
 			for(var xx = 0; xx < len; ++xx)
 			{
-				if(ts[xx] > FrameDiscard)
+				var Skip = (tt[i] == 3) ? DiscardLast : ts[xx] > FrameDiscard;
+				if(Skip)
 				{
 					Discard++;
+					DiscardLast = 1;
 				}
 				else
 				{
+					DiscardLast = 0;
 					TypeArray.push(tt[xx]);
 					TimeArray.push(ts[xx]);
 					IndexArray.push(ti[xx]);

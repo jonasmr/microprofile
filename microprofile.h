@@ -806,6 +806,7 @@ struct MicroProfile
 #define MP_LOG_TICK_MASK  0x0000ffffffffffff
 #define MP_LOG_INDEX_MASK 0x3fff000000000000
 #define MP_LOG_BEGIN_MASK 0xc000000000000000
+#define MP_LOG_GPU_EXTRA 0x3
 #define MP_LOG_META 0x2
 #define MP_LOG_ENTER 0x1
 #define MP_LOG_LEAVE 0x0
@@ -1420,6 +1421,7 @@ uint64_t MicroProfileGpuEnter(MicroProfileToken nToken_)
 	{
 		uint64_t nTimer = MicroProfileGpuInsertTimeStamp();
 		MicroProfileLogPut(nToken_, nTimer, MP_LOG_ENTER, g_MicroProfileGpuLog);
+		MicroProfileLogPut(nToken_, MP_TICK(), MP_LOG_GPU_EXTRA, g_MicroProfileGpuLog);
 		return 1;
 	}
 	return 0;
@@ -1431,6 +1433,7 @@ void MicroProfileGpuLeave(MicroProfileToken nToken_, uint64_t nTickStart)
 	{
 		uint64_t nTimer = MicroProfileGpuInsertTimeStamp();
 		MicroProfileLogPut(nToken_, nTimer, MP_LOG_LEAVE, g_MicroProfileGpuLog);
+		MicroProfileLogPut(nToken_, MP_TICK(), MP_LOG_GPU_EXTRA, g_MicroProfileGpuLog);
 	}
 }
 
@@ -1638,7 +1641,10 @@ void MicroProfileFlip()
 							for(uint32_t k = nStart; k < nEnd; ++k)
 							{
 								MicroProfileLogEntry L = pLog->Log[k];
-								pLog->Log[k] = MicroProfileLogSetTick(L, MicroProfileGpuGetTimeStamp((uint32_t)MicroProfileLogGetTick(L)));
+								if(MicroProfileLogType(L) < MP_LOG_META)
+								{
+									pLog->Log[k] = MicroProfileLogSetTick(L, MicroProfileGpuGetTimeStamp((uint32_t)MicroProfileLogGetTick(L)));
+								}
 							}
 						}
 					}
@@ -1679,12 +1685,11 @@ void MicroProfileFlip()
 									S.MetaCounters[nMetaIndex].nCounters[nCounter] += nMetaCount;
 								}
 							}
-							else
+							else if(MP_LOG_LEAVE == nType)
 							{
 								int nTimer = MicroProfileLogTimerIndex(LE);
 								uint8_t nGroup = pTimerToGroup[nTimer];
 								MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
-								MP_ASSERT(nType == MP_LOG_LEAVE);
 								if(nStackPos)
 								{									
 									int64_t nTickStart = pLog->Log[pStack[nStackPos-1]];
@@ -2517,21 +2522,26 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 		for(uint32_t j = 0; j < S.nNumLogs; ++j)
 		{
 			MicroProfileThreadLog* pLog = S.Pool[j];
-			int64_t nStartTick = pLog->nGpu ? nTickStartGpu : nTickStart;
+			int64_t nStartTickBase = pLog->nGpu ? nTickStartGpu : nTickStart;
 			uint32_t nLogStart = S.Frames[nFrameIndex].nLogStart[j];
 			uint32_t nLogEnd = S.Frames[nFrameIndexNext].nLogStart[j];
 
-			float fToMs = MicroProfileTickToMsMultiplier(pLog->nGpu ? nTicksPerSecondGpu : nTicksPerSecondCpu);
+			float fToMsCpu = MicroProfileTickToMsMultiplier(nTicksPerSecondCpu);
+			float fToMsBase = MicroProfileTickToMsMultiplier(pLog->nGpu ? nTicksPerSecondGpu : nTicksPerSecondCpu);
 			MicroProfilePrintf(CB, Handle, "var ts_%d_%d = [", i, j);
 			if(nLogStart != nLogEnd)
 			{
 				uint32_t k = nLogStart;
 				uint32_t nLogType = MicroProfileLogType(pLog->Log[k]);
+				float fToMs = nLogType == MP_LOG_GPU_EXTRA ? fToMsCpu : fToMsBase;
+				int64_t nStartTick = nLogType == MP_LOG_GPU_EXTRA ? nTickStart : nStartTickBase;
 				float fTime = nLogType == MP_LOG_META ? 0.f : MicroProfileLogTickDifference(nStartTick, pLog->Log[k]) * fToMs;
 				MicroProfilePrintf(CB, Handle, "%f", fTime);
 				for(k = (k+1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 				{
 					uint32_t nLogType = MicroProfileLogType(pLog->Log[k]);
+					float fToMs = nLogType == MP_LOG_GPU_EXTRA ? fToMsCpu : fToMsBase;
+					nStartTick = nLogType == MP_LOG_GPU_EXTRA ? nTickStart : nStartTickBase;
 					float fTime = nLogType == MP_LOG_META ? 0.f : MicroProfileLogTickDifference(nStartTick, pLog->Log[k]) * fToMs;
 					MicroProfilePrintf(CB, Handle, ",%f", fTime);
 				}
@@ -2547,8 +2557,8 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 					uint32_t nLogType = MicroProfileLogType(pLog->Log[k]);
 					if(nLogType == MP_LOG_META)
 					{
-						//for meta, store the count + 2, which is the tick part
-						nLogType = 2 + MicroProfileLogGetTick(pLog->Log[k]);
+						//for meta, store the count + 3, which is the tick part
+						nLogType = 3 + MicroProfileLogGetTick(pLog->Log[k]);
 					}
 					MicroProfilePrintf(CB, Handle, ",%d", nLogType);
 				}
