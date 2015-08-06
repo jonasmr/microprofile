@@ -3518,6 +3518,30 @@ int MicroProfileGetGpuTickReference(int64_t* pOutCpu, int64_t* pOutGpu)
 	{
 		*pOutCpu = MP_TICK();
 		*pOutGpu = nGpuTimeStamp;
+		#if 0 //debug test if timestamp diverges
+		static int64_t nTicksPerSecondCpu = MicroProfileTicksPerSecondCpu();
+		static int64_t nTicksPerSecondGpu = MicroProfileTicksPerSecondGpu();
+		static int64_t nGpuStart = 0;
+		static int64_t nCpuStart = 0;
+		if(!nCpuStart)
+		{
+			nCpuStart = *pOutCpu;
+			nGpuStart = *pOutGpu;
+		}
+		static int nCountDown = 100;
+		if(0 == nCountDown--)
+		{
+			int64_t nCurCpu = *pOutCpu;
+			int64_t nCurGpu = *pOutGpu;
+			double fDistanceCpu = (nCurCpu - nCpuStart) / (double)nTicksPerSecondCpu;
+			double fDistanceGpu = (nCurGpu - nGpuStart) / (double)nTicksPerSecondGpu;
+
+			char buf[254];
+			snprintf(buf, sizeof(buf)-1,"Distance %f %f diff %f\n", fDistanceCpu, fDistanceGpu, fDistanceCpu-fDistanceGpu);
+			OutputDebugString(buf);
+			nCountDown = 100;
+		}
+		#endif
 		return 1;
 	}
 	return 0;
