@@ -3585,15 +3585,21 @@ function PreprocessLods()
 				var DestTimeArray = Array();
 				var DestIndexArray = Array();
 				var RemapArray = Array(SourceCount);
+				var DiscardLast = 0;
 
 				for(var j = 0; j < SourceCount; ++j)
 				{
 					RemapArray[j] = DestTypeArray.length;
-					if(Duration[j] >= SplitTime)
+					if(Duration[j] >= SplitTime || (SourceTypeArray[j] == 3 && 0 == DiscardLast))
 					{
+						DiscardLast = 0;
 						DestTypeArray.push(SourceTypeArray[j]);
 						DestTimeArray.push(SourceTimeArray[j]);
 						DestIndexArray.push(SourceIndexArray[j]);
+					}
+					else
+					{
+						DiscardLast = 1;
 					}
 				}
 				TimeArray[nLog] = DestTimeArray;
