@@ -139,7 +139,6 @@ enum
 };
 
 
-MICROPROFILEUI_API void MicroProfileUIInit();
 MICROPROFILEUI_API void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight); //! call if drawing microprofilers
 MICROPROFILEUI_API bool MicroProfileIsDrawing();
 MICROPROFILEUI_API void MicroProfileToggleGraph(MicroProfileToken nToken);
@@ -212,6 +211,46 @@ struct MicroProfileCustom
 	uint64_t* pTimers;
 };
 
+struct SOptionDesc
+{
+	SOptionDesc(){}
+	SOptionDesc(uint8_t nSubType, uint8_t nIndex, const char* fmt, ...):nSubType(nSubType), nIndex(nIndex)
+	{
+		va_list args;
+		va_start (args, fmt);
+		vsprintf(Text, fmt, args);
+		va_end(args);
+	}
+	char Text[32];
+	uint8_t nSubType;
+	uint8_t nIndex;
+	bool bSelected;
+};
+static uint32_t g_MicroProfileAggregatePresets[] = {0, 10, 20, 30, 60, 120};
+static float g_MicroProfileReferenceTimePresets[] = {5.f, 10.f, 15.f,20.f, 33.33f, 66.66f, 100.f, 250.f, 500.f, 1000.f};
+static uint32_t g_MicroProfileOpacityPresets[] = {0x40, 0x80, 0xc0, 0xff};
+static const char* g_MicroProfilePresetNames[] = 
+{
+	MICROPROFILE_DEFAULT_PRESET,
+	"Render",
+	"GPU",
+	"Lighting",
+	"AI",
+	"Visibility",
+	"Sound",
+};
+
+enum
+{
+	MICROPROFILE_NUM_REFERENCE_PRESETS = sizeof(g_MicroProfileReferenceTimePresets)/sizeof(g_MicroProfileReferenceTimePresets[0]),
+	MICROPROFILE_NUM_OPACITY_PRESETS = sizeof(g_MicroProfileOpacityPresets)/sizeof(g_MicroProfileOpacityPresets[0]),
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+	MICROPROFILE_OPTION_SIZE = MICROPROFILE_NUM_REFERENCE_PRESETS + MICROPROFILE_NUM_OPACITY_PRESETS * 2 + 2 + 7,
+#else
+	MICROPROFILE_OPTION_SIZE = MICROPROFILE_NUM_REFERENCE_PRESETS + MICROPROFILE_NUM_OPACITY_PRESETS * 2 + 2 + 3,
+#endif
+};
+
 struct MicroProfileUI
 {
 	//menu/mouse over stuff
@@ -278,6 +317,8 @@ struct MicroProfileUI
 	uint32_t 					nCustomCount;
 	MicroProfileCustom 			Custom[MICROPROFILE_CUSTOM_MAX];
 	uint64_t					CustomTimer[MICROPROFILE_CUSTOM_MAX_TIMERS];
+	
+	SOptionDesc Options[MICROPROFILE_OPTION_SIZE];
 
 
 };
@@ -306,19 +347,6 @@ static uint32_t g_nMicroProfileContextSwitchThreadColors[MICROPROFILE_NUM_CONTEX
 	0x5C4352,
 };
 
-static uint32_t g_MicroProfileAggregatePresets[] = {0, 10, 20, 30, 60, 120};
-static float g_MicroProfileReferenceTimePresets[] = {5.f, 10.f, 15.f,20.f, 33.33f, 66.66f, 100.f, 250.f, 500.f, 1000.f};
-static uint32_t g_MicroProfileOpacityPresets[] = {0x40, 0x80, 0xc0, 0xff};
-static const char* g_MicroProfilePresetNames[] = 
-{
-	MICROPROFILE_DEFAULT_PRESET,
-	"Render",
-	"GPU",
-	"Lighting",
-	"AI",
-	"Visibility",
-	"Sound",
-};
 
 void MicroProfileInitUI()
 {
@@ -342,6 +370,33 @@ void MicroProfileInitUI()
 		UI.nCustomActive = (uint32_t)-1;
 		UI.nCustomTimerCount = 0;
 		UI.nCustomCount = 0;
+
+		int nIndex = 0;
+		UI.Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "Reference");
+		for(int i = 0; i < MICROPROFILE_NUM_REFERENCE_PRESETS; ++i)
+		{
+			UI.Options[nIndex++] = SOptionDesc(0, i, "  %6.2fms", g_MicroProfileReferenceTimePresets[i]);
+		}
+		UI.Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "BG Opacity");		
+		for(int i = 0; i < MICROPROFILE_NUM_OPACITY_PRESETS; ++i)
+		{
+			UI.Options[nIndex++] = SOptionDesc(1, i, "  %7d%%", (i+1)*25);
+		}
+		UI.Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "FG Opacity");		
+		for(int i = 0; i < MICROPROFILE_NUM_OPACITY_PRESETS; ++i)
+		{
+			UI.Options[nIndex++] = SOptionDesc(2, i, "  %7d%%", (i+1)*25);
+		}
+		UI.Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "Spike Display");		
+		UI.Options[nIndex++] = SOptionDesc(3, 0, "%s", "  Enable");
+
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+		UI.Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "CSwitch Trace");		
+		UI.Options[nIndex++] = SOptionDesc(4, 0, "%s", "  Enable");
+		UI.Options[nIndex++] = SOptionDesc(4, 1, "%s", "  All Threads");
+		UI.Options[nIndex++] = SOptionDesc(4, 2, "%s", "  No Bars");
+#endif
+		MP_ASSERT(nIndex == MICROPROFILE_OPTION_SIZE);
 	}
 }
 
@@ -1860,6 +1915,210 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 	MicroProfileDrawLineHorizontal(0, nWidth, 2*MICROPROFILE_TEXT_HEIGHT + 3, UI.nOpacityBackground|g_nMicroProfileBackColors[0]|g_nMicroProfileBackColors[1]);
 }
 
+typedef const char* (*SubmenuCallback)(int, bool* bSelected); 
+//typedef void (ClickCallback*)(int);
+
+
+const char* MicroProfileUIMenuMode(int nIndex, bool* bSelected)
+{
+	MicroProfile& S = *MicroProfileGet();
+	switch(nIndex)
+	{
+		case 0: 
+			*bSelected = S.nDisplay == MP_DRAW_DETAILED;
+			return "Detailed";
+		case 1:
+			*bSelected = S.nDisplay == MP_DRAW_BARS;
+			return "Timers";
+		case 2:
+			*bSelected = S.nDisplay == MP_DRAW_HIDDEN; 
+			return "Hidden";
+		case 3:
+			*bSelected = true; 
+			return "Off";
+		case 4:
+			*bSelected = true;
+			return "------";
+		case 5:
+			*bSelected = S.nForceEnable != 0;
+			return "Force Enable";
+
+		default: return 0;
+	}
+}
+
+const char* MicroProfileUIMenuGroups(int nIndex, bool* bSelected)
+{
+	MicroProfile& S = *MicroProfileGet();
+	*bSelected = false;
+	if(nIndex == 0)
+	{
+		*bSelected = S.nAllGroupsWanted != 0;
+		return "[ALL]";
+	}
+	else
+	{
+		nIndex = nIndex-1;
+		if(nIndex < UI.GroupMenuCount)
+		{
+			MicroProfileGroupMenuItem& Item = UI.GroupMenu[nIndex];
+			static char buffer[MICROPROFILE_NAME_MAX_LEN+32];
+			if(Item.nIsCategory)
+			{
+				uint64_t nGroupMask = S.CategoryInfo[Item.nIndex].nGroupMask;
+				*bSelected = nGroupMask == (nGroupMask & S.nActiveGroupWanted);
+				snprintf(buffer, sizeof(buffer)-1, "[%s]", Item.pName);
+			}
+			else
+			{
+				*bSelected = 0 != (S.nActiveGroupWanted & (1ll << Item.nIndex));
+				snprintf(buffer, sizeof(buffer)-1, "   %s", Item.pName);
+			}
+			return buffer;
+		}
+		return 0;
+	}	
+}
+
+const char* MicroProfileUIMenuAggregate(int nIndex, bool* bSelected)
+{
+	MicroProfile& S = *MicroProfileGet();			
+	if(nIndex < sizeof(g_MicroProfileAggregatePresets)/sizeof(g_MicroProfileAggregatePresets[0]))
+	{
+		int val = g_MicroProfileAggregatePresets[nIndex];
+		*bSelected = (int)S.nAggregateFlip == val;
+		if(0 == val)
+			return "Infinite";
+		else
+		{
+			static char buf[128];
+			snprintf(buf, sizeof(buf)-1, "%7d", val);
+			return buf;
+		}
+	}
+	return 0;
+
+}
+
+const char* MicroProfileUIMenuTimers(int nIndex, bool* bSelected)
+{
+	MicroProfile& S = *MicroProfileGet();
+	*bSelected = 0 != (S.nBars & (1 << nIndex));
+	switch(nIndex)
+	{
+		case 0: return "Time";				
+		case 1: return "Average";				
+		case 2: return "Max";
+		case 3: return "Call Count";
+		case 4: return "Exclusive Timers";
+		case 5: return "Exclusive Average";
+		case 6: return "Exclusive Max";
+	}
+	int nMetaIndex = nIndex - 7;
+	if(nMetaIndex < MICROPROFILE_META_MAX)
+	{
+		return S.MetaCounters[nMetaIndex].pName;
+	}
+	return 0;	
+}
+
+const char* MicroProfileUIMenuOptions(int nIndex, bool* bSelected)
+{
+	MicroProfile& S = *MicroProfileGet();
+	if(nIndex >= MICROPROFILE_OPTION_SIZE) return 0;
+	switch(UI.Options[nIndex].nSubType)
+	{
+	case 0:
+		*bSelected = S.fReferenceTime == g_MicroProfileReferenceTimePresets[UI.Options[nIndex].nIndex];
+		break;
+	case 1:
+		*bSelected = UI.nOpacityBackground>>24 == g_MicroProfileOpacityPresets[UI.Options[nIndex].nIndex];
+		break;
+	case 2:
+		*bSelected = UI.nOpacityForeground>>24 == g_MicroProfileOpacityPresets[UI.Options[nIndex].nIndex];				
+		break;
+	case 3:
+		*bSelected = UI.bShowSpikes;
+		break;
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+	case 4:
+		{
+			switch(UI.Options[nIndex].nIndex)
+			{
+			case 0:
+				*bSelected = S.bContextSwitchRunning;
+				break;
+			case 1:
+				*bSelected = S.bContextSwitchAllThreads;
+				break;
+			case 2: 
+				*bSelected = S.bContextSwitchNoBars;
+				break;
+			}
+		}
+		break;
+#endif
+	}
+	return UI.Options[nIndex].Text;
+}
+
+const char* MicroProfileUIMenuPreset(int nIndex, bool* bSelected)
+{
+	static char buf[128];
+	*bSelected = false;
+	int nNumPresets = sizeof(g_MicroProfilePresetNames) / sizeof(g_MicroProfilePresetNames[0]);
+	int nIndexSave = nIndex - nNumPresets - 1;
+	if(nIndex == nNumPresets)
+		return "--";
+	else if(nIndexSave >=0 && nIndexSave <nNumPresets)
+	{
+		snprintf(buf, sizeof(buf)-1, "Save '%s'", g_MicroProfilePresetNames[nIndexSave]);
+		return buf;
+	}
+	else if(nIndex < nNumPresets)
+	{
+		snprintf(buf, sizeof(buf)-1, "Load '%s'", g_MicroProfilePresetNames[nIndex]);
+		return buf;
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+const char* MicroProfileUIMenuCustom(int nIndex, bool* bSelected)
+{
+	if((uint32_t)-1 == UI.nCustomActive)
+	{
+		*bSelected = nIndex == 0;
+	}
+	else
+	{
+		*bSelected = nIndex-2 == UI.nCustomActive;
+	}
+	switch(nIndex)
+	{
+	case 0: return "Disable";
+	case 1: return "--";
+	default:
+		nIndex -= 2;
+		if(nIndex < UI.nCustomCount)
+		{
+			return UI.Custom[nIndex].pName;
+		}
+		else
+		{
+			return 0;
+		}
+	}
+}
+
+const char* MicroProfileUIMenuEmpty(int nIndex, bool* bSelected)
+{
+	return 0;
+}
+
+
 void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 {
 	MicroProfile& S = *MicroProfileGet();
@@ -1897,64 +2156,6 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 		pMenuText[nNumMenuItems++] = "!BUFFERSFULL!";
 	}
 
-	struct SOptionDesc
-	{
-		SOptionDesc(){}
-		SOptionDesc(uint8_t nSubType, uint8_t nIndex, const char* fmt, ...):nSubType(nSubType), nIndex(nIndex)
-		{
-			va_list args;
-			va_start (args, fmt);
-			vsprintf(Text, fmt, args);
-			va_end(args);
-		}
-		char Text[32];
-		uint8_t nSubType;
-		uint8_t nIndex;
-		bool bSelected;
-	};
-	static const int nNumReferencePresets = sizeof(g_MicroProfileReferenceTimePresets)/sizeof(g_MicroProfileReferenceTimePresets[0]);
-	static const int nNumOpacityPresets = sizeof(g_MicroProfileOpacityPresets)/sizeof(g_MicroProfileOpacityPresets[0]);
-
-#if MICROPROFILE_CONTEXT_SWITCH_TRACE
-	static const int nOptionSize = nNumReferencePresets + nNumOpacityPresets * 2 + 2 + 7;
-#else
-	static const int nOptionSize = nNumReferencePresets + nNumOpacityPresets * 2 + 2 + 3;
-#endif
-
-	static SOptionDesc Options[nOptionSize];
-	static bool bOptionInit = false;
-	if(!bOptionInit)
-	{
-		bOptionInit = true;
-		int nIndex = 0;
-		Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "Reference");
-		for(int i = 0; i < nNumReferencePresets; ++i)
-		{
-			Options[nIndex++] = SOptionDesc(0, i, "  %6.2fms", g_MicroProfileReferenceTimePresets[i]);
-		}
-		Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "BG Opacity");		
-		for(int i = 0; i < nNumOpacityPresets; ++i)
-		{
-			Options[nIndex++] = SOptionDesc(1, i, "  %7d%%", (i+1)*25);
-		}
-		Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "FG Opacity");		
-		for(int i = 0; i < nNumOpacityPresets; ++i)
-		{
-			Options[nIndex++] = SOptionDesc(2, i, "  %7d%%", (i+1)*25);
-		}
-		Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "Spike Display");		
-		Options[nIndex++] = SOptionDesc(3, 0, "%s", "  Enable");
-
-#if MICROPROFILE_CONTEXT_SWITCH_TRACE
-		Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "CSwitch Trace");		
-		Options[nIndex++] = SOptionDesc(4, 0, "%s", "  Enable");
-		Options[nIndex++] = SOptionDesc(4, 1, "%s", "  All Threads");
-		Options[nIndex++] = SOptionDesc(4, 2, "%s", "  No Bars");
-#endif
-
-
-		MP_ASSERT(nIndex == nOptionSize);
-	}
 
 	if(UI.GroupMenuCount != S.nGroupCount + S.nCategoryCount)
 	{
@@ -1994,201 +2195,22 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 		);
 	}
 
-	typedef std::function<const char* (int, bool&)> SubmenuCallback; 
+	//typedef std::function<const char* (int, bool&)> SubmenuCallback; 
 	typedef std::function<void(int)> ClickCallback;
-	SubmenuCallback GroupCallback[] = 
-	{	[] (int index, bool& bSelected) -> const char*{
-			MicroProfile& S = *MicroProfileGet();
-			switch(index)
-			{
-				case 0: 
-					bSelected = S.nDisplay == MP_DRAW_DETAILED;
-					return "Detailed";
-				case 1:
-					bSelected = S.nDisplay == MP_DRAW_BARS; 
-					return "Timers";
-				case 2:
-					bSelected = S.nDisplay == MP_DRAW_HIDDEN; 
-					return "Hidden";
-				case 3:
-					bSelected = false; 
-					return "Off";
-				case 4:
-					bSelected = false;
-					return "------";
-				case 5:
-					bSelected = S.nForceEnable != 0;
-					return "Force Enable";
-
-				default: return 0;
-			}
-		},
-		[&] (int index, bool& bSelected) -> const char*{
-			MicroProfile& S = *MicroProfileGet();
-			bSelected = false;
-			if(index == 0)
-			{
-				bSelected = S.nAllGroupsWanted != 0;
-				return "[ALL]";
-			}
-			else
-			{
-				index = index-1;
-				if(index < UI.GroupMenuCount)
-				{
-					MicroProfileGroupMenuItem& Item = UI.GroupMenu[index];
-					static char buffer[MICROPROFILE_NAME_MAX_LEN+32];
-					if(Item.nIsCategory)
-					{
-						uint64_t nGroupMask = S.CategoryInfo[Item.nIndex].nGroupMask;
-						bSelected = nGroupMask == (nGroupMask & S.nActiveGroupWanted);
-						snprintf(buffer, sizeof(buffer)-1, "[%s]", Item.pName);
-					}
-					else
-					{
-						bSelected = 0 != (S.nActiveGroupWanted & (1ll << Item.nIndex));
-						snprintf(buffer, sizeof(buffer)-1, "   %s", Item.pName);
-					}
-					return buffer;
-				}
-				return 0;
-			}
-		},
-		[] (int index, bool& bSelected) -> const char*{
-			MicroProfile& S = *MicroProfileGet();			
-			if(index < sizeof(g_MicroProfileAggregatePresets)/sizeof(g_MicroProfileAggregatePresets[0]))
-			{
-				int val = g_MicroProfileAggregatePresets[index];
-				bSelected = (int)S.nAggregateFlip == val;
-				if(0 == val)
-					return "Infinite";
-				else
-				{
-					static char buf[128];
-					snprintf(buf, sizeof(buf)-1, "%7d", val);
-					return buf;
-				}
-			}
-			return 0;
-		},
-		[] (int index, bool& bSelected) -> const char*{
-			MicroProfile& S = *MicroProfileGet();
-			bSelected = 0 != (S.nBars & (1 << index));
-			switch(index)
-			{
-				case 0: return "Time";				
-				case 1: return "Average";				
-				case 2: return "Max";
-				case 3: return "Call Count";
-				case 4: return "Exclusive Timers";
-				case 5: return "Exclusive Average";
-				case 6: return "Exclusive Max";
-			}
-			int nMetaIndex = index - 7;
-			if(nMetaIndex < MICROPROFILE_META_MAX)
-			{
-				return S.MetaCounters[nMetaIndex].pName;
-			}
-			return 0;
-		},
-		[] (int index, bool& bSelected) -> const char*{
-			MicroProfile& S = *MicroProfileGet();
-			if(index >= nOptionSize) return 0;
-			switch(Options[index].nSubType)
-			{
-			case 0:
-				bSelected = S.fReferenceTime == g_MicroProfileReferenceTimePresets[Options[index].nIndex];
-				break;
-			case 1:
-				bSelected = UI.nOpacityBackground>>24 == g_MicroProfileOpacityPresets[Options[index].nIndex];
-				break;
-			case 2:
-				bSelected = UI.nOpacityForeground>>24 == g_MicroProfileOpacityPresets[Options[index].nIndex];				
-				break;
-			case 3:
-				bSelected = UI.bShowSpikes;
-				break;
-#if MICROPROFILE_CONTEXT_SWITCH_TRACE
-			case 4:
-				{
-					switch(Options[index].nIndex)
-					{
-					case 0:
-						bSelected = S.bContextSwitchRunning;
-						break;
-					case 1:
-						bSelected = S.bContextSwitchAllThreads;
-						break;
-					case 2: 
-						bSelected = S.bContextSwitchNoBars;
-						break;
-					}
-				}
-				break;
-#endif
-			}
-			return Options[index].Text;
-		},
-
-		[] (int index, bool& bSelected) -> const char*{
-			static char buf[128];
-			bSelected = false;
-			int nNumPresets = sizeof(g_MicroProfilePresetNames) / sizeof(g_MicroProfilePresetNames[0]);
-			int nIndexSave = index - nNumPresets - 1;
-			if(index == nNumPresets)
-				return "--";
-			else if(nIndexSave >=0 && nIndexSave <nNumPresets)
-			{
-				snprintf(buf, sizeof(buf)-1, "Save '%s'", g_MicroProfilePresetNames[nIndexSave]);
-				return buf;
-			}
-			else if(index < nNumPresets)
-			{
-				snprintf(buf, sizeof(buf)-1, "Load '%s'", g_MicroProfilePresetNames[index]);
-				return buf;
-			}
-			else
-			{
-				return 0;
-			}
-		},
-		[] (int index, bool& bSelected) -> const char*{
-			if((uint32_t)-1 == UI.nCustomActive)
-			{
-				bSelected = index == 0;
-			}
-			else
-			{
-				bSelected = index-2 == UI.nCustomActive;
-			}
-			switch(index)
-			{
-			case 0: return "Disable";
-			case 1: return "--";
-			default:
-				index -= 2;
-				if(index < UI.nCustomCount)
-				{
-					return UI.Custom[index].pName;
-				}
-				else
-				{
-					return 0;
-				}
-			}
-		},
-		[] (int index, bool& bSelected) -> const char*{
-			return 0;
-		},
-		[] (int index, bool& bSelected) -> const char*{
-			return 0;
-		},
-		[] (int index, bool& bSelected) -> const char*{
-			return 0;
-		},
-
-
+	SubmenuCallback GroupCallback[MICROPROFILE_MENU_MAX] = 
+	{
+		MicroProfileUIMenuMode,
+		MicroProfileUIMenuGroups,
+		MicroProfileUIMenuAggregate,
+		MicroProfileUIMenuTimers,
+		MicroProfileUIMenuOptions,
+		MicroProfileUIMenuPreset,
+		MicroProfileUIMenuCustom,
+		MicroProfileUIMenuEmpty,
+		MicroProfileUIMenuEmpty,
+		MicroProfileUIMenuEmpty,
 	};
+
 	ClickCallback CBClick[] = 
 	{
 		[](int nIndex)
@@ -2263,17 +2285,17 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 		[](int nIndex)
 		{
 			MicroProfile& S = *MicroProfileGet();			
-			switch(Options[nIndex].nSubType)
+			switch(UI.Options[nIndex].nSubType)
 			{
 			case 0:
-				S.fReferenceTime = g_MicroProfileReferenceTimePresets[Options[nIndex].nIndex];
+				S.fReferenceTime = g_MicroProfileReferenceTimePresets[UI.Options[nIndex].nIndex];
 				S.fRcpReferenceTime = 1.f / S.fReferenceTime;
 				break;
 			case 1:
-				UI.nOpacityBackground = g_MicroProfileOpacityPresets[Options[nIndex].nIndex]<<24;
+				UI.nOpacityBackground = g_MicroProfileOpacityPresets[UI.Options[nIndex].nIndex]<<24;
 				break;
 			case 2:
-				UI.nOpacityForeground = g_MicroProfileOpacityPresets[Options[nIndex].nIndex]<<24;
+				UI.nOpacityForeground = g_MicroProfileOpacityPresets[UI.Options[nIndex].nIndex]<<24;
 				break;
 			case 3:
 				UI.bShowSpikes = !UI.bShowSpikes;
@@ -2281,7 +2303,7 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 #if MICROPROFILE_CONTEXT_SWITCH_TRACE
 			case 4:
 				{
-					switch(Options[nIndex].nIndex)
+					switch(UI.Options[nIndex].nIndex)
 					{
 					case 0:
 						if(S.bContextSwitchRunning)
@@ -2368,13 +2390,13 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 		SubmenuCallback CB = GroupCallback[nMenu];
 		int nNumLines = 0;
 		bool bSelected = false;
-		const char* pString = CB(nNumLines, bSelected);
+		const char* pString = CB(nNumLines, &bSelected);
 		uint32_t nWidth = 0, nHeight = 0;
 		while(pString)
 		{
 			nWidth = MicroProfileMax<int>(nWidth, (int)strlen(pString));
 			nNumLines++;
-			pString = CB(nNumLines, bSelected);
+			pString = CB(nNumLines, &bSelected);
 		}
 		nWidth = (2+nWidth) * (MICROPROFILE_TEXT_WIDTH+1);
 		nHeight = nNumLines * (MICROPROFILE_TEXT_HEIGHT+1);
@@ -2390,7 +2412,7 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 		for(int i = 0; i < nNumLines; ++i)
 		{
 			bool bSelected = false;
-			const char* pString = CB(i, bSelected);
+			const char* pString = CB(i, &bSelected);
 			if(UI.nMouseY >= nY && UI.nMouseY < nY + MICROPROFILE_TEXT_HEIGHT + 1)
 			{
 				bMouseOver = true;
