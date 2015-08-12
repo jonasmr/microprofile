@@ -1004,6 +1004,11 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 					{
 						MP_ASSERT(nStackPos < MICROPROFILE_STACK_MAX);
 						nStack[nStackPos++] = k;
+                        if( k == nEnd - 1 && nEnd < MICROPROFILE_BUFFER_SIZE )
+                        {
+                            // we need to adjust nEnd so we can read a MP_LOG_LEAVE
+                            ++nEnd;
+                        }
 					}
 					else if(MP_LOG_META == nType)
 					{
