@@ -266,6 +266,16 @@ int main(int argc, char* argv[])
 	MicroProfileCustomGroupAddTimer("ThreadSafe", "ThreadSafe", "inner4");
 #endif
 
+	MICROPROFILE_COUNTER_ADD("memory/main", 1000);
+	MICROPROFILE_COUNTER_ADD("memory/gpu/vertexbuffers", 1000);
+	MICROPROFILE_COUNTER_ADD("memory/gpu/indexbuffersxsxsxsxsxsxsxxsxsxsxs", 200);
+	MICROPROFILE_COUNTER_ADD("memory//main", 1000);
+	MICROPROFILE_COUNTER_ADD("memory//", 1000);
+	MICROPROFILE_COUNTER_ADD("//memory//mainx/\\//", 1000);
+	MICROPROFILE_COUNTER_ADD("//memoryx//mainx/", 1000);
+	MICROPROFILE_COUNTER_ADD("//memoryy//main/", 1000);
+	MICROPROFILE_COUNTER_ADD("//\\\\///lala////lelel", 1000);
+	//MICROPROFILE_COUNTER_ADD("//\\\\///", 1000); // this should assert as theres only delimiters
 	StartFakeWork();
 	while(!g_nQuit)
 	{

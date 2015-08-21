@@ -411,7 +411,7 @@ void MicroProfileSetDisplayMode(int nValue)
 void MicroProfileToggleDisplayMode()
 {
 	MicroProfile& S = *MicroProfileGet();
-	S.nDisplay = (S.nDisplay + 1) % 4;
+	S.nDisplay = (S.nDisplay + 1) % 5;
 	UI.nOffsetY = 0;
 }
 
@@ -1234,7 +1234,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 				char ThreadName[MicroProfileThreadLog::THREAD_MAX_LEN + 16];
 				const char* cLocal = MicroProfileIsLocalThread(nThreadId) ? "*": " ";
 
-				int nStrLen = snprintf(ThreadName, sizeof(ThreadName)-1, "%04x: %s%s", nThreadId, cLocal, i < nNumThreadsBase ? &S.Pool[i]->ThreadName[0] : MICROPROFILE_THREAD_NAME_FROM_ID(nThreadId) );
+				int nStrLen = snprintf(ThreadName, sizeof(ThreadName)-1, "%04x: %s%s", (uint32_t)nThreadId, cLocal, i < nNumThreadsBase ? &S.Pool[i]->ThreadName[0] : MICROPROFILE_THREAD_NAME_FROM_ID(nThreadId) );
 				uint32_t nThreadColor = -1;
 				if(nThreadId == nContextSwitchHoverThreadAfter || nThreadId == nContextSwitchHoverThreadBefore)
 					nThreadColor = UI.nHoverColorShared|0x906060;
@@ -1805,6 +1805,81 @@ void MicroProfileDumpTimers()
 	}
 }
 
+#define MICROPROFILE_COUNTER_WIDTH 100
+#define MICROPROFILE_COUNTER_INDENT 4
+
+uint32_t MicroProfileDrawCounterRecursive(uint32_t nIndex, uint32_t nY, uint32_t nOffset, uint32_t nTimerWidth)
+{
+	MicroProfile& S = *MicroProfileGet();
+	const uint32_t nHeight = MICROPROFILE_TEXT_HEIGHT;
+	const uint32_t nCounterWidth = MICROPROFILE_COUNTER_WIDTH;
+	uint32_t nY0 = nY + nOffset * (nHeight+1);
+	MicroProfileCounterInfo& CI = S.CounterInfo[nIndex];
+	bool bInside = (UI.nActiveMenu == -1) && ((UI.nMouseY >= nY0) && (UI.nMouseY < (nY0 + nHeight + 1)));
+	if(bInside && (UI.nMouseLeft || UI.nMouseRight))
+	{
+		CI.nClosed = !CI.nClosed;
+	}
+	MicroProfileDrawBox(0, nY0, nTimerWidth + nCounterWidth, nY0 + (nHeight+1)+1, 0xff000000 | (g_nMicroProfileBackColors[nOffset & 1] + ((bInside) ? 0x002c2c2c : 0)));
+	uint32_t nIndent = MICROPROFILE_COUNTER_INDENT*CI.nLevel * (MICROPROFILE_TEXT_WIDTH+1);
+	if(CI.nFirstChild != -1 && CI.nClosed )
+	{
+		MicroProfileDrawText(nIndent, nY0, 0xffffffff, "*", 1);
+	}
+
+	MicroProfileDrawText(nIndent + MICROPROFILE_TEXT_WIDTH+1, nY0, 0xffffffff, CI.pName, CI.nNameLen);
+	char buffer[32];
+	int nLen = snprintf(buffer, sizeof(buffer)-1, "%lld", S.Counters[nIndex].load());
+	MicroProfileDrawTextRight(nTimerWidth+nCounterWidth, nY0, 0xffffffff, buffer, nLen);
+	nOffset++;
+	if(!CI.nClosed)
+	{
+		int nChild = CI.nFirstChild;	
+		while(nChild != -1)
+		{
+			nOffset = MicroProfileDrawCounterRecursive(nChild, nY, nOffset, nTimerWidth);
+			nChild = S.CounterInfo[nChild].nSibling;
+		}
+	}
+
+
+	return nOffset;
+}
+
+void MicroProfileDrawCounterView(uint32_t nScreenWidth, uint32_t nScreenHeight)
+{
+	MicroProfile& S = *MicroProfileGet();
+
+	MICROPROFILE_SCOPE(g_MicroProfileDrawBarView);
+	const uint32_t nHeight = MICROPROFILE_TEXT_HEIGHT;
+	uint32_t nTimerWidth = 7 * (MICROPROFILE_TEXT_WIDTH+1);
+	for(uint32_t i = 0; i < S.nNumCounters; ++i)
+	{
+		uint32_t nWidth = (2+S.CounterInfo[i].nNameLen + MICROPROFILE_COUNTER_INDENT*S.CounterInfo[i].nLevel) * (MICROPROFILE_TEXT_WIDTH+1);
+		nTimerWidth = MicroProfileMax(nTimerWidth, nWidth);
+	}
+	uint32_t nX = nTimerWidth + UI.nOffsetX;
+	uint32_t nY = nHeight + 3 - UI.nOffsetY;	
+	uint32_t nNumCounters = S.nNumCounters;
+	nX = 0;
+	nY = (2*nHeight) + 3 - UI.nOffsetY;	
+	uint32_t nOffset = 0;
+	for(uint32_t i = 0; i < nNumCounters; ++i)
+	{
+		if(S.CounterInfo[i].nParent == -1)
+		{
+			nOffset = MicroProfileDrawCounterRecursive(i, nY, nOffset, nTimerWidth);
+		}
+	}
+
+	MicroProfileDrawHeader(0, nTimerWidth, "Name");
+	MicroProfileDrawHeader(nTimerWidth, MICROPROFILE_COUNTER_WIDTH, "Value");
+	MicroProfileDrawLineVertical(nTimerWidth-2, 0, nOffset*(nHeight+1)+nY, UI.nOpacityBackground|g_nMicroProfileBackColors[0]|g_nMicroProfileBackColors[1]);
+	MicroProfileDrawLineHorizontal(0, nTimerWidth + MICROPROFILE_COUNTER_WIDTH, 2*MICROPROFILE_TEXT_HEIGHT + 3, UI.nOpacityBackground|g_nMicroProfileBackColors[0]|g_nMicroProfileBackColors[1]);
+}
+
+
+
 void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 {
 	MicroProfile& S = *MicroProfileGet();
@@ -1961,15 +2036,18 @@ const char* MicroProfileUIMenuMode(int nIndex, bool* bSelected)
 			*bSelected = S.nDisplay == MP_DRAW_BARS;
 			return "Timers";
 		case 2:
+			*bSelected = S.nDisplay == MP_DRAW_COUNTERS; 
+			return "Counters";
+		case 3:
 			*bSelected = S.nDisplay == MP_DRAW_HIDDEN; 
 			return "Hidden";
-		case 3:
-			*bSelected = true; 
-			return "Off";
 		case 4:
-			*bSelected = true;
-			return "------";
+			*bSelected = false; 
+			return "Off";
 		case 5:
+			*bSelected = false;
+			return "------";
+		case 6:
 			*bSelected = S.nForceEnable != 0;
 			return "Force Enable";
 
@@ -2161,14 +2239,17 @@ void MicroProfileUIClickMode(int nIndex)
 			S.nDisplay = MP_DRAW_BARS;
 			break;
 		case 2:
-			S.nDisplay = MP_DRAW_HIDDEN;
+			S.nDisplay = MP_DRAW_COUNTERS;
 			break;
 		case 3:
-			S.nDisplay = 0;
+			S.nDisplay = MP_DRAW_HIDDEN;
 			break;
 		case 4:
+			S.nDisplay = 0;
 			break;
 		case 5:
+			break;
+		case 6:
 			S.nForceEnable = !S.nForceEnable;
 			break;
 	}
@@ -2677,6 +2758,10 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 		else if(S.nDisplay == MP_DRAW_BARS && S.nBars)
 		{
 			MicroProfileDrawBarView(nWidth, nHeight);
+		}
+		else if(S.nDisplay == MP_DRAW_COUNTERS)
+		{
+			MicroProfileDrawCounterView(nWidth, nHeight);
 		}
 		
 		MicroProfileDrawMenu(nWidth, nHeight);
