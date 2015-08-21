@@ -891,7 +891,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 		}
 		nBaseTicksGpu = (nBaseTicksCpu - nTickReferenceCpu) * nTicksPerSecondGpu / nTicksPerSecondCpu + nTickReferenceGpu;
 	}
-
+	int64_t nBaseTicksEndGpu = nBaseTicksCpu + MicroProfileMsToTick(fDetailedRange, MicroProfileTicksPerSecondCpu());
 
 	MicroProfileFrameState* pFrameFirst = pFrameCurrent;
 	int64_t nGapTime = MicroProfileTicksPerSecondCpu() * MICROPROFILE_GAP_TIME / 1000;
@@ -993,12 +993,6 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 				if(bIsValid)
 				{
 					nGet = nNewGet;
-					if(pFrameLogFirst->nFrameStartCpu > nBaseTicksEndCpu)
-					{
-						pFrameLogLast = pFrameLogFirst;//pick the last frame that ends after 
-					}
-
-
 					pFrameLogFirst--;
 					if(pFrameLogFirst < &S.Frames[0])
 						pFrameLogFirst = &S.Frames[MICROPROFILE_MAX_FRAME_HISTORY-1]; 
@@ -1059,11 +1053,6 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 					{
 						MP_ASSERT(nStackPos < MICROPROFILE_STACK_MAX);
 						nStack[nStackPos++] = k;
-                        if( k == nEnd - 1 && nEnd < MICROPROFILE_BUFFER_SIZE )
-                        {
-                            // we need to adjust nEnd so we can read a MP_LOG_LEAVE
-                            ++nEnd;
-                        }
 					}
 					else if(MP_LOG_META == nType)
 					{
@@ -1180,6 +1169,13 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 							}
 						}
 						nStackPos--;
+						if(0 == nStackPos)
+						{
+							if(bGpu ? (nTickStart > nBaseTicksEndGpu) : (nTickStart > nBaseTicksEndCpu))
+							{
+								break;
+							}
+						}
 					}
 				}
 			}
