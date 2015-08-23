@@ -2670,17 +2670,18 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	}
 	MicroProfilePrintf(CB, Handle, "];\n\n");
 
-	MicroProfilePrintf(CB, Handle, "\nvar CounterData = [");
+	MicroProfilePrintf(CB, Handle, "\nvar CounterInfo = [");
 
 	for(int i = 0; i < S.nNumCounters; ++i)
 	{
 		uint64_t nCounter = S.Counters[i].load();
-		MicroProfilePrintf(CB, Handle, "MakeCounter(%d, %d, %d, '%s', '%s', %lld)", 
+		MicroProfilePrintf(CB, Handle, "MakeCounter(%d, %d, %d, %d, %d, '%s', %lld),\n", 
+			i,
 			S.CounterInfo[i].nParent,
 			S.CounterInfo[i].nSibling,
  	 		S.CounterInfo[i].nFirstChild,
+ 	 		S.CounterInfo[i].nLevel,
 			S.CounterInfo[i].pName,
-			MicroProfileCounterFullName(i),
 			nCounter);
 	}
 	MicroProfilePrintf(CB, Handle, "];\n\n");

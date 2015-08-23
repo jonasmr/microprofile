@@ -280,10 +280,12 @@ int main(int argc, char* argv[])
 	while(!g_nQuit)
 	{
 		MICROPROFILE_SCOPE(MAIN);
+		MICROPROFILE_COUNTER_ADD("engine/frames", 1);
 
 		SDL_Event Evt;
 		while(SDL_PollEvent(&Evt))
 		{
+			MICROPROFILE_COUNTER_ADD("engine/sdl_events", 1);
 			HandleEvent(&Evt);
 		}
 

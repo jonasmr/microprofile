@@ -64,6 +64,28 @@ int main(int argc, char* argv[])
 
 	MicroProfileStartContextSwitchTrace();
 
+
+	MICROPROFILE_COUNTER_ADD("memory/main", 1000);
+	MICROPROFILE_COUNTER_ADD("memory/gpu/vertexbuffers", 1000);
+	MICROPROFILE_COUNTER_ADD("memory/gpu/indexbuffersxsxsxsxsxsxsxxsxsxsxs", 200);
+	MICROPROFILE_COUNTER_ADD("memory//main", 1000);
+	MICROPROFILE_COUNTER_ADD("memory//", 1000);
+	MICROPROFILE_COUNTER_ADD("//memory//mainx/\\//", 1000);
+	MICROPROFILE_COUNTER_ADD("//memoryx//mainx/", 1000);
+	MICROPROFILE_COUNTER_ADD("//memoryy//main/", 1000);
+	MICROPROFILE_COUNTER_ADD("//memory//main0/", 1000);
+	MICROPROFILE_COUNTER_ADD("//memory//main1/", 1000);
+	MICROPROFILE_COUNTER_ADD("//memory//main2/", 1000);
+	MICROPROFILE_COUNTER_ADD("//memory//main3/", 1000);
+	MICROPROFILE_COUNTER_ADD("//memory//main4/", 1000);
+	MICROPROFILE_COUNTER_ADD("//memory//main5/", 1000);
+	MICROPROFILE_COUNTER_ADD("//memory//main6/", 1000);
+	MICROPROFILE_COUNTER_ADD("//memory//main7/", 1000);
+	MICROPROFILE_COUNTER_ADD("//memory//main8/", 1000);
+	MICROPROFILE_COUNTER_ADD("//memory//main9/", 1000);
+	MICROPROFILE_COUNTER_ADD("//\\\\///lala////lelel", 1000);
+
+
 	StartFakeWork();
 	while(!g_nQuit)
 	{
