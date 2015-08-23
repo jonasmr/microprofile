@@ -2125,7 +2125,7 @@ const char g_MicroProfileHtml_end_1[] =
 "		nOffsetCountersY = nTotalRowPixels - nFrameRows;\n"
 "	}\n"
 "\n"
-"\n"
+"	var CounterWidth = 150;\n"
 "	var Y = -nOffsetCountersY + BoxHeight;\n"
 "	var X = 0;\n"
 "	var nColorIndex = 0;\n"
@@ -2184,7 +2184,6 @@ const char g_MicroProfileHtml_end_1[] =
 "		}\n"
 "	}\n"
 "\n"
-"	var CounterWidth = 150;\n"
 "\n"
 "	function DrawCounterRecursive(Index)\n"
 "	{\n"
@@ -2858,11 +2857,11 @@ const char g_MicroProfileHtml_end_1[] =
 "		}\n"
 "	}\n"
 "\n"
-"	DrawTextBox(context, TimeToMsString(";
+"	DrawTextBox(context, TimeToMsString(f";
 
 const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
 const char g_MicroProfileHtml_end_2[] =
-"fDetailedOffset), 0, FontHeight, \'left\');\n"
+"DetailedOffset), 0, FontHeight, \'left\');\n"
 "	context.textAlign = \'right\';\n"
 "	DrawTextBox(context, TimeToMsString(fDetailedOffset + fDetailedRange), nWidth, FontHeight, \'right\');\n"
 "	context.textAlign = \'left\';\n"

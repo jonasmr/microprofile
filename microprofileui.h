@@ -265,9 +265,9 @@ struct MicroProfileUI
 	uint32_t nWidth;
 	uint32_t nHeight;
 
+	int nOffsetX[MP_DRAW_SIZE];
+	int nOffsetY[MP_DRAW_SIZE];
 
-	int nOffsetX;
-	int nOffsetY;
 	float fDetailedOffset; //display offset relative to start of latest displayable frame.
 	float fDetailedRange; //no. of ms to display
 	float fDetailedOffsetTarget;
@@ -403,16 +403,16 @@ void MicroProfileInitUI()
 void MicroProfileSetDisplayMode(int nValue)
 {
 	MicroProfile& S = *MicroProfileGet();
-	nValue = nValue >= 0 && nValue < 4 ? nValue : S.nDisplay;
+	nValue = nValue >= 0 && nValue < MP_DRAW_SIZE ? nValue : S.nDisplay;
 	S.nDisplay = nValue;
-	UI.nOffsetY = 0;
+	UI.nOffsetY[S.nDisplay] = 0;
 }
 
 void MicroProfileToggleDisplayMode()
 {
 	MicroProfile& S = *MicroProfileGet();
-	S.nDisplay = (S.nDisplay + 1) % 5;
-	UI.nOffsetY = 0;
+	S.nDisplay = (S.nDisplay + 1) % MP_DRAW_SIZE;
+	UI.nOffsetY[S.nDisplay] = 0;
 }
 
 
@@ -844,7 +844,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 {
 	MicroProfile& S = *MicroProfileGet();
 	MP_DEBUG_DUMP_RANGE();
-	int nY = nBaseY - UI.nOffsetY;
+	int nY = nBaseY - UI.nOffsetY[MP_DRAW_DETAILED];
 	int64_t nNumBoxes = 0;
 	int64_t nNumLines = 0;
 
@@ -1854,11 +1854,11 @@ void MicroProfileDrawCounterView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 		uint32_t nWidth = (2+S.CounterInfo[i].nNameLen + MICROPROFILE_COUNTER_INDENT*S.CounterInfo[i].nLevel) * (MICROPROFILE_TEXT_WIDTH+1);
 		nTimerWidth = MicroProfileMax(nTimerWidth, nWidth);
 	}
-	uint32_t nX = nTimerWidth + UI.nOffsetX;
-	uint32_t nY = nHeight + 3 - UI.nOffsetY;	
+	uint32_t nX = nTimerWidth + UI.nOffsetX[MP_DRAW_COUNTERS];
+	uint32_t nY = nHeight + 3 - UI.nOffsetY[MP_DRAW_COUNTERS];	
 	uint32_t nNumCounters = S.nNumCounters;
 	nX = 0;
-	nY = (2*nHeight) + 3 - UI.nOffsetY;	
+	nY = (2*nHeight) + 3 - UI.nOffsetY[MP_DRAW_COUNTERS];	
 	uint32_t nOffset = 0;
 	for(uint32_t i = 0; i < nNumCounters; ++i)
 	{
@@ -1900,8 +1900,8 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 		}
 	}
 	uint32_t nTimerWidth = 2+(4+nMaxTimerNameLen) * (MICROPROFILE_TEXT_WIDTH+1);
-	uint32_t nX = nTimerWidth + UI.nOffsetX;
-	uint32_t nY = nHeight + 3 - UI.nOffsetY;	
+	uint32_t nX = nTimerWidth + UI.nOffsetX[MP_DRAW_BARS];
+	uint32_t nY = nHeight + 3 - UI.nOffsetY[MP_DRAW_BARS];	
 	uint32_t nBlockSize = 2 * nNumTimers;
 	float* pTimers = (float*)alloca(nBlockSize * 7 * sizeof(float));
 	float* pAverage = pTimers + nBlockSize;
@@ -1993,7 +1993,7 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 		}
 	}
 	nX = 0;
-	nY = nHeight + 3 - UI.nOffsetY;	
+	nY = nHeight + 3 - UI.nOffsetY[MP_DRAW_BARS];	
 	for(uint32_t i = 0; i < nNumTimers+nNumGroups+1; ++i)
 	{
 		uint32_t nY0 = nY + i * (nHeight + 1);
@@ -2603,12 +2603,16 @@ void MicroProfileMoveGraph()
 	{
 		UI.fDetailedOffsetTarget = UI.fDetailedOffset += -nPanX * UI.fDetailedRange / UI.nWidth;
 	}
-	UI.nOffsetY -= nPanY;
-	UI.nOffsetX += nPanX;
-	if(UI.nOffsetX > 0)
-		UI.nOffsetX = 0;
-	if(UI.nOffsetY<0)
-		UI.nOffsetY = 0;
+	int nMode = MicroProfileGet()->nDisplay;
+	if(nMode < MP_DRAW_SIZE)
+	{
+		UI.nOffsetY[nMode] -= nPanY;
+		UI.nOffsetX[nMode] += nPanX;
+		if(UI.nOffsetX[nMode] > 0)
+			UI.nOffsetX[nMode] = 0;
+		if(UI.nOffsetY[nMode] < 0)
+			UI.nOffsetY[nMode] = 0;
+	}
 }
 
 void MicroProfileDrawCustom(uint32_t nWidth, uint32_t nHeight)
@@ -2720,9 +2724,6 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 			std::recursive_mutex& m = MicroProfileGetMutex();
 			m.lock();
 			MicroProfileInitUI();
-
-
-
 			uint32_t nDisplay = S.nDisplay;
 			MicroProfileLoadPreset(MICROPROFILE_DEFAULT_PRESET);
 			once++;

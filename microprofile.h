@@ -532,6 +532,7 @@ enum MicroProfileDrawMask
 	MP_DRAW_DETAILED	= 0x2,
 	MP_DRAW_COUNTERS	= 0x3,
 	MP_DRAW_HIDDEN		= 0x4,
+	MP_DRAW_SIZE		= 0x5,
 };
 
 enum MicroProfileDrawBarsMask
