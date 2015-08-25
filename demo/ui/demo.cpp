@@ -265,12 +265,15 @@ int main(int argc, char* argv[])
 	MicroProfileCustomGroupAddTimer("ThreadSafe", "ThreadSafe", "inner3");
 	MicroProfileCustomGroupAddTimer("ThreadSafe", "ThreadSafe", "inner4");
 #endif
+	MICROPROFILE_COUNTER_CONFIG("memory/main", MICROPROFILE_COUNTER_FORMAT_BYTES);
+	MICROPROFILE_COUNTER_CONFIG("memory/gpu/indexbuffers", MICROPROFILE_COUNTER_FORMAT_BYTES);
+	MICROPROFILE_COUNTER_CONFIG("memory/gpu/vertexbuffers", MICROPROFILE_COUNTER_FORMAT_BYTES);
 
 	MICROPROFILE_COUNTER_ADD("memory/main", 1000);
 	MICROPROFILE_COUNTER_ADD("memory/gpu/vertexbuffers", 1000);
-	MICROPROFILE_COUNTER_ADD("memory/gpu/indexbuffersxsxsxsxsxsxsxxsxsxsxs", 200);
-	MICROPROFILE_COUNTER_ADD("memory//main", 1000);
-	MICROPROFILE_COUNTER_ADD("memory//", 1000);
+	MICROPROFILE_COUNTER_ADD("memory/gpu/indexbuffers", 200);
+	MICROPROFILE_COUNTER_ADD("memory//main", 10<<20);
+	MICROPROFILE_COUNTER_ADD("memory//", (32ll<<30ll) + (1ll <<29ll));
 	MICROPROFILE_COUNTER_ADD("//memory//mainx/\\//", 1000);
 	MICROPROFILE_COUNTER_ADD("//memoryx//mainx/", 1000);
 	MICROPROFILE_COUNTER_ADD("//memoryy//main/", 1000);

@@ -125,6 +125,7 @@ typedef uint16_t MicroProfileGroupId;
 #define MICROPROFILE_FORCEDISABLEGPUGROUP(s) do{} while(0)
 #define MICROPROFILE_SCOPE_TOKEN(token)
 #define MICROPROFILE_COUNTER_ADD(name, count)
+#define MICROPROFILE_COUNTER_CONFIG(name, type)
 
 #define MicroProfileGetTime(group, name) 0.f
 #define MicroProfileOnThreadCreate(foo) do{}while(0)
@@ -252,6 +253,7 @@ typedef uint32_t ThreadIdType;
 #define MICROPROFILE_META_CPU(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__) = MicroProfileGetMetaToken(name); MicroProfileMetaUpdate(MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__), count, MicroProfileTokenTypeCpu)
 #define MICROPROFILE_META_GPU(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__) = MicroProfileGetMetaToken(name); MicroProfileMetaUpdate(MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__), count, MicroProfileTokenTypeGpu)
 #define MICROPROFILE_COUNTER_ADD(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__) = MicroProfileGetCounterToken(name); MicroProfileCounterAdd(MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__), count)
+#define MICROPROFILE_COUNTER_CONFIG(name, type) MicroProfileCounterConfig(name, type)
 
 
 #ifndef MICROPROFILE_USE_THREAD_NAME_CALLBACK
@@ -337,7 +339,8 @@ MICROPROFILE_API MicroProfileToken MicroProfileGetToken(const char* sGroup, cons
 MICROPROFILE_API MicroProfileToken MicroProfileGetMetaToken(const char* pName);
 MICROPROFILE_API MicroProfileToken MicroProfileGetCounterToken(const char* pName);
 MICROPROFILE_API void MicroProfileMetaUpdate(MicroProfileToken, int nCount, MicroProfileTokenType eTokenType);
-MICROPROFILE_API void MicroProfileCounterAdd(MicroProfileToken nToken, int nCount);
+MICROPROFILE_API void MicroProfileCounterAdd(MicroProfileToken nToken, int64_t nCount);
+MICROPROFILE_API void MicroProfileCounterConfig(const char* pCounterName, uint32_t nFormat);
 MICROPROFILE_API uint64_t MicroProfileEnter(MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileLeave(MicroProfileToken nToken, uint64_t nTick);
 MICROPROFILE_API uint64_t MicroProfileGpuEnter(MicroProfileToken nToken);
@@ -549,6 +552,18 @@ enum MicroProfileDrawBarsMask
 
 };
 
+enum MicroProfileCounterFormat
+{
+	MICROPROFILE_COUNTER_FORMAT_DEFAULT,
+	MICROPROFILE_COUNTER_FORMAT_BYTES,
+};
+
+enum MicroProfileCounterFlags
+{
+	MICROPROFILE_COUNTER_FLAG_NONE 			= 0,
+	MICROPROFILE_COUNTER_FLAG_HAS_LIMIT 	= 0x1,
+};
+
 typedef uint64_t MicroProfileLogEntry;
 
 struct MicroProfileTimer
@@ -595,6 +610,10 @@ struct MicroProfileCounterInfo
 	uint8_t nLevel;
 	uint8_t nClosed;
 	char* pName;
+
+	uint32_t nFlags;
+	MicroProfileCounterFormat eFormat;
+
 };
 
 struct MicroProfileGraphState
@@ -1480,6 +1499,8 @@ MicroProfileToken MicroProfileGetCounterTokenByParent(int nParent, const char* p
 	S.CounterInfo[nResult].nSibling = -1;
 	S.CounterInfo[nResult].nFirstChild = -1;
 	S.CounterInfo[nResult].nClosed = 0;
+	S.CounterInfo[nResult].nFlags = 0;
+	S.CounterInfo[nResult].eFormat = MICROPROFILE_COUNTER_FORMAT_DEFAULT;
 	int nLen = strlen(pName)+1;
 
 	MP_ASSERT(nLen + S.nCounterNamePos <= MICROPROFILE_MAX_COUNTER_NAME_CHARS);
@@ -1499,15 +1520,6 @@ MicroProfileToken MicroProfileGetCounterTokenByParent(int nParent, const char* p
 		S.CounterInfo[nParent].nLevel = 0;
 	}
 
-	// printf(" ***** XXXX %d %p XXXX adding counter %s at index %d, parent %d: %s pname [%p-%p]\n", 
-	// 	S.nNumCounters,
-	// 	&S.nNumCounters,
-	// 	S.CounterInfo[nResult].pName, nResult, S.CounterInfo[nResult].nParent,
-	// 	nParent >= 0 ? S.CounterInfo[nParent].pName : "<null>",
-	// 	S.CounterInfo[nResult].pName,
-	// 	S.CounterInfo[nResult].pName + nLen
-	// 	);
-
 	return nResult;
 }
 
@@ -1517,7 +1529,6 @@ MicroProfileToken MicroProfileGetCounterToken(const char* pName)
 	MicroProfileScopeLock L(MicroProfileMutex());
 	char SubName[MICROPROFILE_NAME_MAX_LEN];
 	MicroProfileToken nResult = MICROPROFILE_INVALID_TOKEN;
-	//printf("searching for token for %s\n", pName);
 	do
 	{
 		uint32_t nLen = 0;
@@ -1578,21 +1589,17 @@ void MicroProfileMetaUpdate(MicroProfileToken nToken, int nCount, MicroProfileTo
 		}
 	}
 }
-void MicroProfileCounterAdd(MicroProfileToken nToken, int nCount)
+void MicroProfileCounterAdd(MicroProfileToken nToken, int64_t nCount)
 {
 	MP_ASSERT(nToken < S.nNumCounters);
 	S.Counters[nToken].fetch_add(nCount);
-	// if((MP_DRAW_META_FIRST<<nToken) & S.nActiveBars)
-	// {
-	// 	MicroProfileThreadLog* pLog = MicroProfileTokenTypeCpu == eTokenType ? MicroProfileGetThreadLog() : g_MicroProfileGpuLog;
-	// 	if(pLog)
-	// 	{
-	// 		MP_ASSERT(nToken < MICROPROFILE_META_MAX);
-	// 		MicroProfileLogPut(nToken, nCount, MP_LOG_META, pLog);
-	// 	}
-	// }
 }
 
+void MicroProfileCounterConfig(const char* pName, uint32_t eFormat)
+{
+	MicroProfileToken nToken = MicroProfileGetCounterToken(pName);
+	S.CounterInfo[nToken].eFormat = (MicroProfileCounterFormat)eFormat;
+}
 
 
 void MicroProfileLeave(MicroProfileToken nToken_, uint64_t nTickStart)
