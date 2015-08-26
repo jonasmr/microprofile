@@ -172,9 +172,9 @@ const char g_MicroProfileHtml_begin_0[] =
 "	return frame;\n"
 "}\n"
 "\n"
-"function MakeCounter(id, parent, sibling, firstchild, level, name, value)\n"
+"function MakeCounter(id, parent, sibling, firstchild, level, name, value, formatted)\n"
 "{\n"
-"	var counter = { \"id\":id, \"parent\":parent, \"sibling\":sibling, \"firstchild\":firstchild, \"level\": level, \"name\":name, \"value\":value, \"closed\":closed};\n"
+"	var counter = { \"id\":id, \"parent\":parent, \"sibling\":sibling, \"firstchild\":firstchild, \"level\": level, \"name\":name, \"value\":value, \"formatted\":formatted};\n"
 "	return counter;\n"
 "}\n"
 "\n"
@@ -2203,7 +2203,7 @@ const char g_MicroProfileHtml_end_1[] =
 "		X += CounterNameWidth;		\n"
 "		X += CounterWidth - FontWidth;\n"
 "		context.textAlign = \'right\';\n"
-"		context.fillText(Counter.value, X, Y+Height-FontAscent);\n"
+"		context.fillText(Counter.formatted, X, Y+Height-FontAscent);\n"
 "		context.textAlign = \'left\';\n"
 "		Y += Height;\n"
 "\n"
@@ -2857,11 +2857,11 @@ const char g_MicroProfileHtml_end_1[] =
 "		}\n"
 "	}\n"
 "\n"
-"	DrawTextBox(context, TimeToMsString(f";
+"	DrawTextBox(context, TimeToMsStri";
 
 const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
 const char g_MicroProfileHtml_end_2[] =
-"DetailedOffset), 0, FontHeight, \'left\');\n"
+"ng(fDetailedOffset), 0, FontHeight, \'left\');\n"
 "	context.textAlign = \'right\';\n"
 "	DrawTextBox(context, TimeToMsString(fDetailedOffset + fDetailedRange), nWidth, FontHeight, \'right\');\n"
 "	context.textAlign = \'left\';\n"

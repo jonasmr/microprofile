@@ -169,9 +169,9 @@ function MakeFrame(id, framestart, frameend, framestartgpu, frameendgpu, ts, tt,
 	return frame;
 }
 
-function MakeCounter(id, parent, sibling, firstchild, level, name, value)
+function MakeCounter(id, parent, sibling, firstchild, level, name, value, formatted)
 {
-	var counter = { "id":id, "parent":parent, "sibling":sibling, "firstchild":firstchild, "level": level, "name":name, "value":value, "closed":closed};
+	var counter = { "id":id, "parent":parent, "sibling":sibling, "firstchild":firstchild, "level": level, "name":name, "value":value, "formatted":formatted};
 	return counter;
 }
 
@@ -2185,7 +2185,7 @@ function DrawCounterView()
 		X += CounterNameWidth;		
 		X += CounterWidth - FontWidth;
 		context.textAlign = 'right';
-		context.fillText(Counter.value, X, Y+Height-FontAscent);
+		context.fillText(Counter.formatted, X, Y+Height-FontAscent);
 		context.textAlign = 'left';
 		Y += Height;
 

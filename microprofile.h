@@ -377,7 +377,7 @@ MICROPROFILE_API std::recursive_mutex& MicroProfileGetMutex();
 MICROPROFILE_API void MicroProfileStartContextSwitchTrace();
 MICROPROFILE_API void MicroProfileStopContextSwitchTrace();
 MICROPROFILE_API bool MicroProfileIsLocalThread(uint32_t nThreadId);
-
+MICROPROFILE_API int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_t nBufferSize);
 
 #if MICROPROFILE_WEBSERVER
 MICROPROFILE_API void MicroProfileDumpFile(const char* pHtml, const char* pCsv);
@@ -1432,33 +1432,8 @@ const char* MicroProfileNextName(const char* pName, char* pNameOut, uint32_t* nS
 	*pNameOut = '\0';
 	return pRet;
 }
-// void Spaces(int nIndent)
-// {
-// 	for(uint32_t i = 0; i < nIndent; ++i)
-// 		printf("   ");
-// }
-// void MicroProfileDumpRecur(int nIndex, uint32_t nIndent)
-// {
-// 	Spaces(nIndent);
-// 	printf("%s\n", S.CounterInfo[nIndex].pName);
-// 	int nChild = S.CounterInfo[nIndex].nFirstChild;
-// 	while(nChild != -1)
-// 	{
-// 		MicroProfileDumpRecur(nChild, nIndent + 1);
-// 		nChild = S.CounterInfo[nChild].nSibling;
-// 	}
-// }
 
-// void MicroProfileDebugDumpCounter()
-// {
-// 	for(uint32_t i = 0; i < S.nNumCounters; ++i)
-// 	{
-// 		if(S.CounterInfo[i].nParent == -1)
-// 		{
-// 			MicroProfileDumpRecur(i, 0);
-// 		}
-// 	}
-// }
+
 const char* MicroProfileCounterFullName(int nCounter)
 {
 	static char Buffer[1024];
@@ -2453,6 +2428,76 @@ void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFra
 }
 #undef printf
 
+
+#define MICROPROFILE_COUNTER_WIDTH 100
+#define MICROPROFILE_COUNTER_INDENT 4
+
+int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_t nBufferSize)
+{
+	int nLen = 0;
+	char* pTmp = pOut;
+	char* pEnd = pOut + nBufferSize;
+	switch(eFormat)
+	{
+		case MICROPROFILE_COUNTER_FORMAT_DEFAULT:
+		{
+			int nSeperate = 0;
+			while(nCounter)
+			{
+				if(nSeperate)
+				{
+					*pTmp++ = '.';
+				}
+				nSeperate = 1;
+				for(uint32_t i = 0; nCounter && i < 3; ++i)
+				{
+					int nDigit = nCounter % 10;
+					nCounter /= 10;
+					*pTmp++ = '0' + nDigit;
+				}
+			}
+			nLen = pTmp - pOut;
+			--pTmp;
+			MP_ASSERT(pTmp <= pEnd);
+			while(pTmp > pOut) //reverse string
+			{
+				char c = *pTmp;
+				*pTmp = *pOut;
+				*pOut = c;
+				pTmp--;
+				pOut++;
+			}
+		}
+		break;
+		case MICROPROFILE_COUNTER_FORMAT_BYTES:
+		{
+			const char* pExt[] = {"b","kb","mb","gb","tb","pb",};
+			size_t nNumExt = sizeof(pExt) / sizeof(pExt[0]);
+			int64_t nShift = 0;
+			int64_t nDivisor = 1;
+			int64_t nCountShifted = nCounter >> 10;
+			while(nCountShifted)
+			{
+				nDivisor <<= 10;
+				nCountShifted >>= 10;
+				nShift++;
+			}
+			MP_ASSERT(nShift < nNumExt);
+			if(nShift)
+			{
+				nLen = snprintf(pOut, nBufferSize-1, "%5.2f%s", (double)nCounter / nDivisor, pExt[nShift]);
+			}
+			else
+			{
+				nLen = snprintf(pOut, nBufferSize-1, "%d%s", nCounter, pExt[nShift]);
+			}
+		}
+		break;
+	}
+	pOut[nLen] = '\0';
+	
+	return nLen;
+}
 void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFrames, const char* pHost)
 {
 	uint32_t nRunning = S.nRunning;
@@ -2683,14 +2728,19 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	for(int i = 0; i < S.nNumCounters; ++i)
 	{
 		uint64_t nCounter = S.Counters[i].load();
-		MicroProfilePrintf(CB, Handle, "MakeCounter(%d, %d, %d, %d, %d, '%s', %lld),\n", 
+
+		char Formatted[64];
+		MicroProfileFormatCounter(S.CounterInfo[i].eFormat, nCounter, Formatted, sizeof(Formatted)-1);
+		MicroProfilePrintf(CB, Handle, "MakeCounter(%d, %d, %d, %d, %d, '%s', %lld, '%s'),\n", 
 			i,
 			S.CounterInfo[i].nParent,
 			S.CounterInfo[i].nSibling,
  	 		S.CounterInfo[i].nFirstChild,
  	 		S.CounterInfo[i].nLevel,
 			S.CounterInfo[i].pName,
-			nCounter);
+			nCounter,
+			Formatted
+			);
 	}
 	MicroProfilePrintf(CB, Handle, "];\n\n");
 
