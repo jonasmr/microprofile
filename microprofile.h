@@ -253,7 +253,7 @@ typedef uint32_t ThreadIdType;
 #define MICROPROFILE_META_CPU(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__) = MicroProfileGetMetaToken(name); MicroProfileMetaUpdate(MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__), count, MicroProfileTokenTypeCpu)
 #define MICROPROFILE_META_GPU(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__) = MicroProfileGetMetaToken(name); MicroProfileMetaUpdate(MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__), count, MicroProfileTokenTypeGpu)
 #define MICROPROFILE_COUNTER_ADD(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__) = MicroProfileGetCounterToken(name); MicroProfileCounterAdd(MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__), count)
-#define MICROPROFILE_COUNTER_CONFIG(name, type) MicroProfileCounterConfig(name, type)
+#define MICROPROFILE_COUNTER_CONFIG(name, type, limit) MicroProfileCounterConfig(name, type, limit)
 
 
 #ifndef MICROPROFILE_USE_THREAD_NAME_CALLBACK
@@ -340,7 +340,7 @@ MICROPROFILE_API MicroProfileToken MicroProfileGetMetaToken(const char* pName);
 MICROPROFILE_API MicroProfileToken MicroProfileGetCounterToken(const char* pName);
 MICROPROFILE_API void MicroProfileMetaUpdate(MicroProfileToken, int nCount, MicroProfileTokenType eTokenType);
 MICROPROFILE_API void MicroProfileCounterAdd(MicroProfileToken nToken, int64_t nCount);
-MICROPROFILE_API void MicroProfileCounterConfig(const char* pCounterName, uint32_t nFormat);
+MICROPROFILE_API void MicroProfileCounterConfig(const char* pCounterName, uint32_t nFormat, int64_t nLimit);
 MICROPROFILE_API uint64_t MicroProfileEnter(MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileLeave(MicroProfileToken nToken, uint64_t nTick);
 MICROPROFILE_API uint64_t MicroProfileGpuEnter(MicroProfileToken nToken);
@@ -612,6 +612,7 @@ struct MicroProfileCounterInfo
 	char* pName;
 
 	uint32_t nFlags;
+	int64_t nLimit;
 	MicroProfileCounterFormat eFormat;
 
 };
@@ -1476,6 +1477,7 @@ MicroProfileToken MicroProfileGetCounterTokenByParent(int nParent, const char* p
 	S.CounterInfo[nResult].nClosed = 0;
 	S.CounterInfo[nResult].nFlags = 0;
 	S.CounterInfo[nResult].eFormat = MICROPROFILE_COUNTER_FORMAT_DEFAULT;
+	S.CounterInfo[nResult].nLimit = 0;
 	int nLen = strlen(pName)+1;
 
 	MP_ASSERT(nLen + S.nCounterNamePos <= MICROPROFILE_MAX_COUNTER_NAME_CHARS);
@@ -1570,10 +1572,11 @@ void MicroProfileCounterAdd(MicroProfileToken nToken, int64_t nCount)
 	S.Counters[nToken].fetch_add(nCount);
 }
 
-void MicroProfileCounterConfig(const char* pName, uint32_t eFormat)
+void MicroProfileCounterConfig(const char* pName, uint32_t eFormat, int64_t nLimit)
 {
 	MicroProfileToken nToken = MicroProfileGetCounterToken(pName);
 	S.CounterInfo[nToken].eFormat = (MicroProfileCounterFormat)eFormat;
+	S.CounterInfo[nToken].nLimit = nLimit;
 }
 
 
@@ -2429,8 +2432,6 @@ void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFra
 #undef printf
 
 
-#define MICROPROFILE_COUNTER_WIDTH 100
-#define MICROPROFILE_COUNTER_INDENT 4
 
 int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_t nBufferSize)
 {
@@ -2495,7 +2496,7 @@ int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_
 		break;
 	}
 	pOut[nLen] = '\0';
-	
+
 	return nLen;
 }
 void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFrames, const char* pHost)

@@ -127,6 +127,10 @@
 #define MICROPROFILE_TOOLTIP_STRING_BUFFER_SIZE (4*1024)
 #define MICROPROFILE_TOOLTIP_MAX_LOCKED 3
 
+#define MICROPROFILE_COUNTER_INDENT 4
+#define MICROPROFILE_COUNTER_WIDTH 100
+
+
 
 enum
 {
@@ -320,6 +324,11 @@ struct MicroProfileUI
 	
 	SOptionDesc Options[MICROPROFILE_OPTION_SIZE];
 
+	uint32_t nCounterWidth;
+	uint32_t nLimitWidth;
+	uint32_t nCounterWidthTemp;
+	uint32_t nLimitWidthTemp;
+
 
 };
 
@@ -397,6 +406,12 @@ void MicroProfileInitUI()
 		UI.Options[nIndex++] = SOptionDesc(4, 2, "%s", "  No Bars");
 #endif
 		MP_ASSERT(nIndex == MICROPROFILE_OPTION_SIZE);
+
+		UI.nCounterWidth = 100;
+		UI.nLimitWidth = 100;
+		UI.nCounterWidthTemp = 100;
+		UI.nLimitWidthTemp = 100;
+
 	}
 }
 
@@ -1801,80 +1816,15 @@ void MicroProfileDumpTimers()
 	}
 }
 
-#define MICROPROFILE_COUNTER_WIDTH 100
-#define MICROPROFILE_COUNTER_INDENT 4
 
-int MicroProfileFormatCounter(MicroProfileCounterFormat eFormat, int64_t nCounter, char* pOut, uint32_t nBufferSize)
-{
-	int nLen = 0;
-	char* pTmp = pOut;
-	char* pEnd = pOut + nBufferSize;
-	switch(eFormat)
-	{
-		case MICROPROFILE_COUNTER_FORMAT_DEFAULT:
-		{
-			int nSeperate = 0;
-			while(nCounter)
-			{
-				if(nSeperate)
-				{
-					*pTmp++ = '.';
-				}
-				nSeperate = 1;
-				for(uint32_t i = 0; nCounter && i < 3; ++i)
-				{
-					int nDigit = nCounter % 10;
-					nCounter /= 10;
-					*pTmp++ = '0' + nDigit;
-				}
-			}
-			nLen = pTmp - pOut;
-			--pTmp;
-			MP_ASSERT(pTmp <= pEnd);
-			while(pTmp > pOut) //reverse string
-			{
-				char c = *pTmp;
-				*pTmp = *pOut;
-				*pOut = c;
-				pTmp--;
-				pOut++;
-			}
-		}
-		break;
-		case MICROPROFILE_COUNTER_FORMAT_BYTES:
-		{
-			const char* pExt[] = {"b","kb","mb","gb","tb","pb",};
-			size_t nNumExt = sizeof(pExt) / sizeof(pExt[0]);
-			int64_t nShift = 0;
-			int64_t nDivisor = 1;
-			int64_t nCountShifted = nCounter >> 10;
-			while(nCountShifted)
-			{
-				nDivisor <<= 10;
-				nCountShifted >>= 10;
-				nShift++;
-			}
-			MP_ASSERT(nShift < nNumExt);
-			if(nShift)
-			{
-				nLen = snprintf(pOut, nBufferSize-1, "%5.2f%s", (double)nCounter / nDivisor, pExt[nShift]);
-			}
-			else
-			{
-				nLen = snprintf(pOut, nBufferSize-1, "%d%s", nCounter, pExt[nShift]);
-			}
-		}
-		break;
-	}
-
-	return nLen;
-}
 
 uint32_t MicroProfileDrawCounterRecursive(uint32_t nIndex, uint32_t nY, uint32_t nOffset, uint32_t nTimerWidth)
 {
 	MicroProfile& S = *MicroProfileGet();
 	const uint32_t nHeight = MICROPROFILE_TEXT_HEIGHT;
-	const uint32_t nCounterWidth = MICROPROFILE_COUNTER_WIDTH;
+	const uint32_t nCounterWidth = UI.nCounterWidth;
+	const uint32_t nLimitWidth = UI.nLimitWidth;
+
 	uint32_t nY0 = nY + nOffset * (nHeight+1);
 	MicroProfileCounterInfo& CI = S.CounterInfo[nIndex];
 	bool bInside = (UI.nActiveMenu == -1) && ((UI.nMouseY >= nY0) && (UI.nMouseY < (nY0 + nHeight + 1)));
@@ -1882,9 +1832,11 @@ uint32_t MicroProfileDrawCounterRecursive(uint32_t nIndex, uint32_t nY, uint32_t
 	{
 		CI.nClosed = !CI.nClosed;
 	}
-	MicroProfileDrawBox(0, nY0, nTimerWidth + nCounterWidth, nY0 + (nHeight+1)+1, 0xff000000 | (g_nMicroProfileBackColors[nOffset & 1] + ((bInside) ? 0x002c2c2c : 0)));
+	uint32_t nTotalWidth = nTimerWidth + nCounterWidth + MICROPROFILE_COUNTER_WIDTH + nLimitWidth + 3 * (MICROPROFILE_TEXT_WIDTH+1);
+	uint32_t nBackColor = 0xff000000 | (g_nMicroProfileBackColors[nOffset & 1] + ((bInside) ? 0x002c2c2c : 0));
+	MicroProfileDrawBox(0, nY0, nTotalWidth, nY0 + (nHeight+1)+1, nBackColor);
 	uint32_t nIndent = MICROPROFILE_COUNTER_INDENT*CI.nLevel * (MICROPROFILE_TEXT_WIDTH+1);
-	if(CI.nFirstChild != -1 && CI.nClosed )
+	if(CI.nFirstChild != -1 && CI.nClosed)
 	{
 		MicroProfileDrawText(nIndent, nY0, 0xffffffff, "*", 1);
 	}
@@ -1892,8 +1844,35 @@ uint32_t MicroProfileDrawCounterRecursive(uint32_t nIndex, uint32_t nY, uint32_t
 	MicroProfileDrawText(nIndent + MICROPROFILE_TEXT_WIDTH+1, nY0, 0xffffffff, CI.pName, CI.nNameLen);
 	char buffer[64];
 	int64_t nCounterValue = S.Counters[nIndex].load();
+	uint32_t nX = nTimerWidth + nCounterWidth;
 	int nLen = MicroProfileFormatCounter(S.CounterInfo[nIndex].eFormat, nCounterValue, buffer, sizeof(buffer));
-	MicroProfileDrawTextRight(nTimerWidth+nCounterWidth, nY0, 0xffffffff, buffer, nLen);
+	UI.nCounterWidthTemp = MicroProfileMax((uint32_t)nLen, UI.nCounterWidthTemp);
+	MicroProfileDrawTextRight(nX, nY0, 0xffffffff, buffer, nLen);
+	int64_t nLimit = S.CounterInfo[nIndex].nLimit;
+	if(nLimit)
+	{
+		nX += MICROPROFILE_TEXT_WIDTH+1;
+		MicroProfileDrawText(nX, nY0, 0xffffffff, "/", 1);
+		nX += 2 * (MICROPROFILE_TEXT_WIDTH+1);
+		int nLen = MicroProfileFormatCounter(S.CounterInfo[nIndex].eFormat, nLimit, buffer, sizeof(buffer));
+		UI.nLimitWidthTemp = MicroProfileMax(UI.nLimitWidthTemp, (uint32_t)nLen);
+		MicroProfileDrawText(nX, nY0, 0xffffffff, buffer, nLen);
+		nX += nLimitWidth;
+		nY0 += 1;
+
+		float fCounterPrc = (float)nCounterValue / nLimit;
+		float fBoxPrc = 1.f;
+		if(fCounterPrc>1.f)
+		{
+			fBoxPrc = 1.f / fCounterPrc;
+			fCounterPrc = 1.f;
+		}
+
+		MicroProfileDrawBox(nX, nY0, nX + fBoxPrc * MICROPROFILE_COUNTER_WIDTH, nY0 + nHeight, 0xffffffff, MicroProfileBoxTypeFlat);
+		MicroProfileDrawBox(nX+1, nY0+1, nX + MICROPROFILE_COUNTER_WIDTH - 1, nY0 + nHeight - 1, nBackColor, MicroProfileBoxTypeFlat);
+		MicroProfileDrawBox(nX+1, nY0+1, nX + (fCounterPrc *(MICROPROFILE_COUNTER_WIDTH - 1)), nY0 + nHeight - 1, 0xff0088ff, MicroProfileBoxTypeFlat);
+	}
+
 	nOffset++;
 	if(!CI.nClosed)
 	{
@@ -1912,8 +1891,10 @@ uint32_t MicroProfileDrawCounterRecursive(uint32_t nIndex, uint32_t nY, uint32_t
 void MicroProfileDrawCounterView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 {
 	MicroProfile& S = *MicroProfileGet();
-
 	MICROPROFILE_SCOPE(g_MicroProfileDrawBarView);
+
+	UI.nCounterWidthTemp = 7;
+	UI.nLimitWidthTemp = 7;
 	const uint32_t nHeight = MICROPROFILE_TEXT_HEIGHT;
 	uint32_t nTimerWidth = 7 * (MICROPROFILE_TEXT_WIDTH+1);
 	for(uint32_t i = 0; i < S.nNumCounters; ++i)
@@ -1934,11 +1915,22 @@ void MicroProfileDrawCounterView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 			nOffset = MicroProfileDrawCounterRecursive(i, nY, nOffset, nTimerWidth);
 		}
 	}
+	nX = 0;
+	MicroProfileDrawHeader(nX, nTimerWidth, "Name");
+	nX += nTimerWidth;
+	MicroProfileDrawHeader(nX, UI.nCounterWidth + 1 * (MICROPROFILE_TEXT_WIDTH*3), "Value");
+	nX += UI.nCounterWidth;
+	nX += 1 * (MICROPROFILE_TEXT_WIDTH*3);
+	MicroProfileDrawHeader(nX, UI.nLimitWidth + MICROPROFILE_COUNTER_WIDTH, "Limit");
+	uint32_t nTotalWidth = nTimerWidth + UI.nCounterWidth + MICROPROFILE_COUNTER_WIDTH + UI.nLimitWidth + 3 * (MICROPROFILE_TEXT_WIDTH+1);
 
-	MicroProfileDrawHeader(0, nTimerWidth, "Name");
-	MicroProfileDrawHeader(nTimerWidth, MICROPROFILE_COUNTER_WIDTH, "Value");
+
 	MicroProfileDrawLineVertical(nTimerWidth-2, 0, nOffset*(nHeight+1)+nY, UI.nOpacityBackground|g_nMicroProfileBackColors[0]|g_nMicroProfileBackColors[1]);
-	MicroProfileDrawLineHorizontal(0, nTimerWidth + MICROPROFILE_COUNTER_WIDTH, 2*MICROPROFILE_TEXT_HEIGHT + 3, UI.nOpacityBackground|g_nMicroProfileBackColors[0]|g_nMicroProfileBackColors[1]);
+	MicroProfileDrawLineHorizontal(0, nTotalWidth, 2*MICROPROFILE_TEXT_HEIGHT + 3, UI.nOpacityBackground|g_nMicroProfileBackColors[0]|g_nMicroProfileBackColors[1]);
+
+	UI.nCounterWidth = (1+UI.nCounterWidthTemp) * (MICROPROFILE_TEXT_WIDTH+1);
+	UI.nLimitWidth = (1+UI.nLimitWidthTemp) * (MICROPROFILE_TEXT_WIDTH+1);
+
 }
 
 
