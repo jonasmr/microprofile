@@ -169,9 +169,9 @@ function MakeFrame(id, framestart, frameend, framestartgpu, frameendgpu, ts, tt,
 	return frame;
 }
 
-function MakeCounter(id, parent, sibling, firstchild, level, name, value, formatted)
+function MakeCounter(id, parent, sibling, firstchild, level, name, value, formatted, limit, formattedlimit, counterprc, boxprc)
 {
-	var counter = { "id":id, "parent":parent, "sibling":sibling, "firstchild":firstchild, "level": level, "name":name, "value":value, "formatted":formatted};
+	var counter = { "id":id, "parent":parent, "sibling":sibling, "firstchild":firstchild, "level": level, "name":name, "value":value, "formatted":formatted, "limit":limit, "formattedlimit":formattedlimit, "counterprc":counterprc, "boxprc":boxprc};
 	return counter;
 }
 
@@ -1887,7 +1887,7 @@ function DrawBarView()
 				bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
 				nColorIndex = 1-nColorIndex;
 				context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-				context.fillRect(0, Y, Width, Height);
+				context.fillRect(0, Y, Width, FontHeight+2);
 				var ThreadColor = CSwitchColors[i % CSwitchColors.length];
 				context.fillStyle = ThreadColor;
 				context.fillText(ThreadNames[i], 1, YText);
@@ -1936,7 +1936,7 @@ function DrawBarView()
 				nColorIndex = 1-nColorIndex;
 				bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
 				context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-				context.fillRect(0, Y, Width, nHeight);
+				context.fillRect(0, Y, Width, FontHeight+2);
 				context.fillStyle = GColor;
 				context.fillText(Group.name, 1, Y+Height-FontAscent);
 				X += NameWidth;
@@ -1945,7 +1945,7 @@ function DrawBarView()
 				DrawTimer(Group.total, GColor);
 
 				context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-				context.fillRect(0, Y, NameWidth, nHeight);
+				context.fillRect(0, Y, NameWidth, FontHeight+2);
 				context.fillStyle = GColor;
 				context.fillText(Group.name, 1, Y+Height-FontAscent);
 
@@ -1964,7 +1964,7 @@ function DrawBarView()
 							bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
 							nColorIndex = 1-nColorIndex;
 							context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-							context.fillRect(0, Y, Width, Height);
+							context.fillRect(0, Y, Width, FontHeight+2);
 							var ThreadColor = CSwitchColors[i % CSwitchColors.length];
 							context.fillStyle = ThreadColor;
 							context.textAlign = 'right';
@@ -2000,7 +2000,7 @@ function DrawBarView()
 							nHoverToken = timerid;
 						}
 						context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-						context.fillRect(0, Y, Width, Height);
+						context.fillRect(0, Y, Width, FontHeight+2);
 
 						DrawTimer(Average, Timer.color);
 						DrawTimer(Max,Timer.color);
@@ -2087,6 +2087,10 @@ function DrawBarView()
 	ProfileLeave();
 }
 
+var CounterNameWidth = 100;
+var CounterValueWidth = 100;
+var CounterLimitWidth = 100;
+
 function DrawCounterView()
 {
 	ProfileEnter("DrawCounterView");
@@ -2107,6 +2111,10 @@ function DrawCounterView()
 		nOffsetCountersY = nTotalRowPixels - nFrameRows;
 	}
 
+	var CounterNameWidthTemp = 10;
+	var CounterValueWidthTemp = 10;
+	var CounterLimitWidthTemp = 10;
+
 	var CounterWidth = 150;
 	var Y = -nOffsetCountersY + BoxHeight;
 	var X = 0;
@@ -2114,9 +2122,6 @@ function DrawCounterView()
 	context.fillStyle = 'white';
 	context.font = Font;
 	var bMouseIn = 0;
-	var RcpReferenceTime = 1.0 / ReferenceTime;
-	var CountWidth = 8 * FontWidth;
-	var nMetaLen = TimerInfo[0].meta.length;
 	function DrawHeaderSplitSingle(Header, Width)
 	{
 		context.fillStyle = 'white';
@@ -2137,39 +2142,24 @@ function DrawCounterView()
 	}
 	var TimerLen = 6;
 	var TimerWidth = TimerLen * FontWidth;
-	var CounterNameWidth = 130;
 	nHoverCounter = -1;
 	function CounterIndent(Level)
 	{
 		return Level * 4 * FontWidth;
 	}
-	function CalcCounterWidthRecursive(Index)
+	function Max(a, b)
 	{
-		var Counter = CounterInfo[Index];
-		var Width = CounterIndent(Counter.level) + (1+Counter.name.length) * (FontWidth+1);
-		CounterNameWidth = Width > CounterNameWidth ? Width : CounterNameWidth;
-		if(!Counter.closed)
-		{
-			var ChildIndex = Counter.firstchild;
-			while(ChildIndex != -1)
-			{
-				CalcCounterWidthRecursive(ChildIndex);
-				ChildIndex = CounterInfo[ChildIndex].sibling;
-			}
-		}
+		return a > b ? a : b;
 	}
-	for(var i = 0; i < CounterInfo.length; ++i)
-	{
-		if(CounterInfo[i].parent == -1)
-		{
-			CalcCounterWidthRecursive(i);
-		}
-	}
-
 
 	function DrawCounterRecursive(Index)
 	{
 		var Counter = CounterInfo[Index];
+		var Indent = CounterIndent(Counter.level);
+		CounterNameWidthTemp = Max(CounterNameWidthTemp, Counter.name.length+1 + Indent / (FontWidth+1));
+		CounterValueWidthTemp = Max(CounterValueWidthTemp, Counter.formatted.length);
+		CounterLimitWidthTemp = Max(CounterLimitWidthTemp, Counter.formattedlimit.length);
+
 		var X = 0;
 		nColorIndex = 1-nColorIndex;
 		bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
@@ -2177,16 +2167,33 @@ function DrawCounterView()
 		{
 			nHoverCounter = Index;
 		}
-		context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-		context.fillRect(0, Y, Width, nHeight);
+		var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+		context.fillStyle = bgcolor;
+		context.fillRect(0, Y, Width, FontHeight+2);
 		context.fillStyle = 'white';
 		var c = Counter.closed ? '*' : ' ';
-		context.fillText(c + Counter.name, CounterIndent(Counter.level), Y+Height-FontAscent);
-		X += CounterNameWidth;		
-		X += CounterWidth - FontWidth;
+		context.fillText(c + Counter.name, Indent, Y+Height-FontAscent);
+		X += CounterNameWidth;
+		X += CounterValueWidth - FontWidth;
 		context.textAlign = 'right';
 		context.fillText(Counter.formatted, X, Y+Height-FontAscent);
 		context.textAlign = 'left';
+		X += FontWidth * 4;
+		if(Counter.formattedlimit.length)
+		{
+			context.fillText(Counter.formattedlimit, X, Y+Height-FontAscent);
+			X += CounterLimitWidth;
+			var X0 = X + 1;
+			var Y0 = Y + 1;
+
+			context.fillStyle = 'white';
+			context.fillRect(X0, Y0, Counter.boxprc * (CounterWidth-2), Height-2);
+			context.fillStyle = bgcolor;
+			context.fillRect(X0+1, Y0+1, Counter.boxprc * (CounterWidth-4), Height-4);
+			context.fillStyle = 'cyan';
+			context.fillRect(X0+1, Y0+1, Counter.counterprc * (CounterWidth-4), Height-4);
+		}
+
 		Y += Height;
 
 		if(!Counter.closed)
@@ -2213,7 +2220,26 @@ function DrawCounterView()
 	context.fillRect(0, 0, Width, Height);
 	context.fillStyle = 'white';
 	DrawHeaderSplitSingle('Name', CounterNameWidth);
-	DrawHeaderSplitSingleRight('Value', CounterWidth);
+	DrawHeaderSplitSingleRight('Value', CounterValueWidth + (FontWidth+1));
+	DrawHeaderSplitSingle('Limit', CounterLimitWidth + CounterWidth + 3 * (FontWidth+1));
+
+
+
+
+
+	var CounterNameWidthNew = CounterNameWidthTemp * (FontWidth+1);
+	var CounterValueWidthNew = CounterValueWidthTemp * (FontWidth+1);
+	var CounterLimitWidthNew = CounterLimitWidthTemp * (FontWidth+1);
+	if(CounterNameWidthNew != CounterNameWidth || CounterValueWidthNew != CounterValueWidth || CounterLimitWidthNew != CounterLimitWidth)
+	{
+		console.log('requesting redraw 0' + CounterNameWidthNew + '= ' + CounterNameWidth );
+		console.log('requesting redraw 1' + CounterValueWidthNew + '= ' + CounterValueWidth );
+		console.log('requesting redraw 2' + CounterLimitWidthNew + '= ' + CounterLimitWidth );
+		CounterNameWidth = CounterNameWidthNew;
+		CounterValueWidth = CounterValueWidthNew;
+		CounterLimitWidth = CounterLimitWidthNew;
+		Invalidate = 0;
+	}
 
 	ProfileLeave();
 }

@@ -279,7 +279,7 @@ int main(int argc, char* argv[])
 	MICROPROFILE_COUNTER_ADD("//memoryx//mainx/", 1000);
 	MICROPROFILE_COUNTER_ADD("//memoryy//main/", 1000);
 	MICROPROFILE_COUNTER_ADD("//\\\\///lala////lelel", 1000);
-	MICROPROFILE_COUNTER_CONFIG("engine/frames", MICROPROFILE_COUNTER_FORMAT_DEFAULT, 1000ll);
+	MICROPROFILE_COUNTER_CONFIG("engine/frames", MICROPROFILE_COUNTER_FORMAT_DEFAULT, 1000ll<<40ll);
 	//MICROPROFILE_COUNTER_ADD("//\\\\///", 1000); // this should assert as theres only delimiters
 	StartFakeWork();
 	while(!g_nQuit)

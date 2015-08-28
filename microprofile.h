@@ -2435,7 +2435,13 @@ void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFra
 
 int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_t nBufferSize)
 {
+	if(!nCounter)
+	{
+		pOut[0] = '\0';
+		return 0; 
+	}
 	int nLen = 0;
+	char* pBase = pOut;
 	char* pTmp = pOut;
 	char* pEnd = pOut + nBufferSize;
 	switch(eFormat)
@@ -2486,7 +2492,7 @@ int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_
 			MP_ASSERT(nShift < nNumExt);
 			if(nShift)
 			{
-				nLen = snprintf(pOut, nBufferSize-1, "%5.2f%s", (double)nCounter / nDivisor, pExt[nShift]);
+				nLen = snprintf(pOut, nBufferSize-1, "%3.2f%s", (double)nCounter / nDivisor, pExt[nShift]);
 			}
 			else
 			{
@@ -2495,7 +2501,7 @@ int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_
 		}
 		break;
 	}
-	pOut[nLen] = '\0';
+	pBase[nLen] = '\0';
 
 	return nLen;
 }
@@ -2729,10 +2735,24 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	for(int i = 0; i < S.nNumCounters; ++i)
 	{
 		uint64_t nCounter = S.Counters[i].load();
+		uint64_t nLimit = S.CounterInfo[i].nLimit;
+		float fCounterPrc = 0.f;
+		float fBoxPrc = 1.f;
+		if(nLimit)
+		{
+			fCounterPrc = (float)nCounter / nLimit;
+			if(fCounterPrc>1.f)
+			{
+				fBoxPrc = 1.f / fCounterPrc;
+				fCounterPrc = 1.f;
+			}
+		}
 
 		char Formatted[64];
+		char FormattedLimit[64];
 		MicroProfileFormatCounter(S.CounterInfo[i].eFormat, nCounter, Formatted, sizeof(Formatted)-1);
-		MicroProfilePrintf(CB, Handle, "MakeCounter(%d, %d, %d, %d, %d, '%s', %lld, '%s'),\n", 
+		MicroProfileFormatCounter(S.CounterInfo[i].eFormat, S.CounterInfo[i].nLimit, FormattedLimit, sizeof(FormattedLimit)-1);
+		MicroProfilePrintf(CB, Handle, "MakeCounter(%d, %d, %d, %d, %d, '%s', %lld, '%s', %lld, '%s', %f, %f),\n", 
 			i,
 			S.CounterInfo[i].nParent,
 			S.CounterInfo[i].nSibling,
@@ -2740,7 +2760,11 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
  	 		S.CounterInfo[i].nLevel,
 			S.CounterInfo[i].pName,
 			nCounter,
-			Formatted
+			Formatted,
+			nLimit,
+			FormattedLimit,
+			fCounterPrc,
+			fBoxPrc
 			);
 	}
 	MicroProfilePrintf(CB, Handle, "];\n\n");
