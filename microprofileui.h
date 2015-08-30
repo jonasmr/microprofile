@@ -2919,8 +2919,10 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 				MicroProfileStringArrayClear(&Debug);
 				MicroProfileStringArrayAddLiteral(&Debug, "Memory Usage");
 				MicroProfileStringArrayFormat(&Debug, "%4.2fmb", S.nMemUsage / (1024.f * 1024.f));
+#if MICROPROFILE_WEBSERVER
 				MicroProfileStringArrayAddLiteral(&Debug, "Web Server Port");
 				MicroProfileStringArrayFormat(&Debug, "%d", MicroProfileWebServerPort());
+#endif
 				uint32_t nFrameNext = (S.nFrameCurrent+1) % MICROPROFILE_MAX_FRAME_HISTORY;
 				MicroProfileFrameState* pFrameCurrent = &S.Frames[S.nFrameCurrent];
 				MicroProfileFrameState* pFrameNext = &S.Frames[nFrameNext];

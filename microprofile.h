@@ -2301,7 +2301,78 @@ void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pC
 	*pContextSwitchEnd = nContextSwitchEnd;
 }
 
+int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_t nBufferSize)
+{
+	if (!nCounter)
+	{
+		pOut[0] = '\0';
+		return 0;
+	}
+	int nLen = 0;
+	char* pBase = pOut;
+	char* pTmp = pOut;
+	char* pEnd = pOut + nBufferSize;
+	switch (eFormat)
+	{
+	case MICROPROFILE_COUNTER_FORMAT_DEFAULT:
+	{
+		int nSeperate = 0;
+		while (nCounter)
+		{
+			if (nSeperate)
+			{
+				*pTmp++ = '.';
+			}
+			nSeperate = 1;
+			for (uint32_t i = 0; nCounter && i < 3; ++i)
+			{
+				int nDigit = nCounter % 10;
+				nCounter /= 10;
+				*pTmp++ = '0' + nDigit;
+			}
+		}
+		nLen = pTmp - pOut;
+		--pTmp;
+		MP_ASSERT(pTmp <= pEnd);
+		while (pTmp > pOut) //reverse string
+		{
+			char c = *pTmp;
+			*pTmp = *pOut;
+			*pOut = c;
+			pTmp--;
+			pOut++;
+		}
+	}
+	break;
+	case MICROPROFILE_COUNTER_FORMAT_BYTES:
+	{
+		const char* pExt[] = { "b","kb","mb","gb","tb","pb", };
+		size_t nNumExt = sizeof(pExt) / sizeof(pExt[0]);
+		int64_t nShift = 0;
+		int64_t nDivisor = 1;
+		int64_t nCountShifted = nCounter >> 10;
+		while (nCountShifted)
+		{
+			nDivisor <<= 10;
+			nCountShifted >>= 10;
+			nShift++;
+		}
+		MP_ASSERT(nShift < nNumExt);
+		if (nShift)
+		{
+			nLen = snprintf(pOut, nBufferSize - 1, "%3.2f%s", (double)nCounter / nDivisor, pExt[nShift]);
+		}
+		else
+		{
+			nLen = snprintf(pOut, nBufferSize - 1, "%d%s", nCounter, pExt[nShift]);
+		}
+	}
+	break;
+	}
+	pBase[nLen] = '\0';
 
+	return nLen;
+}
 
 #if MICROPROFILE_WEBSERVER
 
@@ -2466,79 +2537,6 @@ void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFra
 #undef printf
 
 
-
-int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_t nBufferSize)
-{
-	if(!nCounter)
-	{
-		pOut[0] = '\0';
-		return 0; 
-	}
-	int nLen = 0;
-	char* pBase = pOut;
-	char* pTmp = pOut;
-	char* pEnd = pOut + nBufferSize;
-	switch(eFormat)
-	{
-		case MICROPROFILE_COUNTER_FORMAT_DEFAULT:
-		{
-			int nSeperate = 0;
-			while(nCounter)
-			{
-				if(nSeperate)
-				{
-					*pTmp++ = '.';
-				}
-				nSeperate = 1;
-				for(uint32_t i = 0; nCounter && i < 3; ++i)
-				{
-					int nDigit = nCounter % 10;
-					nCounter /= 10;
-					*pTmp++ = '0' + nDigit;
-				}
-			}
-			nLen = pTmp - pOut;
-			--pTmp;
-			MP_ASSERT(pTmp <= pEnd);
-			while(pTmp > pOut) //reverse string
-			{
-				char c = *pTmp;
-				*pTmp = *pOut;
-				*pOut = c;
-				pTmp--;
-				pOut++;
-			}
-		}
-		break;
-		case MICROPROFILE_COUNTER_FORMAT_BYTES:
-		{
-			const char* pExt[] = {"b","kb","mb","gb","tb","pb",};
-			size_t nNumExt = sizeof(pExt) / sizeof(pExt[0]);
-			int64_t nShift = 0;
-			int64_t nDivisor = 1;
-			int64_t nCountShifted = nCounter >> 10;
-			while(nCountShifted)
-			{
-				nDivisor <<= 10;
-				nCountShifted >>= 10;
-				nShift++;
-			}
-			MP_ASSERT(nShift < nNumExt);
-			if(nShift)
-			{
-				nLen = snprintf(pOut, nBufferSize-1, "%3.2f%s", (double)nCounter / nDivisor, pExt[nShift]);
-			}
-			else
-			{
-				nLen = snprintf(pOut, nBufferSize-1, "%d%s", nCounter, pExt[nShift]);
-			}
-		}
-		break;
-	}
-	pBase[nLen] = '\0';
-
-	return nLen;
-}
 void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFrames, const char* pHost)
 {
 	uint32_t nRunning = S.nRunning;
