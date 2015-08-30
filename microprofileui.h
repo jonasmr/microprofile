@@ -641,6 +641,7 @@ void MicroProfileDrawFloatTooltip(uint32_t nX, uint32_t nY, uint32_t nToken, uin
 	float fAverage = fToMs * (S.Aggregate[nIndex].nTicks/nAggregateFrames);
 	float fCallAverage = fToMs * (S.Aggregate[nIndex].nTicks / nAggregateCount);
 	float fMax = fToMs * (S.AggregateMax[nIndex]);
+	float fMin = fToMs * (S.AggregateMin[nIndex]);
 
 	float fFrameMsExclusive = fToMs * (S.FrameExclusive[nIndex]);
 	float fAverageExclusive = fToMs * (S.AggregateExclusive[nIndex]/nAggregateFrames);
@@ -679,6 +680,9 @@ void MicroProfileDrawFloatTooltip(uint32_t nX, uint32_t nY, uint32_t nToken, uin
 
 	MicroProfileStringArrayAddLiteral(&ToolTip, "Max:");
 	MicroProfileStringArrayFormat(&ToolTip,"%6.3fms",  fMax);
+	
+	MicroProfileStringArrayAddLiteral(&ToolTip, "Min:");
+	MicroProfileStringArrayFormat(&ToolTip, "%6.3fms", fMin);
 
 	MicroProfileStringArrayAddLiteral(&ToolTip, "");
 	MicroProfileStringArrayAddLiteral(&ToolTip, "");
@@ -1474,7 +1478,7 @@ void MicroProfileLoopActiveGroupsDraw(int32_t nX, int32_t nY, const char* pName,
 }
 
 
-void MicroProfileCalcTimers(float* pTimers, float* pAverage, float* pMax, float* pCallAverage, float* pExclusive, float* pAverageExclusive, float* pMaxExclusive, uint64_t nGroup, uint32_t nSize)
+void MicroProfileCalcTimers(float* pTimers, float* pAverage, float* pMax, float* pMin, float* pCallAverage, float* pExclusive, float* pAverageExclusive, float* pMaxExclusive, uint64_t nGroup, uint32_t nSize)
 {
 	MicroProfile& S = *MicroProfileGet();
 
@@ -1503,6 +1507,8 @@ void MicroProfileCalcTimers(float* pTimers, float* pAverage, float* pMax, float*
 						float fAveragePrc = MicroProfileMin(fAverageMs * fToPrc, 1.f);
 						float fMaxMs = fToMs * (S.AggregateMax[nTimer]);
 						float fMaxPrc = MicroProfileMin(fMaxMs * fToPrc, 1.f);
+						float fMinMs = fToMs * (S.AggregateMin[nTimer] != uint64_t(-1) ? S.AggregateMin[nTimer] : 0);
+						float fMinPrc = MicroProfileMin(fMinMs * fToPrc, 1.f);
 						float fCallAverageMs = fToMs * (S.Aggregate[nTimer].nTicks / nAggregateCount);
 						float fCallAveragePrc = MicroProfileMin(fCallAverageMs * fToPrc, 1.f);
 						float fMsExclusive = fToMs * (S.FrameExclusive[nTimer]);
@@ -1517,6 +1523,8 @@ void MicroProfileCalcTimers(float* pTimers, float* pAverage, float* pMax, float*
 						pAverage[nIdx+1] = fAveragePrc;
 						pMax[nIdx] = fMaxMs;
 						pMax[nIdx+1] = fMaxPrc;
+						pMin[nIdx] = fMinMs;
+						pMin[nIdx + 1] = fMinPrc;
 						pCallAverage[nIdx] = fCallAverageMs;
 						pCallAverage[nIdx+1] = fCallAveragePrc;
 						pExclusive[nIdx] = fMsExclusive;
@@ -1771,18 +1779,20 @@ void MicroProfileDumpTimers()
 
 	uint32_t nNumTimers = S.nTotalTimers;
 	uint32_t nBlockSize = 2 * nNumTimers;
-	float* pTimers = (float*)alloca(nBlockSize * 7 * sizeof(float));
+	float* pTimers = (float*)alloca(nBlockSize * 8 * sizeof(float));
 	float* pAverage = pTimers + nBlockSize;
 	float* pMax = pTimers + 2 * nBlockSize;
-	float* pCallAverage = pTimers + 3 * nBlockSize;
-	float* pTimersExclusive = pTimers + 4 * nBlockSize;
-	float* pAverageExclusive = pTimers + 5 * nBlockSize;
-	float* pMaxExclusive = pTimers + 6 * nBlockSize;
-	MicroProfileCalcTimers(pTimers, pAverage, pMax, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, nActiveGroup, nNumTimers);
+	float* pMin = pTimers + 3 * nBlockSize;
+	float* pCallAverage = pTimers + 4 * nBlockSize;
+	float* pTimersExclusive = pTimers + 5 * nBlockSize;
+	float* pAverageExclusive = pTimers + 6 * nBlockSize;
+	float* pMaxExclusive = pTimers + 7 * nBlockSize;
+	MicroProfileCalcTimers(pTimers, pAverage, pMax, pMin, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, nActiveGroup, nNumTimers);
 
 	MICROPROFILE_PRINTF("%11s, ", "Time");
 	MICROPROFILE_PRINTF("%11s, ", "Average");
 	MICROPROFILE_PRINTF("%11s, ", "Max");
+	MICROPROFILE_PRINTF("%11s, ", "Min");
 	MICROPROFILE_PRINTF("%11s, ", "Call Avg");
 	MICROPROFILE_PRINTF("%9s, ", "Count");
 	MICROPROFILE_PRINTF("%11s, ", "Excl");
@@ -1804,6 +1814,7 @@ void MicroProfileDumpTimers()
 					MICROPROFILE_PRINTF("%9.2fms, ", pTimers[nIdx]);
 					MICROPROFILE_PRINTF("%9.2fms, ", pAverage[nIdx]);
 					MICROPROFILE_PRINTF("%9.2fms, ", pMax[nIdx]);
+					MICROPROFILE_PRINTF("%9.2fms, ", pMin[nIdx]);
 					MICROPROFILE_PRINTF("%9.2fms, ", pCallAverage[nIdx]);
 					MICROPROFILE_PRINTF("%9d, ", S.Frame[i].nCount);
 					MICROPROFILE_PRINTF("%9.2fms, ", pTimersExclusive[nIdx]);
@@ -1962,14 +1973,15 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 	uint32_t nX = nTimerWidth + UI.nOffsetX[MP_DRAW_BARS];
 	uint32_t nY = nHeight + 3 - UI.nOffsetY[MP_DRAW_BARS];	
 	uint32_t nBlockSize = 2 * nNumTimers;
-	float* pTimers = (float*)alloca(nBlockSize * 7 * sizeof(float));
+	float* pTimers = (float*)alloca(nBlockSize * 8 * sizeof(float));
 	float* pAverage = pTimers + nBlockSize;
 	float* pMax = pTimers + 2 * nBlockSize;
-	float* pCallAverage = pTimers + 3 * nBlockSize;
-	float* pTimersExclusive = pTimers + 4 * nBlockSize;
-	float* pAverageExclusive = pTimers + 5 * nBlockSize;
-	float* pMaxExclusive = pTimers + 6 * nBlockSize;
-	MicroProfileCalcTimers(pTimers, pAverage, pMax, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, nActiveGroup, nNumTimers);
+	float* pMin = pTimers + 3 * nBlockSize;
+	float* pCallAverage = pTimers + 4 * nBlockSize;
+	float* pTimersExclusive = pTimers + 5 * nBlockSize;
+	float* pAverageExclusive = pTimers + 6 * nBlockSize;
+	float* pMaxExclusive = pTimers + 7 * nBlockSize;
+	MicroProfileCalcTimers(pTimers, pAverage, pMax, pMin, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, nActiveGroup, nNumTimers);
 	uint32_t nWidth = 0;
 	{
 		uint32_t nMetaIndex = 0;
@@ -1988,6 +2000,8 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 							nWidth += 6 + (1+MICROPROFILE_TEXT_WIDTH) * (nStrWidth + 4);
 						if(S.nBars & MP_DRAW_MAX)
 							nWidth += 6 + (1+MICROPROFILE_TEXT_WIDTH) * (nStrWidth + 4);
+						if (S.nBars & MP_DRAW_MIN)
+							nWidth += 6 + (1 + MICROPROFILE_TEXT_WIDTH) * (nStrWidth + 4);
 					}
 				}
 				else
@@ -2019,6 +2033,8 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 		nX += MicroProfileDrawBarArray(nX, nY, pAverage, "Average", nTotalHeight) + 1;
 	if(S.nBars & MP_DRAW_MAX)		
 		nX += MicroProfileDrawBarArray(nX, nY, pMax, (!UI.bShowSpikes) ? "Max Time" : "Max Time, Spike", nTotalHeight, UI.bShowSpikes ? pAverage : NULL) + 1;
+	if (S.nBars & MP_DRAW_MIN)
+		nX += MicroProfileDrawBarArray(nX, nY, pMin, (!UI.bShowSpikes) ? "Min Time" : "Min Time, Spike", nTotalHeight, UI.bShowSpikes ? pAverage : NULL) + 1;
 	if(S.nBars & MP_DRAW_CALL_COUNT)		
 	{
 		nX += MicroProfileDrawBarArray(nX, nY, pCallAverage, "Call Average", nTotalHeight) + 1;
@@ -2172,10 +2188,11 @@ const char* MicroProfileUIMenuTimers(int nIndex, bool* bSelected)
 		case 0: return "Time";				
 		case 1: return "Average";				
 		case 2: return "Max";
-		case 3: return "Call Count";
-		case 4: return "Exclusive Timers";
-		case 5: return "Exclusive Average";
-		case 6: return "Exclusive Max";
+		case 3: return "Min";
+		case 4: return "Call Count";
+		case 5: return "Exclusive Timers";
+		case 6: return "Exclusive Average";
+		case 7: return "Exclusive Max";
 	}
 	int nMetaIndex = nIndex - 7;
 	if(nMetaIndex < MICROPROFILE_META_MAX)
