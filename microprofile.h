@@ -529,6 +529,10 @@ typedef int MpSocket;
 #if defined(__APPLE__) || defined(__linux__)
 typedef pthread_t MicroProfileThread;
 #elif defined(_WIN32)
+#if _MSC_VER == 1900
+typedef void * HANDLE;
+#endif
+
 typedef HANDLE MicroProfileThread;
 #else
 typedef std::thread* MicroProfileThread;
@@ -551,11 +555,12 @@ enum MicroProfileDrawBarsMask
 	MP_DRAW_TIMERS 				= 0x1,	
 	MP_DRAW_AVERAGE				= 0x2,	
 	MP_DRAW_MAX					= 0x4,	
-	MP_DRAW_CALL_COUNT			= 0x8,
-	MP_DRAW_TIMERS_EXCLUSIVE 	= 0x10,
-	MP_DRAW_AVERAGE_EXCLUSIVE 	= 0x20,	
-	MP_DRAW_MAX_EXCLUSIVE		= 0x40,
-	MP_DRAW_META_FIRST			= 0x80,
+	MP_DRAW_MIN					= 0x8,
+	MP_DRAW_CALL_COUNT			= 0x10,
+	MP_DRAW_TIMERS_EXCLUSIVE 	= 0x20,
+	MP_DRAW_AVERAGE_EXCLUSIVE 	= 0x40,	
+	MP_DRAW_MAX_EXCLUSIVE		= 0x80,
+	MP_DRAW_META_FIRST			= 0x100,
 	MP_DRAW_ALL 				= 0xffffffff,
 
 };
@@ -755,6 +760,7 @@ struct MicroProfile
 	
 	MicroProfileTimer 		AccumTimers[MICROPROFILE_MAX_TIMERS];
 	uint64_t				AccumMaxTimers[MICROPROFILE_MAX_TIMERS];
+	uint64_t				AccumMinTimers[MICROPROFILE_MAX_TIMERS];
 	uint64_t				AccumTimersExclusive[MICROPROFILE_MAX_TIMERS];
 	uint64_t				AccumMaxTimersExclusive[MICROPROFILE_MAX_TIMERS];
 
@@ -763,6 +769,7 @@ struct MicroProfile
 
 	MicroProfileTimer 		Aggregate[MICROPROFILE_MAX_TIMERS];
 	uint64_t				AggregateMax[MICROPROFILE_MAX_TIMERS];	
+	uint64_t				AggregateMin[MICROPROFILE_MAX_TIMERS];
 	uint64_t				AggregateExclusive[MICROPROFILE_MAX_TIMERS];
 	uint64_t				AggregateMaxExclusive[MICROPROFILE_MAX_TIMERS];
 
@@ -1932,6 +1939,7 @@ void MicroProfileFlip()
 					S.AccumTimers[i].nTicks += S.Frame[i].nTicks;				
 					S.AccumTimers[i].nCount += S.Frame[i].nCount;
 					S.AccumMaxTimers[i] = MicroProfileMax(S.AccumMaxTimers[i], S.Frame[i].nTicks);
+					S.AccumMinTimers[i] = MicroProfileMin(S.AccumMinTimers[i], S.Frame[i].nTicks);
 					S.AccumTimersExclusive[i] += S.FrameExclusive[i];				
 					S.AccumMaxTimersExclusive[i] = MicroProfileMax(S.AccumMaxTimersExclusive[i], S.FrameExclusive[i]);
 				}
@@ -1986,6 +1994,7 @@ void MicroProfileFlip()
 	{
 		memcpy(&S.Aggregate[0], &S.AccumTimers[0], sizeof(S.Aggregate[0]) * S.nTotalTimers);
 		memcpy(&S.AggregateMax[0], &S.AccumMaxTimers[0], sizeof(S.AggregateMax[0]) * S.nTotalTimers);
+		memcpy(&S.AggregateMin[0], &S.AccumMinTimers[0], sizeof(S.AggregateMin[0]) * S.nTotalTimers);
 		memcpy(&S.AggregateExclusive[0], &S.AccumTimersExclusive[0], sizeof(S.AggregateExclusive[0]) * S.nTotalTimers);
 		memcpy(&S.AggregateMaxExclusive[0], &S.AccumMaxTimersExclusive[0], sizeof(S.AggregateMaxExclusive[0]) * S.nTotalTimers);
 
@@ -2036,6 +2045,7 @@ void MicroProfileFlip()
 		{
 			memset(&S.AccumTimers[0], 0, sizeof(S.Aggregate[0]) * S.nTotalTimers);
 			memset(&S.AccumMaxTimers[0], 0, sizeof(S.AccumMaxTimers[0]) * S.nTotalTimers);
+			memset(&S.AccumMinTimers[0], 0xFF, sizeof(S.AccumMinTimers[0]) * S.nTotalTimers);
 			memset(&S.AccumTimersExclusive[0], 0, sizeof(S.AggregateExclusive[0]) * S.nTotalTimers);
 			memset(&S.AccumMaxTimersExclusive[0], 0, sizeof(S.AccumMaxTimersExclusive[0]) * S.nTotalTimers);
 			memset(&S.AccumGroup[0], 0, sizeof(S.AggregateGroup));
@@ -2198,7 +2208,7 @@ void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Typ
 }
 
 
-void MicroProfileCalcAllTimers(float* pTimers, float* pAverage, float* pMax, float* pCallAverage, float* pExclusive, float* pAverageExclusive, float* pMaxExclusive, float* pTotal, uint32_t nSize)
+void MicroProfileCalcAllTimers(float* pTimers, float* pAverage, float* pMax, float* pMin, float* pCallAverage, float* pExclusive, float* pAverageExclusive, float* pMaxExclusive, float* pTotal, uint32_t nSize)
 {
 	for(uint32_t i = 0; i < S.nTotalTimers && i < nSize; ++i)
 	{
@@ -2215,6 +2225,8 @@ void MicroProfileCalcAllTimers(float* pTimers, float* pAverage, float* pMax, flo
 		float fAveragePrc = MicroProfileMin(fAverageMs * fToPrc, 1.f);
 		float fMaxMs = fToMs * (S.AggregateMax[nTimer]);
 		float fMaxPrc = MicroProfileMin(fMaxMs * fToPrc, 1.f);
+		float fMinMs = fToMs * (S.AggregateMin[nTimer] != uint64_t(-1) ? S.AggregateMin[nTimer] : 0);
+		float fMinPrc = MicroProfileMin(fMinMs * fToPrc, 1.f);
 		float fCallAverageMs = fToMs * (S.Aggregate[nTimer].nTicks / nAggregateCount);
 		float fCallAveragePrc = MicroProfileMin(fCallAverageMs * fToPrc, 1.f);
 		float fMsExclusive = fToMs * (S.FrameExclusive[nTimer]);
@@ -2230,6 +2242,8 @@ void MicroProfileCalcAllTimers(float* pTimers, float* pAverage, float* pMax, flo
 		pAverage[nIdx+1] = fAveragePrc;
 		pMax[nIdx] = fMaxMs;
 		pMax[nIdx+1] = fMaxPrc;
+		pMin[nIdx] = fMinMs;
+		pMin[nIdx + 1] = fMinPrc;
 		pCallAverage[nIdx] = fCallAverageMs;
 		pCallAverage[nIdx+1] = fCallAveragePrc;
 		pExclusive[nIdx] = fMsExclusive;
@@ -2358,16 +2372,17 @@ void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFra
 
 	uint32_t nNumTimers = S.nTotalTimers;
 	uint32_t nBlockSize = 2 * nNumTimers;
-	float* pTimers = (float*)alloca(nBlockSize * 8 * sizeof(float));
+	float* pTimers = (float*)alloca(nBlockSize * 9 * sizeof(float));
 	float* pAverage = pTimers + nBlockSize;
 	float* pMax = pTimers + 2 * nBlockSize;
-	float* pCallAverage = pTimers + 3 * nBlockSize;
-	float* pTimersExclusive = pTimers + 4 * nBlockSize;
-	float* pAverageExclusive = pTimers + 5 * nBlockSize;
-	float* pMaxExclusive = pTimers + 6 * nBlockSize;
-	float* pTotal = pTimers + 7 * nBlockSize;
+	float* pMin = pTimers + 3 * nBlockSize;
+	float* pCallAverage = pTimers + 4 * nBlockSize;
+	float* pTimersExclusive = pTimers + 5 * nBlockSize;
+	float* pAverageExclusive = pTimers + 6 * nBlockSize;
+	float* pMaxExclusive = pTimers + 7 * nBlockSize;
+	float* pTotal = pTimers + 8 * nBlockSize;
 
-	MicroProfileCalcAllTimers(pTimers, pAverage, pMax, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, pTotal, nNumTimers);
+	MicroProfileCalcAllTimers(pTimers, pAverage, pMax, pMin, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, pTotal, nNumTimers);
 
 	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
 	{
@@ -2583,16 +2598,17 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 
 	uint32_t nNumTimers = S.nTotalTimers;
 	uint32_t nBlockSize = 2 * nNumTimers;
-	float* pTimers = (float*)alloca(nBlockSize * 8 * sizeof(float));
+	float* pTimers = (float*)alloca(nBlockSize * 9 * sizeof(float));
 	float* pAverage = pTimers + nBlockSize;
 	float* pMax = pTimers + 2 * nBlockSize;
-	float* pCallAverage = pTimers + 3 * nBlockSize;
-	float* pTimersExclusive = pTimers + 4 * nBlockSize;
-	float* pAverageExclusive = pTimers + 5 * nBlockSize;
-	float* pMaxExclusive = pTimers + 6 * nBlockSize;
-	float* pTotal = pTimers + 7 * nBlockSize;
+	float* pMin = pTimers + 3 * nBlockSize;
+	float* pCallAverage = pTimers + 4 * nBlockSize;
+	float* pTimersExclusive = pTimers + 5 * nBlockSize;
+	float* pAverageExclusive = pTimers + 6 * nBlockSize;
+	float* pMaxExclusive = pTimers + 7 * nBlockSize;
+	float* pTotal = pTimers + 8 * nBlockSize;
 
-	MicroProfileCalcAllTimers(pTimers, pAverage, pMax, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, pTotal, nNumTimers);
+	MicroProfileCalcAllTimers(pTimers, pAverage, pMax, pMin, pCallAverage, pTimersExclusive, pAverageExclusive, pMaxExclusive, pTotal, nNumTimers);
 
 	MicroProfilePrintf(CB, Handle, "\nvar TimerInfo = Array(%d);\n\n", S.nTotalTimers);
 	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
