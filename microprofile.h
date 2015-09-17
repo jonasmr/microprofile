@@ -103,6 +103,7 @@
 #endif
 
 #include <stdint.h>
+#include <inttypes.h>
 typedef uint64_t MicroProfileToken;
 typedef uint16_t MicroProfileGroupId;
 
@@ -872,7 +873,7 @@ struct MicroProfile
 #define MP_LOG_LEAVE 0x0
 
 
-inline int MicroProfileLogType(MicroProfileLogEntry Index)
+inline uint64_t MicroProfileLogType(MicroProfileLogEntry Index)
 {
 	return ((MP_LOG_BEGIN_MASK & Index)>>62) & 0x3;
 }
@@ -885,7 +886,7 @@ inline uint64_t MicroProfileLogTimerIndex(MicroProfileLogEntry Index)
 inline MicroProfileLogEntry MicroProfileMakeLogIndex(uint64_t nBegin, MicroProfileToken nToken, int64_t nTick)
 {
 	MicroProfileLogEntry Entry =  (nBegin<<62) | ((0x3fff&nToken)<<48) | (MP_LOG_TICK_MASK&nTick);
-	int t = MicroProfileLogType(Entry);
+	uint64_t t = MicroProfileLogType(Entry);
 	uint64_t nTimerIndex = MicroProfileLogTimerIndex(Entry);
 	MP_ASSERT(t == nBegin);
 	MP_ASSERT(nTimerIndex == (nToken&0x3fff));
@@ -986,7 +987,7 @@ typedef HANDLE MicroProfileThread;
 DWORD _stdcall ThreadTrampoline(void* pFunc)
 {
     MicroProfileThreadFunc F = (MicroProfileThreadFunc)pFunc;
-    return (uint32_t)F(0);
+    return (uint32_t)(uintptr_t)F(0);
 }
 
 void MicroProfileThreadStart(MicroProfileThread* pThread, MicroProfileThreadFunc Func)
@@ -1423,7 +1424,7 @@ const char* MicroProfileNextName(const char* pName, char* pNameOut, uint32_t* nS
 	const char* pRet = 0;
 	bool bDone = false;
 	uint32_t nChars = 0;
-	for(uint32_t i = 0; i < nMaxLen && !bDone; ++i)
+	for(int i = 0; i < nMaxLen && !bDone; ++i)
 	{
 		char c = *pName++;
 		switch(c)
@@ -1461,7 +1462,7 @@ const char* MicroProfileCounterFullName(int nCounter)
 		nCounter = S.CounterInfo[nCounter].nParent;
 	}while(nCounter >= 0);
 	int nOffset = 0;
-	while(nIndex >= 0 && nOffset < sizeof(Buffer)-2)
+	while(nIndex >= 0 && nOffset < (int)sizeof(Buffer)-2)
 	{
 		uint32_t nLen = S.CounterInfo[nNodes[nIndex]].nNameLen + nOffset;// < sizeof(Buffer)-1 
 		nLen = MicroProfileMin((uint32_t)(sizeof(Buffer) - 2 - nOffset), nLen);
@@ -1493,7 +1494,7 @@ MicroProfileToken MicroProfileGetCounterTokenByParent(int nParent, const char* p
 	S.CounterInfo[nResult].nFlags = 0;
 	S.CounterInfo[nResult].eFormat = MICROPROFILE_COUNTER_FORMAT_DEFAULT;
 	S.CounterInfo[nResult].nLimit = 0;
-	int nLen = strlen(pName)+1;
+	int nLen = (int)strlen(pName)+1;
 
 	MP_ASSERT(nLen + S.nCounterNamePos <= MICROPROFILE_MAX_COUNTER_NAME_CHARS);
 	uint32_t nPos = S.nCounterNamePos;
@@ -1509,7 +1510,7 @@ MicroProfileToken MicroProfileGetCounterTokenByParent(int nParent, const char* p
 	}
 	else
 	{
-		S.CounterInfo[nParent].nLevel = 0;
+		S.CounterInfo[nResult].nLevel = 0;
 	}
 
 	return nResult;
@@ -1756,11 +1757,11 @@ void MicroProfileFlip()
 		MicroProfileFrameState* pFrameNext = &S.Frames[nFrameNext];
 		
 		pFramePut->nFrameStartCpu = MP_TICK();
-		pFramePut->nFrameStartGpu = (uint32_t)MicroProfileGpuInsertTimeStamp();
-		if(pFrameNext->nFrameStartGpu != (uint64_t)-1)
+		pFramePut->nFrameStartGpu = MicroProfileGpuInsertTimeStamp();
+		if(pFrameNext->nFrameStartGpu != -1)
 			pFrameNext->nFrameStartGpu = MicroProfileGpuGetTimeStamp((uint32_t)pFrameNext->nFrameStartGpu);
 
-		if(pFrameCurrent->nFrameStartGpu == (uint64_t)-1)
+		if(pFrameCurrent->nFrameStartGpu == -1)
 			pFrameCurrent->nFrameStartGpu = pFrameNext->nFrameStartGpu + 1; 
 
 		uint64_t nFrameStartCpu = pFrameCurrent->nFrameStartCpu;
@@ -1867,7 +1868,7 @@ void MicroProfileFlip()
 						for(uint32_t k = nStart; k < nEnd; ++k)
 						{
 							MicroProfileLogEntry LE = pLog->Log[k];
-							int nType = MicroProfileLogType(LE);
+							uint64_t nType = MicroProfileLogType(LE);
 
 							if(MP_LOG_ENTER == nType)
 							{
@@ -2357,14 +2358,14 @@ int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_
 			nCountShifted >>= 10;
 			nShift++;
 		}
-		MP_ASSERT(nShift < nNumExt);
+		MP_ASSERT(nShift < (int64_t)nNumExt);
 		if (nShift)
 		{
 			nLen = snprintf(pOut, nBufferSize - 1, "%3.2f%s", (double)nCounter / nDivisor, pExt[nShift]);
 		}
 		else
 		{
-			nLen = snprintf(pOut, nBufferSize - 1, "%d%s", nCounter, pExt[nShift]);
+			nLen = snprintf(pOut, nBufferSize - 1, "%" PRId64 "%s", nCounter, pExt[nShift]);
 		}
 	}
 	break;
@@ -2857,14 +2858,14 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 			if(nLogStart != nLogEnd)
 			{
 				uint32_t k = nLogStart;
-				uint32_t nLogType = MicroProfileLogType(pLog->Log[k]);
+				uint64_t nLogType = MicroProfileLogType(pLog->Log[k]);
 				float fToMs = nLogType == MP_LOG_GPU_EXTRA ? fToMsCpu : fToMsBase;
 				int64_t nStartTick = nLogType == MP_LOG_GPU_EXTRA ? nTickStart : nStartTickBase;
 				float fTime = nLogType == MP_LOG_META ? 0.f : MicroProfileLogTickDifference(nStartTick, pLog->Log[k]) * fToMs;
 				MicroProfilePrintf(CB, Handle, "%f", fTime);
 				for(k = (k+1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 				{
-					uint32_t nLogType = MicroProfileLogType(pLog->Log[k]);
+					uint64_t nLogType = MicroProfileLogType(pLog->Log[k]);
 					float fToMs = nLogType == MP_LOG_GPU_EXTRA ? fToMsCpu : fToMsBase;
 					nStartTick = nLogType == MP_LOG_GPU_EXTRA ? nTickStart : nStartTickBase;
 					float fTime = nLogType == MP_LOG_META ? 0.f : MicroProfileLogTickDifference(nStartTick, pLog->Log[k]) * fToMs;
@@ -2879,7 +2880,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 				MicroProfilePrintf(CB, Handle, "%d", MicroProfileLogType(pLog->Log[k]));
 				for(k = (k+1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 				{
-					uint32_t nLogType = MicroProfileLogType(pLog->Log[k]);
+					uint64_t nLogType = MicroProfileLogType(pLog->Log[k]);
 					if(nLogType == MP_LOG_META)
 					{
 						//for meta, store the count + 3, which is the tick part

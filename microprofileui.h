@@ -180,6 +180,7 @@ MICROPROFILEUI_API void MicroProfileCustomGroupAddTimer(const char* pCustomName,
 #include <stdarg.h>
 #include <math.h>
 #include <algorithm>
+#include <complex>
 
 MICROPROFILE_DEFINE(g_MicroProfileDetailed, "MicroProfile", "Detailed View", 0x8888000);
 MICROPROFILE_DEFINE(g_MicroProfileDrawGraph, "MicroProfile", "Draw Graph", 0xff44ee00);
@@ -563,7 +564,7 @@ void MicroProfileToolTipMeta(MicroProfileStringArray* pToolTip)
 			for(uint32_t j = nStart; j < nEnd; ++j)
 			{
 				MicroProfileLogEntry LE = pLog->Log[j];
-				int nType = MicroProfileLogType(LE);
+        uint64_t nType = MicroProfileLogType(LE);
 				switch(nType)
 				{
 				case MP_LOG_META:
@@ -772,11 +773,11 @@ void MicroProfileDebugDumpRange()
 	
 			const char* pTimerName = S.TimerInfo[nTimerId].pName;
 			char buffer[256];
-			int type = MicroProfileLogType(*pStart);
+      uint64_t type = MicroProfileLogType(*pStart);
 
 			const char* pBegin = type == MP_LOG_LEAVE ? "END" : 
 				(type == MP_LOG_ENTER ? "BEGIN" : "META");
-			snprintf(buffer, 255, "DUMP 0x%p: %s :: %llx: %s\n", pStart, pBegin,  nTick, pTimerName);
+			snprintf(buffer, 255, "DUMP 0x%p: %s :: %" PRIx64 ": %s\n", pStart, pBegin,  nTick, pTimerName);
 #ifdef _WIN32
 			OutputDebugString(buffer);
 #else
@@ -851,7 +852,7 @@ void MicroProfileDrawDetailedContextSwitchBars(uint32_t nY, uint32_t nThreadId, 
 					{
 						nColor = UI.nHoverColorShared;
 					}
-					MicroProfileDrawBox(fXStart, fYStart, fXEnd, fYEnd, nColor|UI.nOpacityForeground, MicroProfileBoxTypeFlat);
+					MicroProfileDrawBox((int)fXStart, (int)fYStart, (int)fXEnd, (int)fYEnd, nColor|UI.nOpacityForeground, MicroProfileBoxTypeFlat);
 				}
 				nTickIn = -1;
 			}
@@ -898,7 +899,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 	static int64_t nRefCpu = 0, nRefGpu = 0;
 	if(MicroProfileGetGpuTickReference(&nTickReferenceCpu, &nTickReferenceGpu))
 	{
-		if(0 == nRefCpu || abs(nRefCpu-nBaseTicksCpu) > abs(nTickReferenceCpu-nBaseTicksCpu))
+		if(0 == nRefCpu || std::abs(nRefCpu-nBaseTicksCpu) > std::abs(nTickReferenceCpu-nBaseTicksCpu))
 		{
 			nRefCpu = nTickReferenceCpu;
 			nRefGpu = nTickReferenceGpu;
@@ -938,7 +939,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 		{
 			float fStart = f;
 			float fNext = f + fStep;
-			MicroProfileDrawBox(((fStart-fMsBase) * fMsToScreen), nBaseY, (fNext-fMsBase) * fMsToScreen+1, nBaseY + nHeight, UI.nOpacityBackground | g_nMicroProfileBackColors[nColorIndex++ & 1]);
+			MicroProfileDrawBox((int)((fStart-fMsBase) * fMsToScreen), nBaseY, (int)((fNext-fMsBase) * fMsToScreen+1), nBaseY + nHeight, UI.nOpacityBackground | g_nMicroProfileBackColors[nColorIndex++ & 1]);
 			f = fNext;
 		}
 	}
@@ -1041,7 +1042,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			int64_t nBaseTicks = bGpu ? nBaseTicksGpu : nBaseTicksCpu;
 			char ThreadName[MicroProfileThreadLog::THREAD_MAX_LEN + 16];
 			uint64_t nThreadId = pLog->nThreadId;
-			snprintf(ThreadName, sizeof(ThreadName)-1, "%04llx: %s", nThreadId, &pLog->ThreadName[0] );
+			snprintf(ThreadName, sizeof(ThreadName)-1, "%04" PRIx64 ": %s", nThreadId, &pLog->ThreadName[0] );
 			nY += 3;
 			uint32_t nThreadColor = -1;
 			if(pLog->nThreadId == nContextSwitchHoverThreadAfter || pLog->nThreadId == nContextSwitchHoverThreadBefore)
@@ -1067,7 +1068,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 				for(uint32_t k = nStart; k < nEnd; ++k)
 				{
 					MicroProfileLogEntry* pEntry = pLog->Log + k;
-					int nType = MicroProfileLogType(*pEntry);
+					uint64_t nType = MicroProfileLogType(*pEntry);
 					if(MP_LOG_ENTER == nType)
 					{
 						MP_ASSERT(nStackPos < MICROPROFILE_STACK_MAX);
@@ -1144,7 +1145,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 						uint32_t nIntegerWidth = (uint32_t)(fXEnd - fXStart);
 						if(nIntegerWidth)
 						{
-							if(bHover && UI.nActiveMenu == -1)
+							if(bHover && UI.nActiveMenu == (uint32_t)-1)
 							{
 								nHoverToken = MicroProfileLogTimerIndex(*pEntry);
 	#if MICROPROFILE_DEBUG
@@ -1155,7 +1156,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 								pMouseOverNext = pEntry;
 							}
 
-							MicroProfileDrawBox(fXStart, fYStart, fXEnd, fYEnd, nColor|UI.nOpacityForeground, MicroProfileBoxTypeBar);
+							MicroProfileDrawBox((int)fXStart, (int)fYStart, (int)fXEnd, (int)fYEnd, nColor|UI.nOpacityForeground, MicroProfileBoxTypeBar);
 #if MICROPROFILE_DETAILED_BAR_NAMES
 							if(nIntegerWidth>3*MICROPROFILE_TEXT_WIDTH)
 							{
@@ -1164,7 +1165,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 								int nCharacters = (nTextWidth - 2*MICROPROFILE_TEXT_WIDTH) / MICROPROFILE_TEXT_WIDTH;
 								if(nCharacters>0)
 								{
-									MicroProfileDrawText(fXStartText+1, fYStart+1, -1, S.TimerInfo[nTimerIndex].pName, MicroProfileMin<uint32_t>(S.TimerInfo[nTimerIndex].nNameLen, nCharacters));
+									MicroProfileDrawText((int)(fXStartText+1), (int)(fYStart+1), -1, S.TimerInfo[nTimerIndex].pName, MicroProfileMin<uint32_t>(S.TimerInfo[nTimerIndex].nNameLen, nCharacters));
 								}
 							}
 #endif
@@ -1176,14 +1177,14 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 							int nLineX = (int)floor(fXAvg+0.5f);
 							if(nLineX != (int)nLinesDrawn[nStackPos])
 							{
-								if(bHover && UI.nActiveMenu == -1)
+								if(bHover && UI.nActiveMenu == (uint32_t)-1)
 								{
 									nHoverToken = (uint32_t)MicroProfileLogTimerIndex(*pEntry);
 									nHoverTime = MicroProfileLogTickDifference(nTickStart, nTickEnd);
 									pMouseOverNext = pEntry;
 								}
 								nLinesDrawn[nStackPos] = nLineX;
-								MicroProfileDrawLineVertical(nLineX, fYStart + 0.5f, fYEnd + 0.5f, nColor|UI.nOpacityForeground);
+								MicroProfileDrawLineVertical(nLineX, (int)(fYStart + 0.5f), (int)(fYEnd + 0.5f), nColor|UI.nOpacityForeground);
 								++nNumLines;
 							}
 						}
@@ -1288,9 +1289,9 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			float fMsEnd = fToMsCpu * MicroProfileLogTickDifference(nBaseTicksCpu, UI.nRangeEnd);
 			float fXStart = fMsStart * fMsToScreen;
 			float fXEnd = fMsEnd * fMsToScreen;	
-			MicroProfileDrawBox(fXStart, nBaseY, fXEnd, nHeight, MICROPROFILE_FRAME_COLOR_HIGHTLIGHT, MicroProfileBoxTypeFlat);
-			MicroProfileDrawLineVertical(fXStart, nBaseY, nHeight, MICROPROFILE_FRAME_COLOR_HIGHTLIGHT | 0x44000000);
-			MicroProfileDrawLineVertical(fXEnd, nBaseY, nHeight, MICROPROFILE_FRAME_COLOR_HIGHTLIGHT | 0x44000000);
+			MicroProfileDrawBox((int)fXStart, nBaseY, (int)fXEnd, nHeight, MICROPROFILE_FRAME_COLOR_HIGHTLIGHT, MicroProfileBoxTypeFlat);
+			MicroProfileDrawLineVertical((int)fXStart, nBaseY, nHeight, MICROPROFILE_FRAME_COLOR_HIGHTLIGHT | 0x44000000);
+			MicroProfileDrawLineVertical((int)fXEnd, nBaseY, nHeight, MICROPROFILE_FRAME_COLOR_HIGHTLIGHT | 0x44000000);
 
 			fMsStart += fDetailedOffset;
 			fMsEnd += fDetailedOffset;
@@ -1298,11 +1299,11 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			uint32_t nLenStart = snprintf(sBuffer, sizeof(sBuffer)-1, "%.2fms", fMsStart);
 			float fStartTextWidth = (float)((1+MICROPROFILE_TEXT_WIDTH) * nLenStart);
 			float fStartTextX = fXStart - fStartTextWidth - 2;
-			MicroProfileDrawBox(fStartTextX, nBaseY, fStartTextX + fStartTextWidth + 2, MICROPROFILE_TEXT_HEIGHT + 2 + nBaseY, 0x33000000, MicroProfileBoxTypeFlat);
-			MicroProfileDrawText(fStartTextX+1, nBaseY, (uint32_t)-1, sBuffer, nLenStart);
+			MicroProfileDrawBox((int)fStartTextX, nBaseY, (int)(fStartTextX + fStartTextWidth + 2), MICROPROFILE_TEXT_HEIGHT + 2 + nBaseY, 0x33000000, MicroProfileBoxTypeFlat);
+			MicroProfileDrawText((int)fStartTextX+1, nBaseY, (uint32_t)-1, sBuffer, nLenStart);
 			uint32_t nLenEnd = snprintf(sBuffer, sizeof(sBuffer)-1, "%.2fms", fMsEnd);
-			MicroProfileDrawBox(fXEnd+1, nBaseY, fXEnd+1+(1+MICROPROFILE_TEXT_WIDTH) * nLenEnd + 3, MICROPROFILE_TEXT_HEIGHT + 2 + nBaseY, 0x33000000, MicroProfileBoxTypeFlat);
-			MicroProfileDrawText(fXEnd+2, nBaseY+1, (uint32_t)-1, sBuffer, nLenEnd);		
+			MicroProfileDrawBox((int)(fXEnd+1), nBaseY, (int)(fXEnd+1+(1+MICROPROFILE_TEXT_WIDTH) * nLenEnd + 3), MICROPROFILE_TEXT_HEIGHT + 2 + nBaseY, 0x33000000, MicroProfileBoxTypeFlat);
+			MicroProfileDrawText((int)(fXEnd+2), nBaseY+1, (uint32_t)-1, sBuffer, nLenEnd);
 
 			if(UI.nMouseRight)
 			{
@@ -1316,9 +1317,9 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			float fMsEnd = fToMsGpu * MicroProfileLogTickDifference(nBaseTicksGpu, UI.nRangeEndGpu);
 			float fXStart = fMsStart * fMsToScreen;
 			float fXEnd = fMsEnd * fMsToScreen;	
-			MicroProfileDrawBox(fXStart, nBaseY, fXEnd, nHeight, MICROPROFILE_FRAME_COLOR_HIGHTLIGHT_GPU, MicroProfileBoxTypeFlat);
-			MicroProfileDrawLineVertical(fXStart, nBaseY, nHeight, MICROPROFILE_FRAME_COLOR_HIGHTLIGHT_GPU | 0x44000000);
-			MicroProfileDrawLineVertical(fXEnd, nBaseY, nHeight, MICROPROFILE_FRAME_COLOR_HIGHTLIGHT_GPU | 0x44000000);
+			MicroProfileDrawBox((int)fXStart, nBaseY, (int)fXEnd, nHeight, MICROPROFILE_FRAME_COLOR_HIGHTLIGHT_GPU, MicroProfileBoxTypeFlat);
+			MicroProfileDrawLineVertical((int)fXStart, nBaseY, nHeight, MICROPROFILE_FRAME_COLOR_HIGHTLIGHT_GPU | 0x44000000);
+			MicroProfileDrawLineVertical((int)fXEnd, nBaseY, nHeight, MICROPROFILE_FRAME_COLOR_HIGHTLIGHT_GPU | 0x44000000);
 
 			nBaseY += MICROPROFILE_TEXT_HEIGHT+1;
 
@@ -1328,11 +1329,11 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			uint32_t nLenStart = snprintf(sBuffer, sizeof(sBuffer)-1, "%.2fms", fMsStart);
 			float fStartTextWidth = (float)((1+MICROPROFILE_TEXT_WIDTH) * nLenStart);
 			float fStartTextX = fXStart - fStartTextWidth - 2;
-			MicroProfileDrawBox(fStartTextX, nBaseY, fStartTextX + fStartTextWidth + 2, MICROPROFILE_TEXT_HEIGHT + 2 + nBaseY, 0x33000000, MicroProfileBoxTypeFlat);
-			MicroProfileDrawText(fStartTextX+1, nBaseY, (uint32_t)-1, sBuffer, nLenStart);
+			MicroProfileDrawBox((int)fStartTextX, nBaseY, (int)(fStartTextX + fStartTextWidth + 2), MICROPROFILE_TEXT_HEIGHT + 2 + nBaseY, 0x33000000, MicroProfileBoxTypeFlat);
+			MicroProfileDrawText((int)(fStartTextX+1), nBaseY, (uint32_t)-1, sBuffer, nLenStart);
 			uint32_t nLenEnd = snprintf(sBuffer, sizeof(sBuffer)-1, "%.2fms", fMsEnd);
-			MicroProfileDrawBox(fXEnd+1, nBaseY, fXEnd+1+(1+MICROPROFILE_TEXT_WIDTH) * nLenEnd + 3, MICROPROFILE_TEXT_HEIGHT + 2 + nBaseY, 0x33000000, MicroProfileBoxTypeFlat);
-			MicroProfileDrawText(fXEnd+2, nBaseY+1, (uint32_t)-1, sBuffer, nLenEnd);
+			MicroProfileDrawBox((int)(fXEnd+1), nBaseY, (int)(fXEnd+1+(1+MICROPROFILE_TEXT_WIDTH) * nLenEnd + 3), MICROPROFILE_TEXT_HEIGHT + 2 + nBaseY, 0x33000000, MicroProfileBoxTypeFlat);
+			MicroProfileDrawText((int)(fXEnd+2), nBaseY+1, (uint32_t)-1, sBuffer, nLenEnd);
 		}
 	}
 }
@@ -1379,7 +1380,7 @@ void MicroProfileDrawDetailedFrameHistory(uint32_t nWidth, uint32_t nHeight, uin
 		uint32_t nColor = MICROPROFILE_FRAME_HISTORY_COLOR_CPU;
 		if(nIndex == nSelectedFrame)
 			nColor = (uint32_t)-1;
-		MicroProfileDrawBox(fXStart, nBaseY + fScale * nBarHeight, fXEnd, nBaseY+MICROPROFILE_FRAME_HISTORY_HEIGHT, nColor, MicroProfileBoxTypeBar);
+		MicroProfileDrawBox((int)fXStart, (int)(nBaseY + fScale * nBarHeight), (int)fXEnd, nBaseY+MICROPROFILE_FRAME_HISTORY_HEIGHT, nColor, MicroProfileBoxTypeBar);
 		if(pNext->nFrameStartCpu > nCpuStart)
 		{
 			fSelectionStart = fXStart;
@@ -1390,7 +1391,7 @@ void MicroProfileDrawDetailedFrameHistory(uint32_t nWidth, uint32_t nHeight, uin
 		}
 		nLastIndex = nIndex;
 	}
-	MicroProfileDrawBox(fSelectionStart, nBaseY, fSelectionEnd, nBaseY+MICROPROFILE_FRAME_HISTORY_HEIGHT, MICROPROFILE_FRAME_HISTORY_COLOR_HIGHTLIGHT, MicroProfileBoxTypeFlat);
+	MicroProfileDrawBox((int)fSelectionStart, nBaseY, (int)fSelectionEnd, nBaseY+MICROPROFILE_FRAME_HISTORY_HEIGHT, MICROPROFILE_FRAME_HISTORY_COLOR_HIGHTLIGHT, MicroProfileBoxTypeFlat);
 }
 void MicroProfileDrawDetailedView(uint32_t nWidth, uint32_t nHeight)
 {
@@ -1400,7 +1401,7 @@ void MicroProfileDrawDetailedView(uint32_t nWidth, uint32_t nHeight)
 	uint32_t nBaseY = MICROPROFILE_TEXT_HEIGHT + 1;
 
 	int nSelectedFrame = -1;
-	if(UI.nMouseY > nBaseY && UI.nMouseY <= nBaseY + MICROPROFILE_FRAME_HISTORY_HEIGHT && UI.nActiveMenu == -1)
+	if(UI.nMouseY > nBaseY && UI.nMouseY <= nBaseY + MICROPROFILE_FRAME_HISTORY_HEIGHT && UI.nActiveMenu == (uint32_t)-1)
 	{
 
 		nSelectedFrame = ((MICROPROFILE_NUM_FRAMES) * (UI.nWidth-UI.nMouseX) / UI.nWidth);
@@ -1559,7 +1560,7 @@ void MicroProfileDrawBarArrayCallback(uint32_t nTimer, uint32_t nIdx, uint64_t n
 	else
 		snprintf(sBuffer, SBUF_MAX-1, "%5.2f", pTimers[nIdx]);
 	if (!pTimers2)
-		MicroProfileDrawBox(nX + nTextWidth, nY, nX + nTextWidth + fWidth * pTimers[nIdx+1], nY + nHeight, UI.nOpacityForeground|S.TimerInfo[nTimer].nColor, MicroProfileBoxTypeBar);
+		MicroProfileDrawBox(nX + nTextWidth, nY, (int)(nX + nTextWidth + fWidth * pTimers[nIdx+1]), nY + nHeight, UI.nOpacityForeground|S.TimerInfo[nTimer].nColor, MicroProfileBoxTypeBar);
 	MicroProfileDrawText(nX, nY, (uint32_t)-1, sBuffer, (uint32_t)strlen(sBuffer));		
 }
 
@@ -1626,7 +1627,7 @@ void MicroProfileDrawBarMetaCountCallback(uint32_t nTimer, uint32_t nIdx, uint64
 {
 	uint64_t* pCounters = (uint64_t*)pExtra;
 	char sBuffer[SBUF_MAX];
-	int nLen = snprintf(sBuffer, SBUF_MAX-1, "%5llu", pCounters[nTimer]);
+	int nLen = snprintf(sBuffer, SBUF_MAX-1, "%5" PRIu64, pCounters[nTimer]);
 	MicroProfileDrawText(nX - nLen * (MICROPROFILE_TEXT_WIDTH+1), nY, (uint32_t)-1, sBuffer, nLen);	
 }
 
@@ -1684,7 +1685,7 @@ bool MicroProfileDrawGraph(uint32_t nScreenWidth, uint32_t nScreenHeight)
 	if(bMouseOver)
 	{
 		float fXAvg = fMouseXPrc * MICROPROFILE_GRAPH_WIDTH + nX;
-		MicroProfileDrawLineVertical(fXAvg, nY, nY + MICROPROFILE_GRAPH_HEIGHT, (uint32_t)-1);
+		MicroProfileDrawLineVertical((int)fXAvg, nY, nY + MICROPROFILE_GRAPH_HEIGHT, (uint32_t)-1);
 	}
 
 	
@@ -1717,13 +1718,13 @@ bool MicroProfileDrawGraph(uint32_t nScreenWidth, uint32_t nScreenHeight)
 		float fY1 = 0.25f * MICROPROFILE_GRAPH_HEIGHT + nY;
 		float fY2 = 0.50f * MICROPROFILE_GRAPH_HEIGHT + nY;
 		float fY3 = 0.75f * MICROPROFILE_GRAPH_HEIGHT + nY;
-		MicroProfileDrawLineHorizontal(nX, nX + MICROPROFILE_GRAPH_WIDTH, fY1, 0xffdd4444);
-		MicroProfileDrawLineHorizontal(nX, nX + MICROPROFILE_GRAPH_WIDTH, fY2, 0xff000000| g_nMicroProfileBackColors[0]);
-		MicroProfileDrawLineHorizontal(nX, nX + MICROPROFILE_GRAPH_WIDTH, fY3, 0xff000000|g_nMicroProfileBackColors[0]);
+		MicroProfileDrawLineHorizontal(nX, nX + MICROPROFILE_GRAPH_WIDTH, (int)fY1, 0xffdd4444);
+		MicroProfileDrawLineHorizontal(nX, nX + MICROPROFILE_GRAPH_WIDTH, (int)fY2, 0xff000000| g_nMicroProfileBackColors[0]);
+		MicroProfileDrawLineHorizontal(nX, nX + MICROPROFILE_GRAPH_WIDTH, (int)fY3, 0xff000000|g_nMicroProfileBackColors[0]);
 
 		char buf[32];
 		int nLen = snprintf(buf, sizeof(buf)-1, "%5.2fms", S.fReferenceTime);
-		MicroProfileDrawText(nX+1, fY1 - (2+MICROPROFILE_TEXT_HEIGHT), (uint32_t)-1, buf, nLen);
+		MicroProfileDrawText(nX+1, (int)(fY1 - (2+MICROPROFILE_TEXT_HEIGHT)), (uint32_t)-1, buf, nLen);
 	}
 
 
@@ -1838,7 +1839,7 @@ uint32_t MicroProfileDrawCounterRecursive(uint32_t nIndex, uint32_t nY, uint32_t
 
 	uint32_t nY0 = nY + nOffset * (nHeight+1);
 	MicroProfileCounterInfo& CI = S.CounterInfo[nIndex];
-	bool bInside = (UI.nActiveMenu == -1) && ((UI.nMouseY >= nY0) && (UI.nMouseY < (nY0 + nHeight + 1)));
+	bool bInside = (UI.nActiveMenu == (uint32_t)-1) && ((UI.nMouseY >= nY0) && (UI.nMouseY < (nY0 + nHeight + 1)));
 	if(bInside && (UI.nMouseLeft || UI.nMouseRight))
 	{
 		CI.nClosed = !CI.nClosed;
@@ -1879,9 +1880,9 @@ uint32_t MicroProfileDrawCounterRecursive(uint32_t nIndex, uint32_t nY, uint32_t
 			fCounterPrc = 1.f;
 		}
 
-		MicroProfileDrawBox(nX, nY0, nX + fBoxPrc * MICROPROFILE_COUNTER_WIDTH, nY0 + nHeight, 0xffffffff, MicroProfileBoxTypeFlat);
+		MicroProfileDrawBox(nX, nY0, nX + (int)(fBoxPrc * MICROPROFILE_COUNTER_WIDTH), nY0 + nHeight, 0xffffffff, MicroProfileBoxTypeFlat);
 		MicroProfileDrawBox(nX+1, nY0+1, nX + MICROPROFILE_COUNTER_WIDTH - 1, nY0 + nHeight - 1, nBackColor, MicroProfileBoxTypeFlat);
-		MicroProfileDrawBox(nX+1, nY0+1, nX + (fCounterPrc *(MICROPROFILE_COUNTER_WIDTH - 1)), nY0 + nHeight - 1, 0xff0088ff, MicroProfileBoxTypeFlat);
+		MicroProfileDrawBox(nX+1, nY0+1, nX + (int)(fCounterPrc * (MICROPROFILE_COUNTER_WIDTH - 1)), nY0 + nHeight - 1, 0xff0088ff, MicroProfileBoxTypeFlat);
 	}
 
 	nOffset++;
@@ -1993,7 +1994,7 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 				{
 					if(nMetaIndex < MICROPROFILE_META_MAX && S.MetaCounters[nMetaIndex].pName)
 					{
-						uint32_t nStrWidth = strlen(S.MetaCounters[nMetaIndex].pName);
+						uint32_t nStrWidth = (uint32_t)strlen(S.MetaCounters[nMetaIndex].pName);
 						if(S.nBars & MP_DRAW_TIMERS)
 							nWidth += 6 + (1+MICROPROFILE_TEXT_WIDTH) * (nStrWidth);
 						if(S.nBars & MP_DRAW_AVERAGE)
@@ -2020,7 +2021,7 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 		for(uint32_t i = 0; i < nNumTimers+nNumGroups+1; ++i)
 		{
 			uint32_t nY0 = nY + i * (nHeight + 1);
-			bool bInside = (UI.nActiveMenu == -1) && ((UI.nMouseY >= nY0) && (UI.nMouseY < (nY0 + nHeight + 1)));
+			bool bInside = (UI.nActiveMenu == (uint32_t)-1) && ((UI.nMouseY >= nY0) && (UI.nMouseY < (nY0 + nHeight + 1)));
 			MicroProfileDrawBox(nX, nY0, nWidth+nX, nY0 + (nHeight+1)+1, UI.nOpacityBackground | (g_nMicroProfileBackColors[nColorIndex++ & 1] + ((bInside) ? 0x002c2c2c : 0)));
 		}
 		nX += 10;
@@ -2051,7 +2052,7 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 	{
 		if(0 != (S.nBars & (MP_DRAW_META_FIRST<<i)) && S.MetaCounters[i].pName)
 		{
-			uint32_t nBufferSize = strlen(S.MetaCounters[i].pName) + 32;
+			uint32_t nBufferSize = (uint32_t)strlen(S.MetaCounters[i].pName) + 32;
 			char* buffer = (char*)alloca(nBufferSize);
 			if(S.nBars & MP_DRAW_TIMERS)
 				nX += MicroProfileDrawBarMetaCount(nX, nY, &S.MetaCounters[i].nCounters[0], S.MetaCounters[i].pName, nTotalHeight) + 1; 
@@ -2072,8 +2073,8 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 	for(uint32_t i = 0; i < nNumTimers+nNumGroups+1; ++i)
 	{
 		uint32_t nY0 = nY + i * (nHeight + 1);
-		bool bInside = (UI.nActiveMenu == -1) && ((UI.nMouseY >= nY0) && (UI.nMouseY < (nY0 + nHeight + 1)));
-		MicroProfileDrawBox(nX, nY0, nTimerWidth, nY0 + (nHeight+1)+1, 0xff0000000 | (g_nMicroProfileBackColors[nColorIndex++ & 1] + ((bInside) ? 0x002c2c2c : 0)));
+		bool bInside = (UI.nActiveMenu == (uint32_t)-1) && ((UI.nMouseY >= nY0) && (UI.nMouseY < (nY0 + nHeight + 1)));
+		MicroProfileDrawBox(nX, nY0, nTimerWidth, nY0 + (nHeight+1)+1, 0xff000000 | (g_nMicroProfileBackColors[nColorIndex++ & 1] + ((bInside) ? 0x002c2c2c : 0)));
 	}
 	nX += MicroProfileDrawBarLegend(nX, nY, nTotalHeight, nTimerWidth-5) + 1;
 
@@ -2138,7 +2139,7 @@ const char* MicroProfileUIMenuGroups(int nIndex, bool* bSelected)
 	else
 	{
 		nIndex = nIndex-1;
-		if(nIndex < UI.GroupMenuCount)
+		if(nIndex < (int)UI.GroupMenuCount)
 		{
 			MicroProfileGroupMenuItem& Item = UI.GroupMenu[nIndex];
 			static char buffer[MICROPROFILE_NAME_MAX_LEN+32];
@@ -2161,8 +2162,9 @@ const char* MicroProfileUIMenuGroups(int nIndex, bool* bSelected)
 
 const char* MicroProfileUIMenuAggregate(int nIndex, bool* bSelected)
 {
-	MicroProfile& S = *MicroProfileGet();			
-	if(nIndex < sizeof(g_MicroProfileAggregatePresets)/sizeof(g_MicroProfileAggregatePresets[0]))
+	MicroProfile& S = *MicroProfileGet();
+	int nNumPresets = (int)sizeof(g_MicroProfileAggregatePresets) / (int)sizeof(g_MicroProfileAggregatePresets[0]);
+	if(nIndex < nNumPresets)
 	{
 		int val = g_MicroProfileAggregatePresets[nIndex];
 		*bSelected = (int)S.nAggregateFlip == val;
@@ -2274,7 +2276,7 @@ const char* MicroProfileUIMenuCustom(int nIndex, bool* bSelected)
 	}
 	else
 	{
-		*bSelected = nIndex-2 == UI.nCustomActive;
+		*bSelected = nIndex-2 == (int)UI.nCustomActive;
 	}
 	switch(nIndex)
 	{
@@ -2282,7 +2284,7 @@ const char* MicroProfileUIMenuCustom(int nIndex, bool* bSelected)
 	case 1: return "--";
 	default:
 		nIndex -= 2;
-		if(nIndex < UI.nCustomCount)
+		if(nIndex < (int)UI.nCustomCount)
 		{
 			return UI.Custom[nIndex].pName;
 		}
@@ -2335,7 +2337,7 @@ void MicroProfileUIClickGroups(int nIndex)
 	else
 	{
 		nIndex -= 1;
-		if(nIndex < UI.GroupMenuCount)
+		if(nIndex < (int)UI.GroupMenuCount)
 		{
 			MicroProfileGroupMenuItem& Item = UI.GroupMenu[nIndex];
 			if(Item.nIsCategory)
@@ -2461,7 +2463,6 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 
 	uint32_t nX = 0;
 	uint32_t nY = 0;
-	bool bMouseOver = UI.nMouseY < MICROPROFILE_TEXT_HEIGHT + 1;
 #define SBUF_SIZE 256
 	char buffer[256];
 	MicroProfileDrawBox(nX, nY, nX + nWidth, nY + (MICROPROFILE_TEXT_HEIGHT+1)+1, 0xff000000|g_nMicroProfileBackColors[1]);
@@ -2570,7 +2571,7 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 		{
 			MicroProfileDrawBox(nX-1, nY, nX + nLen * (MICROPROFILE_TEXT_WIDTH+1), nY +(MICROPROFILE_TEXT_HEIGHT+1)+1, 0xff888888);
 			nSelectMenu = i;
-			if((UI.nMouseLeft || UI.nMouseRight) && i == (int)nPauseIndex)
+			if((UI.nMouseLeft || UI.nMouseRight) && (int)i == nPauseIndex)
 			{
 				S.nToggleRunning = 1;
 			}
@@ -2612,7 +2613,6 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 			const char* pString = CB(i, &bSelected);
 			if(UI.nMouseY >= nY && UI.nMouseY < nY + MICROPROFILE_TEXT_HEIGHT + 1)
 			{
-				bMouseOver = true;
 				if(UI.nMouseLeft || UI.nMouseRight)
 				{
 					CBClick[nMenu](i);
@@ -2754,7 +2754,7 @@ void MicroProfileDrawCustom(uint32_t nWidth, uint32_t nHeight)
 			nOffsetY = nOffsetYBase;
 			float* pMs = pCustom->nFlags & MICROPROFILE_CUSTOM_BAR_SOURCE_MAX ? pTimeMax : pTimeAvg;
 			const char* pString = pCustom->nFlags & MICROPROFILE_CUSTOM_BAR_SOURCE_MAX ? "Max" : "Avg";
-			MicroProfileDrawText(nMaxOffsetX, nOffsetY, (uint32_t)-1, pString, strlen(pString));
+			MicroProfileDrawText(nMaxOffsetX, nOffsetY, (uint32_t)-1, pString, (uint32_t)strlen(pString));
 			int nSize = snprintf(Buffer, sizeof(Buffer)-1, "%6.2fms", fReference);
 			MicroProfileDrawText(nReducedWidth - (1+nSize) * (MICROPROFILE_TEXT_WIDTH+1), nOffsetY, (uint32_t)-1, Buffer, nSize);
 			for(uint32_t i = 0; i < nCount; ++i)
@@ -2768,7 +2768,7 @@ void MicroProfileDrawCustom(uint32_t nWidth, uint32_t nHeight)
 		{
 			nOffsetY += 2*(1+MICROPROFILE_TEXT_HEIGHT);
 			const char* pString = pCustom->nFlags & MICROPROFILE_CUSTOM_STACK_SOURCE_MAX ? "Max" : "Avg";
-			MicroProfileDrawText(MICROPROFILE_CUSTOM_PADDING, nOffsetY, (uint32_t)-1, pString, strlen(pString));
+			MicroProfileDrawText(MICROPROFILE_CUSTOM_PADDING, nOffsetY, (uint32_t)-1, pString, (uint32_t)strlen(pString));
 			int nSize = snprintf(Buffer, sizeof(Buffer)-1, "%6.2fms", fReference);
 			MicroProfileDrawText(nReducedWidth - (1+nSize) * (MICROPROFILE_TEXT_WIDTH+1), nOffsetY, (uint32_t)-1, Buffer, nSize);
 			nOffsetY += (1+MICROPROFILE_TEXT_HEIGHT);
@@ -2777,9 +2777,9 @@ void MicroProfileDrawCustom(uint32_t nWidth, uint32_t nHeight)
 			for(uint32_t i = 0; i < nCount; ++i)
 			{
 				float fWidth = pMs[i] * fRcpReference * nReducedWidth;
-				uint32_t nX = fPosX;
+				uint32_t nX = (uint32_t)fPosX;
 				fPosX += fWidth;
-				uint32_t nXEnd = fPosX;
+				uint32_t nXEnd = (uint32_t)fPosX;
 				if(nX < nXEnd)
 				{
 					MicroProfileDrawBox(nX, nOffsetY, nXEnd, nOffsetY+MICROPROFILE_TEXT_HEIGHT, pColors[i]|0xff000000);
@@ -2956,13 +2956,13 @@ void MicroProfileDraw(uint32_t nWidth, uint32_t nHeight)
 
 
 
-			if(UI.nActiveMenu == -1 && !bMouseOverGraph)
+			if(UI.nActiveMenu == (uint32_t)-1 && !bMouseOverGraph)
 			{
 				if(UI.nHoverToken != MICROPROFILE_INVALID_TOKEN)
 				{
-					MicroProfileDrawFloatTooltip(UI.nMouseX, UI.nMouseY, UI.nHoverToken, UI.nHoverTime);
+					MicroProfileDrawFloatTooltip(UI.nMouseX, UI.nMouseY, (uint32_t)UI.nHoverToken, UI.nHoverTime);
 				}
-				else if(S.nContextSwitchHoverThreadAfter != -1 && S.nContextSwitchHoverThreadBefore != -1)
+				else if(S.nContextSwitchHoverThreadAfter != (uint32_t)-1 && S.nContextSwitchHoverThreadBefore != (uint32_t)-1)
 				{
 					float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
 					MicroProfileStringArray ToolTip;
@@ -3136,7 +3136,7 @@ void MicroProfileClearGraph()
 
 void MicroProfileMouseButton(uint32_t nLeft, uint32_t nRight)
 {
-	bool bCanRelease = abs((int)(UI.nMouseDownX - UI.nMouseX)) + abs((int)(UI.nMouseDownY - UI.nMouseY)) < 3;
+	bool bCanRelease = std::abs((int)(UI.nMouseDownX - UI.nMouseX)) + std::abs((int)(UI.nMouseDownY - UI.nMouseY)) < 3;
 
 	if(0 == nLeft && UI.nMouseDownLeft && bCanRelease)
 	{
