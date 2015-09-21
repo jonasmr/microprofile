@@ -180,8 +180,7 @@ MICROPROFILEUI_API void MicroProfileCustomGroupAddTimer(const char* pCustomName,
 #include <stdarg.h>
 #include <math.h>
 #include <algorithm>
-#include <complex>
-
+#include <cstdlib>
 MICROPROFILE_DEFINE(g_MicroProfileDetailed, "MicroProfile", "Detailed View", 0x8888000);
 MICROPROFILE_DEFINE(g_MicroProfileDrawGraph, "MicroProfile", "Draw Graph", 0xff44ee00);
 MICROPROFILE_DEFINE(g_MicroProfileDrawBarView, "MicroProfile", "DrawBarView", 0x00dd77);

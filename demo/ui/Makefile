@@ -6,7 +6,7 @@ ifeq ($(UNAME_S),Darwin)
 	LDFLAGS=-framework OpenGL `sdl2-config --static-libs` -lpthread
 endif
 
-CFLAGS=`sdl2-config --cflags` -I../.. -I../glew -DGLEW_STATIC -Wno-c++11-extensions
+CFLAGS=`sdl2-config --cflags` -I../.. -I../glew -DGLEW_STATIC -Wno-c++11-extensions -Wall -Werror
 #CFLAGS+=-fsanitize=undefined-trap -fsanitize-undefined-trap-on-error
 CFLAGS+=-Wall -DMICROPROFILE_UI=1 
 CFLAGS+=-DMICROPROFILE_WEBSERVER=1

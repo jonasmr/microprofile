@@ -41,7 +41,7 @@ void uprintf(const char* fmt, ...)
 #endif
 
 #include "microprofile.h"
-#define MICROPROFILE_WEBSERVER 0
+//#define MICROPROFILE_WEBSERVER 0
 #define MICROPROFILEUI_IMPL
 #include "microprofileui.h"
 #include "microprofile.h"
