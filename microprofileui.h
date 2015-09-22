@@ -1872,6 +1872,7 @@ uint32_t MicroProfileDrawCounterRecursive(uint32_t nIndex, uint32_t nY, uint32_t
 		nY0 += 1;
 
 		float fCounterPrc = (float)nCounterValue / nLimit;
+		fCounterPrc = MicroProfileMax(fCounterPrc, 0.f);
 		float fBoxPrc = 1.f;
 		if(fCounterPrc>1.f)
 		{

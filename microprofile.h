@@ -2317,6 +2317,12 @@ int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_
 	{
 	case MICROPROFILE_COUNTER_FORMAT_DEFAULT:
 	{
+		int nNegative = 0;
+		if(nCounter < 0)
+		{
+			nCounter = -nCounter;
+			nNegative = 1;
+		}
 		int nSeperate = 0;
 		while (nCounter)
 		{
@@ -2331,6 +2337,10 @@ int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_
 				nCounter /= 10;
 				*pTmp++ = '0' + nDigit;
 			}
+		}
+		if(nNegative)
+		{
+			*pTmp++ = '-';
 		}
 		nLen = pTmp - pOut;
 		--pTmp;

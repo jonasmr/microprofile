@@ -277,11 +277,11 @@ int main(int argc, char* argv[])
 	MICROPROFILE_COUNTER_ADD("memory//main", (32ll<<30ll) + (1ll <<29ll));
 	MICROPROFILE_COUNTER_ADD("//memory//mainx/\\//", 1000);
 	MICROPROFILE_COUNTER_ADD("//memoryx//mainx/", 1000);
-	MICROPROFILE_COUNTER_ADD("//memoryy//main/", 1000);
+	MICROPROFILE_COUNTER_ADD("//memoryy//main/", -1000000);
 	MICROPROFILE_COUNTER_ADD("//\\\\///lala////lelel", 1000);
 	MICROPROFILE_COUNTER_CONFIG("engine/frames", MICROPROFILE_COUNTER_FORMAT_DEFAULT, 1000);
 	MICROPROFILE_COUNTER_SET("fisk/geder/", 42);
-	MICROPROFILE_COUNTER_SET("fisk/aborre/", 112);
+	MICROPROFILE_COUNTER_SET("fisk/aborre/", -2002);
 	MICROPROFILE_COUNTER_SET_LIMIT("fisk/aborre/", 120);
 	//MICROPROFILE_COUNTER_ADD("//\\\\///", 1000); // this should assert as theres only delimiters
 	StartFakeWork();
