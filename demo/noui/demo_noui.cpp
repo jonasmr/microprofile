@@ -93,7 +93,7 @@ int main(int argc, char* argv[])
 		{
 			usleep(16000);
 		}
-		MicroProfileFlip();
+		MicroProfileFlip(0);
 		static bool once = false;
 		if(!once)
 		{

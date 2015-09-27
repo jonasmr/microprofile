@@ -77,7 +77,7 @@
 // 		void MicroProfileDrawBox(int nX, int nY, int nX1, int nY1, uint32_t nColor, MicroProfileBoxType = MicroProfileBoxTypeFlat);
 // 		void MicroProfileDrawLine2D(uint32_t nVertices, float* pVertices, uint32_t nColor);
 //  Gpu time stamps: (See below for d3d/opengl helper)
-// 		uint32_t MicroProfileGpuInsertTimeStamp();
+// 		uint32_t MicroProfileGpuInsertTimeStamp(void*);
 // 		uint64_t MicroProfileGpuGetTimeStamp(uint32_t nKey);
 // 		uint64_t MicroProfileTicksPerSecondGpu();
 //  threading:
@@ -134,7 +134,7 @@ typedef uint16_t MicroProfileGroupId;
 
 #define MicroProfileGetTime(group, name) 0.f
 #define MicroProfileOnThreadCreate(foo) do{}while(0)
-#define MicroProfileFlip() do{}while(0)
+#define MicroProfileFlip(pContext) do{}while(0)
 #define MicroProfileSetAggregateFrames(a) do{}while(0)
 #define MicroProfileGetAggregateFrames() 0
 #define MicroProfileGetCurrentAggregateFrames() 0
@@ -254,6 +254,10 @@ typedef uint32_t ThreadIdType;
 #define MICROPROFILE_SCOPE_TOKEN(token) MicroProfileScopeHandler MICROPROFILE_TOKEN_PASTE(foo, __LINE__)(token)
 #define MICROPROFILE_SCOPEI(group, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MicroProfileGetToken(group, name, color, MicroProfileTokenTypeCpu); MicroProfileScopeHandler MICROPROFILE_TOKEN_PASTE(foo,__LINE__)( MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__))
 #define MICROPROFILE_SCOPEGPU(var) MicroProfileScopeGpuHandler MICROPROFILE_TOKEN_PASTE(foo, __LINE__)(g_mp_##var)
+#define MICROPROFILE_GPU_INIT_QUEUE(QueueName) MicroProfileInitGpuQueue(QueueName)
+#define MICROPROFILE_GPU_BEGIN(pContext) MicroProfileGpuBegin(pContext)
+#define MICROPROFILE_GPU_END() MicroProfileGpuEnd()
+#define MICROPROFILE_GPU_SUBMIT(pQueue, Work) MicroProfileGpuSubmit(pQueue, Work)
 #define MICROPROFILE_SCOPEGPUI(name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MicroProfileGetToken("GPU", name, color,  MicroProfileTokenTypeGpu); MicroProfileScopeGpuHandler MICROPROFILE_TOKEN_PASTE(foo,__LINE__)( MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__))
 #define MICROPROFILE_META_CPU(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__) = MicroProfileGetMetaToken(name); MicroProfileMetaUpdate(MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__), count, MicroProfileTokenTypeCpu)
 #define MICROPROFILE_META_GPU(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__) = MicroProfileGetMetaToken(name); MicroProfileMetaUpdate(MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__), count, MicroProfileTokenTypeGpu)
@@ -269,6 +273,10 @@ typedef uint32_t ThreadIdType;
 
 #ifndef MICROPROFILE_PER_THREAD_BUFFER_SIZE
 #define MICROPROFILE_PER_THREAD_BUFFER_SIZE (2048<<10)
+#endif
+
+#ifndef MICROPROFILE_PER_THREAD_GPU_BUFFER_SIZE
+#define MICROPROFILE_PER_THREAD_GPU_BUFFER_SIZE (128<<10)
 #endif
 
 #ifndef MICROPROFILE_MAX_FRAME_HISTORY
@@ -354,11 +362,14 @@ MICROPROFILE_API uint64_t MicroProfileEnter(MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileLeave(MicroProfileToken nToken, uint64_t nTick);
 MICROPROFILE_API uint64_t MicroProfileGpuEnter(MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileGpuLeave(MicroProfileToken nToken, uint64_t nTick);
+MICROPROFILE_API void MicroProfileGpuBegin(void* pContext);
+MICROPROFILE_API uint64_t MicroProfileGpuEnd();
+MICROPROFILE_API void MicroProfileGpuSubmit(int nQueue, uint64_t nWork);
+MICROPROFILE_API int MicroProfileInitGpuQueue(const char* pQueueName);
 inline uint16_t MicroProfileGetTimerIndex(MicroProfileToken t){ return (t&0xffff); }
 inline uint64_t MicroProfileGetGroupMask(MicroProfileToken t){ return ((t>>16)&MICROPROFILE_GROUP_MASK_ALL);}
 inline MicroProfileToken MicroProfileMakeToken(uint64_t nGroupMask, uint16_t nTimer){ return (nGroupMask<<16) | nTimer;}
-
-MICROPROFILE_API void MicroProfileFlip(); //! call once per frame.
+MICROPROFILE_API void MicroProfileFlip(void* pGpuContext); //! call once per frame.
 MICROPROFILE_API void MicroProfileTogglePause();
 MICROPROFILE_API void MicroProfileForceEnableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Type);
@@ -400,12 +411,12 @@ MICROPROFILE_API uint32_t MicroProfileWebServerPort();
 
 
 #if MICROPROFILE_GPU_TIMERS
-MICROPROFILE_API uint32_t MicroProfileGpuInsertTimeStamp();
+MICROPROFILE_API uint32_t MicroProfileGpuInsertTimeStamp(void* pContext);
 MICROPROFILE_API uint64_t MicroProfileGpuGetTimeStamp(uint32_t nKey);
 MICROPROFILE_API uint64_t MicroProfileTicksPerSecondGpu();
 MICROPROFILE_API int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu);
 #else
-#define MicroProfileGpuInsertTimeStamp() 1
+#define MicroProfileGpuInsertTimeStamp(a) 1
 #define MicroProfileGpuGetTimeStamp(a) 0
 #define MicroProfileTicksPerSecondGpu() 1
 #define MicroProfileGetGpuTickReference(a,b) 0
@@ -471,6 +482,7 @@ struct MicroProfileScopeGpuHandler
 #define MICROPROFILE_MAX_GRAPHS 5
 #define MICROPROFILE_GRAPH_HISTORY 128
 #define MICROPROFILE_BUFFER_SIZE ((MICROPROFILE_PER_THREAD_BUFFER_SIZE)/sizeof(MicroProfileLogEntry))
+#define MICROPROFILE_GPU_BUFFER_SIZE ((MICROPROFILE_PER_THREAD_GPU_BUFFER_SIZE)/sizeof(MicroProfileLogEntry))
 #define MICROPROFILE_MAX_CONTEXT_SWITCH_THREADS 256
 #define MICROPROFILE_STACK_MAX 32
 //#define MICROPROFILE_MAX_PRESETS 5
@@ -680,6 +692,18 @@ struct MicroProfileThreadLog
 	int 					nFreeListNext;
 };
 
+
+
+//linear, per-frame per-thread gpu log
+struct MicroProfileThreadLogGpu
+{
+	MicroProfileLogEntry Log[MICROPROFILE_GPU_BUFFER_SIZE];
+	uint32_t nPut;
+	uint32_t nStart;
+	uint32_t nId;
+	void* pContext;
+};
+
 #if MICROPROFILE_GPU_TIMERS_D3D11
 struct MicroProfileD3D11Frame
 {
@@ -806,8 +830,10 @@ struct MicroProfile
 	uint32_t				nGraphPut;
 
 	uint32_t				nThreadActive[MICROPROFILE_MAX_THREADS];
-	MicroProfileThreadLog* 	Pool[MICROPROFILE_MAX_THREADS];
+	MicroProfileThreadLog* 		Pool[MICROPROFILE_MAX_THREADS];
+	MicroProfileThreadLogGpu* 	PoolGpu[MICROPROFILE_MAX_THREADS];
 	uint32_t				nNumLogs;
+	uint32_t 				nNumLogsGpu;
 	uint32_t 				nMemUsage;
 	int 					nFreeListHead;
 
@@ -1066,17 +1092,24 @@ void MicroProfileGpuShutdown();
 #define S g_MicroProfile
 
 MicroProfile g_MicroProfile;
-MicroProfileThreadLog*			g_MicroProfileGpuLog = 0;
 #ifdef MICROPROFILE_IOS
 // iOS doesn't support __thread
 static pthread_key_t g_MicroProfileThreadLogKey;
 static pthread_once_t g_MicroProfileThreadLogKeyOnce = PTHREAD_ONCE_INIT;
+static pthread_key_t g_MicroProfileThreadLogKeyGpu;
+static pthread_once_t g_MicroProfileThreadLogKeyGpuOnce = PTHREAD_ONCE_INIT;
+
 static void MicroProfileCreateThreadLogKey()
 {
 	pthread_key_create(&g_MicroProfileThreadLogKey, NULL);
 }
+static void MicroProfileCreateThreadLogKeyGpu()
+{
+	pthread_key_create(&g_MicroProfileThreadLogKeyGpu, NULL);
+}
 #else
-MP_THREAD_LOCAL MicroProfileThreadLog* g_MicroProfileThreadLog = 0;
+MP_THREAD_LOCAL MicroProfileThreadLog* g_MicroProfileThreadLog_xx = 0;
+MP_THREAD_LOCAL MicroProfileThreadLogGpu* g_MicroProfileThreadLogGpu_xx = 0;
 #endif
 static bool g_bUseLock = false; /// This is used because windows does not support using mutexes under dll init(which is where global initialization is handled)
 
@@ -1086,6 +1119,7 @@ MICROPROFILE_DEFINE(g_MicroProfileThreadLoop, "MicroProfile", "ThreadLoop", 0x33
 MICROPROFILE_DEFINE(g_MicroProfileClear, "MicroProfile", "Clear", 0x3355ee);
 MICROPROFILE_DEFINE(g_MicroProfileAccumulate, "MicroProfile", "Accumulate", 0x3355ee);
 MICROPROFILE_DEFINE(g_MicroProfileContextSwitchSearch,"MicroProfile", "ContextSwitchSearch", 0xDD7300);
+MICROPROFILE_DEFINE(g_MicroProfileGpuSubmit, "MicroProfile", "MicroProfileGpuSubmit", 0x3355ee);
 
 inline std::recursive_mutex& MicroProfileMutex()
 {
@@ -1157,13 +1191,6 @@ void MicroProfileInit()
 			S.Frames[i].nFrameStartCpu = nTick;
 			S.Frames[i].nFrameStartGpu = -1;
 		}
-
-		MicroProfileThreadLog* pGpu = MicroProfileCreateThreadLog("GPU");
-		g_MicroProfileGpuLog = pGpu;
-		MP_ASSERT(S.Pool[0] == pGpu);
-		pGpu->nGpu = 1;
-		pGpu->nThreadId = 0;
-
 		S.nWebServerDataSent = (uint64_t)-1;
 	}
 	if(bUseLock)
@@ -1190,14 +1217,35 @@ inline void MicroProfileSetThreadLog(MicroProfileThreadLog* pLog)
 	pthread_once(&g_MicroProfileThreadLogKeyOnce, MicroProfileCreateThreadLogKey);
 	pthread_setspecific(g_MicroProfileThreadLogKey, pLog);
 }
+
+inline MicroProfileThreadLogGpu* MicroProfileGetThreadLogGpu_()
+{
+	pthread_once(&g_MicroProfileThreadLogKeyGpuOnce, MicroProfileCreateThreadLogKeyGpu);
+	return (MicroProfileThreadLogGpu*)pthread_getspecific(g_MicroProfileThreadLogKeyGpu);
+}
+
+inline void MicroProfileSetThreadLogGpu_(MicroProfileThreadLogGpu* pLog)
+{
+	pthread_once(&g_MicroProfileThreadLogKeyGpuOnce, MicroProfileCreateThreadLogKeyGpu);
+	pthread_setspecific(g_MicroProfileThreadLogKeyGpu, pLog);
+}
+
 #else
 MicroProfileThreadLog* MicroProfileGetThreadLog()
 {
-	return g_MicroProfileThreadLog;
+	return g_MicroProfileThreadLog_xx;
 }
 inline void MicroProfileSetThreadLog(MicroProfileThreadLog* pLog)
 {
-	g_MicroProfileThreadLog = pLog;
+	g_MicroProfileThreadLog_xx = pLog;
+}
+MicroProfileThreadLogGpu* MicroProfileGetThreadLogGpu_()
+{
+	return g_MicroProfileThreadLogGpu_xx;
+}
+inline void MicroProfileSetThreadLogGpu_(MicroProfileThreadLogGpu* pLog)
+{
+	g_MicroProfileThreadLogGpu_xx = pLog;
 }
 #endif
 
@@ -1234,12 +1282,68 @@ void MicroProfileOnThreadCreate(const char* pThreadName)
 {
 	g_bUseLock = true;
 	MicroProfileInit();
-	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 	MP_ASSERT(MicroProfileGetThreadLog() == 0);
 	MicroProfileThreadLog* pLog = MicroProfileCreateThreadLog(pThreadName ? pThreadName : MicroProfileGetThreadName());
 	MP_ASSERT(pLog);
 	MicroProfileSetThreadLog(pLog);
 }
+
+MicroProfileThreadLogGpu* MicroProfileGetThreadLogGpu()
+{
+	MicroProfileThreadLogGpu* pLog = MicroProfileGetThreadLogGpu_();
+	if(!pLog)
+	{
+		std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+		pLog = new MicroProfileThreadLogGpu;
+		int nLogIndex = S.nNumLogsGpu++;
+		MP_ASSERT(nLogIndex < MICROPROFILE_MAX_THREADS);
+		pLog->nId = nLogIndex;
+		pLog->pContext = (void*)-1;
+		pLog->nStart = (uint32_t)-1;
+		MicroProfileSetThreadLogGpu_(pLog);		
+		S.PoolGpu[nLogIndex] = pLog;
+	}
+	return pLog;
+}
+
+MicroProfileThreadLog* MicroProfileGetGpuQueueLog(const char* pQueueName)
+{
+	for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; i++)
+	{
+		MicroProfileThreadLog* pLog = S.Pool[i];
+		if(pLog && pLog->nGpu && pLog->nActive && 0 == MP_STRCASECMP(pQueueName, pLog->ThreadName))
+		{
+			return pLog;
+		}
+	}
+	MP_ASSERT(0); //call MicroProfileInitGpuQueue
+}
+
+int MicroProfileInitGpuQueue(const char* pQueueName)
+{
+	for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
+	{
+		MicroProfileThreadLog* pLog = S.Pool[i];
+		if(pLog && 0 == MP_STRCASECMP(pQueueName, pLog->ThreadName))
+		{
+
+			MP_ASSERT(0); // call MicroProfileInitGpuQueue only once per CommandQueue. name must not clash with threadname
+		}
+	}
+	MicroProfileThreadLog* pLog = MicroProfileCreateThreadLog(pQueueName);
+	pLog->nGpu = 1;
+	pLog->nThreadId = 0;
+	for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
+	{
+		if(S.Pool[i] == pLog)
+		{
+			return i;
+		}
+	}
+	MP_BREAK();
+}
+
+
 
 void MicroProfileOnThreadExit()
 {
@@ -1538,7 +1642,7 @@ MicroProfileToken MicroProfileGetCounterToken(const char* pName)
 	return nResult;
 }
 
-inline void MicroProfileLogPut(MicroProfileToken nToken_, uint64_t nTick, uint64_t nBegin, MicroProfileThreadLog* pLog)
+inline void MicroProfileLogPut(MicroProfileLogEntry LE, MicroProfileThreadLog* pLog)
 {
 	MP_ASSERT(pLog != 0); //this assert is hit if MicroProfileOnCreateThread is not called
 	MP_ASSERT(pLog->nActive);
@@ -1550,10 +1654,31 @@ inline void MicroProfileLogPut(MicroProfileToken nToken_, uint64_t nTick, uint64
 	}
 	else
 	{
-		pLog->Log[nPos] = MicroProfileMakeLogIndex(nBegin, nToken_, nTick);
+		pLog->Log[nPos] = LE;
 		pLog->nPut.store(nNextPos, std::memory_order_release);
 	}
 }
+
+inline void MicroProfileLogPut(MicroProfileToken nToken_, uint64_t nTick, uint64_t nBegin, MicroProfileThreadLog* pLog)
+{
+	MicroProfileLogPut(MicroProfileMakeLogIndex(nBegin, nToken_, nTick), pLog);
+}
+
+inline void MicroProfileLogPutGpu(MicroProfileLogEntry LE, MicroProfileThreadLogGpu* pLog)
+{
+	uint32_t nPos = pLog->nPut;
+	if(nPos < MICROPROFILE_GPU_BUFFER_SIZE)
+	{
+		pLog->Log[nPos] = LE;
+		pLog->nPut = nPos+1;
+	}
+}
+
+inline void MicroProfileLogPutGpu(MicroProfileToken nToken_, uint64_t nTick, uint64_t nBegin, MicroProfileThreadLogGpu* pLog)
+{
+	MicroProfileLogPutGpu(MicroProfileMakeLogIndex(nBegin, nToken_, nTick), pLog);
+}
+
 
 uint64_t MicroProfileEnter(MicroProfileToken nToken_)
 {
@@ -1574,11 +1699,24 @@ void MicroProfileMetaUpdate(MicroProfileToken nToken, int nCount, MicroProfileTo
 {
 	if((MP_DRAW_META_FIRST<<nToken) & S.nActiveBars)
 	{
-		MicroProfileThreadLog* pLog = MicroProfileTokenTypeCpu == eTokenType ? MicroProfileGetThreadLog() : g_MicroProfileGpuLog;
-		if(pLog)
+		MP_ASSERT(nToken < MICROPROFILE_META_MAX);
+		if(MicroProfileTokenTypeCpu == eTokenType)
 		{
-			MP_ASSERT(nToken < MICROPROFILE_META_MAX);
-			MicroProfileLogPut(nToken, nCount, MP_LOG_META, pLog);
+			MicroProfileThreadLog* pLog = MicroProfileGetThreadLog();
+			if(pLog)
+			{
+				MicroProfileLogPut(nToken, nCount, MP_LOG_META, pLog);
+			}
+		}
+		else
+		{
+			MicroProfileThreadLogGpu* pLogGpu = MicroProfileGetThreadLogGpu_();
+			if(pLogGpu)
+			{
+				MicroProfileLogPutGpu(nToken, nCount, MP_LOG_META, pLogGpu);
+			}
+
+
 		}
 	}
 }
@@ -1621,14 +1759,66 @@ void MicroProfileLeave(MicroProfileToken nToken_, uint64_t nTickStart)
 	}
 }
 
+void MicroProfileGpuBegin(void* pContext)
+{
+	MicroProfileThreadLogGpu* pLog = MicroProfileGetThreadLogGpu();
+	MP_ASSERT(pLog->pContext == (void*)-1); // dont call begin without calling end
+	MP_ASSERT(pLog->nStart == (uint32_t)-1);
+	MP_ASSERT(pContext != (void*)-1);
+
+	pLog->pContext = pContext;
+	pLog->nStart = pLog->nPut;
+	MicroProfileLogPutGpu(0, pLog);
+}
+
+uint64_t MicroProfileGpuEnd()
+{
+	MicroProfileThreadLogGpu* pLog = MicroProfileGetThreadLogGpu();
+	uint64_t nStart = pLog->nStart;
+	uint32_t nEnd = pLog->nPut;
+	uint64_t nId = pLog->nId;
+	if(nStart < MICROPROFILE_GPU_BUFFER_SIZE)
+	{
+		pLog->Log[nStart] = nEnd - nStart;
+	}
+	pLog->pContext = (void*)-1;
+	pLog->nStart = (uint32_t)-1;
+	return nStart | (nId << 32);
+}
+
+void MicroProfileGpuSubmit(int nQueue, uint64_t nWork)
+{
+	MP_ASSERT(nQueue >= 0 && nQueue < MICROPROFILE_MAX_THREADS);
+	MICROPROFILE_SCOPE(g_MicroProfileGpuSubmit);
+	uint32_t nStart = (uint32_t)nWork;
+	uint32_t nThreadLog = uint32_t(nWork >> 32);
+
+	MicroProfileThreadLog* pQueueLog = S.Pool[nQueue];
+	MP_ASSERT(nQueue < MICROPROFILE_MAX_THREADS);
+	MicroProfileThreadLogGpu* pGpuLog = S.PoolGpu[nThreadLog];
+	MP_ASSERT(pGpuLog);
+	
+	uint64_t nCount = 0;
+	if(nStart < MICROPROFILE_GPU_BUFFER_SIZE)
+	{
+		nCount = pGpuLog->Log[nStart];
+	}
+	for(uint32_t i = 0; i < nCount; ++i)
+	{
+		MicroProfileLogEntry LE = pGpuLog->Log[nStart++];
+		MicroProfileLogPut(LE, pQueueLog);
+	}
+}
 
 uint64_t MicroProfileGpuEnter(MicroProfileToken nToken_)
 {
 	if(MicroProfileGetGroupMask(nToken_) & S.nActiveGroup)
 	{
-		uint64_t nTimer = MicroProfileGpuInsertTimeStamp();
-		MicroProfileLogPut(nToken_, nTimer, MP_LOG_ENTER, g_MicroProfileGpuLog);
-		MicroProfileLogPut(nToken_, MP_TICK(), MP_LOG_GPU_EXTRA, g_MicroProfileGpuLog);
+		MicroProfileThreadLogGpu* pGpuLog = MicroProfileGetThreadLogGpu();
+		MP_ASSERT(pGpuLog->pContext != (void*)-1); // must be called between GpuBegin/GpuEnd		
+		uint64_t nTimer = MicroProfileGpuInsertTimeStamp(pGpuLog->pContext);
+		MicroProfileLogPutGpu(nToken_, nTimer, MP_LOG_ENTER, pGpuLog);
+		MicroProfileLogPutGpu(nToken_, MP_TICK(), MP_LOG_GPU_EXTRA, pGpuLog);
 		return 1;
 	}
 	return 0;
@@ -1638,9 +1828,10 @@ void MicroProfileGpuLeave(MicroProfileToken nToken_, uint64_t nTickStart)
 {
 	if(nTickStart)
 	{
-		uint64_t nTimer = MicroProfileGpuInsertTimeStamp();
-		MicroProfileLogPut(nToken_, nTimer, MP_LOG_LEAVE, g_MicroProfileGpuLog);
-		MicroProfileLogPut(nToken_, MP_TICK(), MP_LOG_GPU_EXTRA, g_MicroProfileGpuLog);
+		MicroProfileThreadLogGpu* pGpuLog = MicroProfileGetThreadLogGpu();		
+		MP_ASSERT(pGpuLog->pContext != (void*)-1); // must be called between GpuBegin/GpuEnd
+		uint64_t nTimer = MicroProfileGpuInsertTimeStamp(pGpuLog->pContext);
+		MicroProfileLogPutGpu(nToken_, nTimer, MP_LOG_LEAVE, pGpuLog);
 	}
 }
 
@@ -1674,7 +1865,7 @@ void MicroProfileGetRange(uint32_t nPut, uint32_t nGet, uint32_t nRange[2][2])
 	}
 }
 
-void MicroProfileFlip()
+void MicroProfileFlip(void* pContext)
 {
 	#if 0
 	//verify LogEntry wraps correctly
@@ -1757,7 +1948,7 @@ void MicroProfileFlip()
 		MicroProfileFrameState* pFrameNext = &S.Frames[nFrameNext];
 		
 		pFramePut->nFrameStartCpu = MP_TICK();
-		pFramePut->nFrameStartGpu = MicroProfileGpuInsertTimeStamp();
+		pFramePut->nFrameStartGpu = MicroProfileGpuInsertTimeStamp(pContext);
 		if(pFrameNext->nFrameStartGpu != -1)
 			pFrameNext->nFrameStartGpu = MicroProfileGpuGetTimeStamp((uint32_t)pFrameNext->nFrameStartGpu);
 
@@ -3650,7 +3841,7 @@ void MicroProfileStartContextSwitchTrace(){}
 
 
 #if MICROPROFILE_GPU_TIMERS_D3D11
-uint32_t MicroProfileGpuInsertTimeStamp()
+uint32_t MicroProfileGpuInsertTimeStamp(void* pContext)
 {
 	MicroProfileD3D11Frame& Frame = S.GPU.m_QueryFrames[S.GPU.m_nQueryFrame];
 	if(Frame.m_nRateQueryStarted)
@@ -3827,7 +4018,7 @@ void MicroProfileGpuInitGL()
 	glGenQueries(MICROPROFILE_GL_MAX_QUERIES, &S.GPU.GLTimers[0]);		
 }
 
-uint32_t MicroProfileGpuInsertTimeStamp()
+uint32_t MicroProfileGpuInsertTimeStamp(void* pContext)
 {
 	uint32_t nIndex = (S.GPU.GLTimerPos+1)%MICROPROFILE_GL_MAX_QUERIES;
 	glQueryCounter(S.GPU.GLTimers[nIndex], GL_TIMESTAMP);
