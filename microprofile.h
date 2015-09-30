@@ -103,7 +103,13 @@
 #endif
 
 #include <stdint.h>
+#if defined(_WIN32) && _MSC_VER == 1700
+#define PRIx64 "llx"
+#define PRIu64 "ull"
+#define PRId64 "dll"
+#else
 #include <inttypes.h>
+#endif
 typedef uint64_t MicroProfileToken;
 typedef uint16_t MicroProfileGroupId;
 
@@ -1300,6 +1306,7 @@ MicroProfileThreadLogGpu* MicroProfileGetThreadLogGpu()
 		pLog->nId = nLogIndex;
 		pLog->pContext = (void*)-1;
 		pLog->nStart = (uint32_t)-1;
+		pLog->nPut = 0;
 		MicroProfileSetThreadLogGpu_(pLog);		
 		S.PoolGpu[nLogIndex] = pLog;
 	}
@@ -1317,6 +1324,7 @@ MicroProfileThreadLog* MicroProfileGetGpuQueueLog(const char* pQueueName)
 		}
 	}
 	MP_ASSERT(0); //call MicroProfileInitGpuQueue
+	return 0;
 }
 
 int MicroProfileInitGpuQueue(const char* pQueueName)
@@ -1341,6 +1349,7 @@ int MicroProfileInitGpuQueue(const char* pQueueName)
 		}
 	}
 	MP_BREAK();
+	return 0;
 }
 
 
@@ -1879,7 +1888,13 @@ void MicroProfileFlip(void* pContext)
 	MICROPROFILE_SCOPE(g_MicroProfileFlip);
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 
-
+	for (uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
+	{
+		if (S.PoolGpu[i])
+		{
+			S.PoolGpu[i]->nPut = 0;
+		}
+	}
 	MicroProfileGpuFlip();
 
 	if(S.nToggleRunning)
@@ -4040,6 +4055,7 @@ uint64_t MicroProfileTicksPerSecondGpu()
 int MicroProfileGetGpuTickReference(int64_t* pOutCpu, int64_t* pOutGpu)
 {
 	int64_t nGpuTimeStamp;
+	return 0;
 	glGetInteger64v(GL_TIMESTAMP, &nGpuTimeStamp);
 	if(nGpuTimeStamp)
 	{
