@@ -1188,13 +1188,6 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 							}
 						}
 						nStackPos--;
-						if(0 == nStackPos)
-						{
-							if(bGpu ? (nTickStart > nBaseTicksEndGpu) : (nTickStart > nBaseTicksEndCpu))
-							{
-								break;
-							}
-						}
 					}
 				}
 			}

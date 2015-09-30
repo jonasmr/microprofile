@@ -4055,7 +4055,6 @@ uint64_t MicroProfileTicksPerSecondGpu()
 int MicroProfileGetGpuTickReference(int64_t* pOutCpu, int64_t* pOutGpu)
 {
 	int64_t nGpuTimeStamp;
-	return 0;
 	glGetInteger64v(GL_TIMESTAMP, &nGpuTimeStamp);
 	if(nGpuTimeStamp)
 	{
