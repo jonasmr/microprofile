@@ -68,28 +68,4 @@ solution "microprofile"
       configuration "Release"
          defines { "NDEBUG" }
          flags { "Optimize", "Symbols" }
-
-
-   project "noui_d3d12"
-      kind "WindowedApp"
-      language "C++"
-      files { "noui_d3d12/*.h", "noui_d3d12/*.cpp", "../microprofile.h", "../microprofile_html.h", "../src/microprofile.html"}
-      includedirs {".." }       
-      defines {"_CRT_SECURE_NO_WARNINGS"}       
-      libdirs {}
-      links {}
-      debugdir "."
-      defines {}
-      --remove comment below to auto generate microprofile_html.h. requires embed (in src/) to be built
-      --prebuildcommands { "../embed.bat" }
-      --postbuildcommands { "copy ..\\noui_d3d11\\Tutorial02*.* .." }
-
-      configuration "windows"
-         links {"dxguid", "Ws2_32", "d3d12","d3dcompiler","dxgi", "winmm"}
-      configuration "Debug"
-         defines { "DEBUG" }
-         flags { "Symbols" }
- 
-      configuration "Release"
-         defines { "NDEBUG" }
-         flags { "Optimize", "Symbols" }
+         

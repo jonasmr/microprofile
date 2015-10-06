@@ -17,7 +17,7 @@
 //hack to make it work with the weird object oriented design of the sample
 ID3D12Device* g_pDevice = 0;
 ID3D12CommandQueue* g_pCommandQueue = 0;
-
+int g_QueueGraphics = -1;
 
 
 inline void ThrowIfFailed(HRESULT hr)
@@ -172,7 +172,7 @@ DXSample::DXSample(UINT width, UINT height, std::wstring name) :
 DXSample::~DXSample()
 {
 }
-int g_QueueGraphics = -1;
+
 
 int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 {
@@ -630,11 +630,7 @@ void D3D12HelloTriangle::OnRender()
 	// Record all the commands we need to render the scene into the command list.
 	PopulateCommandList();
 
-	MICROPROFILE_GPU_SUBMIT(g_QueueGraphics, MICROPROFILE_GPU_END());
-	MicroProfileFlip(m_commandList.Get());
 	
-	MICROPROFILE_GPU_BEGIN(m_commandList.Get());
-	MICROPROFILE_SCOPEI("Main", "WaitPrev", 0);
 
 
 	ThrowIfFailed(m_commandList->Close());
@@ -643,6 +639,12 @@ void D3D12HelloTriangle::OnRender()
 	// Execute the command list.
 	ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
 	m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+
+	MICROPROFILE_GPU_SUBMIT(g_QueueGraphics, MICROPROFILE_GPU_END());
+	MicroProfileFlip(m_commandList.Get());
+
+	MICROPROFILE_GPU_BEGIN(m_commandList.Get());
+	MICROPROFILE_SCOPEI("Main", "WaitPrev", 0);
 
 	// Present the frame.
 	ThrowIfFailed(m_swapChain->Present(1, 0));
@@ -692,7 +694,7 @@ void D3D12HelloTriangle::PopulateCommandList()
 	m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	m_commandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
 
-	for (uint32_t i = 0; i < 8; ++i)
+	for (uint32_t i = 0; i < 6; ++i)
 	{
 		MICROPROFILE_SCOPEI("cpu", "iteration", 0xff00ff);
 		MICROPROFILE_SCOPEGPUI("iteration", 0xff00ff);

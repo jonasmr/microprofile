@@ -2497,7 +2497,7 @@ const char g_MicroProfileHtml_end_1[] =
 "				var TimeArray = Lod.TimeArray[nLog];\n"
 "\n"
 "				var LocalFirstFrame = Frames[FirstFrame].FirstFrameIndex[nLog];\n"
-"				var IndexStart = Lod.LogStart[LocalFirstFrame][nLog];\n"
+"				var IndexStart = ISGPU[nLog] ? 0 : Lod.LogStart[LocalFirstFrame][nLog];\n"
 "				var IndexEnd = TimeArray.length;\n"
 "				IndexEnd = TimeArray.length;\n"
 "				var HasSetHover = 0;\n"
@@ -2840,11 +2840,11 @@ const char g_MicroProfileHtml_end_1[] =
 "	if(Invalidate == 0) //when panning, only draw bars that are a certain width to keep decent framerate\n"
 "	{\n"
 "		context.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);\n"
-"		DrawDetailedView(context, nMinWidthPan, true);\n"
-"";
+"		DrawDetailedView(context, nMi";
 
 const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
 const char g_MicroProfileHtml_end_2[] =
+"nWidthPan, true);\n"
 "	}\n"
 "	else if(Invalidate == 1) //draw full and store\n"
 "	{\n"
@@ -3893,7 +3893,7 @@ const char g_MicroProfileHtml_end_2[] =
 "		{\n"
 "			var Frame_ = Frames[i];	\n"
 "			Frame_.LogStart[nLog] = TimeArray.length;\n"
-"			var FrameDiscard = Frame_.frameend + 33;//if timestamps are more than 33ms after current frame, we assume buffer has wrapped.\n"
+"			var FrameDiscard = (ISGPU[nLog] ? Frame_.frameendgpu : Frame_.frameend) + 33;//if timestamps are more than 33ms after current frame, we assume buffer has wrapped.\n"
 "			var tt = Frame_.tt[nLog];\n"
 "			var ts = Frame_.ts[nLog];\n"
 "			var ti = Frame_.ti[nLog];\n"

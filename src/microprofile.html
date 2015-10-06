@@ -2479,7 +2479,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 				var TimeArray = Lod.TimeArray[nLog];
 
 				var LocalFirstFrame = Frames[FirstFrame].FirstFrameIndex[nLog];
-				var IndexStart = Lod.LogStart[LocalFirstFrame][nLog];
+				var IndexStart = ISGPU[nLog] ? 0 : Lod.LogStart[LocalFirstFrame][nLog];
 				var IndexEnd = TimeArray.length;
 				IndexEnd = TimeArray.length;
 				var HasSetHover = 0;
@@ -3871,7 +3871,7 @@ function PreprocessGlobalArray()
 		{
 			var Frame_ = Frames[i];	
 			Frame_.LogStart[nLog] = TimeArray.length;
-			var FrameDiscard = Frame_.frameend + 33;//if timestamps are more than 33ms after current frame, we assume buffer has wrapped.
+			var FrameDiscard = (ISGPU[nLog] ? Frame_.frameendgpu : Frame_.frameend) + 33;//if timestamps are more than 33ms after current frame, we assume buffer has wrapped.
 			var tt = Frame_.tt[nLog];
 			var ts = Frame_.ts[nLog];
 			var ti = Frame_.ti[nLog];
