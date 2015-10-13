@@ -3958,8 +3958,9 @@ uint64_t MicroProfileTicksPerSecondGpu()
 	return S.GPU.m_nQueryFrequency;
 }
 
-void MicroProfileGpuFlip(void*)
+uint32_t MicroProfileGpuFlip(void* pCtx)
 {
+	uint32_t nFrameTimeStamp = MicroProfileGpuInsertTimeStamp(pCtx);
 	MicroProfileD3D11Frame& CurrentFrame = S.GPU.m_QueryFrames[S.GPU.m_nQueryFrame];
 	ID3D11DeviceContext* pContext = (ID3D11DeviceContext*)S.GPU.m_pDeviceContext;
 	if(CurrentFrame.m_nRateQueryStarted)
@@ -4020,6 +4021,7 @@ void MicroProfileGpuFlip(void*)
 	NextFrame.m_nQueryCount = 0;
 
 	NextFrame.m_nRateQueryStarted = 1;
+	return nFrameTimeStamp;
 }
 
 void MicroProfileGpuInitD3D11(void* pDevice_, void* pDeviceContext_)

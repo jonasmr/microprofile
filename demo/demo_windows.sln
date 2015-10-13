@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "noui_d3d12", "noui_d3d12\no
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "noui_d3d12_multithreading", "noui_d3d12_multithreading\noui_d3d12_multithreading.vcxproj", "{DBC4664B-A190-4533-80D5-4312F7541B47}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "noui_d3d11", "noui_d3d11\noui_d3d11.vcxproj", "{5EDFD505-4ADD-44D3-9DAE-E67F4CD6CB18}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -31,6 +33,14 @@ Global
 		{DBC4664B-A190-4533-80D5-4312F7541B47}.Release|x64.Build.0 = Release|x64
 		{DBC4664B-A190-4533-80D5-4312F7541B47}.Release|x86.ActiveCfg = Release|Win32
 		{DBC4664B-A190-4533-80D5-4312F7541B47}.Release|x86.Build.0 = Release|Win32
+		{5EDFD505-4ADD-44D3-9DAE-E67F4CD6CB18}.Debug|x64.ActiveCfg = Debug|x64
+		{5EDFD505-4ADD-44D3-9DAE-E67F4CD6CB18}.Debug|x64.Build.0 = Debug|x64
+		{5EDFD505-4ADD-44D3-9DAE-E67F4CD6CB18}.Debug|x86.ActiveCfg = Debug|Win32
+		{5EDFD505-4ADD-44D3-9DAE-E67F4CD6CB18}.Debug|x86.Build.0 = Debug|Win32
+		{5EDFD505-4ADD-44D3-9DAE-E67F4CD6CB18}.Release|x64.ActiveCfg = Release|x64
+		{5EDFD505-4ADD-44D3-9DAE-E67F4CD6CB18}.Release|x64.Build.0 = Release|x64
+		{5EDFD505-4ADD-44D3-9DAE-E67F4CD6CB18}.Release|x86.ActiveCfg = Release|Win32
+		{5EDFD505-4ADD-44D3-9DAE-E67F4CD6CB18}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

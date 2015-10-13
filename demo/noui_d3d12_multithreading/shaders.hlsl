@@ -171,3 +171,32 @@ float4 PSMain(PSInput input) : SV_TARGET
 
 	return diffuseColor * saturate(totalLight);
 }
+
+
+#define threadBlockSize 128
+
+cbuffer root_arg : register(b0)
+{
+	uint foo;
+};
+
+struct VertexData
+{
+	float3 position;
+	float3 normal;
+	float2 texcoord;
+	float3 tangent;
+};
+
+StructuredBuffer<VertexData> VertexIn : register(t0);
+RWStructuredBuffer<VertexData> VertexOut : register(u0);
+
+[numthreads(threadBlockSize, 1, 1)]
+void CSMain(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
+{
+	uint index = (groupId.x * threadBlockSize) + groupIndex;
+	VertexData D = VertexIn[index];
+	float fSin1 = sin(length(float2(D.position.x, D.position.y))/30 + foo / 20.0) * 10; 
+	D.position.y += fSin1;
+	VertexOut[index] = D;
+}

@@ -41,8 +41,19 @@ static const int CommandListPost = 2;
 
 ID3D12Device* g_pDevice = 0;
 ID3D12CommandQueue* g_pCommandQueue = 0;
+ID3D12CommandQueue* g_pComputeQueue = 0;
 int g_QueueGraphics = -1;
+int g_QueueCompute = -1;
+ID3D12RootSignature *g_pComputeRootSignature = 0;
+ID3D12PipelineState* g_ComputePSO = 0;
 
+
+uint64_t g_FenceGraphics = 0;
+uint64_t g_FenceCompute = 0;
+ID3D12Fence* g_pFenceGraphics = 0;
+ID3D12Fence* g_pFenceCompute = 0;
+UINT g_nSrc = 0;
+UINT g_nDst = 1;
 
 inline void ThrowIfFailed(HRESULT hr)
 {
@@ -499,6 +510,8 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 	MicroProfileSetEnableAllGroups(true);
 	MicroProfileSetForceMetaCounters(true);
 	g_QueueGraphics = MICROPROFILE_GPU_INIT_QUEUE("GPU-Graphics-Queue");
+	g_QueueCompute = MICROPROFILE_GPU_INIT_QUEUE("GPU-Compute-Queue");
+
 	MicroProfileGpuInitD3D12(g_pDevice, g_pCommandQueue);
 
 	// Main sample loop.
@@ -645,6 +658,12 @@ public:
 	ComPtr<ID3D12CommandAllocator> m_commandAllocators[CommandListCount];
 	ComPtr<ID3D12GraphicsCommandList> m_commandLists[CommandListCount];
 
+	ComPtr<ID3D12CommandAllocator> m_commandAllocatorCompute;
+	ComPtr<ID3D12GraphicsCommandList> m_commandListCompute;
+	uint64_t m_computeFenceValue;
+	ComPtr<ID3D12CommandAllocator> m_commandAllocatorTransition;
+	ComPtr<ID3D12GraphicsCommandList> m_commandListTransition;
+
 	ComPtr<ID3D12CommandAllocator> m_shadowCommandAllocators[NumContexts];
 	ComPtr<ID3D12GraphicsCommandList> m_shadowCommandLists[NumContexts];
 	uint64_t						m_shadowMicroProfile[NumContexts];
@@ -658,6 +677,7 @@ public:
 private:
 	ComPtr<ID3D12PipelineState> m_pipelineState;
 	ComPtr<ID3D12PipelineState> m_pipelineStateShadowMap;
+	ComPtr<ID3D12PipelineState> m_pipelineStateCompute;
 	ComPtr<ID3D12Resource> m_shadowTexture;
 	D3D12_CPU_DESCRIPTOR_HANDLE m_shadowDepthView;
 	ComPtr<ID3D12Resource> m_shadowConstantBuffer;
@@ -670,7 +690,7 @@ private:
 	D3D12_GPU_DESCRIPTOR_HANDLE m_sceneCbvHandle;
 
 public:
-	FrameResource(ID3D12Device* pDevice, ID3D12PipelineState* pPso, ID3D12PipelineState* pShadowMapPso, ID3D12DescriptorHeap* pDsvHeap, ID3D12DescriptorHeap* pCbvSrvHeap, D3D12_VIEWPORT* pViewport, UINT frameResourceIndex);
+	FrameResource(ID3D12Device* pDevice, ID3D12PipelineState* pPso, ID3D12PipelineState* pShadowMapPso, ID3D12PipelineState* pComputePso, ID3D12DescriptorHeap* pDsvHeap, ID3D12DescriptorHeap* pCbvSrvHeap, D3D12_VIEWPORT* pViewport, UINT frameResourceIndex);
 	~FrameResource();
 
 	void Bind(ID3D12GraphicsCommandList* pCommandList, BOOL scenePass, D3D12_CPU_DESCRIPTOR_HANDLE* pRtvHandle, D3D12_CPU_DESCRIPTOR_HANDLE* pDsvHandle);
@@ -720,17 +740,22 @@ private:
 	ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
 	ComPtr<ID3D12DescriptorHeap> m_cbvSrvHeap;
 	ComPtr<ID3D12DescriptorHeap> m_samplerHeap;
+	ComPtr<ID3D12DescriptorHeap> m_computeSrvUavHeap;
+
 	ComPtr<ID3D12PipelineState> m_pipelineState;
 	ComPtr<ID3D12PipelineState> m_pipelineStateShadowMap;
 
 	// App resources.
 	D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
+	D3D12_VERTEX_BUFFER_VIEW m_vertexBufferViewCompute[2];
 	D3D12_INDEX_BUFFER_VIEW m_indexBufferView;
 	ComPtr<ID3D12Resource> m_textures[_countof(SampleAssets::Textures)];
 	ComPtr<ID3D12Resource> m_textureUploads[_countof(SampleAssets::Textures)];
 	ComPtr<ID3D12Resource> m_indexBuffer;
 	ComPtr<ID3D12Resource> m_indexBufferUpload;
 	ComPtr<ID3D12Resource> m_vertexBuffer;
+	ComPtr<ID3D12Resource> m_vertexBufferCompute[2];
+	D3D12_RESOURCE_STATES m_vbState[2];
 	ComPtr<ID3D12Resource> m_vertexBufferUpload;
 	UINT m_rtvDescriptorSize;
 	InputState m_keyboardInput;
@@ -872,6 +897,10 @@ void D3D12Multithreading::LoadPipeline()
 
 	ThrowIfFailed(m_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue)));
 	g_pCommandQueue = m_commandQueue.Get();
+	queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+	queueDesc.Type = D3D12_COMMAND_LIST_TYPE_COMPUTE;
+
+	ThrowIfFailed(m_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&g_pComputeQueue)));
 
 	// Describe and create the swap chain.
 	DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
@@ -931,6 +960,13 @@ void D3D12Multithreading::LoadPipeline()
 		cbvSrvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		ThrowIfFailed(m_device->CreateDescriptorHeap(&cbvSrvHeapDesc, IID_PPV_ARGS(&m_cbvSrvHeap)));
 
+		D3D12_DESCRIPTOR_HEAP_DESC computeHeapDesc = {};
+		computeHeapDesc.NumDescriptors = 4;
+		computeHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		computeHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+		ThrowIfFailed(m_device->CreateDescriptorHeap(&computeHeapDesc, IID_PPV_ARGS(&m_computeSrvUavHeap)));
+
+
 		// Describe and create a sampler descriptor heap.
 		D3D12_DESCRIPTOR_HEAP_DESC samplerHeapDesc = {};
 		samplerHeapDesc.NumDescriptors = 2;		// One clamp and one wrap sampler.
@@ -970,10 +1006,30 @@ void D3D12Multithreading::LoadAssets()
 		ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&m_rootSignature)));
 	}
 
+	{
+		CD3DX12_DESCRIPTOR_RANGE ranges[2]; // Perfomance TIP: Order from most frequent to least frequent.
+		ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);		// 2 frequently changed diffuse + normal textures - using registers t1 and t2.
+		ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);		// 1 frequently changed constant buffer.
+
+		CD3DX12_ROOT_PARAMETER rootParameters[3];
+		rootParameters[0].InitAsDescriptorTable(1, &ranges[0], D3D12_SHADER_VISIBILITY_ALL);
+		rootParameters[1].InitAsDescriptorTable(1, &ranges[1], D3D12_SHADER_VISIBILITY_ALL);
+		rootParameters[2].InitAsConstants(1, 0);
+		CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
+		rootSignatureDesc.Init(_countof(rootParameters), rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+		ComPtr<ID3DBlob> signature;
+		ComPtr<ID3DBlob> error;
+		ThrowIfFailed(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
+		ThrowIfFailed(m_device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&g_pComputeRootSignature)));
+	}
+
+
 	// Create the pipeline state, which includes loading shaders.
 	{
 		ComPtr<ID3DBlob> vertexShader;
 		ComPtr<ID3DBlob> pixelShader;
+		ComPtr<ID3DBlob> computeShader;
 
 #ifdef _DEBUG
 		// Enable better shader debugging with the graphics debugging tools.
@@ -984,6 +1040,7 @@ void D3D12Multithreading::LoadAssets()
 
 		ThrowIfFailed(D3DCompileFromFile(L"shaders.hlsl", nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, nullptr));
 		ThrowIfFailed(D3DCompileFromFile(L"shaders.hlsl", nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, nullptr));
+		ThrowIfFailed(D3DCompileFromFile(L"shaders.hlsl", nullptr, nullptr, "CSMain", "cs_5_0", compileFlags, 0, &computeShader, nullptr));
 
 		D3D12_INPUT_LAYOUT_DESC inputLayoutDesc;
 		inputLayoutDesc.pInputElementDescs = SampleAssets::StandardVertexDescription;
@@ -1022,8 +1079,17 @@ void D3D12Multithreading::LoadAssets()
 		psoDesc.NumRenderTargets = 0;
 
 		ThrowIfFailed(m_device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_pipelineStateShadowMap)));
+
+		D3D12_COMPUTE_PIPELINE_STATE_DESC ComputeDesc;
+		ZeroMemory(&ComputeDesc, sizeof(ComputeDesc));
+		ComputeDesc.CS = { reinterpret_cast<UINT8*>(computeShader->GetBufferPointer()), computeShader->GetBufferSize() };
+		ComputeDesc.pRootSignature = g_pComputeRootSignature;
+		ComputeDesc.CachedPSO = { 0,0 };
+		ThrowIfFailed(m_device->CreateComputePipelineState(&ComputeDesc, IID_PPV_ARGS(&g_ComputePSO)));
 	}
 
+	ThrowIfFailed(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&g_pFenceCompute)));
+	ThrowIfFailed(m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&g_pFenceGraphics)));
 	// Create temporary command list for initial GPU setup.
 	ComPtr<ID3D12GraphicsCommandList> commandList;
 	ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator.Get(), m_pipelineState.Get(), IID_PPV_ARGS(&commandList)));
@@ -1083,7 +1149,19 @@ void D3D12Multithreading::LoadAssets()
 			D3D12_RESOURCE_STATE_COPY_DEST,
 			nullptr,
 			IID_PPV_ARGS(&m_vertexBuffer)));
+		for (int i = 0; i < 2; ++i)
+		{
+			m_vbState[i] = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+			ThrowIfFailed(m_device->CreateCommittedResource(
+				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+				D3D12_HEAP_FLAG_NONE,
+				&CD3DX12_RESOURCE_DESC::Buffer(SampleAssets::VertexDataSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),
+				m_vbState[i],
+				nullptr,
+				IID_PPV_ARGS(&m_vertexBufferCompute[i])));
+			m_vertexBufferCompute[i]->SetName(i == 0 ? L"VB_COMP0" : L"VB_COMP1");
 
+		}
 		{
 			ThrowIfFailed(m_device->CreateCommittedResource(
 				&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
@@ -1103,7 +1181,7 @@ void D3D12Multithreading::LoadAssets()
 			PIXBeginEvent(commandList.Get(), 0, L"Copy vertex buffer data to default resource...");
 
 			UpdateSubresources<1>(commandList.Get(), m_vertexBuffer.Get(), m_vertexBufferUpload.Get(), 0, 0, 1, &vertexData);
-			commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
+			commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
 
 			PIXEndEvent(commandList.Get());
 		}
@@ -1112,6 +1190,55 @@ void D3D12Multithreading::LoadAssets()
 		m_vertexBufferView.BufferLocation = m_vertexBuffer->GetGPUVirtualAddress();
 		m_vertexBufferView.SizeInBytes = SampleAssets::VertexDataSize;
 		m_vertexBufferView.StrideInBytes = SampleAssets::StandardVertexStride;
+		m_vertexBufferViewCompute[0].BufferLocation = m_vertexBufferCompute[0]->GetGPUVirtualAddress();
+		m_vertexBufferViewCompute[0].SizeInBytes = SampleAssets::VertexDataSize;
+		m_vertexBufferViewCompute[0].StrideInBytes = SampleAssets::StandardVertexStride;
+		m_vertexBufferViewCompute[1].BufferLocation = m_vertexBufferCompute[1]->GetGPUVirtualAddress();
+		m_vertexBufferViewCompute[1].SizeInBytes = SampleAssets::VertexDataSize;
+		m_vertexBufferViewCompute[1].StrideInBytes = SampleAssets::StandardVertexStride;
+
+
+
+		//create srv/uav from dynamic buffers.
+		// Get the CBV SRV descriptor size for the current device.
+		const UINT cbvSrvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+		// Get a handle to the start of the descriptor heap.
+		CD3DX12_CPU_DESCRIPTOR_HANDLE computeHandle(m_computeSrvUavHeap->GetCPUDescriptorHandleForHeapStart());
+		D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc = {};
+		SrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+		SrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		SrvDesc.Format = DXGI_FORMAT_UNKNOWN;
+		SrvDesc.Buffer.FirstElement = 0;
+		SrvDesc.Buffer.NumElements = SampleAssets::VertexDataSize / SampleAssets::StandardVertexStride;
+		SrvDesc.Buffer.StructureByteStride = SampleAssets::StandardVertexStride;
+		SrvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+
+		m_device->CreateShaderResourceView(m_vertexBuffer.Get(), &SrvDesc, computeHandle);
+		computeHandle.Offset(cbvSrvDescriptorSize);
+
+		m_device->CreateShaderResourceView(m_vertexBuffer.Get(), &SrvDesc, computeHandle);
+		computeHandle.Offset(cbvSrvDescriptorSize);
+
+		D3D12_UNORDERED_ACCESS_VIEW_DESC UavDesc = {};
+		UavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+		UavDesc.Buffer.CounterOffsetInBytes = 0;
+		UavDesc.Buffer.FirstElement = 0;
+		UavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+		UavDesc.Buffer.NumElements = SampleAssets::VertexDataSize / SampleAssets::StandardVertexStride;
+		UavDesc.Buffer.StructureByteStride = SampleAssets::StandardVertexStride;
+		
+
+
+		m_device->CreateUnorderedAccessView(m_vertexBufferCompute[0].Get(), nullptr, &UavDesc, computeHandle);
+		computeHandle.Offset(cbvSrvDescriptorSize);
+		m_device->CreateUnorderedAccessView(m_vertexBufferCompute[1].Get(), nullptr, &UavDesc, computeHandle);
+		computeHandle.Offset(cbvSrvDescriptorSize);
+
+
+
+
+
 	}
 
 	// Create the index buffer.
@@ -1315,7 +1442,7 @@ void D3D12Multithreading::LoadAssets()
 	// Create frame resources.
 	for (int i = 0; i < FrameCount; i++)
 	{
-		m_frameResources[i] = new FrameResource(m_device.Get(), m_pipelineState.Get(), m_pipelineStateShadowMap.Get(), m_dsvHeap.Get(), m_cbvSrvHeap.Get(), &m_viewport, i);
+		m_frameResources[i] = new FrameResource(m_device.Get(), m_pipelineState.Get(), m_pipelineStateShadowMap.Get(), g_ComputePSO, m_dsvHeap.Get(), m_cbvSrvHeap.Get(), &m_viewport, i);
 		m_frameResources[i]->WriteConstantBuffers(&m_viewport, &m_camera, m_lightCameras, m_lights);
 	}
 	m_currentFrameResourceIndex = 0;
@@ -1498,6 +1625,10 @@ void D3D12Multithreading::OnRender()
 	uint32_t nCount = _countof(m_pCurrentFrameResource->m_batchSubmit) - NumContexts - 2;
 	m_commandQueue->ExecuteCommandLists(_countof(m_pCurrentFrameResource->m_batchSubmit) - NumContexts - 2, m_pCurrentFrameResource->m_batchSubmit + NumContexts + 2);
 	
+	g_FenceGraphics++;
+	m_commandQueue->Signal(g_pFenceGraphics, g_FenceGraphics);
+
+
 	MicroProfileFlip(0);
 
 	m_cpuTimer.Tick(NULL);
@@ -1530,6 +1661,9 @@ void D3D12Multithreading::OnRender()
 	m_pCurrentFrameResource->m_fenceValue = m_fenceValue;
 	ThrowIfFailed(m_commandQueue->Signal(m_fence.Get(), m_fenceValue));
 	m_fenceValue++;
+	g_nSrc = 1 - g_nSrc;
+	g_nDst = 1 - g_nDst;
+
 }
 
 void D3D12Multithreading::OnDestroy()
@@ -1628,9 +1762,60 @@ void D3D12Multithreading::OnKeyUp(WPARAM wParam)
 void D3D12Multithreading::BeginFrame()
 {
 	m_pCurrentFrameResource->Init();
+	const UINT offset = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	static UINT counter = 0;
+	counter++;
+	{
+		ID3D12GraphicsCommandList* pCommandList = m_pCurrentFrameResource->m_commandListCompute.Get();
+		MicroProfileGpuBegin(pCommandList);
+		{
+			MICROPROFILE_SCOPEGPUI("Compute-Demo", 0xffffffff);
+			ID3D12DescriptorHeap* ppHeaps[] = { m_computeSrvUavHeap.Get() };
+			pCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+			pCommandList->SetComputeRootSignature(g_pComputeRootSignature);
+			CD3DX12_GPU_DESCRIPTOR_HANDLE Handle = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_computeSrvUavHeap->GetGPUDescriptorHandleForHeapStart());
+			CD3DX12_GPU_DESCRIPTOR_HANDLE Srv = CD3DX12_GPU_DESCRIPTOR_HANDLE(Handle, 0 + g_nSrc, offset);
+			CD3DX12_GPU_DESCRIPTOR_HANDLE Uav = CD3DX12_GPU_DESCRIPTOR_HANDLE(Handle, 2 + g_nDst, offset);
+			pCommandList->SetComputeRootDescriptorTable(0, Srv);
+			pCommandList->SetComputeRootDescriptorTable(1, Uav);
+			pCommandList->SetComputeRoot32BitConstant(2, counter, 0);
+			pCommandList->Dispatch(SampleAssets::VertexDataSize / (SampleAssets::StandardVertexStride * 128) + 1, 1, 1);
+			counter++;
+		}
+		m_pCurrentFrameResource->m_commandListCompute->Close();
+		ID3D12CommandList* pLists[] = { m_pCurrentFrameResource->m_commandListCompute.Get() };
+
+		m_commandQueue->Wait(g_pFenceCompute, g_FenceCompute);
+
+		ID3D12GraphicsCommandList* pTransition = m_pCurrentFrameResource->m_commandListTransition.Get();
+		if (m_vbState[g_nSrc] != D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER)
+		{
+			pTransition->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_vertexBufferCompute[g_nSrc].Get(), m_vbState[g_nSrc], D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
+			m_vbState[g_nSrc] = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+		}
+
+		if (m_vbState[g_nDst] != D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
+		{
+			pTransition->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_vertexBufferCompute[g_nDst].Get(), m_vbState[g_nDst], D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
+			m_vbState[g_nDst] = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+		}
+		pTransition->Close();
+		ID3D12CommandList* pListsTransition[] = { pTransition };
+		m_commandQueue->ExecuteCommandLists(1, pListsTransition);
+
+		g_pComputeQueue->Wait(g_pFenceGraphics, g_FenceGraphics);
+
+		g_pComputeQueue->ExecuteCommandLists(1, pLists);
+		g_FenceCompute++;
+		g_pComputeQueue->Signal(g_pFenceCompute, g_FenceCompute);
+		m_pCurrentFrameResource->m_computeFenceValue = g_FenceCompute;
+		uint64_t nGpuBlock = MicroProfileGpuEnd();
+		MICROPROFILE_GPU_SUBMIT(g_QueueCompute, nGpuBlock);
+	}
 
 	// Indicate that the back buffer will be used as a render target.
 	m_pCurrentFrameResource->m_commandLists[CommandListPre]->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+	//m_pCurrentFrameResource->m_commandLists[CommandListPre]->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(pVertexBufferSrc, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
 
 	// Clear the render target and depth stencil.
 	const float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
@@ -1775,7 +1960,7 @@ void D3D12Multithreading::SetCommonPipelineState(ID3D12GraphicsCommandList* pCom
 	pCommandList->RSSetViewports(1, &m_viewport);
 	pCommandList->RSSetScissorRects(1, &m_scissorRect);
 	pCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	pCommandList->IASetVertexBuffers(0, 1, &m_vertexBufferView);
+	pCommandList->IASetVertexBuffers(0, 1, &m_vertexBufferViewCompute[g_nSrc]);
 	pCommandList->IASetIndexBuffer(&m_indexBufferView);
 	pCommandList->SetGraphicsRootDescriptorTable(3, m_samplerHeap->GetGPUDescriptorHandleForHeapStart());
 	pCommandList->OMSetStencilRef(0);
@@ -1798,11 +1983,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 }
 
 
-FrameResource::FrameResource(ID3D12Device* pDevice, ID3D12PipelineState* pPso, ID3D12PipelineState* pShadowMapPso, ID3D12DescriptorHeap* pDsvHeap, ID3D12DescriptorHeap* pCbvSrvHeap, D3D12_VIEWPORT* pViewport, UINT frameResourceIndex) :
+FrameResource::FrameResource(ID3D12Device* pDevice, ID3D12PipelineState* pPso, ID3D12PipelineState* pShadowMapPso, ID3D12PipelineState* pComputePso,ID3D12DescriptorHeap* pDsvHeap, ID3D12DescriptorHeap* pCbvSrvHeap, D3D12_VIEWPORT* pViewport, UINT frameResourceIndex) :
 	m_fenceValue(0),
 	m_pipelineState(pPso),
+	m_pipelineStateCompute(pComputePso),
 	m_pipelineStateShadowMap(pShadowMapPso)
 {
+	m_computeFenceValue = 0;
+	ThrowIfFailed(pDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_COMPUTE, IID_PPV_ARGS(&m_commandAllocatorCompute)));
+	ThrowIfFailed(pDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_COMPUTE, m_commandAllocatorCompute.Get(), m_pipelineStateCompute.Get(), IID_PPV_ARGS(&m_commandListCompute)));
+	ThrowIfFailed(m_commandListCompute->Close());
+	ThrowIfFailed(pDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocatorTransition)));
+	ThrowIfFailed(pDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocatorTransition.Get(), nullptr, IID_PPV_ARGS(&m_commandListTransition)));
+	ThrowIfFailed(m_commandListTransition->Close());
+
 	for (int i = 0; i < CommandListCount; i++)
 	{
 		ThrowIfFailed(pDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[i])));
@@ -2008,6 +2202,16 @@ void FrameResource::WriteConstantBuffers(D3D12_VIEWPORT* pViewport, Camera* pSce
 
 void FrameResource::Init()
 {
+	while (m_computeFenceValue > g_pFenceCompute->GetCompletedValue()) //need to block explicit as graphics pipe only syncs one frame later
+	{
+		MICROPROFILE_SCOPEI("fence", "block-on-compute", 0);
+		Sleep(1);
+	}
+	ThrowIfFailed(m_commandAllocatorCompute->Reset());
+	ThrowIfFailed(m_commandListCompute->Reset(m_commandAllocatorCompute.Get(), m_pipelineStateCompute.Get()));
+	ThrowIfFailed(m_commandAllocatorTransition->Reset());
+	ThrowIfFailed(m_commandListTransition->Reset(m_commandAllocatorTransition.Get(), nullptr));
+
 	// Reset the command allocators and lists for the main thread.
 	for (int i = 0; i < CommandListCount; i++)
 	{

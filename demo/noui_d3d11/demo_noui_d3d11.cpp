@@ -6,6 +6,7 @@
 #include <directxcolors.h>
 
 #define MICROPROFILE_IMPL
+#define MICROPROFILE_GPU_TIMERS_D3D11 1
 #include "microprofile.h"
 uint32_t g_nQuit = 0;
 
