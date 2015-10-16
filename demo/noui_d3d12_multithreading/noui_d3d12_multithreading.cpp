@@ -46,7 +46,8 @@ int g_QueueGraphics = -1;
 int g_QueueCompute = -1;
 ID3D12RootSignature *g_pComputeRootSignature = 0;
 ID3D12PipelineState* g_ComputePSO = 0;
-
+uint64_t g_TokenGpuFrameIndex[2];
+uint64_t g_TokenGpuComputeFrameIndex[2];
 
 uint64_t g_FenceGraphics = 0;
 uint64_t g_FenceCompute = 0;
@@ -502,15 +503,31 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 
 	ShowWindow(m_hwnd, nCmdShow);
 
-	// Initialize the sample. OnInit is defined in each child-implementation of DXSample.
-	OnInit();
+	g_QueueGraphics = MICROPROFILE_GPU_INIT_QUEUE("GPU-Graphics-Queue");
+	g_QueueCompute = MICROPROFILE_GPU_INIT_QUEUE("GPU-Compute-Queue");
 
 	MicroProfileOnThreadCreate("Main");
 	MicroProfileSetForceEnable(true);
 	MicroProfileSetEnableAllGroups(true);
 	MicroProfileSetForceMetaCounters(true);
-	g_QueueGraphics = MICROPROFILE_GPU_INIT_QUEUE("GPU-Graphics-Queue");
-	g_QueueCompute = MICROPROFILE_GPU_INIT_QUEUE("GPU-Compute-Queue");
+
+	// Initialize the sample. OnInit is defined in each child-implementation of DXSample.
+	OnInit();
+
+
+	for (uint32_t i = 0; i < _countof(g_TokenGpuFrameIndex); ++i)
+	{
+		char frame[255];
+		snprintf(frame, sizeof(frame) - 1, "Graphics-Read-%d", i);
+		g_TokenGpuFrameIndex[i] = MicroProfileGetToken("GPU", frame, (uint32_t)-1, MicroProfileTokenTypeGpu);
+	}
+
+	for (uint32_t i = 0; i < _countof(g_TokenGpuComputeFrameIndex); ++i)
+	{
+		char frame[255];
+		snprintf(frame, sizeof(frame) - 1, "Compute-Write-%d", i);
+		g_TokenGpuComputeFrameIndex[i] = MicroProfileGetToken("GPU", frame, (uint32_t)-1, MicroProfileTokenTypeGpu);
+	}
 
 	MicroProfileGpuInitD3D12(g_pDevice, g_pCommandQueue);
 
@@ -1769,6 +1786,7 @@ void D3D12Multithreading::BeginFrame()
 		ID3D12GraphicsCommandList* pCommandList = m_pCurrentFrameResource->m_commandListCompute.Get();
 		MicroProfileGpuBegin(pCommandList);
 		{
+			MICROPROFILE_SCOPEGPU_TOKEN(g_TokenGpuComputeFrameIndex[g_nDst]);
 			MICROPROFILE_SCOPEGPUI("Compute-Demo", 0xffffffff);
 			ID3D12DescriptorHeap* ppHeaps[] = { m_computeSrvUavHeap.Get() };
 			pCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
@@ -1852,6 +1870,10 @@ void D3D12Multithreading::WorkerThread(int threadIndex)
 {
 	assert(threadIndex >= 0);
 	assert(threadIndex < NumContexts);
+
+	char threadname[16];
+	snprintf(threadname, sizeof(threadname) - 1, "worker-%d", threadIndex);
+	MicroProfileOnThreadCreate(threadname);
 #if !SINGLETHREADED
 
 	while (threadIndex >= 0 && threadIndex < NumContexts)
@@ -1883,7 +1905,8 @@ void D3D12Multithreading::WorkerThread(int threadIndex)
 			MICROPROFILE_SCOPEI("CPU", "Shadows", 0xff00ff00);
 			MicroProfileGpuBegin(pShadowCommandList);
 			{
-				MICROPROFILE_SCOPEGPUI("Shadows", 0xff00);
+				MICROPROFILE_SCOPEGPU_TOKEN(g_TokenGpuFrameIndex[g_nSrc]);
+ 				MICROPROFILE_SCOPEGPUI("Shadows", 0xff00);
 
 				for (int j = threadIndex; j < _countof(SampleAssets::Draws); j += NumContexts)
 				{
@@ -1914,8 +1937,8 @@ void D3D12Multithreading::WorkerThread(int threadIndex)
 		// passes for this frame have been submitted.
 		MicroProfileGpuBegin(pSceneCommandList);
 		{
-			
 			MICROPROFILE_SCOPEI("CPU", "Scene", 0xff00ffff);
+			MICROPROFILE_SCOPEGPU_TOKEN(g_TokenGpuFrameIndex[g_nSrc]);
 			MICROPROFILE_SCOPEGPUI("scene", 0xff0000);
 			SetCommonPipelineState(pSceneCommandList);
 			CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
