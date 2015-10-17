@@ -6,4 +6,12 @@
     <ClCompile Include="microprofile.cpp" />
     <ClCompile Include="..\glew\glew.c" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\microprofile.h" />
+    <ClInclude Include="..\..\microprofile_html.h" />
+    <ClInclude Include="..\..\microprofileui.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\src\microprofile.html" />
+  </ItemGroup>
 </Project>

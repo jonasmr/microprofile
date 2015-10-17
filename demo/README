@@ -1,6 +1,15 @@
 
-The sample depends on sdl2 (www.libsdl.org). 
+This folder contains a few samples:
 
-Windows: use premake4 to generate a vs2012 solution. sdl2 is assumed to be present & compiled in the demo/sdl2 subfolder. 
+ui: [windows, osx, linux] Full implementation using OpenGL. Supports 
+	Depends on SDL2. 
+		On Windows: unzip SDL2 into sdl2 subfolder below demo/ and build it, before compiling the samples
+		OSX/Linux: sdl2 should be compiled & installed, so that sdl2-config is available. 
 
-OSX: sdl2 should be compiled & installed, so that sdl2-config is available. 
+noui: [windows, osx, linux] Minimal sample, only webpage interface supported.
+
+noui_d3d11: [windows] Minimal sample plus d3d11 gpu timers.
+
+noui_d3d12: [windows10] Minimal sample plus d3d12 gpu timers.
+
+noui_d3d12_multithreading: [windows10] Minimal sample plus d3d12 gpu timers. Shows how microprofile works with multithreaded rendering, and how to support multiple command queues.

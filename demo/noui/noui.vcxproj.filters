@@ -4,4 +4,11 @@
     <ClCompile Include="demo_noui.cpp" />
     <ClCompile Include="fakework.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\src\microprofile.html" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\microprofile.h" />
+    <ClInclude Include="..\..\microprofile_html.h" />
+  </ItemGroup>
 </Project>

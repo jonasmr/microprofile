@@ -22,10 +22,13 @@
     <ClCompile Include="noui_d3d12_multithreading.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\microprofile.h" />
+    <ClInclude Include="..\..\microprofile_html.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="SquidRoom.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\src\microprofile.html" />
     <None Include="SquidRoom.bin" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
