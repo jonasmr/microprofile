@@ -910,7 +910,6 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 		}
 		nBaseTicksGpu = (nBaseTicksCpu - nTickReferenceCpu) * nTicksPerSecondGpu / nTicksPerSecondCpu + nTickReferenceGpu;
 	}
-	int64_t nBaseTicksEndGpu = nBaseTicksCpu + MicroProfileMsToTick(fDetailedRange, MicroProfileTicksPerSecondCpu());
 
 	MicroProfileFrameState* pFrameFirst = pFrameCurrent;
 	int64_t nGapTime = MicroProfileTicksPerSecondCpu() * MICROPROFILE_GAP_TIME / 1000;

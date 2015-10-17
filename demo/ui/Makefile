@@ -10,6 +10,7 @@ CFLAGS=`sdl2-config --cflags` -I../.. -I../glew -DGLEW_STATIC -Wno-c++11-extensi
 #CFLAGS+=-fsanitize=undefined-trap -fsanitize-undefined-trap-on-error
 CFLAGS+=-Wall -DMICROPROFILE_UI=1 
 CFLAGS+=-DMICROPROFILE_WEBSERVER=1
+CFLAGS+=-DMICROPROFILE_GPU_TIMERS_MULTITHREADED=1
 #CFLAGS+=-DMICROPROFILE_ENABLED=0
 
 CFLAGS+=-g -O0 -Wno-invalid-offsetof
