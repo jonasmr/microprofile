@@ -171,6 +171,14 @@
     <ClCompile Include="fakework.cpp" />
     <ClCompile Include="microprofile.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\microprofile.h" />
+    <ClInclude Include="..\..\microprofileui.h" />
+    <ClInclude Include="..\..\microprofile_html.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\src\microprofile.html" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
