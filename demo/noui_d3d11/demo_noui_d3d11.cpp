@@ -67,8 +67,6 @@ int WINAPI WinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	MicroProfileSetForceEnable(true);
 	MicroProfileSetEnableAllGroups(true);
 	MicroProfileSetForceMetaCounters(true);
-	g_QueueGraphics = MICROPROFILE_GPU_INIT_QUEUE("GPU-Graphics-Queue");
-	MICROPROFILE_GPU_BEGIN(0);
 
 
 	MicroProfileGpuInitD3D11(g_pd3dDevice, g_pImmediateContext);
@@ -499,8 +497,6 @@ void Render()
 		g_pSwapChain->Present( 0, 0 );
 	}
 
-	MICROPROFILE_GPU_SUBMIT(g_QueueGraphics, MICROPROFILE_GPU_END());
 	MicroProfileFlip(0);
-	MICROPROFILE_GPU_BEGIN(0);
 
 }

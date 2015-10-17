@@ -322,10 +322,14 @@ typedef uint32_t ThreadIdType;
 #define MICROPROFILE_GPU_FRAME_DELAY 3 //must be > 0
 #endif
 
-
 #ifndef MICROPROFILE_NAME_MAX_LEN
 #define MICROPROFILE_NAME_MAX_LEN 64
 #endif
+
+#ifndef MICROPROFILE_GPU_TIMERS_MULTITHREADED
+#define MICROPROFILE_GPU_TIMERS_MULTITHREADED 0
+#endif
+
 
 #define MICROPROFILE_FORCEENABLECPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeCpu)
 #define MICROPROFILE_FORCEDISABLECPUGROUP(s) MicroProfileForceDisableGroup(s, MicroProfileTokenTypeCpu)
@@ -931,6 +935,8 @@ struct MicroProfile
 	uint32_t					nNumCounters;
 	uint32_t					nCounterNamePos;
 	std::atomic<int64_t> 		Counters[MICROPROFILE_MAX_COUNTERS];
+	
+	uint64_t					GpuQueue; //only used when !MICROPROFILE_GPU_TIMERS_MULTITHREADED
 
 	MicroProfileGpuTimerState 	GPU;
 
@@ -1154,8 +1160,10 @@ static void MicroProfileCreateThreadLogKeyGpu()
 	pthread_key_create(&g_MicroProfileThreadLogKeyGpu, NULL);
 }
 #else
-MP_THREAD_LOCAL MicroProfileThreadLog* g_MicroProfileThreadLog_xx = 0;
-MP_THREAD_LOCAL MicroProfileThreadLogGpu* g_MicroProfileThreadLogGpu_xx = 0;
+MP_THREAD_LOCAL MicroProfileThreadLog* g_MicroProfileThreadLogThreadLocal = 0;
+#if MICROPROFILE_GPU_TIMERS_MULTITHREADED
+MP_THREAD_LOCAL MicroProfileThreadLogGpu* g_MicroProfileThreadLogGpuThreadLocal = 0;
+#endif
 #endif
 static bool g_bUseLock = false; /// This is used because windows does not support using mutexes under dll init(which is where global initialization is handled)
 
@@ -1238,6 +1246,12 @@ void MicroProfileInit()
 			S.Frames[i].nFrameStartGpu = -1;
 		}
 		S.nWebServerDataSent = (uint64_t)-1;
+
+#if !MICROPROFILE_GPU_TIMERS_MULTITHREADED
+		S.GpuQueue = MICROPROFILE_GPU_INIT_QUEUE("GPU");
+		MicroProfileGpuBegin(0);
+#endif
+
 	}
 	if(bUseLock)
 		mutex.unlock();
@@ -1263,37 +1277,54 @@ inline void MicroProfileSetThreadLog(MicroProfileThreadLog* pLog)
 	pthread_once(&g_MicroProfileThreadLogKeyOnce, MicroProfileCreateThreadLogKey);
 	pthread_setspecific(g_MicroProfileThreadLogKey, pLog);
 }
-
-inline MicroProfileThreadLogGpu* MicroProfileGetThreadLogGpu_()
+#if MICROPROFILE_GPU_TIMERS_MULTITHREADED
+inline MicroProfileThreadLogGpu* MicroProfileGetThreadLogGpuThreadLocal()
 {
 	pthread_once(&g_MicroProfileThreadLogKeyGpuOnce, MicroProfileCreateThreadLogKeyGpu);
 	return (MicroProfileThreadLogGpu*)pthread_getspecific(g_MicroProfileThreadLogKeyGpu);
 }
 
-inline void MicroProfileSetThreadLogGpu_(MicroProfileThreadLogGpu* pLog)
+inline void MicroProfileSetThreadLogGpuThreadLocal(MicroProfileThreadLogGpu* pLog)
 {
 	pthread_once(&g_MicroProfileThreadLogKeyGpuOnce, MicroProfileCreateThreadLogKeyGpu);
 	pthread_setspecific(g_MicroProfileThreadLogKeyGpu, pLog);
 }
+#endif
 
 #else
 MicroProfileThreadLog* MicroProfileGetThreadLog()
 {
-	return g_MicroProfileThreadLog_xx;
+	return g_MicroProfileThreadLogThreadLocal;
 }
 inline void MicroProfileSetThreadLog(MicroProfileThreadLog* pLog)
 {
-	g_MicroProfileThreadLog_xx = pLog;
+	g_MicroProfileThreadLogThreadLocal = pLog;
 }
-MicroProfileThreadLogGpu* MicroProfileGetThreadLogGpu_()
+#if MICROPROFILE_GPU_TIMERS_MULTITHREADED
+MicroProfileThreadLogGpu* MicroProfileGetThreadLogGpuThreadLocal()
 {
-	return g_MicroProfileThreadLogGpu_xx;
+	return g_MicroProfileThreadLogGpuThreadLocal;
 }
-inline void MicroProfileSetThreadLogGpu_(MicroProfileThreadLogGpu* pLog)
+inline void MicroProfileSetThreadLogGpuThreadLocal(MicroProfileThreadLogGpu* pLog)
 {
-	g_MicroProfileThreadLogGpu_xx = pLog;
+	g_MicroProfileThreadLogGpuThreadLocal = pLog;
 }
 #endif
+#endif
+
+#if !MICROPROFILE_GPU_TIMERS_MULTITHREADED
+MicroProfileThreadLogGpu* g_MicroProfileThreadLogGpuThreadLocal = 0;
+
+MicroProfileThreadLogGpu* MicroProfileGetThreadLogGpuThreadLocal()
+{
+	return g_MicroProfileThreadLogGpuThreadLocal;
+}
+inline void MicroProfileSetThreadLogGpuThreadLocal(MicroProfileThreadLogGpu* pLog)
+{
+	g_MicroProfileThreadLogGpuThreadLocal = pLog;
+}
+#endif
+
 
 
 MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
@@ -1336,7 +1367,7 @@ void MicroProfileOnThreadCreate(const char* pThreadName)
 
 MicroProfileThreadLogGpu* MicroProfileGetThreadLogGpu()
 {
-	MicroProfileThreadLogGpu* pLog = MicroProfileGetThreadLogGpu_();
+	MicroProfileThreadLogGpu* pLog = MicroProfileGetThreadLogGpuThreadLocal();
 	if(!pLog)
 	{
 		std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
@@ -1347,7 +1378,7 @@ MicroProfileThreadLogGpu* MicroProfileGetThreadLogGpu()
 		pLog->pContext = (void*)-1;
 		pLog->nStart = (uint32_t)-1;
 		pLog->nPut = 0;
-		MicroProfileSetThreadLogGpu_(pLog);		
+		MicroProfileSetThreadLogGpuThreadLocal(pLog);		
 		S.PoolGpu[nLogIndex] = pLog;
 	}
 	return pLog;
@@ -1759,7 +1790,7 @@ void MicroProfileMetaUpdate(MicroProfileToken nToken, int nCount, MicroProfileTo
 		}
 		else
 		{
-			MicroProfileThreadLogGpu* pLogGpu = MicroProfileGetThreadLogGpu_();
+			MicroProfileThreadLogGpu* pLogGpu = MicroProfileGetThreadLogGpuThreadLocal();
 			if(pLogGpu)
 			{
 				MicroProfileLogPutGpu(nToken, nCount, MP_LOG_META, pLogGpu);
@@ -1847,13 +1878,13 @@ void MicroProfileGpuSubmit(int nQueue, uint64_t nWork)
 	MicroProfileThreadLogGpu* pGpuLog = S.PoolGpu[nThreadLog];
 	MP_ASSERT(pGpuLog);
 	
-	uint64_t nCount = 0;
+	int64_t nCount = 0;
 	if(nStart < MICROPROFILE_GPU_BUFFER_SIZE)
 	{
 		nCount = pGpuLog->Log[nStart];
 	}
 	nStart++;
-	for(uint32_t i = 0; i < nCount; ++i)
+	for(int32_t i = 0; i < nCount; ++i)
 	{
 		MicroProfileLogEntry LE = pGpuLog->Log[nStart++];
 		MicroProfileLogPut(LE, pQueueLog);
@@ -1930,6 +1961,10 @@ void MicroProfileFlip(void* pContext)
 	MICROPROFILE_SCOPE(g_MicroProfileFlip);
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 
+#if !MICROPROFILE_GPU_TIMERS_MULTITHREADED
+	int64_t nGpuWork = MicroProfileGpuEnd();
+	MicroProfileGpuSubmit(S.GpuQueue, nGpuWork);
+#endif
 	for (uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
 	{
 		if (S.PoolGpu[i])
@@ -1937,6 +1972,10 @@ void MicroProfileFlip(void* pContext)
 			S.PoolGpu[i]->nPut = 0;
 		}
 	}
+#if !MICROPROFILE_GPU_TIMERS_MULTITHREADED
+	MicroProfileGpuBegin(0);
+#endif
+
 	uint32_t nGpuTimeStamp = MicroProfileGpuFlip(pContext);
 
 	if(S.nToggleRunning)
