@@ -76,7 +76,7 @@ int WINAPI WinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	StartFakeWork();
 	char buffer[256];
 	snprintf(buffer, sizeof(buffer)-1, "Webserver started in localhost:%d\n", MicroProfileWebServerPort());
-	OutputDebugString(buffer);
+	OutputDebugStringA(buffer);
 
 
 
