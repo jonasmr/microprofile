@@ -1118,7 +1118,7 @@ void MicroProfileDumpToFile();
 uint32_t MicroProfileGpuFlip(void*);
 void MicroProfileGpuShutdown();
 #else
-#define MicroProfileGpuFlip(a) do{}while(0)
+#define MicroProfileGpuFlip(a) 0
 #define MicroProfileGpuShutdown() do{}while(0)
 #endif
 
@@ -2656,7 +2656,7 @@ void MicroProfileDumpFile(const char* pHtml, const char* pCsv)
 	S.nDumpFileNextFrame = 0;
 	if(pHtml)
 	{
-		uint32_t nLen = strlen(pHtml);
+		size_t nLen = strlen(pHtml);
 		if(nLen > sizeof(S.HtmlDumpPath)-1)
 		{
 			return;
@@ -2666,7 +2666,7 @@ void MicroProfileDumpFile(const char* pHtml, const char* pCsv)
 	}
 	if(pCsv)
 	{
-		uint32_t nLen = strlen(pCsv);
+		size_t nLen = strlen(pCsv);
 		if(nLen > sizeof(S.CsvDumpPath)-1)
 		{
 			return;
@@ -3340,13 +3340,13 @@ void MicroProfileWriteSocket(void* Handle, size_t nSize, const char* pData)
 	if(nSize > MICROPROFILE_WEBSERVER_SOCKET_BUFFER_SIZE / 2)
 	{
 		MicroProfileFlushSocket(Socket);
-		send(Socket, pData, nSize, 0);
+		send(Socket, pData, (int)nSize, 0);
 
 	}
 	else
 	{
 		memcpy(&S.WebServerBuffer[S.WebServerPut], pData, nSize);
-		S.WebServerPut += nSize;
+		S.WebServerPut += (uint32_t)nSize;
 		if(S.WebServerPut > MICROPROFILE_WEBSERVER_SOCKET_BUFFER_SIZE/2)
 		{
 			MicroProfileFlushSocket(Socket);
@@ -3420,11 +3420,11 @@ void MicroProfileCompressedWriteSocket(void* Handle, size_t nSize, const char* p
 	const unsigned char* pDeflateInEnd = Stream.next_in + Stream.avail_in;
 	const unsigned char* pDeflateInStart = &pState->DeflateIn[0];
 	const unsigned char* pDeflateInRealEnd = &pState->DeflateIn[MICROPROFILE_COMPRESS_CHUNK];	
-	pState->nSize += nSize;
-	if(nSize <= pDeflateInRealEnd - pDeflateInEnd)
+	pState->nSize += (uint32_t)nSize;
+	if((ptrdiff_t)nSize <= pDeflateInRealEnd - pDeflateInEnd)
 	{
 		memcpy((void*)pDeflateInEnd, pData, nSize);
-		Stream.avail_in += nSize;
+		Stream.avail_in += (uint32_t)nSize;
 		MP_ASSERT(Stream.next_in + Stream.avail_in <= pDeflateInRealEnd);
 		return;
 	}
@@ -3453,7 +3453,7 @@ void MicroProfileCompressedWriteSocket(void* Handle, size_t nSize, const char* p
 		size_t nBytes = MicroProfileMin(nSpace, nSize);
 		MP_ASSERT(nBytes + pDeflateInEnd <= pDeflateInRealEnd);
 		memcpy((void*)pDeflateInEnd, pData, nBytes); 
-		Stream.avail_in += nBytes;
+		Stream.avail_in += (uint32_t)nBytes;
 		nSize -= nBytes;
 		pData += nBytes;
 		int r = mz_deflate(&Stream, MZ_NO_FLUSH);
@@ -3904,6 +3904,7 @@ void MicroProfileStartContextSwitchTrace(){}
 
 
 #if MICROPROFILE_GPU_TIMERS_D3D11
+#include <d3d11.h>
 uint32_t MicroProfileGpuInsertTimeStamp(void* pContext)
 {
 	MicroProfileD3D11Frame& Frame = S.GPU.m_QueryFrames[S.GPU.m_nQueryFrame];
@@ -3984,7 +3985,7 @@ uint32_t MicroProfileGpuFlip(void* pCtx)
 			{
 				if(S.GPU.m_nQueryFrequency)
 				{
-					OutputDebugString("Query freq changing");
+					OutputDebugStringA("Query freq changing");
 				}
 				S.GPU.m_nQueryFrequency = Result.nFrequency;
 			}
