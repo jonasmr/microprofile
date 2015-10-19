@@ -2189,7 +2189,7 @@ const char* MicroProfileUIMenuTimers(int nIndex, bool* bSelected)
 		case 6: return "Exclusive Average";
 		case 7: return "Exclusive Max";
 	}
-	int nMetaIndex = nIndex - 7;
+	int nMetaIndex = nIndex - 8;
 	if(nMetaIndex < MICROPROFILE_META_MAX)
 	{
 		return S.MetaCounters[nMetaIndex].pName;
