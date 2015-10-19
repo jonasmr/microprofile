@@ -288,10 +288,16 @@ int main(int argc, char* argv[])
 	MICROPROFILE_COUNTER_SET("fisk/geder/", 42);
 	MICROPROFILE_COUNTER_SET("fisk/aborre/", -2002);
 	MICROPROFILE_COUNTER_SET_LIMIT("fisk/aborre/", 120);
+	static int Frames = 0;
+	static uint64_t FramesX = 0;
+	MICROPROFILE_COUNTER_SET_INT64_PTR("frames/int64", &FramesX);
+	MICROPROFILE_COUNTER_SET_INT32_PTR("frames/int32", &Frames);
 	//MICROPROFILE_COUNTER_ADD("//\\\\///", 1000); // this should assert as theres only delimiters
 	StartFakeWork();
 	while(!g_nQuit)
 	{
+		Frames++;
+		FramesX += 1024;
 		MICROPROFILE_SCOPE(MAIN);
 		MICROPROFILE_COUNTER_ADD("engine/frames", 1);
 

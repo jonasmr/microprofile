@@ -1896,6 +1896,7 @@ void MicroProfileDrawCounterView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 {
 	MicroProfile& S = *MicroProfileGet();
 	MICROPROFILE_SCOPE(g_MicroProfileDrawBarView);
+	MicroProfileCounterFetchCounters();
 
 	UI.nCounterWidthTemp = 7;
 	UI.nLimitWidthTemp = 7;

@@ -133,6 +133,9 @@ typedef uint16_t MicroProfileGroupId;
 #define MICROPROFILE_SCOPE_TOKEN(token) do{} while(0)
 #define MICROPROFILE_COUNTER_ADD(name, count) do{} while(0)
 #define MICROPROFILE_COUNTER_SET(name, count) do{} while(0)
+#define MICROPROFILE_COUNTER_SET_INT32_PTR(name, ptr) do{} while(0)
+#define MICROPROFILE_COUNTER_SET_INT64_PTR(name, ptr) do{} while(0)
+#define MICROPROFILE_COUNTER_CLEAR_PTR(name) do{} while(0)
 #define MICROPROFILE_COUNTER_SET_LIMIT(name, count) do{} while(0)
 
 
@@ -270,6 +273,9 @@ typedef uint32_t ThreadIdType;
 #define MICROPROFILE_META_GPU(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__) = MicroProfileGetMetaToken(name); MicroProfileMetaUpdate(MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__), count, MicroProfileTokenTypeGpu)
 #define MICROPROFILE_COUNTER_ADD(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__) = MicroProfileGetCounterToken(name); MicroProfileCounterAdd(MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__), count)
 #define MICROPROFILE_COUNTER_SET(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__) = MicroProfileGetCounterToken(name); MicroProfileCounterSet(MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__), count)
+#define MICROPROFILE_COUNTER_SET_INT32_PTR(name, ptr) MicroProfileCounterSetPtr(name, ptr, sizeof(int32_t))
+#define MICROPROFILE_COUNTER_SET_INT64_PTR(name, ptr) MicroProfileCounterSetPtr(name, ptr, sizeof(int64_t))
+#define MICROPROFILE_COUNTER_CLEAR_PTR(name) MicroProfileCounterSetPtr(name, 0, 0)
 #define MICROPROFILE_COUNTER_SET_LIMIT(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__) = MicroProfileGetCounterToken(name); MicroProfileCounterSetLimit(MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__), count)
 #define MICROPROFILE_COUNTER_CONFIG(name, type, limit) MicroProfileCounterConfig(name, type, limit)
 
@@ -369,6 +375,8 @@ MICROPROFILE_API void MicroProfileCounterAdd(MicroProfileToken nToken, int64_t n
 MICROPROFILE_API void MicroProfileCounterSet(MicroProfileToken nToken, int64_t nCount);
 MICROPROFILE_API void MicroProfileCounterSetLimit(MicroProfileToken nToken, int64_t nCount);
 MICROPROFILE_API void MicroProfileCounterConfig(const char* pCounterName, uint32_t nFormat, int64_t nLimit);
+MICROPROFILE_API void MicroProfileCounterSetPtr(const char* pCounterName, void* pValue, uint32_t nSize);
+MICROPROFILE_API void MicroProfileCounterFetchCounters();
 MICROPROFILE_API uint64_t MicroProfileEnter(MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileLeave(MicroProfileToken nToken, uint64_t nTick);
 MICROPROFILE_API uint64_t MicroProfileGpuEnter(MicroProfileToken nToken);
@@ -654,6 +662,13 @@ struct MicroProfileCounterInfo
 
 };
 
+struct MicroProfileCounterSource
+{
+	void* pSource;
+	uint32_t nSourceSize;
+};
+
+
 struct MicroProfileGraphState
 {
 	int64_t nHistory[MICROPROFILE_GRAPH_HISTORY];
@@ -933,6 +948,7 @@ struct MicroProfile
 
 	char 						CounterNames[MICROPROFILE_MAX_COUNTER_NAME_CHARS];
 	MicroProfileCounterInfo 	CounterInfo[MICROPROFILE_MAX_COUNTERS];
+	MicroProfileCounterSource	CounterSource[MICROPROFILE_MAX_COUNTERS];
 	uint32_t					nNumCounters;
 	uint32_t					nCounterNamePos;
 	std::atomic<int64_t> 		Counters[MICROPROFILE_MAX_COUNTERS];
@@ -1679,6 +1695,8 @@ MicroProfileToken MicroProfileGetCounterTokenByParent(int nParent, const char* p
 	S.CounterInfo[nResult].nFlags = 0;
 	S.CounterInfo[nResult].eFormat = MICROPROFILE_COUNTER_FORMAT_DEFAULT;
 	S.CounterInfo[nResult].nLimit = 0;
+	S.CounterSource[nResult].pSource = 0;
+	S.CounterSource[nResult].nSourceSize = 0;
 	int nLen = (int)strlen(pName)+1;
 
 	MP_ASSERT(nLen + S.nCounterNamePos <= MICROPROFILE_MAX_COUNTER_NAME_CHARS);
@@ -1811,12 +1829,12 @@ void MicroProfileCounterSet(MicroProfileToken nToken, int64_t nCount)
 	MP_ASSERT(nToken < S.nNumCounters);
 	S.Counters[nToken].store(nCount);
 }
+
 void MicroProfileCounterSetLimit(MicroProfileToken nToken, int64_t nCount)
 {
 	MP_ASSERT(nToken < S.nNumCounters);
 	S.CounterInfo[nToken].nLimit = nCount;
 }
-
 
 void MicroProfileCounterConfig(const char* pName, uint32_t eFormat, int64_t nLimit)
 {
@@ -1825,6 +1843,29 @@ void MicroProfileCounterConfig(const char* pName, uint32_t eFormat, int64_t nLim
 	S.CounterInfo[nToken].nLimit = nLimit;
 }
 
+void MicroProfileCounterSetPtr(const char* pCounterName, void* pSource, uint32_t nSize)
+{
+	MicroProfileToken nToken = MicroProfileGetCounterToken(pCounterName);
+	S.CounterSource[nToken].pSource = pSource;
+	S.CounterSource[nToken].nSourceSize = nSize;
+}
+
+void MicroProfileCounterFetchCounters()
+{
+	for(uint32_t i = 0; i < S.nNumCounters; ++i)
+	{
+		switch (S.CounterSource[i].nSourceSize)
+		{
+		case sizeof(int32_t):
+			S.Counters[i] = *(int32_t*)S.CounterSource[i].pSource;
+			break;
+		case sizeof(int64_t):
+			S.Counters[i] = *(int64_t*)S.CounterSource[i].pSource;
+			break;
+		default: break;
+		}
+	}
+}
 
 void MicroProfileLeave(MicroProfileToken nToken_, uint64_t nTickStart)
 {
@@ -2845,7 +2886,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	S.nActiveGroup = 0;
 	S.nPauseTicks = MP_TICK();
 
-
+	MicroProfileCounterFetchCounters();
 	for(size_t i = 0; i < g_MicroProfileHtml_begin_count; ++i)
 	{
 		CB(Handle, g_MicroProfileHtml_begin_sizes[i]-1, g_MicroProfileHtml_begin[i]);
