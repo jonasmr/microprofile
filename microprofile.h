@@ -132,6 +132,7 @@ typedef uint16_t MicroProfileGroupId;
 #define MICROPROFILE_FORCEDISABLEGPUGROUP(s) do{} while(0)
 #define MICROPROFILE_SCOPE_TOKEN(token) do{} while(0)
 #define MICROPROFILE_COUNTER_ADD(name, count) do{} while(0)
+#define MICROPROFILE_COUNTER_SUB(name, count) do{} while(0)
 #define MICROPROFILE_COUNTER_SET(name, count) do{} while(0)
 #define MICROPROFILE_COUNTER_SET_INT32_PTR(name, ptr) do{} while(0)
 #define MICROPROFILE_COUNTER_SET_INT64_PTR(name, ptr) do{} while(0)
@@ -272,6 +273,7 @@ typedef uint32_t ThreadIdType;
 #define MICROPROFILE_META_CPU(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__) = MicroProfileGetMetaToken(name); MicroProfileMetaUpdate(MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__), count, MicroProfileTokenTypeCpu)
 #define MICROPROFILE_META_GPU(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__) = MicroProfileGetMetaToken(name); MicroProfileMetaUpdate(MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__), count, MicroProfileTokenTypeGpu)
 #define MICROPROFILE_COUNTER_ADD(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__) = MicroProfileGetCounterToken(name); MicroProfileCounterAdd(MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__), count)
+#define MICROPROFILE_COUNTER_SUB(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__) = MicroProfileGetCounterToken(name); MicroProfileCounterAdd(MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__), -(int64_t)count)
 #define MICROPROFILE_COUNTER_SET(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__) = MicroProfileGetCounterToken(name); MicroProfileCounterSet(MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__), count)
 #define MICROPROFILE_COUNTER_SET_INT32_PTR(name, ptr) MicroProfileCounterSetPtr(name, ptr, sizeof(int32_t))
 #define MICROPROFILE_COUNTER_SET_INT64_PTR(name, ptr) MicroProfileCounterSetPtr(name, ptr, sizeof(int64_t))
@@ -495,7 +497,7 @@ struct MicroProfileScopeGpuHandler
 
 #define MICROPROFILE_MAX_COUNTERS 512
 #define MICROPROFILE_MAX_COUNTER_NAME_CHARS (MICROPROFILE_MAX_COUNTERS*16)
-#define MICROPROFILE_MAX_TIMERS 1024
+
 #define MICROPROFILE_MAX_GROUPS 48 //dont bump! no. of bits used it bitmask
 #define MICROPROFILE_MAX_CATEGORIES 16
 #define MICROPROFILE_MAX_GRAPHS 5
@@ -508,6 +510,10 @@ struct MicroProfileScopeGpuHandler
 #define MICROPROFILE_ANIM_DELAY_PRC 0.5f
 #define MICROPROFILE_GAP_TIME 50 //extra ms to fetch to close timers from earlier frames
 
+
+#ifndef MICROPROFILE_MAX_TIMERS
+#define MICROPROFILE_MAX_TIMERS 1024
+#endif
 
 #ifndef MICROPROFILE_MAX_THREADS
 #define MICROPROFILE_MAX_THREADS 32
