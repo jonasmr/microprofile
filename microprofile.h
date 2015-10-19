@@ -1579,6 +1579,7 @@ MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, ui
 		return ret;
 	uint16_t nGroupIndex = MicroProfileGetGroup(pGroup, Type);
 	uint16_t nTimerIndex = (uint16_t)(S.nTotalTimers++);
+	MP_ASSERT(nTimerIndex < MICROPROFILE_MAX_TIMERS);
 	uint64_t nGroupMask = 1ll << nGroupIndex;
 	MicroProfileToken nToken = MicroProfileMakeToken(nGroupMask, nTimerIndex);
 	S.GroupInfo[nGroupIndex].nNumTimers++;
