@@ -3638,7 +3638,6 @@ bool MicroProfileWebServerUpdate()
 	{
 		std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 		char Req[8192];
-		MicroProfileSetNonBlocking(Connection, 0);
 		int nReceived = recv(Connection, Req, sizeof(Req)-1, 0);
 		if(nReceived > 0)
 		{
@@ -3678,6 +3677,7 @@ bool MicroProfileWebServerUpdate()
 				int nFrames = MicroProfileParseGet(pGet);
 				if(nFrames)
 				{
+					MicroProfileSetNonBlocking(Connection, 0);
 					uint64_t nTickStart = MP_TICK();
 					send(Connection, MICROPROFILE_HTML_HEADER, sizeof(MICROPROFILE_HTML_HEADER)-1, 0);
 					uint64_t nDataStart = S.nWebServerDataSent;
