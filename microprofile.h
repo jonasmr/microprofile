@@ -3744,7 +3744,7 @@ void MicroProfileStartContextSwitchTrace()
 {
     if(!S.bContextSwitchRunning)
     {
-        S.bContextSwitchRunning    = true;
+        S.bContextSwitchRunning = true;
         S.bContextSwitchStop = false;
         MicroProfileThreadStart(&S.ContextSwitchThread, MicroProfileTraceThread);
     }
@@ -3851,7 +3851,6 @@ void MicroProfileContextSwitchShutdownTrace()
 
 void* MicroProfileTraceThread(void* unused)
 {
-
 	MicroProfileContextSwitchShutdownTrace();
 	ULONG status = ERROR_SUCCESS;
 	TRACEHANDLE SessionHandle = 0;

@@ -249,11 +249,38 @@ var nHoverTokenLogIndexNext = -1;
 var nHoverTokenIndexNext = -1;
 var nHoverCounter = -1;
 var nHideHelp = 0;
-
-
 var fFrameScale = 33.33;
+
+function RangeInit()
+{
+	return {"Begin":-1, "End":-1, "YBegin":-1, "YEnd":-1, "Thread": -1 };
+}
+function RangeValid(Range)
+{
+	return Range.Begin < Range.End;
+}
+function RangeCopy(Dst, Src)
+{
+	Dst.Begin = Src.Begin;
+	Dst.End = Src.End;
+	Dst.YBegin = Src.YBegin;
+	Dst.YEnd = Src.YEnd;
+	Dst.Thread = Src.Thread;
+}
+var RangeCpu = RangeInit();
+var RangeGpu = RangeInit();
+var RangeSelect = RangeInit();
+
+var RangeCpuNext = RangeInit();
+var RangeGpuNext = RangeInit();
+
+var RangeCpuHistory = RangeInit();
+var RangeGpuHistory = RangeInit();
+
 var fRangeBegin = 0;
 var fRangeEnd = -1;
+var fRangeThreadId = -1;
+var fRangeThreadIdNext = -1;
 var fRangeBeginNext = 0;
 var fRangeEndNext = 0;
 var fRangeBeginGpuNext = 0;
@@ -264,6 +291,7 @@ var fRangeBeginHistoryGpu = -1;
 var fRangeEndHistoryGpu = -1;
 var fRangeBeginSelect = 0;
 var fRangeEndSelect = -1;
+var ThreadY;
 
 var ModeDetailed = 0;
 var ModeTimers = 1;
@@ -1380,8 +1408,8 @@ function DrawDetailedFrameHistory()
 	var fX = 0;
 	var FrameIndex = -1;
 	var MouseDragging = MouseDragState != MouseDragOff;
-	fRangeBeginHistory = fRangeEndHistory = -1;
-	fRangeBeginHistoryGpu = fRangeEndHistoryGpu = -1;
+	RangeCpuHistory = RangeInit();
+	RangeGpuHistory = RangeInit()
 
 	var FrameFirst = -1;
 	var FrameLast = nWidth;
@@ -1404,12 +1432,12 @@ function DrawDetailedFrameHistory()
 		if(bMouse && !MouseDragging)
 		{
 			context.fillStyle = FRAME_HISTORY_COLOR_GPU;
-			fRangeBeginHistory = Frames[i].framestart;
-			fRangeEndHistory = Frames[i].frameend;
+			RangeCpuHistory.Begin = Frames[i].framestart;
+			RangeCpuHistory.End = Frames[i].frameend;
 			if(Frames[i].framestartgpu)
 			{
-				fRangeBeginHistoryGpu = Frames[i].framestartgpu;
-				fRangeEndHistoryGpu = Frames[i].frameendgpu;
+				RangeGpuHistory.Begin = Frames[i].framestartgpu;
+				RangeGpuHistory.End = Frames[i].frameendgpu;
 			}
 			FrameIndex = i;
 		}
@@ -1648,7 +1676,7 @@ function DrawHoverToolTip()
 
 
 			StringArray.push("Time");
-			StringArray.push((fRangeEnd-fRangeBegin).toFixed(3));
+			StringArray.push((RangeCpu.End-RangeCpu.Begin).toFixed(3));
 			StringArray.push("");
 			StringArray.push("");
 			StringArray.push("Total");
@@ -1737,9 +1765,9 @@ function DrawHoverToolTip()
 		StringArray.push("Cpu");
 		StringArray.push("" + nHoverCSCpu);
 		StringArray.push("Begin");
-		StringArray.push("" + fRangeBegin);
+		StringArray.push("" + RangeCpu.Begin);
 		StringArray.push("End");
-		StringArray.push("" + fRangeEnd);
+		StringArray.push("" + RangeCpu.End);
 		DrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20);
 	}
 	ProfileLeave();
@@ -2368,9 +2396,10 @@ function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOf
 				if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < fOffsetY+CSwitchHeight && DetailedViewMouseY >= fOffsetY)
 				{
 					nHoverCSCpuNext = ActiveCpu;
-					fRangeBeginNext = TimeIn;
-					fRangeEndNext = TimeOut;
-					fRangeBeginGpuNext = fRangeEndGpuNext = -1;
+					RangeCpuNext.Begin = TimeIn;
+					RangeCpuNext.End = TimeOut;
+					RangeCpuNext.Thread = ThreadId;
+					RangeGpuNext.Begin = RangeGpuNext.End = -1;
 				}
 			}
 		}
@@ -2427,6 +2456,10 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 		var BatchesTxt = Array();
 		var BatchesTxtPos = Array();
 		var BatchesTxtColor = ['#ffffff', '#333333'];
+		if(!ThreadY)
+		{
+			ThreadY = new Array(ThreadNames.length+1);
+		}
 
 		for(var i = 0; i < 2; ++i)
 		{
@@ -2440,9 +2473,9 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 		for(nLog = 0; nLog < nNumLogs; nLog++)
 		{
 			var ThreadName = ThreadNames[nLog];
+			ThreadY[nLog] = fOffsetY;
 			if(ThreadsAllActive || ThreadsActive[ThreadName])
 			{
-
 				var LodIndex = 0;
 				var MinDelta = 0;
 				var NextLod = 1;
@@ -2558,20 +2591,23 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 
 								if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
 								{
-									fRangeBeginNext = timestart;
-									fRangeEndNext = timeend;
+
+									RangeCpuNext.Begin = timestart;
+									RangeCpuNext.End = timeend;
+									RangeCpuNext.Thread = nLog;
 									if(TypeArray[StartIndex+1] == 3 && TypeArray[j+1] == 3)
 									{
-										fRangeBeginGpuNext = fRangeBeginNext;
-										fRangeEndGpuNext = fRangeEndNext;
+										RangeGpuNext.Begin = RangeCpuNext.Begin;
+										RangeGpuNext.End = RangeCpuNext.End;
+										RangeGpuNext.Thread = nLog;
 										//cpu tick is stored following
-										fRangeBeginNext = TimeArray[StartIndex+1];
-										fRangeEndNext = TimeArray[j+1];
+										RangeCpuNext.Begin = TimeArray[StartIndex+1];
+										RangeCpuNext.End = TimeArray[j+1];
 									}
 									else
 									{
-										fRangeBeginGpuNext = -1;
-										fRangeEndGpuNext = -1;
+										RangeGpuNext.Begin = -1;
+										RangeGpuNext.End = -1
 									}
 
 									nHoverTokenNext = index;
@@ -2599,6 +2635,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 					}
 				}
 			}
+			ThreadY[nLog+1] = fOffsetY;
 		}
 
 		if(nContextSwitchEnabled) //non instrumented threads.
@@ -2723,18 +2760,30 @@ function DrawTextBox(context, text, x, y, align)
 	context.fillText(text, x, y);
 
 }
-function DrawRange(context, fBegin, fEnd, ColorBack, ColorFront, Offset, Name)
+function DrawRange(context, Range, ColorBack, ColorFront, Name)
 {
+	var fBegin = Range.Begin;
+	var fEnd = Range.End;
+	var OffsetTop = Range.YBegin;
+	var OffsetBottom = Range.YEnd;
 	if(fBegin < fEnd)
 	{
+		var MarginTop = 0.5 * FontHeight;
+		var MarginBottom = nHeight - 1.5 * FontHeight;
+		if(OffsetTop < MarginTop)
+			OffsetTop = MarginTop;
+		if(OffsetBottom > MarginBottom)
+			OffsetBottom = MarginBottom;
+		var fRulerOffset = FontHeight * 0.5;
 		var fScaleX = nWidth / fDetailedRange; 
 		var X = (fBegin - fDetailedOffset) * fScaleX;
 		var YSpace = (FontHeight+2);
-		var Y = YSpace * (Offset);
+		var Y = OffsetTop;
+		var YBottom = OffsetBottom;
 		var W = (fEnd - fBegin) * fScaleX;
 		context.globalAlpha = 0.1;
 		context.fillStyle = ColorBack;
-		context.fillRect(X, 0, W, nHeight);
+		context.fillRect(X, OffsetTop + fRulerOffset, W, OffsetBottom - OffsetTop);
 		context.globalAlpha = 1;
 		context.strokeStyle = ColorFront;
 		context.beginPath();
@@ -2750,38 +2799,45 @@ function DrawRange(context, fBegin, fEnd, ColorBack, ColorFront, Offset, Name)
 		context.fillStyle = 'white';
 		context.textAlign = 'right';
 		var TextPosY = Y + YSpace;
-		DrawTextBox(context, '' + fBegin.toFixed(2), X-3, TextPosY, 'right');
+		DrawTextBox(context, fBegin.toFixed(2), X-3, TextPosY, 'right');
 		if(DurationWidth < W + 10)
 		{
-			context.textAlign = 'center';
-			DrawTextBox(context,'' + Duration,Center * fScaleX, TextPosY, 'center');
-
-			var W0 = W - DurationWidth + FontWidth*1.5;
-			if(W0 > 6)
+			var YS = [Y, YBottom];
+			for(var i = 0; i < YS.length; ++i)
 			{
-				var Y0 = Y + FontHeight * 0.5;
-				W0 = W0 / 2.0;
-				var X0 = X + W0;
-				var X1 = X + W - W0;
-				context.strokeStyle = ColorFront;
-				context.beginPath();
-				context.moveTo(X, Y0);
-				context.lineTo(X0, Y0);
-				context.moveTo(X0, Y0-2);
-				context.lineTo(X0, Y0+2);
-				context.moveTo(X1, Y0-2);
-				context.lineTo(X1, Y0+2);
-				context.moveTo(X1, Y0);
-				context.lineTo(X + W, Y0);
-				context.stroke();
+				var Y = YS[i];
+				context.textAlign = 'center';
+				DrawTextBox(context, Duration,Center * fScaleX, Y + YSpace, 'center');
+
+				var W0 = W - DurationWidth + FontWidth*1.5;
+				if(W0 > 6)
+				{
+					{
+
+						var Y0 = Y + fRulerOffset;
+						W0 = W0 / 2.0;
+						var X0 = X + W0;
+						var X1 = X + W - W0;
+						context.strokeStyle = ColorFront;
+						context.beginPath();
+						context.moveTo(X, Y0);
+						context.lineTo(X0, Y0);
+						context.moveTo(X0, Y0-2);
+						context.lineTo(X0, Y0+2);
+						context.moveTo(X1, Y0-2);
+						context.lineTo(X1, Y0+2);
+						context.moveTo(X1, Y0);
+						context.lineTo(X + W, Y0);
+						context.stroke();
+					}
+				}
 			}
 		}
 		context.textAlign = 'left';
-		DrawTextBox(context, '' + fEnd.toFixed(2), X + W + 2, TextPosY, 'left');
-		DrawTextBox(context, Name, X + W + 2, nHeight - FontHeight - YSpace*Offset, 'left');
-		Offset += 1;
+		DrawTextBox(context, fEnd.toFixed(2), X + W + 2, TextPosY, 'left');
+		DrawTextBox(context, Name, X + W + 2, OffsetTop + YSpace + FontHeight, 'left');
 	}
-	return Offset;
+	return 1;
 }
 
 function DrawDetailed(Animation)
@@ -2795,10 +2851,14 @@ function DrawDetailed(Animation)
 	DebugDrawTextCount = 0;
 	nHoverCSCpuNext = -1;
 
-	fRangeBeginNext = fRangeEndNext = -1;
-	fRangeBeginGpuNext = fRangeEndGpuNext = -1;
-	var fRangeBeginGpu = -1;
-	var fRangeEndGpu = -1;
+	RangeCpuNext = RangeInit();
+	RangeGpuNext = RangeInit();
+	// fRangeBeginNext = fRangeEndNext = -1;
+	// fRangeBeginGpuNext = fRangeEndGpuNext = -1;
+	// fRangeThreadIdNext = -1;
+	// var fRangeBeginGpu = -1;
+	// var fRangeEndGpu = -1;
+	RangeGpu = RangeInit();
 
 	var start = new Date();
 	nDrawCount++;
@@ -2842,26 +2902,28 @@ function DrawDetailed(Animation)
 		nHoverToken = -1;
 		nHoverTokenIndex = -1;
 		nHoverTokenLogIndex = -1;
-		fRangeBegin = fRangeEnd = -1;
+		RangeCpu = RangeInit();
+		RangeGpu = RangeInit();
 	}
 	else
 	{
 		nHoverToken = nHoverTokenNext;
 		nHoverTokenIndex = nHoverTokenIndexNext;
 		nHoverTokenLogIndex = nHoverTokenLogIndexNext;
-		if(fRangeBeginHistory < fRangeEndHistory)
+		//if(fRangeBeginHistory < fRangeEndHistory)
+		if(RangeValid(RangeCpuHistory))
 		{
-			fRangeBegin = fRangeBeginHistory;
-			fRangeEnd = fRangeEndHistory;
-			fRangeBeginGpu = fRangeBeginHistoryGpu;
-			fRangeEndGpu = fRangeEndHistoryGpu;
+			RangeCopy(RangeCpu, RangeCpuHistory);
+			RangeCopy(RangeGpu, RangeGpuHistory);
 		}
 		else
 		{
-			fRangeBegin = fRangeBeginNext;
-			fRangeEnd = fRangeEndNext;
-			fRangeBeginGpu = fRangeBeginGpuNext;
-			fRangeEndGpu = fRangeEndGpuNext;
+			RangeCopy(RangeCpu, RangeCpuNext);
+			RangeCopy(RangeGpu, RangeGpuNext);
+			// fRangeBegin = fRangeBeginNext;
+			// fRangeEnd = fRangeEndNext;
+			// fRangeBeginGpu = fRangeBeginGpuNext;
+			// fRangeEndGpu = fRangeEndGpuNext;
 		}
 	}
 
@@ -2870,15 +2932,50 @@ function DrawDetailed(Animation)
 	DrawTextBox(context, TimeToMsString(fDetailedOffset + fDetailedRange), nWidth, FontHeight, 'right');
 	context.textAlign = 'left';
 
+	var YBegin = ThreadY[fRangeThreadIdNext];
+	var YEnd = ThreadY[fRangeThreadIdNext+1];
+	var YBeginGpu = YBegin;
+	var YEndGpu = YEnd;
+	function RangeSet(R)
+	{
+		if(R.Thread >= 0)
+		{
+			R.YBegin = ThreadY[R.Thread];
+			R.YEnd = ThreadY[R.Thread + 1];
+		}
+		else
+		{
+			R.YBegin = 0;
+			R.YEnd = nHeight;
+		}
+	}
+	RangeSet(RangeSelect);
+	RangeSet(RangeCpu);
+	RangeSet(RangeGpu);
 	var Offset = 0;
-	Offset = DrawRange(context, fRangeBeginSelect, fRangeEndSelect, '#59d0ff', '#00ddff', Offset, "Selection");
-	Offset = DrawRange(context, fRangeBegin, fRangeEnd, '#009900', '#00ff00', Offset, "Cpu");
-	Offset = DrawRange(context, fRangeBeginGpu, fRangeEndGpu, '#996600', '#775500', Offset, "Gpu");
+	// Offset = DrawRange(context, fRangeBeginSelect, fRangeEndSelect, '#59d0ff', '#00ddff', 0, nHeight, "Selection");
+	// Offset = DrawRange(context, fRangeBegin, fRangeEnd, '#009900', '#00ff00', YBegin, YEnd, "Cpu");
+	// Offset = DrawRange(context, fRangeBeginGpu, fRangeEndGpu, '#996600', '#775500', YBeginGpu, YEndGpu, "Gpu");
+	Offset = DrawRange(context, RangeSelect,  '#59d0ff', '#00ddff', "Selection");
+	Offset = DrawRange(context, RangeCpu, '#009900', '#00ff00', "Cpu");
+	Offset = DrawRange(context, RangeGpu, '#996600', '#775500', "Gpu");
 
 	nHoverCSCpu = nHoverCSCpuNext;
 	ProfileLeave();
 }
-
+function ZoomToHighlight(NoGpu)
+{
+	if(RangeValid(RangeGpu) && !NoGpu)
+	{
+		ZoomTo(RangeGpu.Begin, RangeGpu.End);
+	}
+	else if(RangeValid(RangeCpu))
+	{
+		ZoomTo(RangeCpu.Begin, RangeCpu.End);
+	}
+	RangeCpu = RangeInit();
+	RangeGpu = RangeInit();
+}
 function ZoomTo(fZoomBegin, fZoomEnd)
 {
 	if(fZoomBegin < fZoomEnd)
@@ -3100,10 +3197,10 @@ function MouseHandleDrag()
 				}
 				if(xEnd - xStart > 1)
 				{
-					fRangeBegin = fDetailedOffset + fDetailedRange * (xStart / nWidth);
-					fRangeEnd = fDetailedOffset + fDetailedRange * (xEnd / nWidth);
-					fRangeBeginSelect = fDetailedOffset + fDetailedRange * (xStart / nWidth);
-					fRangeEndSelect = fDetailedOffset + fDetailedRange * (xEnd / nWidth);
+					RangeCpu.Begin = fDetailedOffset + fDetailedRange * (xStart / nWidth);
+					RangeCpu.End = fDetailedOffset + fDetailedRange * (xEnd / nWidth);
+					RangeSelect.Begin = fDetailedOffset + fDetailedRange * (xStart / nWidth);
+					RangeSelect.End = fDetailedOffset + fDetailedRange * (xEnd / nWidth);
 				}
 			}
 			else if(MouseDragPan())
@@ -3173,7 +3270,8 @@ function MouseHandleDrag()
 		}
 		if(MouseDragSelectRange())
 		{
-			fRangeBegin = fRangeEnd = -1;
+			RangeCpu = RangeInit();
+			RangeGpu = RangeInit();
 
 			var xStart = MouseDragXStart;
 			var xEnd = MouseDragX;
@@ -3208,13 +3306,9 @@ function MouseHandleDragEnd()
 	{
 		if(!MouseDragSelectRange() && !MouseDragPan())
 		{
-			ZoomTo(fRangeBegin, fRangeEnd);
-			fRangeBegin = fRangeEnd = -1;
+			ZoomToHighlight(1);
 		}
-
-
 	}
-
 }
 
 function MouseHandleDragClick()
@@ -3231,14 +3325,14 @@ function MouseHandleDragClick()
 		}
 		else
 		{
-			ZoomTo(fRangeBegin, fRangeEnd);
+			ZoomToHighlight();
 		}
 	}
 	else if(MouseDragTarget == CanvasHistory)
 	{
 		if(Mode == ModeDetailed)
 		{
-			ZoomTo(fRangeBegin, fRangeEnd);
+			ZoomToHighlight(1);
 		}
 	}
 }
@@ -3359,7 +3453,7 @@ function MouseMove(evt)
 	{
 		if(!MouseDragSelectRange())
 		{
-			fRangeBegin = fRangeEnd = -1;
+			RangeCpu = RangeInit();
 		}
 		DetailedViewMouseX = x;
 		DetailedViewMouseY = y;
@@ -3386,7 +3480,7 @@ function MouseOut(evt)
 	KeyShiftDown = 0;
 	MouseDragButton = 0;
 	nHoverToken = -1;
-	fRangeBegin = fRangeEnd = -1;
+	RangeCpu = RangeInit();
 }
 
 function MouseWheel(e)
@@ -3416,16 +3510,20 @@ function KeyUp(evt)
 	}
 	if(evt.keyCode == 32)
 	{
-		if(fRangeBeginSelect < fRangeEndSelect)
+		if(RangeSelect.Begin < RangeSelect.End)
 		{
-			ZoomTo(fRangeBeginSelect, fRangeEndSelect);
-			fRangeBeginSelect = fRangeEndSelect = -1;
+			ZoomTo(RangeSelect.Begin, RangeSelect.End);
+			RangeSelect.Begin = RangeSelect.End = -1;
 			MouseHandleDragEnd();
+		}
+		else
+		{
+
 		}
 	}
 	if(evt.keyCode == 27)
 	{
-		fRangeBeginSelect = fRangeEndSelect = -1;		
+		RangeSelect.Begin = RangeSelect.End = -1;		
 	}
 	Invalidate = 0;
 }
