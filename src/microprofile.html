@@ -55,9 +55,12 @@ Click Frame : Center on frame<br>
 Main View:<br>
 Ctrl + Mouse up/down: Zoom<br>
 Mousewheel : Zoom<br>
-Right Click + Drag: Zoom to region<br>
+Right Click + Drag: Select region<br>
+Ctrl + Shift + Drag: Select region<br>
+Space: Zoom to Selection<br>
 Ctrl + Drag: Pan<br>
 Click + Drag: Pan<br>
+alt or z: Toggle ToolTip<br>
 <hr>
 <table style="width:100%">
 <tr>
@@ -201,7 +204,7 @@ var MouseButtonState = [0,0,0,0,0,0,0,0];
 var KeyShiftDown = 0;
 var MouseDragButton = 0;
 var KeyCtrlDown = 0;
-var FlipToolTip = 0;
+var ToolTip = 0; //0: off, 1: default, 2: flipped
 var DetailedViewMouseX = 0;
 var DetailedViewMouseY = 0;
 var HistoryViewMouseX = -1;
@@ -1609,6 +1612,10 @@ function DrawToolTip(StringArray, Canvas, x, y)
 }
 function DrawHoverToolTip()
 {
+	if(!ToolTip)
+	{
+		return;
+	}
 	ProfileEnter("DrawHoverToolTip");
 	if(nHoverToken != -1)
 	{
@@ -1620,8 +1627,8 @@ function DrawHoverToolTip()
 		StringArray.push(GroupInfo[groupid].name);
 
 		var bShowTimers = Mode == ModeTimers;
-		if(FlipToolTip)
-		{
+		if(ToolTip == 2)
+		{ //0: off, 1: default, 2: flipped
 			bShowTimers = !bShowTimers;
 		}
 		if(bShowTimers)
@@ -2801,37 +2808,45 @@ function DrawRange(context, Range, ColorBack, ColorFront, Name)
 		context.textAlign = 'right';
 		var TextPosY = Y + YSpace;
 		DrawTextBox(context, fBegin.toFixed(2), X-3, TextPosY, 'right');
-		if(DurationWidth < W + 10)
+		var YS = [Y, YBottom];
+		for(var i = 0; i < YS.length; ++i)
 		{
-			var YS = [Y, YBottom];
-			for(var i = 0; i < YS.length; ++i)
+			var Y = YS[i];
+			var Y0 = Y + fRulerOffset;
+			var W0 = W - DurationWidth + FontWidth*1.5;
+			if(W0 > 6)
 			{
-				var Y = YS[i];
 				context.textAlign = 'center';
 				DrawTextBox(context, Duration,Center * fScaleX, Y + YSpace, 'center');
-
-				var W0 = W - DurationWidth + FontWidth*1.5;
-				if(W0 > 6)
+				W0 = W0 / 2.0;
+				var X0 = X + W0;
+				var X1 = X + W - W0;
+				context.strokeStyle = ColorFront;
+				context.beginPath();
+				context.moveTo(X, Y0);
+				context.lineTo(X0, Y0);
+				context.moveTo(X0, Y0-2);
+				context.lineTo(X0, Y0+2);
+				context.moveTo(X1, Y0-2);
+				context.lineTo(X1, Y0+2);
+				context.moveTo(X1, Y0);
+				context.lineTo(X + W, Y0);
+				context.stroke();
+			}
+			else
+			{
+				if(i == 1)
 				{
-					{
-
-						var Y0 = Y + fRulerOffset;
-						W0 = W0 / 2.0;
-						var X0 = X + W0;
-						var X1 = X + W - W0;
-						context.strokeStyle = ColorFront;
-						context.beginPath();
-						context.moveTo(X, Y0);
-						context.lineTo(X0, Y0);
-						context.moveTo(X0, Y0-2);
-						context.lineTo(X0, Y0+2);
-						context.moveTo(X1, Y0-2);
-						context.lineTo(X1, Y0+2);
-						context.moveTo(X1, Y0);
-						context.lineTo(X + W, Y0);
-						context.stroke();
-					}
+					context.textAlign = 'right';
+					DrawTextBox(context, Duration, X - 3, Y0, 'right');
+					context.textAlign = 'left';
+					DrawTextBox(context, Duration, X + W + 2, Y0, 'left');
 				}
+				context.strokeStyle = ColorFront;
+				context.beginPath();
+				context.moveTo(X, Y0);
+				context.lineTo(X+W, Y0);
+				context.stroke();
 			}
 		}
 		context.textAlign = 'left';
@@ -3492,6 +3507,7 @@ function MouseWheel(e)
 
 function KeyUp(evt)
 {
+
 	if(evt.keyCode == 17)
 	{
 		KeyCtrlDown = 0;
@@ -3501,10 +3517,6 @@ function KeyUp(evt)
 	{
 		KeyShiftDown = 0;
 		MouseDragKeyUp();
-	}
-	if(evt.keyCode == 18)
-	{
-		FlipToolTip = 0;
 	}
 	if(evt.keyCode == 32)
 	{
@@ -3528,9 +3540,23 @@ function KeyUp(evt)
 
 function KeyDown(evt)
 {
-	if(evt.keyCode == 18)
+	if(evt.keyCode == 18 || evt.keyCode == 90) // z/tab to toggle tooltip
 	{
-		FlipToolTip = 1;
+		ToolTip = (ToolTip+1)%3; //0: off, 1: default, 2: flipped
+		var ToolTipStr = 'Off';
+		var bShowTimers = Mode == ModeTimers;
+		if(ToolTip == 2)
+		{
+			bShowTimers = !bShowTimers;
+		}
+		if(ToolTip)
+		{
+			if(bShowTimers)
+				ToolTipStr = "Timers";
+			else
+				ToolTipStr = "Detailed";
+		}
+		ShowFlashMessage('ToolTip: ' + ToolTipStr, 100);
 	}
 	if(evt.keyCode == 17)
 	{
