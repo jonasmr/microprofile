@@ -2621,6 +2621,7 @@ const char g_MicroProfileHtml_end_1[] =
 "										//cpu tick is stored following\n"
 "										RangeCpuNext.Begin = TimeArray[StartIndex+1];\n"
 "										RangeCpuNext.End = TimeArray[j+1];\n"
+"										RangeCpuNext.Thread = IndexArray[StartIndex+1];\n"
 "									}\n"
 "									else\n"
 "									{\n"
@@ -2849,14 +2850,14 @@ const char g_MicroProfileHtml_end_1[] =
 "						context.stroke();\n"
 "					}\n"
 "				}\n"
-"			}\n"
-"		}\n"
-"		context.textAlign = \'left\';\n"
-"		DrawTextBox(context,";
+"			";
 
 const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
 const char g_MicroProfileHtml_end_2[] =
-" fEnd.toFixed(2), X + W + 2, TextPosY, \'left\');\n"
+"}\n"
+"		}\n"
+"		context.textAlign = \'left\';\n"
+"		DrawTextBox(context, fEnd.toFixed(2), X + W + 2, TextPosY, \'left\');\n"
 "		DrawTextBox(context, Name, X + W + 2, OffsetTop + YSpace + FontHeight, \'left\');\n"
 "	}\n"
 "	return 1;\n"
@@ -2975,10 +2976,7 @@ const char g_MicroProfileHtml_end_2[] =
 "	RangeSet(RangeCpu);\n"
 "	RangeSet(RangeGpu);\n"
 "	var Offset = 0;\n"
-"	// Offset = DrawRange(context, fRangeBeginSelect, fRangeEndSelect, \'#59d0ff\', \'#00ddff\', 0, nHeight, \"Selection\");\n"
-"	// Offset = DrawRange(context, fRangeBegin, fRangeEnd, \'#009900\', \'#00ff00\', YBegin, YEnd, \"Cpu\");\n"
-"	// Offset = DrawRange(context, fRangeBeginGpu, fRangeEndGpu, \'#996600\', \'#775500\', YBeginGpu, YEndGpu, \"Gpu\");\n"
-"	Offset = DrawRange(context, RangeSelect,  \'#59d0ff\', \'#00ddff\', \"Selection\");\n"
+"	Offset = DrawRange(context, RangeSelect, \'#59d0ff\', \'#00ddff\', \"Selection\");\n"
 "	Offset = DrawRange(context, RangeCpu, \'#009900\', \'#00ff00\', \"Cpu\");\n"
 "	Offset = DrawRange(context, RangeGpu, \'#996600\', \'#775500\', \"Gpu\");\n"
 "\n"

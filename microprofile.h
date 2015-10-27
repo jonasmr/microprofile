@@ -707,6 +707,7 @@ struct MicroProfileThreadLog
 	uint32_t 				nActive;
 	uint32_t 				nGpu;
 	ThreadIdType			nThreadId;
+	uint32_t 				nLogIndex;
 
 	uint32_t				nStack[MICROPROFILE_STACK_MAX];
 	int64_t					nChildTickStack[MICROPROFILE_STACK_MAX];
@@ -1363,10 +1364,11 @@ MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 	else
 	{
 		pLog = new MicroProfileThreadLog;
+		memset(pLog, 0, sizeof(*pLog));
 		S.nMemUsage += sizeof(MicroProfileThreadLog);
+		pLog->nLogIndex = S.nNumLogs;
 		S.Pool[S.nNumLogs++] = pLog;	
 	}
-	memset(pLog, 0, sizeof(*pLog));
 	int len = (int)strlen(pName);
 	int maxlen = sizeof(pLog->ThreadName)-1;
 	len = len < maxlen ? len : maxlen;
@@ -1948,7 +1950,8 @@ uint64_t MicroProfileGpuEnter(MicroProfileToken nToken_)
 		MP_ASSERT(pGpuLog->pContext != (void*)-1); // must be called between GpuBegin/GpuEnd		
 		uint64_t nTimer = MicroProfileGpuInsertTimeStamp(pGpuLog->pContext);
 		MicroProfileLogPutGpu(nToken_, nTimer, MP_LOG_ENTER, pGpuLog);
-		MicroProfileLogPutGpu(nToken_, MP_TICK(), MP_LOG_GPU_EXTRA, pGpuLog);
+		MicroProfileThreadLog* pLog = MicroProfileGetThreadLog();
+		MicroProfileLogPutGpu(pLog->nLogIndex, MP_TICK(), MP_LOG_GPU_EXTRA, pGpuLog);
 		return 1;
 	}
 	return 0;
@@ -1962,7 +1965,8 @@ void MicroProfileGpuLeave(MicroProfileToken nToken_, uint64_t nTickStart)
 		MP_ASSERT(pGpuLog->pContext != (void*)-1); // must be called between GpuBegin/GpuEnd
 		uint64_t nTimer = MicroProfileGpuInsertTimeStamp(pGpuLog->pContext);
 		MicroProfileLogPutGpu(nToken_, nTimer, MP_LOG_LEAVE, pGpuLog);
-		MicroProfileLogPutGpu(nToken_, MP_TICK(), MP_LOG_GPU_EXTRA, pGpuLog);
+		MicroProfileThreadLog* pLog = MicroProfileGetThreadLog();
+		MicroProfileLogPutGpu(pLog->nLogIndex, MP_TICK(), MP_LOG_GPU_EXTRA, pGpuLog);
 	}
 }
 
