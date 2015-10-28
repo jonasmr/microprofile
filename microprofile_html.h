@@ -6,7 +6,13 @@ const char g_MicroProfileHtml_begin_0[] =
 "<head>\n"
 "<title>MicroProfile Capture</title>\n"
 "<style>\n"
-"/* about css: http://bit.ly/1eMQ42U */\n"
+"/* \n"
+"	redraw bug\n"
+"	filter\n"
+"	min timers\n"
+"	goto worst instance\n"
+"	setstablepowerstate\n"
+"about css: http://bit.ly/1eMQ42U */\n"
 "body {margin: 0px;padding: 0px; font: 12px Courier New;background-color:#474747; color:white;overflow:hidden;}\n"
 "ul {list-style-type: none;margin: 0;padding: 0;}\n"
 "li{display: inline; float:left;border:5px; position:relative;text-align:center;}\n"
@@ -164,9 +170,9 @@ const char g_MicroProfileHtml_begin_0[] =
 "	return group;\n"
 "}\n"
 "\n"
-"function MakeTimer(id, name, group, color, colordark, average, max, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax)\n"
+"function MakeTimer(id, name, group, color, colordark, average, max, min, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax)\n"
 "{\n"
-"	var timer = {\"id\":id, \"name\":name, \"len\":name.length, \"color\":color, \"colordark\":colordark,\"timercolor\":color, \"textcolor\":InvertColor(color), \"group\":group, \"average\":average, \"max\":max, \"exclaverage\":exclaverage, \"exclmax\":exclmax, \"callaverage\":callaverage, \"callcount\":callcount, \"total\":total, \"meta\":meta, \"textcolorindex\":InvertColorIndex(color), \"metaavg\":metaavg, \"metamax\":metamax};\n"
+"	var timer = {\"id\":id, \"name\":name, \"len\":name.length, \"color\":color, \"colordark\":colordark,\"timercolor\":color, \"textcolor\":InvertColor(color), \"group\":group, \"average\":average, \"max\":max, \"min\":min, \"exclaverage\":exclaverage, \"exclmax\":exclmax, \"callaverage\":callaverage, \"callcount\":callcount, \"total\":total, \"meta\":meta, \"textcolorindex\":InvertColorIndex(color), \"metaavg\":metaavg, \"metamax\":metamax, \"worst\":0, \"worststart\":0, \"worstend\":0};\n"
 "	return timer;\n"
 "}\n"
 "function MakeFrame(id, framestart, frameend, framestartgpu, frameendgpu, ts, tt, ti)\n"
@@ -1286,7 +1292,13 @@ const char g_MicroProfileHtml_end_0[] =
 "						TimerInfo[index].FrameSum += TimeDelta;\n"
 "						TimerInfo[index].Sum += TimeDelta;\n"
 "						if(TimeDelta > TimerInfo[index].Max)\n"
+"						{\n"
 "							TimerInfo[index].Max = TimeDelta;\n"
+"							TimerInfo[index].worst = TimeDelta;\n"
+"							TimerInfo[index].worststart = timestart;\n"
+"							TimerInfo[index].worstend = timeend;\n"
+"							TimerInfo[index].thread = nLog;\n"
+"						}\n"
 "					}\n"
 "				}\n"
 "				else\n"
@@ -1624,7 +1636,11 @@ const char g_MicroProfileHtml_end_0[] =
 "		YPos += BoxHeight;\n"
 "	}\n"
 "}\n"
-"function DrawHoverToolTip()\n"
+"function DrawHo";
+
+const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
+const char g_MicroProfileHtml_end_1[] =
+"verToolTip()\n"
 "{\n"
 "	if(!ToolTip)\n"
 "	{\n"
@@ -1635,11 +1651,7 @@ const char g_MicroProfileHtml_end_0[] =
 "	{\n"
 "		var StringArray = [];\n"
 "		var groupid = TimerInfo[nHoverToken].group;\n"
-"		StringArray.";
-
-const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
-const char g_MicroProfileHtml_end_1[] =
-"push(\"Timer\");\n"
+"		StringArray.push(\"Timer\");\n"
 "		StringArray.push(TimerInfo[nHoverToken].name);\n"
 "		StringArray.push(\"Group\");\n"
 "		StringArray.push(GroupInfo[groupid].name);\n"
@@ -2039,6 +2051,7 @@ const char g_MicroProfileHtml_end_1[] =
 "						var Timer = TimerInfo[timerid];\n"
 "						var Average = Timer.average;\n"
 "						var Max = Timer.max;\n"
+"						var Min = Timer.min;\n"
 "						var ExclusiveMax = Timer.exclmax;\n"
 "						var ExclusiveAverage = Timer.exclaverage;\n"
 "						var CallAverage = Timer.callaverage;\n"
@@ -2058,6 +2071,7 @@ const char g_MicroProfileHtml_end_1[] =
 "						DrawTimer(Average, Timer.color);\n"
 "						DrawTimer(Max,Timer.color);\n"
 "						DrawTimer(Timer.total,Timer.color);\n"
+"						DrawTimer(Min,Timer.color);\n"
 "						DrawTimer(CallAverage,Timer.color);\n"
 "						context.fillStyle = \'white\';\n"
 "						context.fillText(CallCount, X, YText);\n"
@@ -2115,6 +2129,7 @@ const char g_MicroProfileHtml_end_1[] =
 "		DrawHeaderSplit(\'Average\');\n"
 "		DrawHeaderSplit(\'Max\');\n"
 "		DrawHeaderSplit(\'Total\');\n"
+"		DrawHeaderSplit(\'Min\');\n"
 "		DrawHeaderSplit(\'Call Average\');\n"
 "		DrawHeaderSplitSingle(\'Count\', CountWidth);\n"
 "		DrawHeaderSplit(\'Excl Average\');\n"
@@ -2840,7 +2855,11 @@ const char g_MicroProfileHtml_end_1[] =
 "				var X0 = X + W0;\n"
 "				var X1 = X + W - W0;\n"
 "				context.strokeStyle = ColorFront;\n"
-"				context.beginPath();\n"
+"				con";
+
+const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
+const char g_MicroProfileHtml_end_2[] =
+"text.beginPath();\n"
 "				context.moveTo(X, Y0);\n"
 "				context.lineTo(X0, Y0);\n"
 "				context.moveTo(X0, Y0-2);\n"
@@ -2850,11 +2869,7 @@ const char g_MicroProfileHtml_end_1[] =
 "				context.moveTo(X1, Y0);\n"
 "				context.lineTo(X + W, Y0);\n"
 "				context.stroke();\n"
-"			";
-
-const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
-const char g_MicroProfileHtml_end_2[] =
-"}\n"
+"			}\n"
 "			else\n"
 "			{\n"
 "				if(i == 1)\n"
@@ -3548,9 +3563,19 @@ const char g_MicroProfileHtml_end_2[] =
 "			RangeSelect.Begin = RangeSelect.End = -1;\n"
 "			MouseHandleDragEnd();\n"
 "		}\n"
-"		else\n"
+"	}\n"
+"	if(evt.keyCode == 9)\n"
+"	{\n"
+"		if(nHoverToken != -1 && nHoverToken < TimerInfo.length)\n"
 "		{\n"
-"\n"
+"			var start = TimerInfo[nHoverToken].worststart;\n"
+"			var end = TimerInfo[nHoverToken].worstend;\n"
+"			console.log(\'going to worst \' + TimerInfo[nHoverToken].worststart);\n"
+"			RangeSelect.Begin = start;\n"
+"			RangeSelect.End = end;\n"
+"			ShowFlashMessage(\'Worst: \' + (end-start).toFixed(2), 100);\n"
+"			ZoomTo(RangeSelect.Begin, RangeSelect.End);\n"
+"			MouseHandleDragEnd();\n"
 "		}\n"
 "	}\n"
 "	if(evt.keyCode == 27)\n"

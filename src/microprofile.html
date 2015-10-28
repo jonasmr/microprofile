@@ -3,7 +3,13 @@
 <head>
 <title>MicroProfile Capture</title>
 <style>
-/* about css: http://bit.ly/1eMQ42U */
+/* 
+	redraw bug
+	filter
+	min timers
+	goto worst instance
+	setstablepowerstate
+about css: http://bit.ly/1eMQ42U */
 body {margin: 0px;padding: 0px; font: 12px Courier New;background-color:#474747; color:white;overflow:hidden;}
 ul {list-style-type: none;margin: 0;padding: 0;}
 li{display: inline; float:left;border:5px; position:relative;text-align:center;}
@@ -161,9 +167,9 @@ function MakeGroup(id, name, category, numtimers, isgpu, total, average, max, co
 	return group;
 }
 
-function MakeTimer(id, name, group, color, colordark, average, max, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax)
+function MakeTimer(id, name, group, color, colordark, average, max, min, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax)
 {
-	var timer = {"id":id, "name":name, "len":name.length, "color":color, "colordark":colordark,"timercolor":color, "textcolor":InvertColor(color), "group":group, "average":average, "max":max, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "total":total, "meta":meta, "textcolorindex":InvertColorIndex(color), "metaavg":metaavg, "metamax":metamax};
+	var timer = {"id":id, "name":name, "len":name.length, "color":color, "colordark":colordark,"timercolor":color, "textcolor":InvertColor(color), "group":group, "average":average, "max":max, "min":min, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "total":total, "meta":meta, "textcolorindex":InvertColorIndex(color), "metaavg":metaavg, "metamax":metamax, "worst":0, "worststart":0, "worstend":0};
 	return timer;
 }
 function MakeFrame(id, framestart, frameend, framestartgpu, frameendgpu, ts, tt, ti)
@@ -1272,7 +1278,13 @@ function PreprocessCalculateAllTimers()
 						TimerInfo[index].FrameSum += TimeDelta;
 						TimerInfo[index].Sum += TimeDelta;
 						if(TimeDelta > TimerInfo[index].Max)
+						{
 							TimerInfo[index].Max = TimeDelta;
+							TimerInfo[index].worst = TimeDelta;
+							TimerInfo[index].worststart = timestart;
+							TimerInfo[index].worstend = timeend;
+							TimerInfo[index].thread = nLog;
+						}
 					}
 				}
 				else
@@ -2021,6 +2033,7 @@ function DrawBarView()
 						var Timer = TimerInfo[timerid];
 						var Average = Timer.average;
 						var Max = Timer.max;
+						var Min = Timer.min;
 						var ExclusiveMax = Timer.exclmax;
 						var ExclusiveAverage = Timer.exclaverage;
 						var CallAverage = Timer.callaverage;
@@ -2040,6 +2053,7 @@ function DrawBarView()
 						DrawTimer(Average, Timer.color);
 						DrawTimer(Max,Timer.color);
 						DrawTimer(Timer.total,Timer.color);
+						DrawTimer(Min,Timer.color);
 						DrawTimer(CallAverage,Timer.color);
 						context.fillStyle = 'white';
 						context.fillText(CallCount, X, YText);
@@ -2097,6 +2111,7 @@ function DrawBarView()
 		DrawHeaderSplit('Average');
 		DrawHeaderSplit('Max');
 		DrawHeaderSplit('Total');
+		DrawHeaderSplit('Min');
 		DrawHeaderSplit('Call Average');
 		DrawHeaderSplitSingle('Count', CountWidth);
 		DrawHeaderSplit('Excl Average');
@@ -2989,6 +3004,47 @@ function ZoomToHighlight(NoGpu)
 	RangeCpu = RangeInit();
 	RangeGpu = RangeInit();
 }
+// function MoveTo(fMoveBegin, fMoveEnd)
+// {
+// 	var fDetailedOffsetOriginal = fDetailedOffset;
+// 	var fDetailedRangeOriginal = fDetailedRange;
+// 	//center
+	
+// 	ZoomTo(fMoveBegin, fMoveEnd);	
+// 	if(fZoomBegin < fZoomEnd)
+// 	{
+// 		AnimationActive = true;
+// 		var fDetailedOffsetOriginal = fDetailedOffset;
+// 		var fDetailedRangeOriginal = fDetailedRange;
+// 		var fDetailedOffsetTarget = fZoomBegin;
+// 		var fDetailedRangeTarget = fZoomEnd - fZoomBegin;
+// 		var TimestampStart = new Date();
+// 		var count = 0;
+// 		function ZoomFunc(Timestamp)
+// 		{
+// 			var fPrc = (new Date() - TimestampStart) / (ZOOM_TIME * 1000.0);
+// 			if(fPrc > 1.0)
+// 			{
+// 				fPrc = 1.0;
+// 			}
+// 			fPrc = Math.pow(fPrc, 0.3);
+// 			fDetailedOffset = fDetailedOffsetOriginal + (fDetailedOffsetTarget - fDetailedOffsetOriginal) * fPrc;
+// 			fDetailedRange = fDetailedRangeOriginal + (fDetailedRangeTarget - fDetailedRangeOriginal) * fPrc;
+// 			DrawDetailed(true);
+// 			if(fPrc >= 1.0)
+// 			{
+// 				AnimationActive = false;
+// 				fDetailedOffset = fDetailedOffsetTarget;
+// 				fDetailedRange = fDetailedRangeTarget;
+// 			}
+// 			else
+// 			{
+// 				requestAnimationFrame(ZoomFunc);
+// 			}
+// 		}
+// 		requestAnimationFrame(ZoomFunc);
+// 	}
+// }
 function ZoomTo(fZoomBegin, fZoomEnd)
 {
 	if(fZoomBegin < fZoomEnd)
@@ -3526,9 +3582,19 @@ function KeyUp(evt)
 			RangeSelect.Begin = RangeSelect.End = -1;
 			MouseHandleDragEnd();
 		}
-		else
+	}
+	if(evt.keyCode == 9)
+	{
+		if(nHoverToken != -1 && nHoverToken < TimerInfo.length)
 		{
-
+			var start = TimerInfo[nHoverToken].worststart;
+			var end = TimerInfo[nHoverToken].worstend;
+			console.log('going to worst ' + TimerInfo[nHoverToken].worststart);
+			RangeSelect.Begin = start;
+			RangeSelect.End = end;
+			ShowFlashMessage('Worst: ' + (end-start).toFixed(2) + 'ms', 100);
+			ZoomTo(RangeSelect.Begin, RangeSelect.End);
+			MouseHandleDragEnd();
 		}
 	}
 	if(evt.keyCode == 27)
