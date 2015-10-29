@@ -67,6 +67,7 @@ Space: Zoom to Selection<br>
 Ctrl + Drag: Pan<br>
 Click + Drag: Pan<br>
 alt or z: Toggle ToolTip<br>
+Tab: Go To Worst Instance<br>
 <hr>
 <table style="width:100%">
 <tr>
@@ -1283,7 +1284,7 @@ function PreprocessCalculateAllTimers()
 							TimerInfo[index].worst = TimeDelta;
 							TimerInfo[index].worststart = timestart;
 							TimerInfo[index].worstend = timeend;
-							TimerInfo[index].thread = nLog;
+							TimerInfo[index].worstthread = nLog;
 						}
 					}
 				}
@@ -3004,48 +3005,33 @@ function ZoomToHighlight(NoGpu)
 	RangeCpu = RangeInit();
 	RangeGpu = RangeInit();
 }
-// function MoveTo(fMoveBegin, fMoveEnd)
-// {
-// 	var fDetailedOffsetOriginal = fDetailedOffset;
-// 	var fDetailedRangeOriginal = fDetailedRange;
-// 	//center
-	
-// 	ZoomTo(fMoveBegin, fMoveEnd);	
-// 	if(fZoomBegin < fZoomEnd)
-// 	{
-// 		AnimationActive = true;
-// 		var fDetailedOffsetOriginal = fDetailedOffset;
-// 		var fDetailedRangeOriginal = fDetailedRange;
-// 		var fDetailedOffsetTarget = fZoomBegin;
-// 		var fDetailedRangeTarget = fZoomEnd - fZoomBegin;
-// 		var TimestampStart = new Date();
-// 		var count = 0;
-// 		function ZoomFunc(Timestamp)
-// 		{
-// 			var fPrc = (new Date() - TimestampStart) / (ZOOM_TIME * 1000.0);
-// 			if(fPrc > 1.0)
-// 			{
-// 				fPrc = 1.0;
-// 			}
-// 			fPrc = Math.pow(fPrc, 0.3);
-// 			fDetailedOffset = fDetailedOffsetOriginal + (fDetailedOffsetTarget - fDetailedOffsetOriginal) * fPrc;
-// 			fDetailedRange = fDetailedRangeOriginal + (fDetailedRangeTarget - fDetailedRangeOriginal) * fPrc;
-// 			DrawDetailed(true);
-// 			if(fPrc >= 1.0)
-// 			{
-// 				AnimationActive = false;
-// 				fDetailedOffset = fDetailedOffsetTarget;
-// 				fDetailedRange = fDetailedRangeTarget;
-// 			}
-// 			else
-// 			{
-// 				requestAnimationFrame(ZoomFunc);
-// 			}
-// 		}
-// 		requestAnimationFrame(ZoomFunc);
-// 	}
-// }
-function ZoomTo(fZoomBegin, fZoomEnd)
+function MoveTo(fMoveBegin, fMoveEnd, YTop, YBottom)
+{
+	var nOffsetYBottom = YBottom - nHeight;
+	var nOffsetYDest = nOffsetY;
+	if(nOffsetYDest < nOffsetYBottom)
+	{
+		nOffsetYDest = nOffsetYBottom;
+	}
+	if(nOffsetYDest > YTop)
+	{	
+		nOffsetYDest = YTop;
+	}
+	var fRange = fDetailedRange;
+	var fMinRange = (fMoveEnd-fMoveBegin) * 2.0;
+	if(fRange < fMinRange)
+	{
+		fRange = fMinRange;
+	}
+	var fMoveCenter = (fMoveBegin + fMoveEnd) * 0.5;
+	fMoveBegin = fMoveCenter - 0.5 * fRange;
+	fMoveEnd = fMoveCenter + 0.5 * fRange;
+	var nOffset;
+	if(nOffsetYDest != nOffsetY)
+		nOffset = nOffsetYDest;
+	ZoomTo(fMoveBegin, fMoveEnd, nOffsetYDest);
+}
+function ZoomTo(fZoomBegin, fZoomEnd, OffsetYDest)
 {
 	if(fZoomBegin < fZoomEnd)
 	{
@@ -3054,6 +3040,8 @@ function ZoomTo(fZoomBegin, fZoomEnd)
 		var fDetailedRangeOriginal = fDetailedRange;
 		var fDetailedOffsetTarget = fZoomBegin;
 		var fDetailedRangeTarget = fZoomEnd - fZoomBegin;
+		var OffsetYOriginal = nOffsetY;
+		var OffsetYTarget = OffsetYDest;
 		var TimestampStart = new Date();
 		var count = 0;
 		function ZoomFunc(Timestamp)
@@ -3066,12 +3054,20 @@ function ZoomTo(fZoomBegin, fZoomEnd)
 			fPrc = Math.pow(fPrc, 0.3);
 			fDetailedOffset = fDetailedOffsetOriginal + (fDetailedOffsetTarget - fDetailedOffsetOriginal) * fPrc;
 			fDetailedRange = fDetailedRangeOriginal + (fDetailedRangeTarget - fDetailedRangeOriginal) * fPrc;
+			if(OffsetYDest)
+			{
+				nOffsetY = OffsetYOriginal + (OffsetYTarget - OffsetYOriginal) * fPrc;
+			}
 			DrawDetailed(true);
 			if(fPrc >= 1.0)
 			{
 				AnimationActive = false;
 				fDetailedOffset = fDetailedOffsetTarget;
 				fDetailedRange = fDetailedRangeTarget;
+				if(OffsetYDest)
+				{
+					nOffsetY = OffsetYTarget;
+				}
 			}
 			else
 			{
@@ -3589,11 +3585,11 @@ function KeyUp(evt)
 		{
 			var start = TimerInfo[nHoverToken].worststart;
 			var end = TimerInfo[nHoverToken].worstend;
-			console.log('going to worst ' + TimerInfo[nHoverToken].worststart);
 			RangeSelect.Begin = start;
 			RangeSelect.End = end;
+			RangeSelect.Thread = TimerInfo[nHoverToken].worstthread;
 			ShowFlashMessage('Worst: ' + (end-start).toFixed(2) + 'ms', 100);
-			ZoomTo(RangeSelect.Begin, RangeSelect.End);
+			MoveTo(RangeSelect.Begin, RangeSelect.End, ThreadY[RangeSelect.Thread] + nOffsetY, ThreadY[RangeSelect.Thread+1] + nOffsetY);
 			MouseHandleDragEnd();
 		}
 	}
