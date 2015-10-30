@@ -711,6 +711,7 @@ struct MicroProfileThreadLog
 	uint32_t 				nActive;
 	uint32_t 				nGpu;
 	ThreadIdType			nThreadId;
+	uint32_t 				nLogIndex;
 
 	uint32_t				nStack[MICROPROFILE_STACK_MAX];
 	int64_t					nChildTickStack[MICROPROFILE_STACK_MAX];
@@ -1367,10 +1368,11 @@ MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 	else
 	{
 		pLog = new MicroProfileThreadLog;
+		memset(pLog, 0, sizeof(*pLog));
 		S.nMemUsage += sizeof(MicroProfileThreadLog);
+		pLog->nLogIndex = S.nNumLogs;
 		S.Pool[S.nNumLogs++] = pLog;	
 	}
-	memset(pLog, 0, sizeof(*pLog));
 	int len = (int)strlen(pName);
 	int maxlen = sizeof(pLog->ThreadName)-1;
 	len = len < maxlen ? len : maxlen;
@@ -1952,7 +1954,8 @@ uint64_t MicroProfileGpuEnter(MicroProfileToken nToken_)
 		MP_ASSERT(pGpuLog->pContext != (void*)-1); // must be called between GpuBegin/GpuEnd		
 		uint64_t nTimer = MicroProfileGpuInsertTimeStamp(pGpuLog->pContext);
 		MicroProfileLogPutGpu(nToken_, nTimer, MP_LOG_ENTER, pGpuLog);
-		MicroProfileLogPutGpu(nToken_, MP_TICK(), MP_LOG_GPU_EXTRA, pGpuLog);
+		MicroProfileThreadLog* pLog = MicroProfileGetThreadLog();
+		MicroProfileLogPutGpu(pLog->nLogIndex, MP_TICK(), MP_LOG_GPU_EXTRA, pGpuLog);
 		return 1;
 	}
 	return 0;
@@ -1966,7 +1969,8 @@ void MicroProfileGpuLeave(MicroProfileToken nToken_, uint64_t nTickStart)
 		MP_ASSERT(pGpuLog->pContext != (void*)-1); // must be called between GpuBegin/GpuEnd
 		uint64_t nTimer = MicroProfileGpuInsertTimeStamp(pGpuLog->pContext);
 		MicroProfileLogPutGpu(nToken_, nTimer, MP_LOG_LEAVE, pGpuLog);
-		MicroProfileLogPutGpu(nToken_, MP_TICK(), MP_LOG_GPU_EXTRA, pGpuLog);
+		MicroProfileThreadLog* pLog = MicroProfileGetThreadLog();
+		MicroProfileLogPutGpu(pLog->nLogIndex, MP_TICK(), MP_LOG_GPU_EXTRA, pGpuLog);
 	}
 }
 
@@ -3002,7 +3006,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 
 		uint32_t nColor = S.TimerInfo[i].nColor;
 		uint32_t nColorDark = (nColor >> 1) & ~0x80808080;
-		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x','#%02x%02x%02x', %f, %f, %f, %f, %f, %d, %f, Meta%d, MetaAvg%d, MetaMax%d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
+		MicroProfilePrintf(CB, Handle, "TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x','#%02x%02x%02x', %f, %f, %f, %f, %f, %f, %d, %f, Meta%d, MetaAvg%d, MetaMax%d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
 			MICROPROFILE_UNPACK_RED(nColor) & 0xff,
 			MICROPROFILE_UNPACK_GREEN(nColor) & 0xff,
 			MICROPROFILE_UNPACK_BLUE(nColor) & 0xff,
@@ -3011,6 +3015,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 			MICROPROFILE_UNPACK_BLUE(nColorDark) & 0xff,
 			pAverage[nIdx],
 			pMax[nIdx],
+			pMin[nIdx],
 			pAverageExclusive[nIdx],
 			pMaxExclusive[nIdx],
 			pCallAverage[nIdx],
@@ -3748,7 +3753,7 @@ void MicroProfileStartContextSwitchTrace()
 {
     if(!S.bContextSwitchRunning)
     {
-        S.bContextSwitchRunning    = true;
+        S.bContextSwitchRunning = true;
         S.bContextSwitchStop = false;
         MicroProfileThreadStart(&S.ContextSwitchThread, MicroProfileTraceThread);
     }
@@ -3855,7 +3860,6 @@ void MicroProfileContextSwitchShutdownTrace()
 
 void* MicroProfileTraceThread(void* unused)
 {
-
 	MicroProfileContextSwitchShutdownTrace();
 	ULONG status = ERROR_SUCCESS;
 	TRACEHANDLE SessionHandle = 0;
