@@ -358,6 +358,8 @@ const char g_MicroProfileHtml_end_0[] =
 "var MetaLengthsAvg = Array();\n"
 "var MetaLengthsMax = Array();\n"
 "\n"
+"var ZoomActive = 0;\n"
+"\n"
 "\n"
 "function ProfileModeClear()\n"
 "{\n"
@@ -1634,14 +1636,14 @@ const char g_MicroProfileHtml_end_0[] =
 "	{\n"
 "		context.fillText(StringArray[i], XPos, YPos);\n"
 "		context.fillText(StringArray[i+1], XPosRight - WidthArray[i+1], YPos);\n"
-"		YPos += BoxHeight;\n"
-"	}\n"
-"}\n"
-"function D";
+"		YPos += BoxHe";
 
 const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
 const char g_MicroProfileHtml_end_1[] =
-"rawHoverToolTip()\n"
+"ight;\n"
+"	}\n"
+"}\n"
+"function DrawHoverToolTip()\n"
 "{\n"
 "	if(!ToolTip)\n"
 "	{\n"
@@ -2855,12 +2857,12 @@ const char g_MicroProfileHtml_end_1[] =
 "				W0 = W0 / 2.0;\n"
 "				var X0 = X + W0;\n"
 "				var X1 = X + W - W0;\n"
-"				context.strokeStyle = ColorFront;\n"
-"		";
+"				context.strokeS";
 
 const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
 const char g_MicroProfileHtml_end_2[] =
-"		context.beginPath();\n"
+"tyle = ColorFront;\n"
+"				context.beginPath();\n"
 "				context.moveTo(X, Y0);\n"
 "				context.lineTo(X0, Y0);\n"
 "				context.moveTo(X0, Y0-2);\n"
@@ -2951,7 +2953,7 @@ const char g_MicroProfileHtml_end_2[] =
 "		DrawDetailedView(context, nMinWidth, false);\n"
 "	}\n"
 "\n"
-"	if(KeyShiftDown || KeyCtrlDown || MouseDragButton || MouseDragSelectRange())\n"
+"	if(KeyShiftDown || KeyCtrlDown || MouseDragButton || MouseDragSelectRange() || ZoomActive)\n"
 "	{\n"
 "		nHoverToken = -1;\n"
 "		nHoverTokenIndex = -1;\n"
@@ -3068,6 +3070,7 @@ const char g_MicroProfileHtml_end_2[] =
 "		var count = 0;\n"
 "		function ZoomFunc(Timestamp)\n"
 "		{\n"
+"			ZoomActive = 1;\n"
 "			var fPrc = (new Date() - TimestampStart) / (ZOOM_TIME * 1000.0);\n"
 "			if(fPrc > 1.0)\n"
 "			{\n"
@@ -3529,6 +3532,7 @@ const char g_MicroProfileHtml_end_2[] =
 "function MouseMove(evt)\n"
 "{\n"
 "    evt.preventDefault();\n"
+"    ZoomActive = 0;\n"
 "    MouseDrag(MouseDragMove, evt);\n"
 " 	MouseHistory = 0;\n"
 "	MouseDetailed = 0;\n"

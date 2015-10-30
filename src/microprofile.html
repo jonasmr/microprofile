@@ -344,6 +344,8 @@ var MetaLengths = Array();
 var MetaLengthsAvg = Array();
 var MetaLengthsMax = Array();
 
+var ZoomActive = 0;
+
 
 function ProfileModeClear()
 {
@@ -2929,7 +2931,7 @@ function DrawDetailed(Animation)
 		DrawDetailedView(context, nMinWidth, false);
 	}
 
-	if(KeyShiftDown || KeyCtrlDown || MouseDragButton || MouseDragSelectRange())
+	if(KeyShiftDown || KeyCtrlDown || MouseDragButton || MouseDragSelectRange() || ZoomActive)
 	{
 		nHoverToken = -1;
 		nHoverTokenIndex = -1;
@@ -3046,6 +3048,7 @@ function ZoomTo(fZoomBegin, fZoomEnd, OffsetYDest)
 		var count = 0;
 		function ZoomFunc(Timestamp)
 		{
+			ZoomActive = 1;
 			var fPrc = (new Date() - TimestampStart) / (ZOOM_TIME * 1000.0);
 			if(fPrc > 1.0)
 			{
@@ -3507,6 +3510,7 @@ function MouseDrag(Source, Event)
 function MouseMove(evt)
 {
     evt.preventDefault();
+    ZoomActive = 0;
     MouseDrag(MouseDragMove, evt);
  	MouseHistory = 0;
 	MouseDetailed = 0;
