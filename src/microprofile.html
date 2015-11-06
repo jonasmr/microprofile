@@ -253,6 +253,7 @@ var nHoverTokenNext = -1;
 var nHoverTokenLogIndexNext = -1;
 var nHoverTokenIndexNext = -1;
 var nHoverCounter = -1;
+var nHoverTokenDrawn = -1;
 var nHideHelp = 0;
 var fFrameScale = 33.33;
 
@@ -306,6 +307,9 @@ var Mode = ModeDetailed;
 var DebugDrawQuadCount = 0;
 var DebugDrawTextCount = 0;
 var ProfileMode = 0;
+var ProfileRedraw0 = 0;
+var ProfileRedraw1 = 0;
+var ProfileRedraw2 = 0;
 var ProfileFps = 0;
 var ProfileFpsAggr = 0;
 var ProfileFpsCount = 0;
@@ -441,6 +445,15 @@ function ProfileModeDraw(Canvas)
 			StringArray.push("FPS");
 			StringArray.push("" + ProfileFps.toFixed(2));
 		}
+		StringArray.push("ProfileRedraw0");
+		StringArray.push("" + ProfileRedraw0);
+		StringArray.push("ProfileRedraw1");
+		StringArray.push("" + ProfileRedraw1);
+		StringArray.push("ProfileRedraw2");
+		StringArray.push("" + ProfileRedraw2);
+		ProfileRedraw0 = 0;
+		ProfileRedraw1 = 0;
+		ProfileRedraw2 = 0;
 
 
 		for(var i = 0; i < ProfileData.Plot; ++i)
@@ -2882,11 +2895,6 @@ function DrawDetailed(Animation)
 
 	RangeCpuNext = RangeInit();
 	RangeGpuNext = RangeInit();
-	// fRangeBeginNext = fRangeEndNext = -1;
-	// fRangeBeginGpuNext = fRangeEndGpuNext = -1;
-	// fRangeThreadIdNext = -1;
-	// var fRangeBeginGpu = -1;
-	// var fRangeEndGpu = -1;
 	RangeGpu = RangeInit();
 
 	var start = new Date();
@@ -2908,22 +2916,30 @@ function DrawDetailed(Animation)
 		DetailedRedrawState.fDetailedOffset = fDetailedOffset;
 		DetailedRedrawState.fDetailedRange = fDetailedRange;
 	}
+	if(nHoverTokenDrawn != nHoverToken)
+	{
+		Invalidate = 1;
+	}
+	nHoverTokenDrawn = nHoverToken;
 	if(Invalidate == 0) //when panning, only draw bars that are a certain width to keep decent framerate
 	{
 		context.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
 		DrawDetailedView(context, nMinWidthPan, true);
+		ProfileRedraw0++;
 	}
 	else if(Invalidate == 1) //draw full and store
 	{
 		offscreen.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
 		DrawDetailedView(offscreen, nMinWidth, true);
 		OffscreenData = offscreen.getImageData(0, 0, CanvasDetailedOffscreen.width, CanvasDetailedOffscreen.height);
+		ProfileRedraw1++;
 	}
 	else//reuse stored result untill next time viewport is changed.
 	{
 		context.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
 		context.putImageData(OffscreenData, 0, 0);
 		DrawDetailedView(context, nMinWidth, false);
+		ProfileRedraw2++;
 	}
 
 	if(KeyShiftDown || KeyCtrlDown || MouseDragButton || MouseDragSelectRange() || ZoomActive)
@@ -2939,7 +2955,6 @@ function DrawDetailed(Animation)
 		nHoverToken = nHoverTokenNext;
 		nHoverTokenIndex = nHoverTokenIndexNext;
 		nHoverTokenLogIndex = nHoverTokenLogIndexNext;
-		//if(fRangeBeginHistory < fRangeEndHistory)
 		if(RangeValid(RangeCpuHistory))
 		{
 			RangeCopy(RangeCpu, RangeCpuHistory);
@@ -2949,10 +2964,6 @@ function DrawDetailed(Animation)
 		{
 			RangeCopy(RangeCpu, RangeCpuNext);
 			RangeCopy(RangeGpu, RangeGpuNext);
-			// fRangeBegin = fRangeBeginNext;
-			// fRangeEnd = fRangeEndNext;
-			// fRangeBeginGpu = fRangeBeginGpuNext;
-			// fRangeEndGpu = fRangeEndGpuNext;
 		}
 	}
 
@@ -3911,7 +3922,6 @@ function MakeLod(index, MinDelta, TimeArray, TypeArray, IndexArray, LogStart)
 	{
 		console.log("error!!");
 	}
-	// debugger;
 	var o = new Object();
 	o.MinDelta = MinDelta;
 	o.TimeArray = TimeArray;
