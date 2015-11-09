@@ -139,7 +139,7 @@ typedef uint16_t MicroProfileGroupId;
 #define MICROPROFILE_COUNTER_SET_LIMIT(name, count) do{} while(0)
 
 
-#define MICROPROFILE_COUNTER_CONFIG(name, type)
+#define MICROPROFILE_COUNTER_CONFIG(name, type, limit)
 
 #define MicroProfileGetTime(group, name) 0.f
 #define MicroProfileOnThreadCreate(foo) do{}while(0)
@@ -432,6 +432,7 @@ MICROPROFILE_API MicroProfileThreadLogGpu* MicroProfileGetGlobaGpuThreadLog();
 MICROPROFILE_API int MicroProfileGetGlobaGpuQueue();
 #if defined(MICROPROFILE_GPU_TIMERS_D3D12)
 MICROPROFILE_API void MicroProfileGpuInitD3D12(void* pDevice, void* pCommandQueue);
+MICROPROFILE_API void MicroProfileGpuShutdown();
 #endif
 
 #if MICROPROFILE_WEBSERVER
@@ -460,6 +461,7 @@ MICROPROFILE_API int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* 
 #if MICROPROFILE_GPU_TIMERS_D3D11
 #define MICROPROFILE_D3D_MAX_QUERIES (8<<10)
 MICROPROFILE_API void MicroProfileGpuInitD3D11(void* pDevice, void* pDeviceContext);
+MICROPROFILE_API void MicroProfileGpuShutdown();
 #endif
 
 #if MICROPROFILE_GPU_TIMERS_GL
