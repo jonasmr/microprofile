@@ -1846,10 +1846,6 @@ void D3D12Multithreading::BeginFrame()
 		uint64_t nGpuBlock = MicroProfileGpuEnd(pGpuLog);
 		MICROPROFILE_GPU_SUBMIT(g_QueueCompute, nGpuBlock);
 		MicroProfileThreadLogGpuFree(pGpuLog);
-
-		//HER TIL HVORFOR KOMMER DER IKKE NOGET IGENNEM FRA COMPUTE Køen?
-
-
 	}
 
 	// Indicate that the back buffer will be used as a render target.
@@ -1929,8 +1925,8 @@ void D3D12Multithreading::WorkerThread(int threadIndex)
 			MICROPROFILE_SCOPEI("CPU", "Shadows", 0xff00ff00);
 			MicroProfileGpuBegin(pShadowCommandList, pMicroProfileLog);
 			{
-			//	MICROPROFILE_SCOPEGPU_TOKEN_Q(pMicroProfileLog, g_TokenGpuFrameIndex[g_nSrc]);
- 				//MICROPROFILE_SCOPEGPUI_Q(pMicroProfileLog, "Shadows", 0xff00);
+				MICROPROFILE_SCOPEGPU_TOKEN_Q(pMicroProfileLog, g_TokenGpuFrameIndex[g_nSrc]);
+ 				MICROPROFILE_SCOPEGPUI_Q(pMicroProfileLog, "Shadows", 0xff00);
 
 				for (int j = threadIndex; j < _countof(SampleAssets::Draws); j += NumContexts)
 				{
@@ -1962,8 +1958,8 @@ void D3D12Multithreading::WorkerThread(int threadIndex)
 		MicroProfileGpuBegin(pSceneCommandList, pMicroProfileLog);
 		{
 			MICROPROFILE_SCOPEI("CPU", "Scene", 0xff00ffff);
-			//MICROPROFILE_SCOPEGPU_TOKEN_Q(pMicroProfileLog, g_TokenGpuFrameIndex[g_nSrc]);
-			//MICROPROFILE_SCOPEGPUI_Q(pMicroProfileLog, "scene", 0xff0000);
+			MICROPROFILE_SCOPEGPU_TOKEN_Q(pMicroProfileLog, g_TokenGpuFrameIndex[g_nSrc]);
+			MICROPROFILE_SCOPEGPUI_Q(pMicroProfileLog, "scene", 0xff0000);
 			SetCommonPipelineState(pSceneCommandList);
 			CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
 			CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
