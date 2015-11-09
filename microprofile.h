@@ -1,4 +1,3 @@
-#pragma once
 // This is free and unencumbered software released into the public domain.
 // Anyone is free to copy, modify, publish, use, compile, sell, or
 // distribute this software, either in source code form or as a compiled
@@ -4238,8 +4237,6 @@ int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu)
 #elif defined(MICROPROFILE_GPU_TIMERS_D3D12)
 #include <d3d12.h>
 //#include <d3dx12.h>
-void uprintf(const char* fmt, ...);
-
 uint32_t MicroProfileGpuInsertTimeStamp(void* pContext)
 {
 	
@@ -4258,7 +4255,7 @@ void MicroProfileGpuFetchRange(uint32_t nBegin, int32_t nCount, uint64_t nFrame)
 	if (nCount <= 0)
 		return;
 	void* pData = 0;
-	uprintf("fetch [%d-%d]\n", nBegin, nBegin + nCount);
+	//uprintf("fetch [%d-%d]\n", nBegin, nBegin + nCount);
 	D3D12_RANGE Range = { sizeof(uint64_t)*nBegin, sizeof(uint64_t)*(nBegin+nCount) };
 	S.GPU.pBuffer->Map(0, &Range, &pData);
 	memcpy(&S.GPU.nResults[nBegin], nBegin + (uint64_t*)pData, nCount * sizeof(uint64_t));
@@ -4291,7 +4288,7 @@ void MicroProfileGpuFetchResults(uint64_t nFrame)
 	while (0 <= (int64_t)(nFrame - nPending))
 	{
 		MicroProfileGpuWaitFence(nPending);
-		uprintf("Waited fence fence %d :: %d\n", nPending, S.GPU.pFence->GetCompletedValue());
+
 		uint32_t nInternal = nPending % MICROPROFILE_D3D_INTERNAL_DELAY;
 		uint32_t nBegin = S.GPU.Frames[nInternal].nBegin;
 		uint32_t nCount = S.GPU.Frames[nInternal].nCount;
@@ -4309,7 +4306,7 @@ uint64_t MicroProfileGpuGetTimeStamp(uint32_t nIndex)
 	uint32_t nQueryIndex = nIndex & 0xffff;
 	uint32_t lala = S.GPU.nQueryFrames[nQueryIndex];
 	MP_ASSERT((0xffff & lala) == nFrame);
-	uprintf("read TS [%d <- %lld]\n", nQueryIndex, S.GPU.nResults[nQueryIndex]);
+	//uprintf("read TS [%d <- %lld]\n", nQueryIndex, S.GPU.nResults[nQueryIndex]);
 	return S.GPU.nResults[nQueryIndex];
 }
 
@@ -4350,7 +4347,6 @@ uint32_t MicroProfileGpuFlip(void* pContext)
 	S.GPU.pCommandQueue->ExecuteCommandLists(1, &pList);
 	//uprintf("EXECUTE %p\n", pCommandList);
 	S.GPU.pCommandQueue->Signal(S.GPU.pFence, S.GPU.nFrame);
-	uprintf("flip [%d-%d] fence %d\n", nStart, nStart + nCount, S.GPU.nFrame);
 	S.GPU.Frames[nFrameIndex].nBegin = nStart;
 	S.GPU.Frames[nFrameIndex].nCount = nCount;
 	S.GPU.nFrame++;

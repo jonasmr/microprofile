@@ -40,11 +40,10 @@ void uprintf(const char* fmt, ...)
 #define MICROPROFILE_PRINTF uprintf
 #endif
 
-#include "microprofile.h"
 //#define MICROPROFILE_WEBSERVER 0
 #define MICROPROFILEUI_IMPL
-#include "microprofileui.h"
 #include "microprofile.h"
+#include "microprofileui.h"
 
 #include "glinc.h"
 
