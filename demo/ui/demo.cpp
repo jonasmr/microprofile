@@ -198,7 +198,6 @@ int main(int argc, char* argv[])
 
 
 	g_QueueGraphics = MICROPROFILE_GPU_INIT_QUEUE("GPU-Graphics-Queue");
-	MICROPROFILE_GPU_BEGIN(0, 0);
 
 	printf("press 'z' to toggle microprofile drawing\n");
 	printf("press 'right shift' to pause microprofile update\n");
@@ -334,9 +333,7 @@ int main(int argc, char* argv[])
 		g_MouseDelta = 0;
 
 
-		MICROPROFILE_GPU_SUBMIT(g_QueueGraphics, MICROPROFILE_GPU_END(0));
 		MicroProfileFlip(0);
-		MICROPROFILE_GPU_BEGIN(0, 0);
 		{
 			MICROPROFILE_SCOPEGPUI("MicroProfileDraw", 0x88dd44);
 			float projection[16];

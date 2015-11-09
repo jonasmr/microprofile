@@ -640,10 +640,8 @@ void D3D12HelloTriangle::OnRender()
 	ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
 	m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
-	MICROPROFILE_GPU_SUBMIT(g_QueueGraphics, MICROPROFILE_GPU_END(MicroProfileGetGlobaGpuThreadLog()));
 	MicroProfileFlip(m_commandList.Get());
 
-	MICROPROFILE_GPU_BEGIN(m_commandList.Get(), MicroProfileGetGlobaGpuThreadLog());
 	MICROPROFILE_SCOPEI("Main", "WaitPrev", 0);
 
 	// Present the frame.
@@ -676,6 +674,7 @@ void D3D12HelloTriangle::PopulateCommandList()
 	// list, that command list can then be reset at any time and must be before 
 	// re-recording.
 	ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), m_pipelineState.Get()));
+	MicroProfileGpuSetContext(m_commandList.Get(), MicroProfileGetGlobaGpuThreadLog());
 	MICROPROFILE_SCOPEGPUI("Full Frame", 0xff00ff00);
 	// Set necessary state.
 	m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
