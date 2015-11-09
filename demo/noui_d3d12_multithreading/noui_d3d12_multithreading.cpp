@@ -1813,7 +1813,7 @@ void D3D12Multithreading::BeginFrame()
 			pCommandList->SetComputeRootDescriptorTable(0, Srv);
 			pCommandList->SetComputeRootDescriptorTable(1, Uav);
 			pCommandList->SetComputeRoot32BitConstant(2, counter, 0);
-			pCommandList->Dispatch(512*SampleAssets::VertexDataSize / (SampleAssets::StandardVertexStride * 128) + 1, 1, 1);
+			pCommandList->Dispatch(SampleAssets::VertexDataSize / (SampleAssets::StandardVertexStride * 128) + 1, 1, 1);
 			counter++;
 		}
 		m_pCurrentFrameResource->m_commandListCompute->Close();
