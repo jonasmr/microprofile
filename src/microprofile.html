@@ -3,13 +3,7 @@
 <head>
 <title>MicroProfile Capture</title>
 <style>
-/* 
-	redraw bug
-	filter
-	min timers
-	goto worst instance
-	setstablepowerstate
-about css: http://bit.ly/1eMQ42U */
+/* about css: http://bit.ly/1eMQ42U */
 body {margin: 0px;padding: 0px; font: 12px Courier New;background-color:#474747; color:white;overflow:hidden;}
 ul {list-style-type: none;margin: 0;padding: 0;}
 li{display: inline; float:left;border:5px; position:relative;text-align:center;}
@@ -68,6 +62,7 @@ Ctrl + Drag: Pan<br>
 Click + Drag: Pan<br>
 alt or z: Toggle ToolTip<br>
 Tab: Go To Worst Instance<br>
+Left/Right Arror: Next/Prev Instance<br>
 <hr>
 <table style="width:100%">
 <tr>
@@ -258,12 +253,13 @@ var nHoverTokenNext = -1;
 var nHoverTokenLogIndexNext = -1;
 var nHoverTokenIndexNext = -1;
 var nHoverCounter = -1;
+var nHoverTokenDrawn = -1;
 var nHideHelp = 0;
 var fFrameScale = 33.33;
 
 function RangeInit()
 {
-	return {"Begin":-1, "End":-1, "YBegin":-1, "YEnd":-1, "Thread": -1 };
+	return {"Begin":-1, "End":-1, "YBegin":-1, "YEnd":-1, "Thread": -1 , "Index": -1};
 }
 function RangeValid(Range)
 {
@@ -311,6 +307,9 @@ var Mode = ModeDetailed;
 var DebugDrawQuadCount = 0;
 var DebugDrawTextCount = 0;
 var ProfileMode = 0;
+var ProfileRedraw0 = 0;
+var ProfileRedraw1 = 0;
+var ProfileRedraw2 = 0;
 var ProfileFps = 0;
 var ProfileFpsAggr = 0;
 var ProfileFpsCount = 0;
@@ -343,6 +342,8 @@ var TimersMeta = 1;
 var MetaLengths = Array();
 var MetaLengthsAvg = Array();
 var MetaLengthsMax = Array();
+
+var ZoomActive = 0;
 
 
 function ProfileModeClear()
@@ -444,6 +445,15 @@ function ProfileModeDraw(Canvas)
 			StringArray.push("FPS");
 			StringArray.push("" + ProfileFps.toFixed(2));
 		}
+		StringArray.push("ProfileRedraw0");
+		StringArray.push("" + ProfileRedraw0);
+		StringArray.push("ProfileRedraw1");
+		StringArray.push("" + ProfileRedraw1);
+		StringArray.push("ProfileRedraw2");
+		StringArray.push("" + ProfileRedraw2);
+		ProfileRedraw0 = 0;
+		ProfileRedraw1 = 0;
+		ProfileRedraw2 = 0;
 
 
 		for(var i = 0; i < ProfileData.Plot; ++i)
@@ -2885,11 +2895,6 @@ function DrawDetailed(Animation)
 
 	RangeCpuNext = RangeInit();
 	RangeGpuNext = RangeInit();
-	// fRangeBeginNext = fRangeEndNext = -1;
-	// fRangeBeginGpuNext = fRangeEndGpuNext = -1;
-	// fRangeThreadIdNext = -1;
-	// var fRangeBeginGpu = -1;
-	// var fRangeEndGpu = -1;
 	RangeGpu = RangeInit();
 
 	var start = new Date();
@@ -2911,25 +2916,33 @@ function DrawDetailed(Animation)
 		DetailedRedrawState.fDetailedOffset = fDetailedOffset;
 		DetailedRedrawState.fDetailedRange = fDetailedRange;
 	}
+	if(nHoverTokenDrawn != nHoverToken)
+	{
+		Invalidate = 1;
+	}
+	nHoverTokenDrawn = nHoverToken;
 	if(Invalidate == 0) //when panning, only draw bars that are a certain width to keep decent framerate
 	{
 		context.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
 		DrawDetailedView(context, nMinWidthPan, true);
+		ProfileRedraw0++;
 	}
 	else if(Invalidate == 1) //draw full and store
 	{
 		offscreen.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
 		DrawDetailedView(offscreen, nMinWidth, true);
 		OffscreenData = offscreen.getImageData(0, 0, CanvasDetailedOffscreen.width, CanvasDetailedOffscreen.height);
+		ProfileRedraw1++;
 	}
 	else//reuse stored result untill next time viewport is changed.
 	{
 		context.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
 		context.putImageData(OffscreenData, 0, 0);
 		DrawDetailedView(context, nMinWidth, false);
+		ProfileRedraw2++;
 	}
 
-	if(KeyShiftDown || KeyCtrlDown || MouseDragButton || MouseDragSelectRange())
+	if(KeyShiftDown || KeyCtrlDown || MouseDragButton || MouseDragSelectRange() || ZoomActive)
 	{
 		nHoverToken = -1;
 		nHoverTokenIndex = -1;
@@ -2942,7 +2955,6 @@ function DrawDetailed(Animation)
 		nHoverToken = nHoverTokenNext;
 		nHoverTokenIndex = nHoverTokenIndexNext;
 		nHoverTokenLogIndex = nHoverTokenLogIndexNext;
-		//if(fRangeBeginHistory < fRangeEndHistory)
 		if(RangeValid(RangeCpuHistory))
 		{
 			RangeCopy(RangeCpu, RangeCpuHistory);
@@ -2952,10 +2964,6 @@ function DrawDetailed(Animation)
 		{
 			RangeCopy(RangeCpu, RangeCpuNext);
 			RangeCopy(RangeGpu, RangeGpuNext);
-			// fRangeBegin = fRangeBeginNext;
-			// fRangeEnd = fRangeEndNext;
-			// fRangeBeginGpu = fRangeBeginGpuNext;
-			// fRangeEndGpu = fRangeEndGpuNext;
 		}
 	}
 
@@ -3005,6 +3013,104 @@ function ZoomToHighlight(NoGpu)
 	RangeCpu = RangeInit();
 	RangeGpu = RangeInit();
 }
+
+function MoveToNext(Direction) //1 forward, -1 backwards
+{
+	var fTimeBegin, fTimeEnd, nLog;
+	var Index = nHoverToken;
+
+	if(nHoverToken != -1 && nHoverTokenLogIndex != -1)
+	{
+		fTimeBegin = RangeCpu.Begin;
+		fTimeEnd = RangeCpu.End;
+		nLog = nHoverTokenLogIndex;
+	}
+	else if(RangeValid(RangeSelect))
+	{
+		fTimeBegin = RangeSelect.Begin;
+		fTimeEnd = RangeSelect.End;
+		nLog = RangeSelect.Thread;
+		Index = RangeSelect.Index;
+	}
+	else
+	{
+		return;
+	}
+	if(nLog<0)
+	{
+		return;
+	}
+	var Forward = Direction && Direction < 0 ? 0 : 1;
+	var bFound = false;
+	var nStackPos = 0;
+	var fResultTimeBegin, fResultTimeEnd;
+	var TypeBegin = Forward ? 1 : 0;
+	var TypeEnd = Forward ? 0 : 1;
+	var SearchTimeBegin = Forward ? fTimeBegin : fTimeEnd;
+
+	var istart = Forward ? 0 : Frames.length-1;
+	var iend = Forward ? Frames.length : -1;
+	var idelta = Forward ? 1 : -1;
+	for(var i = istart; i != iend; i += idelta)
+	{
+		var fr = Frames[i];
+		var ts = fr.ts[nLog];
+		var ti = fr.ti[nLog];
+		var tt = fr.tt[nLog];
+		var jstart = Forward ? 0 : ts.length-1;
+		var jend = Forward ? ts.length : -1;
+		var jdelta = Forward ? 1 : -1;
+		for(var j = jstart; j != jend; j += jdelta)
+		{
+			if(!bFound)
+			{
+				if(tt[j] == TypeBegin && Index == ti[j])
+				{
+					if(SearchTimeBegin == ts[j])
+					{
+						bFound = true;
+					}
+				}
+			}
+			else
+			{
+				if(Index == ti[j])
+				{
+					var type = tt[j];
+					if(type == TypeBegin)
+					{
+						if(0 == nStackPos)
+						{
+							fResultTimeBegin = ts[j];
+						}
+						nStackPos++;
+					}
+					else if(type == TypeEnd && nStackPos)
+					{
+						nStackPos--;
+						if(0 == nStackPos)
+						{
+							fResultTimeEnd = ts[j];
+							if(0 == Forward)
+							{
+								var Tmp = fResultTimeBegin;
+								fResultTimeBegin = fResultTimeEnd;
+								fResultTimeEnd = Tmp;
+							}
+							RangeSelect.Begin = fResultTimeBegin;
+							RangeSelect.End = fResultTimeEnd;
+							RangeSelect.Thread = nLog;
+							RangeSelect.Index = Index;
+							MoveTo(fResultTimeBegin,fResultTimeEnd);
+							return;
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 function MoveTo(fMoveBegin, fMoveEnd, YTop, YBottom)
 {
 	var nOffsetYBottom = YBottom - nHeight;
@@ -3029,9 +3135,9 @@ function MoveTo(fMoveBegin, fMoveEnd, YTop, YBottom)
 	var nOffset;
 	if(nOffsetYDest != nOffsetY)
 		nOffset = nOffsetYDest;
-	ZoomTo(fMoveBegin, fMoveEnd, nOffsetYDest);
+	ZoomTo(fMoveBegin, fMoveEnd, nOffsetYDest, -1);
 }
-function ZoomTo(fZoomBegin, fZoomEnd, OffsetYDest)
+function ZoomTo(fZoomBegin, fZoomEnd, OffsetYDest, ZoomTime)
 {
 	if(fZoomBegin < fZoomEnd)
 	{
@@ -3044,10 +3150,18 @@ function ZoomTo(fZoomBegin, fZoomEnd, OffsetYDest)
 		var OffsetYTarget = OffsetYDest;
 		var TimestampStart = new Date();
 		var count = 0;
+		console.log('zoom time ' + ZoomTime);
+		if(!ZoomTime)
+		{			
+			ZoomTime = ZOOM_TIME;
+		}
+		console.log('zoom time ' + ZoomTime);
+
 		function ZoomFunc(Timestamp)
 		{
-			var fPrc = (new Date() - TimestampStart) / (ZOOM_TIME * 1000.0);
-			if(fPrc > 1.0)
+			ZoomActive = 1;
+			var fPrc = (new Date() - TimestampStart) / (ZoomTime * 1000.0);
+			if(fPrc > 1.0 || ZoomTime < 0.01)
 			{
 				fPrc = 1.0;
 			}
@@ -3266,6 +3380,8 @@ function MouseHandleDrag()
 					RangeCpu.End = fDetailedOffset + fDetailedRange * (xEnd / nWidth);
 					RangeSelect.Begin = fDetailedOffset + fDetailedRange * (xStart / nWidth);
 					RangeSelect.End = fDetailedOffset + fDetailedRange * (xEnd / nWidth);
+					RangeSelect.Thread = -1;
+					RangeSelect.Index = -1;
 				}
 			}
 			else if(MouseDragPan())
@@ -3507,6 +3623,7 @@ function MouseDrag(Source, Event)
 function MouseMove(evt)
 {
     evt.preventDefault();
+    ZoomActive = 0;
     MouseDrag(MouseDragMove, evt);
  	MouseHistory = 0;
 	MouseDetailed = 0;
@@ -3559,7 +3676,15 @@ function MouseWheel(e)
 
 function KeyUp(evt)
 {
-
+	console.log('key up ' + evt.keyCode);
+	if(evt.keyCode == 39)
+	{
+		MoveToNext(1);
+	}
+	if(evt.keyCode == 37)
+	{
+		MoveToNext(-1);
+	}
 	if(evt.keyCode == 17)
 	{
 		KeyCtrlDown = 0;
@@ -3575,27 +3700,36 @@ function KeyUp(evt)
 		if(RangeSelect.Begin < RangeSelect.End)
 		{
 			ZoomTo(RangeSelect.Begin, RangeSelect.End);
-			RangeSelect.Begin = RangeSelect.End = -1;
+			RangeSelect = RangeInit();
 			MouseHandleDragEnd();
 		}
 	}
 	if(evt.keyCode == 9)
 	{
-		if(nHoverToken != -1 && nHoverToken < TimerInfo.length)
+		var Token = nHoverToken;
+		if(Token == -1 && RangeValid(RangeSelect) && RangeSelect.Index >= 0)
 		{
-			var start = TimerInfo[nHoverToken].worststart;
-			var end = TimerInfo[nHoverToken].worstend;
+			Token = RangeSelect.Index;
+		}
+		if(Token != -1 && Token < TimerInfo.length)
+		{
+			var start = TimerInfo[Token].worststart;
+			var end = TimerInfo[Token].worstend;
 			RangeSelect.Begin = start;
 			RangeSelect.End = end;
-			RangeSelect.Thread = TimerInfo[nHoverToken].worstthread;
+			RangeSelect.Thread = TimerInfo[Token].worstthread;
+			RangeSelect.Index = Token;
 			ShowFlashMessage('Worst: ' + (end-start).toFixed(2) + 'ms', 100);
 			MoveTo(RangeSelect.Begin, RangeSelect.End, ThreadY[RangeSelect.Thread] + nOffsetY, ThreadY[RangeSelect.Thread+1] + nOffsetY);
 			MouseHandleDragEnd();
 		}
+
+
+
 	}
 	if(evt.keyCode == 27)
 	{
-		RangeSelect.Begin = RangeSelect.End = -1;		
+		RangeSelect = RangeInit();
 	}
 	Invalidate = 0;
 }
@@ -3788,7 +3922,6 @@ function MakeLod(index, MinDelta, TimeArray, TypeArray, IndexArray, LogStart)
 	{
 		console.log("error!!");
 	}
-	// debugger;
 	var o = new Object();
 	o.MinDelta = MinDelta;
 	o.TimeArray = TimeArray;

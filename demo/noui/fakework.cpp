@@ -182,6 +182,8 @@ void WorkerThread(int threadId)
 					{
 						MICROPROFILE_SCOPEI("ThreadWork", "Inner1", c4);
 						usleep(50);
+						MICROPROFILE_SCOPEI("ThreadWork", "Inner1", c4);
+						usleep(50);
 						MICROPROFILE_SCOPEI("ThreadWork", "Inner2", c2);
 						usleep(50);
 						MICROPROFILE_SCOPEI("ThreadWork", "Inner3", c3);
