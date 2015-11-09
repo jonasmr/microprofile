@@ -4393,50 +4393,9 @@ void MicroProfileGpuInitD3D12(void* pDevice_, void* pCommandQueue_)
 	ResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 	ResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
-	//D3DX12_RESOURCE_DESC(D3D12_RESOURCE_DIMENSION_BUFFER, alignment, width, 1, 1, 1,
-	//	//		DXGI_FORMAT_UNKNOWN, 1, 0, D3D12_TEXTURE_LAYOUT_ROW_MAJOR, flags
-
-
-	//static inline CD3DX12_RESOURCE_DESC Buffer(
-	//	UINT64 width,
-	//	D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE,
-	//	UINT64 alignment = 0)
-	//{
-	//	return CD3DX12_RESOURCE_DESC(D3D12_RESOURCE_DIMENSION_BUFFER, alignment, width, 1, 1, 1,
-	//		DXGI_FORMAT_UNKNOWN, 1, 0, D3D12_TEXTURE_LAYOUT_ROW_MAJOR, flags);
-	//}
-
-	/*CD3DX12_RESOURCE_DESC(
-		D3D12_RESOURCE_DIMENSION dimension,
-		UINT64 alignment,
-		UINT64 width,
-		UINT height,
-		UINT16 depthOrArraySize,
-		UINT16 mipLevels,
-		DXGI_FORMAT format,
-		UINT sampleCount,
-		UINT sampleQuality,
-		D3D12_TEXTURE_LAYOUT layout,
-		D3D12_RESOURCE_FLAGS flags)
-	{
-		Dimension = dimension;
-		Alignment = alignment;
-		Width = width;
-		Height = height;
-		DepthOrArraySize = depthOrArraySize;
-		MipLevels = mipLevels;
-		Format = format;
-		SampleDesc.Count = sampleCount;
-		SampleDesc.Quality = sampleQuality;
-		Layout = layout;
-		Flags = flags;
-	}*/
-
-
 	hr = pDevice->CreateCommittedResource(
 		&HeapProperties,
 		D3D12_HEAP_FLAG_NONE,
-		//&CD3DX12_RESOURCE_DESC::Buffer(MICROPROFILE_D3D_MAX_QUERIES * 8),
 		&ResourceDesc,
 		D3D12_RESOURCE_STATE_COPY_DEST,	
 		nullptr, 
