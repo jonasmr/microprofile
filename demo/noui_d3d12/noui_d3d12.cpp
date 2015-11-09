@@ -216,7 +216,7 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 	MicroProfileSetForceMetaCounters(true);
 	g_QueueGraphics = MICROPROFILE_GPU_INIT_QUEUE("GPU-Graphics-Queue");
 	MicroProfileGpuInitD3D12(g_pDevice, g_pCommandQueue);
-	MICROPROFILE_GPU_BEGIN(0);
+	//MICROPROFILE_GPU_BEGIN(0, MicroProfileGetGlobaGpuThreadLog());
 
 
 	// Main sample loop.
@@ -640,10 +640,10 @@ void D3D12HelloTriangle::OnRender()
 	ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
 	m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
-	MICROPROFILE_GPU_SUBMIT(g_QueueGraphics, MICROPROFILE_GPU_END());
+	MICROPROFILE_GPU_SUBMIT(g_QueueGraphics, MICROPROFILE_GPU_END(MicroProfileGetGlobaGpuThreadLog()));
 	MicroProfileFlip(m_commandList.Get());
 
-	MICROPROFILE_GPU_BEGIN(m_commandList.Get());
+	MICROPROFILE_GPU_BEGIN(m_commandList.Get(), MicroProfileGetGlobaGpuThreadLog());
 	MICROPROFILE_SCOPEI("Main", "WaitPrev", 0);
 
 	// Present the frame.
