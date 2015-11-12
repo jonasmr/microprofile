@@ -51,6 +51,7 @@ uint32_t g_nQuit = 0;
 void StartFakeWork();
 void StopFakeWork();
 
+#define DUMP_SPIKE_TEST 0
 
 int main(int argc, char* argv[])
 {
@@ -86,6 +87,10 @@ int main(int argc, char* argv[])
 	MICROPROFILE_COUNTER_ADD("//\\\\///lala////lelel", 1000);
 
 
+	#if DUMP_SPIKE_TEST
+	MicroProfileDumpFile("spike.html", "spike.csv", 200.f, -1.f);
+	#endif	
+
 	StartFakeWork();
 	while(!g_nQuit)
 	{
@@ -100,6 +105,22 @@ int main(int argc, char* argv[])
 			once = 1;
 			printf("open localhost:%d in chrome to capture profile data\n", MicroProfileWebServerPort());
 		}
+
+		#if DUMP_SPIKE_TEST
+		static int nCounter = 0;
+		if(nCounter < 200)
+		{
+			printf("\r%5d/200", nCounter++);
+			fflush(stdout);
+			if(nCounter == 200)
+			{
+				printf("\nsleeping 1s\n");
+				MICROPROFILE_SCOPEI("SPIKE_TEST", "Test", 0xff00ff00);
+				usleep(1000*1000);	
+				printf("sleep done, spike.html should be saved in 5 frames\n");
+			}
+		}
+		#endif
 
 	}
 

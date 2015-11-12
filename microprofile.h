@@ -161,7 +161,7 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileGetForceMetaCounters() 0
 #define MicroProfileEnableMetaCounter(c) do{}while(0)
 #define MicroProfileDisableMetaCounter(c) do{}while(0)
-#define MicroProfileDumpFile(html,csv) do{} while(0)
+#define MicroProfileDumpFile(html,csv,spikecpu,spikegpu) do{} while(0)
 #define MicroProfileWebServerPort() ((uint32_t)-1)
 
 #else
@@ -436,10 +436,10 @@ MICROPROFILE_API void MicroProfileGpuShutdown();
 #endif
 
 #if MICROPROFILE_WEBSERVER
-MICROPROFILE_API void MicroProfileDumpFile(const char* pHtml, const char* pCsv);
+MICROPROFILE_API void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike = -1.f, float fGpuSpike = -1.f);
 MICROPROFILE_API uint32_t MicroProfileWebServerPort();
 #else
-#define MicroProfileDumpFile(c) do{} while(0)
+#define MicroProfileDumpFile(html,csv,cpu, gpu) do{} while(0)
 #define MicroProfileWebServerPort() ((uint32_t)-1)
 #endif
 
@@ -861,9 +861,15 @@ struct MicroProfile
 	uint32_t nToggleRunning;
 	uint32_t nMaxGroupSize;
 	uint32_t nDumpFileNextFrame;
+	uint32_t nDumpFileCountDown;
+	uint32_t nDumpSpikeMask;
 	uint32_t nAutoClearFrames;
-	char HtmlDumpPath[512];
-	char CsvDumpPath[512];
+
+	float 	fDumpCpuSpike;
+	float 	fDumpGpuSpike;
+	char 	HtmlDumpPath[512];
+	char 	CsvDumpPath[512];
+
 
 	int64_t nPauseTicks;
 
@@ -2077,9 +2083,16 @@ void MicroProfileFlip(void* pContext)
 	uint32_t nAggregateClear = S.nAggregateClear || S.nAutoClearFrames, nAggregateFlip = 0;
 	if(S.nDumpFileNextFrame)
 	{
-		MicroProfileDumpToFile();
-		S.nDumpFileNextFrame = 0;
-		S.nAutoClearFrames = MICROPROFILE_GPU_FRAME_DELAY + 3; //hide spike from dumping webpage
+		if(0 == S.nDumpFileCountDown)
+		{
+			MicroProfileDumpToFile();
+			S.nDumpFileNextFrame = 0;
+			S.nAutoClearFrames = MICROPROFILE_GPU_FRAME_DELAY + 3; //hide spike from dumping webpage
+		}
+		else
+		{
+			S.nDumpFileCountDown--;
+		}
 	}
 	if(S.nWebServerDataSent == (uint64_t)-1)
 	{
@@ -2127,16 +2140,33 @@ void MicroProfileFlip(void* pContext)
 		pFramePut->nFrameStartCpu = MP_TICK();
 		
 		pFramePut->nFrameStartGpu = nGpuTimeStamp;
-		if(pFrameNext->nFrameStartGpu != -1)
 		{
-			//static uint64 nFrameLast = 0;
-			pFrameNext->nFrameStartGpu = MicroProfileGpuGetTimeStamp((uint32_t)pFrameNext->nFrameStartGpu);
+			const float fDumpTimeThreshold = 1000.f * 60 * 60 * 24 * 365.f; // if time above this, then we're handling uninitialized counters
+			int nDumpNextFrame = 0;
+			float fTimeGpu = 0.f;
+			if(pFrameNext->nFrameStartGpu != -1)
+			{
 
-			//float fTime = 1000.f * (pFrameNext->nFrameStartGpu - nFrameLast) / MicroProfileTicksPerSecondGpu();
-
-
-			//uprintf("::: %f :::update timestamp %llp from frame %d\n", fTime, pFrameNext->nFrameStartGpu , nFrameNext );
-			//nFrameLast = pFrameNext->nFrameStartGpu;
+				uint64_t nTickCurrent = pFrameCurrent->nFrameStartGpu;
+				uint64_t nTickNext = pFrameNext->nFrameStartGpu = MicroProfileGpuGetTimeStamp((uint32_t)pFrameNext->nFrameStartGpu);
+				float fTime = 1000.f * (nTickNext - nTickCurrent) / MicroProfileTicksPerSecondGpu();
+				fTime = fTimeGpu;
+				if(S.fDumpGpuSpike > 0.f && fTime > S.fDumpGpuSpike && fTime < fDumpTimeThreshold)
+				{
+					nDumpNextFrame = 1;
+				}
+			}
+			float fTimeCpu = 1000.f * (pFrameNext->nFrameStartCpu - pFrameCurrent->nFrameStartCpu) / MicroProfileTicksPerSecondCpu();
+			if(S.fDumpCpuSpike > 0.f && fTimeCpu > S.fDumpCpuSpike && fTimeCpu < fDumpTimeThreshold)
+			{
+				nDumpNextFrame = 1;
+			}
+			if(nDumpNextFrame)
+			{
+				S.nDumpFileNextFrame = S.nDumpSpikeMask;
+				S.nDumpSpikeMask = 0;
+				S.nDumpFileCountDown = 5;
+			}
 		}
 
 		if(pFrameCurrent->nFrameStartGpu == -1)
@@ -2781,9 +2811,11 @@ uint32_t MicroProfileWebServerPort()
 	return S.nWebServerPort;
 }
 
-void MicroProfileDumpFile(const char* pHtml, const char* pCsv)
+void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, float fGpuSpike)
 {
-	S.nDumpFileNextFrame = 0;
+	S.fDumpCpuSpike = fCpuSpike;
+	S.fDumpGpuSpike = fGpuSpike;
+	uint32_t nDumpMask = 0;
 	if(pHtml)
 	{
 		size_t nLen = strlen(pHtml);
@@ -2792,7 +2824,8 @@ void MicroProfileDumpFile(const char* pHtml, const char* pCsv)
 			return;
 		}
 		memcpy(S.HtmlDumpPath, pHtml, nLen+1);
-		S.nDumpFileNextFrame |= 1;
+
+		nDumpMask |= 1;
 	}
 	if(pCsv)
 	{
@@ -2802,7 +2835,18 @@ void MicroProfileDumpFile(const char* pHtml, const char* pCsv)
 			return;
 		}
 		memcpy(S.CsvDumpPath, pCsv, nLen+1);
-		S.nDumpFileNextFrame |= 2;
+		nDumpMask |= 2;
+	}
+	if(fCpuSpike > 0.f || fGpuSpike > 0.f)
+	{
+		S.nDumpFileNextFrame = 0;
+		S.nDumpSpikeMask = nDumpMask;
+	}
+	else
+	{
+		S.nDumpFileNextFrame = nDumpMask;
+		S.nDumpSpikeMask = 0;
+		S.nDumpFileCountDown = 0;
 	}
 }
 
