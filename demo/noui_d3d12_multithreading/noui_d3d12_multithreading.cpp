@@ -1802,8 +1802,8 @@ void D3D12Multithreading::BeginFrame()
 		MicroProfileThreadLogGpu* pGpuLog = MicroProfileThreadLogGpuAlloc();
 		MicroProfileGpuBegin(pCommandList, pGpuLog);
 		{
-			MICROPROFILE_SCOPEGPU_TOKEN_Q(pGpuLog, g_TokenGpuComputeFrameIndex[g_nDst]);
-			MICROPROFILE_SCOPEGPUI_Q(pGpuLog, "Compute-Demo", 0xffffffff);
+			MICROPROFILE_SCOPEGPU_TOKEN_L(pGpuLog, g_TokenGpuComputeFrameIndex[g_nDst]);
+			MICROPROFILE_SCOPEGPUI_L(pGpuLog, "Compute-Demo", 0xffffffff);
 			ID3D12DescriptorHeap* ppHeaps[] = { m_computeSrvUavHeap.Get() };
 			pCommandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 			pCommandList->SetComputeRootSignature(g_pComputeRootSignature);
@@ -1925,8 +1925,8 @@ void D3D12Multithreading::WorkerThread(int threadIndex)
 			MICROPROFILE_SCOPEI("CPU", "Shadows", 0xff00ff00);
 			MicroProfileGpuBegin(pShadowCommandList, pMicroProfileLog);
 			{
-				MICROPROFILE_SCOPEGPU_TOKEN_Q(pMicroProfileLog, g_TokenGpuFrameIndex[g_nSrc]);
- 				MICROPROFILE_SCOPEGPUI_Q(pMicroProfileLog, "Shadows", 0xff00);
+				MICROPROFILE_SCOPEGPU_TOKEN_L(pMicroProfileLog, g_TokenGpuFrameIndex[g_nSrc]);
+ 				MICROPROFILE_SCOPEGPUI_L(pMicroProfileLog, "Shadows", 0xff00);
 
 				for (int j = threadIndex; j < _countof(SampleAssets::Draws); j += NumContexts)
 				{
@@ -1958,8 +1958,8 @@ void D3D12Multithreading::WorkerThread(int threadIndex)
 		MicroProfileGpuBegin(pSceneCommandList, pMicroProfileLog);
 		{
 			MICROPROFILE_SCOPEI("CPU", "Scene", 0xff00ffff);
-			MICROPROFILE_SCOPEGPU_TOKEN_Q(pMicroProfileLog, g_TokenGpuFrameIndex[g_nSrc]);
-			MICROPROFILE_SCOPEGPUI_Q(pMicroProfileLog, "scene", 0xff0000);
+			MICROPROFILE_SCOPEGPU_TOKEN_L(pMicroProfileLog, g_TokenGpuFrameIndex[g_nSrc]);
+			MICROPROFILE_SCOPEGPUI_L(pMicroProfileLog, "scene", 0xff0000);
 			SetCommonPipelineState(pSceneCommandList);
 			CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(m_rtvHeap->GetCPUDescriptorHandleForHeapStart(), m_frameIndex, m_rtvDescriptorSize);
 			CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
