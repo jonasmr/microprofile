@@ -39,9 +39,15 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 .help {position:absolute;z-index:5;text-align:left;padding:2px;margin-left:-999em;background-color: #313131;width:300px;}
 .helpstart {position:absolute;z-index:5;text-align:left;padding:2px;background-color: #313131;width:300px;display:none}
 .root {z-index:1;position:absolute;top:0px;left:0px;}
+.filterinput0{position:fixed;bottom:10px;left:25px;background-color: #313131}
+.filterinput1{position:fixed;bottom:10px;left:175px;background-color: #313131}
 </style>
 </head>
 <body style="">
+<div id='filterinput'>
+<div class="filterinput0">Group<br><input type="text" id="filtergroup"></div>
+<div class="filterinput1">Timer/Thread<br><input type="text" id="filtertimer"></div>
+</div>
 <canvas id="History" height="70" style="background-color:#474747;margin:0px;padding:0px;"></canvas><canvas id="DetailedView" height="200" style="background-color:#474747;margin:0px;padding:0px;"></canvas>
 <div id="root" class="root">
 <ul id="nav">
@@ -61,8 +67,14 @@ Space: Zoom to Selection<br>
 Ctrl + Drag: Pan<br>
 Click + Drag: Pan<br>
 alt or z: Toggle ToolTip<br>
+<hr>
+Detailed View:<br>
 Tab: Go To Worst Instance<br>
 Left/Right Arror: Next/Prev Instance<br>
+<hr>
+Timer Views:<br>
+Tab: go to filtering<br>
+Esc: Exit &amp; Clear filter
 <hr>
 <table style="width:100%">
 <tr>
@@ -187,6 +199,13 @@ ____embed____
 var CanvasDetailedView = document.getElementById('DetailedView');
 var CanvasHistory = document.getElementById('History');
 var CanvasDetailedOffscreen = document.createElement('canvas');
+var FilterInputGroup = document.getElementById('filtergroup');
+var FilterInputTimer = document.getElementById('filtertimer');
+var FilterInputGroupString = null;
+var FilterInputTimerString = null;
+var FilterInputArray = [FilterInputGroup, FilterInputTimer];
+var FilterGroup = null;
+var FilterTimer = null;
 var g_Msg = '0';
 
 var Initialized = 0;
@@ -928,6 +947,7 @@ function SetMode(NewMode, Groups)
 		ilGroups.style['display'] = 'block';
 		Mode = ModeTimers;
 		ModeElement = TimersGroups == 2 ? buttonThreads : TimersGroups == 1 ? buttonGroups : buttonTimers;
+
 	}
 	else if(NewMode == 'detailed' || NewMode == ModeDetailed)
 	{
@@ -940,6 +960,15 @@ function SetMode(NewMode, Groups)
 	}
 	var ModeSubMenuText = document.getElementById('ModeSubMenuText');
 	ModeSubMenuText.innerText = 'Mode[' + ModeElement.innerText + ']';
+
+	if(Mode == ModeTimers)
+	{
+		SetFilterInput(FilterInputGroupString, FilterInputTimerString);
+	}
+	else
+	{
+		ShowFilterInput(0);
+	}
 
 	WriteCookie();
 	RequestRedraw();
@@ -2038,6 +2067,18 @@ function DrawBarView()
 			context.fillText(GroupInfo[Timer.group].name, 1, YText);
 		}
 	}
+	function FilterMatch(FilterArray, value)
+	{
+		if(!FilterArray)
+			return true;
+		for(var i = 0; i < FilterArray.length; ++i)
+		{
+			var res = value.search(FilterArray[i]);
+			if(res<0)
+				return false;
+		}
+		return true;
+	}
 	if(SortColumn)
 	{
 		var OrderArray = new Array(TimerInfo.length);
@@ -2045,12 +2086,16 @@ function DrawBarView()
 		for(var idx in GroupOrder)
 		{
 			var Group = GroupInfo[idx];
-			if(GroupsAllActive || GroupsActive[Group.name])
+			if((GroupsAllActive || GroupsActive[Group.name]) && FilterMatch(FilterGroup, Group.name))
 			{
 				var TimerArray = Group.TimerArray;
 				for(var timerindex in TimerArray)
 				{
-					OrderArray.push(TimerArray[timerindex]);
+					var timerid = TimerArray[timerindex];
+					if(FilterMatch(FilterTimer, TimerInfo[timerid].name))
+					{
+						OrderArray.push(timerid);
+					}
 				}
 			}
 		}
@@ -2081,7 +2126,7 @@ function DrawBarView()
 	{
 		for(var i = 0; i < ThreadNames.length; ++i)
 		{
-			if(ThreadsActive[ThreadNames[i]] || ThreadsAllActive)
+			if((ThreadsActive[ThreadNames[i]] || ThreadsAllActive) && FilterMatch(FilterTimer, ThreadNames[i]))
 			{
 				var X = 0;
 				var YText = Y+Height-FontAscent;
@@ -2100,7 +2145,7 @@ function DrawBarView()
 					var Group = GroupInfo[groupid];
 					var PerThreadTimer = ThreadGroupTimeArray[i][groupid];
 					var PerThreadTimerTotal = ThreadGroupTimeTotalArray[i][groupid];
-					if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (GroupsAllActive || GroupsActive[Group.name]))
+					if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (GroupsAllActive || GroupsActive[Group.name]) && FilterMatch(FilterGroup, Group.name))
 					{
 						var GColor = GroupColors ? GroupInfo[groupid].color : 'white';
 						var X = 0;
@@ -2130,7 +2175,7 @@ function DrawBarView()
 			var groupid = GroupOrder[idx];
 			var Group = GroupInfo[groupid];
 			var GColor = GroupColors ? GroupInfo[groupid].color : 'white';
-			if(GroupsAllActive || GroupsActive[Group.name])
+			if((GroupsAllActive || GroupsActive[Group.name]) && FilterMatch(FilterGroup, Group.name))
 			{
 				var TimerArray = Group.TimerArray;
 				var X = XBase;
@@ -2159,7 +2204,7 @@ function DrawBarView()
 					{
 						var PerThreadTimer = ThreadGroupTimeArray[i][groupid];
 						var PerThreadTimerTotal = ThreadGroupTimeTotalArray[i][groupid];
-						if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (ThreadsActive[ThreadNames[i]] || ThreadsAllActive))
+						if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (ThreadsActive[ThreadNames[i]] || ThreadsAllActive) && FilterMatch(FilterTimer, ThreadNames[i]))
 						{
 							var YText = Y+Height-FontAscent;
 							bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
@@ -2183,8 +2228,12 @@ function DrawBarView()
 				{
 					for(var timerindex in TimerArray)
 					{
-						DrawTimerRow(TimerArray[timerindex], 0);
-						Y += Height;
+						var timerid = TimerArray[timerindex];
+						if(FilterMatch(FilterTimer, TimerInfo[timerid].name))
+						{
+							DrawTimerRow(timerid, 0);
+							Y += Height;
+						}
 					}			
 				}
 			}
@@ -3817,7 +3866,68 @@ function MouseWheel(e)
     ZoomGraph((-4 * delta / 120.0) | 0);
     Draw(1);
 }
+function ShowFilterInput(bShow)
+{
+	if(bShow)
+	{
+		document.getElementById('filterinput').style['display'] = 'block';
+	}
+	else
+	{
+		document.getElementById('filterinput').style['display'] = 'none';
+	}
+}
 
+function SetFilterInput(group, timer)
+{
+	FilterInputGroupString = group;
+	FilterInputTimerString = timer;
+	FilterInputGroup.value = group?group:'';
+	FilterInputTimer.value = timer?timer:'';
+	FilterUpdate();
+	if(group || timer)
+	{
+		ShowFilterInput(1);
+	}
+	else
+	{
+		ShowFilterInput(0);
+	}
+
+}
+
+function ToggleFilterInput(escape)
+{
+	var ActiveElement = -1;
+	for(var i = 0; i < FilterInputArray.length; ++i)
+	{
+		if(FilterInputArray[i] == document.activeElement)
+		{
+			ActiveElement = i;
+		}
+	}
+	var OldActiveElement = ActiveElement;
+	if(ActiveElement >= 0)
+	{
+		FilterInputArray[ActiveElement].blur();
+	}
+	ActiveElement++;
+	if(!escape)
+	{
+		if(ActiveElement < FilterInputArray.length)
+		{
+			ShowFilterInput(1);
+			FilterInputArray[ActiveElement].focus();
+		}
+	}
+	else
+	{
+		if(-1 == OldActiveElement)
+		{
+			SetFilterInput();
+		}
+	}
+}
 
 function KeyUp(evt)
 {
@@ -3850,35 +3960,46 @@ function KeyUp(evt)
 	}
 	if(evt.keyCode == 9)
 	{
-		var Token = nHoverToken;
-		if(Token == -1 && RangeValid(RangeSelect) && RangeSelect.Index >= 0)
+		evt.preventDefault();
+		if(Mode == ModeDetailed)
 		{
-			Token = RangeSelect.Index;
+			var Token = nHoverToken;
+			if(Token == -1 && RangeValid(RangeSelect) && RangeSelect.Index >= 0)
+			{
+				Token = RangeSelect.Index;
+			}
+			if(Token != -1 && Token < TimerInfo.length)
+			{
+				var start = TimerInfo[Token].worststart;
+				var end = TimerInfo[Token].worstend;
+				RangeSelect.Begin = start;
+				RangeSelect.End = end;
+				RangeSelect.Thread = TimerInfo[Token].worstthread;
+				RangeSelect.Index = Token;
+				ShowFlashMessage('Worst: ' + (end-start).toFixed(2) + 'ms', 100);
+				MoveTo(RangeSelect.Begin, RangeSelect.End, ThreadY[RangeSelect.Thread] + nOffsetY, ThreadY[RangeSelect.Thread+1] + nOffsetY);
+				MouseHandleDragEnd();
+			}
 		}
-		if(Token != -1 && Token < TimerInfo.length)
+		else if(Mode == ModeTimers)
 		{
-			var start = TimerInfo[Token].worststart;
-			var end = TimerInfo[Token].worstend;
-			RangeSelect.Begin = start;
-			RangeSelect.End = end;
-			RangeSelect.Thread = TimerInfo[Token].worstthread;
-			RangeSelect.Index = Token;
-			ShowFlashMessage('Worst: ' + (end-start).toFixed(2) + 'ms', 100);
-			MoveTo(RangeSelect.Begin, RangeSelect.End, ThreadY[RangeSelect.Thread] + nOffsetY, ThreadY[RangeSelect.Thread+1] + nOffsetY);
-			MouseHandleDragEnd();
+			ToggleFilterInput(0);
+			evt.preventDefault();
 		}
+
 	}
 	if(evt.keyCode == 27)
 	{
 		RangeSelect = RangeInit();
 		SortColumn = 0;
 		SortColumnMouseOver = "";
+		if(Mode == ModeTimers)
+		{
+			ToggleFilterInput(1);
+			evt.preventDefault();
+		}
 	}
-	Invalidate = 0;
-}
 
-function KeyDown(evt)
-{
 	if(evt.keyCode == 18 || evt.keyCode == 90) // z/tab to toggle tooltip
 	{
 		ToolTip = (ToolTip+1)%3; //0: off, 1: default, 2: flipped
@@ -3897,6 +4018,38 @@ function KeyDown(evt)
 		}
 		ShowFlashMessage('ToolTip: ' + ToolTipStr, 100);
 	}
+
+
+	Invalidate = 0;
+}
+function CreateFilter(Filter)
+{
+	if(!Filter || Filter.length == 0)
+	{
+		return null;
+	}
+	Filter = Filter.split(' ');
+	for(var i = 0; i < Filter.length; ++i)
+	{
+		Filter[i] = new RegExp(Filter[i], "i");
+	}
+	return Filter;
+}
+function FilterKeyUp()
+{
+	FilterInputTimerString = FilterInputTimer.value;
+	FilterInputGroupString = FilterInputGroup.value;
+	FilterUpdate();
+}
+
+function FilterUpdate()
+{
+	FilterTimer = CreateFilter(FilterInputTimerString);
+	FilterGroup = CreateFilter(FilterInputGroupString);
+}
+
+function KeyDown(evt)
+{
 	if(evt.keyCode == 17)
 	{
 		KeyCtrlDown = 1;
@@ -3904,6 +4057,10 @@ function KeyDown(evt)
 	else if(evt.keyCode == 16)
 	{
 		KeyShiftDown = 1;
+	}
+	else if(evt.keyCode == 9)
+	{
+		evt.preventDefault();
 	}
 	Invalidate = 0;
 }
@@ -4014,9 +4171,14 @@ CanvasHistory.addEventListener('mouseup', function(evt) { MouseButton(false, evt
 CanvasHistory.addEventListener('mouseout', MouseOut);
 CanvasHistory.addEventListener("contextmenu", function (e) { e.preventDefault(); }, false);
 CanvasHistory.addEventListener(mousewheelevt, MouseWheel, false);
+FilterInputTimer.addEventListener('keyup', FilterKeyUp);
+FilterInputGroup.addEventListener('keyup', FilterKeyUp);
 window.addEventListener('keydown', KeyDown);
 window.addEventListener('keyup', KeyUp);
 window.addEventListener('resize', ResizeCanvas, false);
+
+
+
 
 function CalcAverage()
 {
