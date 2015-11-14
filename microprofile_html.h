@@ -3940,14 +3940,12 @@ const char g_MicroProfileHtml_end_2[] =
 "		{\n"
 "			ShowFilterInput(1);\n"
 "			FilterInputArray[ActiveElement].focus();\n"
-"			ShowFlashMessage(\'enable \' + ActiveElement, 100);\n"
 "		}\n"
 "	}\n"
 "	else\n"
 "	{\n"
 "		if(-1 == OldActiveElement)\n"
 "		{\n"
-"			ShowFlashMessage(\'should hide \', 100);\n"
 "			SetFilterInput();\n"
 "		}\n"
 "	}\n"
@@ -4333,15 +4331,15 @@ const char g_MicroProfileHtml_end_2[] =
 "			}\n"
 "			if(j>0)\n"
 "			{\n"
-"				console.a";
-
-const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
-const char g_MicroProfileHtml_end_3[] =
-"ssert(SplitArray[j-1] <= SplitArray[j], \"must be less\");\n"
+"				console.assert(SplitArray[j-1] <= SplitArray[j], \"must be less\");\n"
 "			}\n"
 "\n"
 "		}\n"
-"		for(; j < NumLodSplits; ++j)\n"
+"		for(; j < NumLodSplits; ++";
+
+const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
+const char g_MicroProfileHtml_end_3[] =
+"j)\n"
 "		{\n"
 "			SplitArray[j] = SPLIT_LIMIT;\n"
 "		}\n"
