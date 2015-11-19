@@ -149,6 +149,15 @@ typedef uint16_t MicroProfileGroupId;
 #define MICROPROFILE_COUNTER_SET_LIMIT(name, count) do{} while(0)
 #define MICROPROFILE_CONDITIONAL(expr) 
 #define MICROPROFILE_COUNTER_CONFIG(name, type, limit)
+#define MICROPROFILE_DECLARE_LOCAL_COUNTER(var) 
+#define MICROPROFILE_DEFINE_LOCAL_COUNTER(var, name) 
+#define MICROPROFILE_DECLARE_LOCAL_ATOMIC_COUNTER(var) 
+#define MICROPROFILE_DEFINE_LOCAL_ATOMIC_COUNTER(var, name) 
+#define MICROPROFILE_COUNTER_LOCAL_ADD(var, count) do{}while(0)
+#define MICROPROFILE_COUNTER_LOCAL_SUB(var, count) do{}while(0)
+#define MICROPROFILE_COUNTER_LOCAL_SET(var, count) do{}while(0)
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD(var) do{}while(0)
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET(var) do{}while(0)
 
 #define MicroProfileGetTime(group, name) 0.f
 #define MicroProfileOnThreadCreate(foo) do{}while(0)
@@ -293,6 +302,15 @@ typedef uint32_t ThreadIdType;
 #define MICROPROFILE_COUNTER_CLEAR_PTR(name) MicroProfileCounterSetPtr(name, 0, 0)
 #define MICROPROFILE_COUNTER_SET_LIMIT(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__) = MicroProfileGetCounterToken(name); MicroProfileCounterSetLimit(MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__), count)
 #define MICROPROFILE_COUNTER_CONFIG(name, type, limit) MicroProfileCounterConfig(name, type, limit)
+#define MICROPROFILE_DECLARE_LOCAL_COUNTER(var) extern int64_t g_mp_local_counter##var; extern MicroProfileToken g_mp_counter_token##var;
+#define MICROPROFILE_DEFINE_LOCAL_COUNTER(var, name) int64_t g_mp_local_counter##var = 0;MicroProfileToken g_mp_counter_token##var = MicroProfileGetCounterToken(name)
+#define MICROPROFILE_DECLARE_LOCAL_ATOMIC_COUNTER(var) extern std::atomic<int64_t> g_mp_local_counter##var; extern MicroProfileToken g_mp_counter_token##var;
+#define MICROPROFILE_DEFINE_LOCAL_ATOMIC_COUNTER(var, name) std::atomic<int64_t> g_mp_local_counter##var;MicroProfileToken g_mp_counter_token##var = MicroProfileGetCounterToken(name)
+#define MICROPROFILE_COUNTER_LOCAL_ADD(var, count) MicroProfileLocalCounterAdd(&g_mp_local_counter##var, (count))
+#define MICROPROFILE_COUNTER_LOCAL_SUB(var, count) MicroProfileLocalCounterAdd(&g_mp_local_counter##var, -(int64_t)(count))
+#define MICROPROFILE_COUNTER_LOCAL_SET(var, count) MicroProfileLocalCounterSet(&g_mp_local_counter##var, count)
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD(var) MicroProfileCounterAdd(g_mp_counter_token##var, MicroProfileLocalCounterSet(&g_mp_local_counter##var, 0))
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET(var) MicroProfileCounterSet(g_mp_counter_token##var, MicroProfileLocalCounterSet(&g_mp_local_counter##var, 0))
 #define MICROPROFILE_CONDITIONAL(expr) expr
 
 #ifndef MICROPROFILE_USE_THREAD_NAME_CALLBACK
@@ -389,6 +407,10 @@ MICROPROFILE_API void MicroProfileCounterSetLimit(MicroProfileToken nToken, int6
 MICROPROFILE_API void MicroProfileCounterConfig(const char* pCounterName, uint32_t nFormat, int64_t nLimit);
 MICROPROFILE_API void MicroProfileCounterSetPtr(const char* pCounterName, void* pValue, uint32_t nSize);
 MICROPROFILE_API void MicroProfileCounterFetchCounters();
+MICROPROFILE_API void MicroProfileLocalCounterAdd(int64_t* pCounter, int64_t nCount);
+MICROPROFILE_API int64_t MicroProfileLocalCounterSet(int64_t* pCounter, int64_t nCount);
+MICROPROFILE_API void MicroProfileLocalCounterAdd(std::atomic<int64_t>* pCounter, int64_t nCount);
+MICROPROFILE_API int64_t MicroProfileLocalCounterSet(std::atomic<int64_t>* pCounter, int64_t nCount);
 MICROPROFILE_API uint64_t MicroProfileEnter(MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileLeave(MicroProfileToken nToken, uint64_t nTick);
 MICROPROFILE_API uint64_t MicroProfileGpuEnter(MicroProfileThreadLogGpu* pLog, MicroProfileToken nToken);
@@ -1864,6 +1886,29 @@ void MicroProfileMetaUpdate(MicroProfileToken nToken, int nCount, MicroProfileTo
 		}
 	}
 }
+
+
+void MicroProfileLocalCounterAdd(int64_t* pCounter, int64_t nCount)
+{
+	*pCounter += nCount;
+}
+int64_t MicroProfileLocalCounterSet(int64_t* pCounter, int64_t nCount)
+{
+	int64_t r = *pCounter;
+	*pCounter = nCount;
+	return r;
+}
+
+void MicroProfileLocalCounterAdd(std::atomic<int64_t>* pCounter, int64_t nCount)
+{
+	pCounter->fetch_add(nCount);
+}
+int64_t MicroProfileLocalCounterSet(std::atomic<int64_t>* pCounter, int64_t nCount)
+{
+	return pCounter->exchange(nCount);
+}
+
+
 void MicroProfileCounterAdd(MicroProfileToken nToken, int64_t nCount)
 {
 	MP_ASSERT(nToken < S.nNumCounters);
