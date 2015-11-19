@@ -458,6 +458,8 @@ MICROPROFILE_API bool MicroProfileIsLocalThread(uint32_t nThreadId);
 MICROPROFILE_API int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_t nBufferSize);
 MICROPROFILE_API MicroProfileThreadLogGpu* MicroProfileGetGlobaGpuThreadLog();
 MICROPROFILE_API int MicroProfileGetGlobaGpuQueue();
+MICROPROFILE_API void MicroProfileRegisterGroup(const char* pGroup, const char* pCategory, uint32_t nColor);
+
 #if defined(MICROPROFILE_GPU_TIMERS_D3D12)
 MICROPROFILE_API void MicroProfileGpuInitD3D12(void* pDevice, void* pCommandQueue);
 MICROPROFILE_API void MicroProfileGpuShutdown();
@@ -1490,6 +1492,7 @@ int MicroProfileInitGpuQueue(const char* pQueueName)
 	{
 		if(S.Pool[i] == pLog)
 		{
+			MicroProfileRegisterGroup(pQueueName, "GPU", (uint32_t)-1);
 			return i;
 		}
 	}
