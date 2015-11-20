@@ -2035,6 +2035,11 @@ uint64_t MicroProfileGpuEnter(MicroProfileThreadLogGpu* pGpuLog, MicroProfileTok
 {
 	if(MicroProfileGetGroupMask(nToken_) & S.nActiveGroup)
 	{
+		if(!MicroProfileGetThreadLog())
+		{
+			MicroProfileInitThreadLog();
+		}
+
 		MP_ASSERT(pGpuLog->pContext != (void*)-1); // must be called between GpuBegin/GpuEnd		
 		uint64_t nTimer = MicroProfileGpuInsertTimeStamp(pGpuLog->pContext);
 		MicroProfileLogPutGpu(nToken_, nTimer, MP_LOG_ENTER, pGpuLog);
@@ -2049,6 +2054,11 @@ void MicroProfileGpuLeave(MicroProfileThreadLogGpu* pGpuLog, MicroProfileToken n
 {
 	if(nTickStart)
 	{
+		if(!MicroProfileGetThreadLog())
+		{
+			MicroProfileInitThreadLog();
+		}
+
 		// MicroProfileThreadLogGpu* pGpuLog = MicroProfileGetThreadLogGpu();		
 		MP_ASSERT(pGpuLog->pContext != (void*)-1); // must be called between GpuBegin/GpuEnd
 		uint64_t nTimer = MicroProfileGpuInsertTimeStamp(pGpuLog->pContext);
@@ -4293,15 +4303,24 @@ void MicroProfileGpuShutdown()
 {
 	for(uint32_t i = 0; i < MICROPROFILE_D3D_MAX_QUERIES; ++i)
 	{
-		((ID3D11Query*)&S.GPU.m_pQueries[i])->Release();
-		S.GPU.m_pQueries[i] = 0;
+		if(S.GPU.m_pQueries[i])
+		{
+			((ID3D11Query*)&S.GPU.m_pQueries[i])->Release();
+			S.GPU.m_pQueries[i] = 0;
+		}
 	}
 	for(uint32_t i = 0; i < MICROPROFILE_GPU_FRAME_DELAY; ++i)
 	{
-		((ID3D11Query*)S.GPU.m_QueryFrames[i].m_pRateQuery)->Release();
-		S.GPU.m_QueryFrames[i].m_pRateQuery = 0;
+		if(S.GPU.m_QueryFrames[i].m_pRateQuery)
+		{
+			((ID3D11Query*)S.GPU.m_QueryFrames[i].m_pRateQuery)->Release();
+			S.GPU.m_QueryFrames[i].m_pRateQuery = 0;
+		}
 	}
-	((ID3D11Query*)S.GPU.pSyncQuery)->Release();
+	if(S.GPU.pSyncQuery)
+	{
+		((ID3D11Query*)S.GPU.pSyncQuery)->Release();
+	}
 }
 
 int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu)
