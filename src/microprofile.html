@@ -177,7 +177,8 @@ function MakeGroup(id, name, category, numtimers, isgpu, total, average, max, co
 
 function MakeTimer(id, name, group, color, colordark, average, max, min, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax)
 {
-	var timer = {"id":id, "name":name, "len":name.length, "color":color, "colordark":colordark,"timercolor":color, "textcolor":InvertColor(color), "group":group, "average":average, "max":max, "min":min, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "total":total, "meta":meta, "textcolorindex":InvertColorIndex(color), "metaavg":metaavg, "metamax":metamax, "worst":0, "worststart":0, "worstend":0};
+	var spike = max <= 0 || average <= 0 ? 0 : (100 * max / average);
+	var timer = {"id":id, "name":name, "len":name.length, "color":color, "colordark":colordark,"timercolor":color, "textcolor":InvertColor(color), "group":group, "average":average, "max":max, "min":min, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "spike":spike,"total":total, "meta":meta, "textcolorindex":InvertColorIndex(color), "metaavg":metaavg, "metamax":metamax, "worst":0, "worststart":0, "worstend":0};
 	return timer;
 }
 function MakeFrame(id, framestart, frameend, framestartgpu, frameendgpu, ts, tt, ti)
@@ -375,6 +376,7 @@ var StrAverage = "Average";
 var StrMax = "Max";
 var StrTotal = "Total";
 var StrMin = "Min";
+var StrSpike = "Spike%";
 var StrCallAverage = "Call Average";
 var StrCount = "Count";
 var StrExclAverage = "Excl Average";
@@ -1902,7 +1904,7 @@ function DrawBarView()
 	context.font = Font;
 	var bMouseIn = 0;
 	var RcpReferenceTime = 1.0 / ReferenceTime;
-	var CountWidth = 8 * FontWidth;
+	var CountWidth = 12 * FontWidth;
 	var nMetaLen = TimerInfo[0].meta.length;
 	var nMetaCharacters = 10;
 	var InnerBoxHeight = BoxHeight-2;
@@ -1993,6 +1995,7 @@ function DrawBarView()
 		{
 			Prc = 1;
 		}
+		context.textAlign = 'left';
 		context.fillStyle = Color;
 		context.fillRect(X+1, Y+1, Prc * nBarsWidth, InnerBoxHeight);
 		X += nWidthBars;
@@ -2017,6 +2020,7 @@ function DrawBarView()
 		var Average = Timer.average;
 		var Max = Timer.max;
 		var Min = Timer.min;
+		var Spike = Timer.spike;
 		var ExclusiveMax = Timer.exclmax;
 		var ExclusiveAverage = Timer.exclaverage;
 		var CallAverage = Timer.callaverage;
@@ -2037,10 +2041,15 @@ function DrawBarView()
 		DrawTimer(Max,Timer.color);
 		DrawTimer(Timer.total,Timer.color);
 		DrawTimer(Min,Timer.color);
-		DrawTimer(CallAverage,Timer.color);
-		context.fillStyle = 'white';
-		context.fillText(CallCount, X, YText);
 		X += CountWidth;
+		context.fillStyle = 'white';
+		context.textAlign = 'right';
+		context.fillText(Spike.toFixed(2) + '%', X-6, YText);
+		DrawTimer(CallAverage,Timer.color);
+		X += CountWidth;
+		context.fillStyle = 'white';
+		context.textAlign = 'right';
+		context.fillText(CallCount, X-6, YText);
 		DrawTimer(ExclusiveAverage,Timer.color);
 		DrawTimer(ExclusiveMax,Timer.color);
 
@@ -2049,7 +2058,6 @@ function DrawBarView()
 			context.fillStyle = 'white';
 			for(var j = 0; j < nMetaLen; ++j)
 			{
-				// var Len = MetaNames[j].length + 1;
 				DrawMeta(Timer.meta[j], MetaLengths[j], 0);
 				DrawMeta(Timer.metaavg[j], MetaLengthsAvg[j], 2);
 				DrawMeta(Timer.metamax[j], MetaLengthsMax[j], 0);
@@ -2106,10 +2114,11 @@ function DrawBarView()
 			case 2: KeyFunc = function (a) { return TimerInfo[a].max; }; break;
 			case 3: KeyFunc = function (a) { return TimerInfo[a].total; }; break;
 			case 4: KeyFunc = function (a) { return TimerInfo[a].min; }; break;
-			case 5: KeyFunc = function (a) { return TimerInfo[a].callaverage; }; break;
-			case 6: KeyFunc = function (a) { return TimerInfo[a].callcount; }; break;
-			case 7: KeyFunc = function (a) { return TimerInfo[a].exclaverage; }; break;
-			case 8: KeyFunc = function (a) { return TimerInfo[a].exclmax; }; break;
+			case 5: KeyFunc = function (a) { return TimerInfo[a].spike; }; break;
+			case 6: KeyFunc = function (a) { return TimerInfo[a].callaverage; }; break;
+			case 7: KeyFunc = function (a) { return TimerInfo[a].callcount; }; break;
+			case 8: KeyFunc = function (a) { return TimerInfo[a].exclaverage; }; break;
+			case 9: KeyFunc = function (a) { return TimerInfo[a].exclmax; }; break;
 		}
 
 		var Flip = SortColumnOrderFlip == 1 ? -1 : 1;
@@ -2267,6 +2276,7 @@ function DrawBarView()
 		DrawHeaderSplit(StrMax);
 		DrawHeaderSplit(StrTotal);
 		DrawHeaderSplit(StrMin);
+		DrawHeaderSplitSingle(StrSpike, CountWidth);
 		DrawHeaderSplit(StrCallAverage);
 		DrawHeaderSplitSingle(StrCount, CountWidth);
 		DrawHeaderSplit(StrExclAverage);
@@ -3819,26 +3829,30 @@ function MouseButton(bPressed, evt)
 			else if(SortColumnMouseOver == StrTotal)
 			{
 				SortColumn = 3;
-			}
+			}			
 			else if(SortColumnMouseOver == StrMin)
 			{
 				SortColumn = 4;
 			}
-			else if(SortColumnMouseOver == StrCallAverage)
+			else if(SortColumnMouseOver == StrSpike)
 			{
 				SortColumn = 5;
 			}
-			else if(SortColumnMouseOver == StrCount)
+			else if(SortColumnMouseOver == StrCallAverage)
 			{
 				SortColumn = 6;
 			}
-			else if(SortColumnMouseOver == StrExclAverage)
+			else if(SortColumnMouseOver == StrCount)
 			{
 				SortColumn = 7;
 			}
-			else if(SortColumnMouseOver == StrExclMax)
+			else if(SortColumnMouseOver == StrExclAverage)
 			{
 				SortColumn = 8;
+			}
+			else if(SortColumnMouseOver == StrExclMax)
+			{
+				SortColumn = 9;
 			}
 			else if(SortColumnMouseOver == StrGroup)
 			{
