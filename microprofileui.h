@@ -1824,22 +1824,24 @@ void MicroProfileDumpTimers()
 uint32_t MicroProfileDrawCounterRecursive(uint32_t nIndex, uint32_t nY, uint32_t nOffset, uint32_t nTimerWidth)
 {
 	MicroProfile& S = *MicroProfileGet();
+	uint8_t bGraphDetailed = 0 != (S.CounterInfo[nIndex].nFlags & MICROPROFILE_COUNTER_FLAG_DETAILED_GRAPH);
+	uint32_t nRows = bGraphDetailed ? 5 : 1;
 	const uint32_t nHeight = MICROPROFILE_TEXT_HEIGHT;
 	const uint32_t nCounterWidth = UI.nCounterWidth;
 	const uint32_t nLimitWidth = UI.nLimitWidth;
 
 	uint32_t nY0 = nY + nOffset * (nHeight+1);
+	uint32_t nBackHeight = (nHeight+1) * nRows;
+
 	MicroProfileCounterInfo& CI = S.CounterInfo[nIndex];
-	bool bInside = (UI.nActiveMenu == (uint32_t)-1) && ((UI.nMouseY >= nY0) && (UI.nMouseY < (nY0 + nHeight + 1)));
-	if(bInside && (UI.nMouseLeft || UI.nMouseRight))
-	{
-		CI.nClosed = !CI.nClosed;
-	}
-	uint32_t nTotalWidth = nTimerWidth + nCounterWidth + MICROPROFILE_COUNTER_WIDTH + nLimitWidth + 3 * (MICROPROFILE_TEXT_WIDTH+1);
+	bool bInside = (UI.nActiveMenu == (uint32_t)-1) && ((UI.nMouseY >= nY0) && (UI.nMouseY < (nY0 + nBackHeight)));
+	const uint32_t GRAPH_WIDTH = MICROPROFILE_GRAPH_HISTORY;
+	uint32_t nTotalWidth = nTimerWidth + nCounterWidth + MICROPROFILE_COUNTER_WIDTH + nLimitWidth + 4 * (MICROPROFILE_TEXT_WIDTH+1)
+	+ 4 + GRAPH_WIDTH;
 	uint32_t nBackColor = 0xff000000 | (g_nMicroProfileBackColors[nOffset & 1] + ((bInside) ? 0x002c2c2c : 0));
-	MicroProfileDrawBox(0, nY0, nTotalWidth, nY0 + (nHeight+1)+1, nBackColor);
+	MicroProfileDrawBox(0, nY0, nTotalWidth, nY0 + nBackHeight +1, nBackColor);
 	uint32_t nIndent = MICROPROFILE_COUNTER_INDENT*CI.nLevel * (MICROPROFILE_TEXT_WIDTH+1);
-	if(CI.nFirstChild != -1 && CI.nClosed)
+	if(CI.nFirstChild != -1 && 0 != (CI.nFlags & MICROPROFILE_COUNTER_FLAG_CLOSED))
 	{
 		MicroProfileDrawText(nIndent, nY0, 0xffffffff, "*", 1);
 	}
@@ -1875,10 +1877,72 @@ uint32_t MicroProfileDrawCounterRecursive(uint32_t nIndex, uint32_t nY, uint32_t
 		MicroProfileDrawBox(nX, nY0, nX + (int)(fBoxPrc * MICROPROFILE_COUNTER_WIDTH), nY0 + nHeight, 0xffffffff, MicroProfileBoxTypeFlat);
 		MicroProfileDrawBox(nX+1, nY0+1, nX + MICROPROFILE_COUNTER_WIDTH - 1, nY0 + nHeight - 1, nBackColor, MicroProfileBoxTypeFlat);
 		MicroProfileDrawBox(nX+1, nY0+1, nX + (int)(fCounterPrc * (MICROPROFILE_COUNTER_WIDTH - 1)), nY0 + nHeight - 1, 0xff0088ff, MicroProfileBoxTypeFlat);
+		nX += MICROPROFILE_COUNTER_WIDTH + 5;
+	}
+	else
+	{
+		nX += MICROPROFILE_TEXT_WIDTH+1;
+		nX += 2 * (MICROPROFILE_TEXT_WIDTH+1);
+		nX += nLimitWidth;
+		nX += MICROPROFILE_COUNTER_WIDTH + 5;
+	}
+	if(bInside && (UI.nMouseLeft || UI.nMouseRight))
+	{
+		if(UI.nMouseX > nX)
+		{
+			if(UI.nMouseRight)
+			{
+				CI.nFlags ^= MICROPROFILE_COUNTER_FLAG_DETAILED;
+			}
+			else
+			{
+				CI.nFlags ^= MICROPROFILE_COUNTER_FLAG_DETAILED_GRAPH;
+			}
+			if(0 == (CI.nFlags & MICROPROFILE_COUNTER_FLAG_DETAILED))
+			{
+				CI.nFlags &= ~MICROPROFILE_COUNTER_FLAG_DETAILED_GRAPH;
+			}
+		}
+		else if(UI.nMouseLeft)
+		{
+			CI.nFlags ^= MICROPROFILE_COUNTER_FLAG_CLOSED;
+		}
+
 	}
 
-	nOffset++;
-	if(!CI.nClosed)
+
+	if(0 != (CI.nFlags & MICROPROFILE_COUNTER_FLAG_DETAILED))
+	{
+		static float pGraphData[MICROPROFILE_GRAPH_HISTORY*2];
+		int64_t nCounterMax = S.nCounterMax[nIndex];
+		int64_t nCounterMin = S.nCounterMin[nIndex];
+		uint32_t nBaseIndex = S.nCounterHistoryPut;
+		float fX = (float)nX;
+		int64_t nCounterHeightBase = nCounterMax;
+		int64_t nCounterOffset = 0;
+		if(nCounterMin < 0)
+		{
+			nCounterHeightBase = nCounterMax - nCounterMin;
+			nCounterOffset = -nCounterMin;
+		}
+		const uint32_t nGraphHeight = nRows * nHeight;
+		double fRcpMax = nGraphHeight * 1.0 / nCounterHeightBase;
+		const uint32_t nYOffset = nY0 + (bGraphDetailed ? 3 : 1);
+
+		for(uint32_t i = 0; i < MICROPROFILE_GRAPH_HISTORY; ++i)
+		{
+			uint32_t nHistoryIndex = (nBaseIndex + i) % MICROPROFILE_GRAPH_HISTORY;
+			int64_t nValue = MicroProfileClamp(S.nCounterHistory[nHistoryIndex][nIndex], nCounterMin, nCounterMax);
+			float fPrc = nGraphHeight - (float)((double)(nValue+nCounterOffset) * fRcpMax);
+			pGraphData[(i*2)] = fX;
+			pGraphData[(i*2)+1] = nYOffset + fPrc;
+			fX += 1;
+		}
+		MicroProfileDrawLine2D(MICROPROFILE_GRAPH_HISTORY, pGraphData, 0xff0088ff);
+	}
+
+	nOffset += nRows;
+	if(0 == (CI.nFlags & MICROPROFILE_COUNTER_FLAG_CLOSED))
 	{
 		int nChild = CI.nFirstChild;	
 		while(nChild != -1)

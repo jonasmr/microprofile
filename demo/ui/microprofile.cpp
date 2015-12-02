@@ -72,7 +72,7 @@ namespace
 	MicroProfileVertex nDrawBuffer[MICROPROFILE_MAX_VERTICES];
 	enum
 	{
-		MAX_COMMANDS = 32,
+		MAX_COMMANDS = 1024,
 	};
 	struct 
 	{
