@@ -299,7 +299,7 @@ int main(int argc, char* argv[])
 	while(!g_nQuit)
 	{
 		Frames++;
-		FramesX += 1024;
+		FramesX += 1024*1024;
 		MICROPROFILE_SCOPE(MAIN);
 		MICROPROFILE_COUNTER_ADD("engine/frames", 1);
 

@@ -1851,7 +1851,10 @@ uint32_t MicroProfileDrawCounterRecursive(uint32_t nIndex, uint32_t nY, uint32_t
 	uint32_t nX = nTimerWidth + nCounterWidth;
 	int nLen = MicroProfileFormatCounter(S.CounterInfo[nIndex].eFormat, nCounterValue, buffer, sizeof(buffer));
 	UI.nCounterWidthTemp = MicroProfileMax((uint32_t)nLen, UI.nCounterWidthTemp);
-	MicroProfileDrawTextRight(nX, nY0, 0xffffffff, buffer, nLen);
+	if(0 != nCounterValue || 0 != (CI.nFlags & MICROPROFILE_COUNTER_FLAG_LEAF))
+	{
+		MicroProfileDrawTextRight(nX, nY0, 0xffffffff, buffer, nLen);
+	}
 	int64_t nLimit = S.CounterInfo[nIndex].nLimit;
 	if(nLimit)
 	{

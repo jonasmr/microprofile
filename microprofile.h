@@ -670,6 +670,7 @@ enum MicroProfileCounterFlags
 	MICROPROFILE_COUNTER_FLAG_HAS_LIMIT 	= 0x4,
 	MICROPROFILE_COUNTER_FLAG_CLOSED		= 0x8,
 	MICROPROFILE_COUNTER_FLAG_MANUAL_SWAP	= 0x10,
+	MICROPROFILE_COUNTER_FLAG_LEAF			= 0x20,
 };
 
 typedef uint64_t MicroProfileLogEntry;
@@ -1836,6 +1837,7 @@ MicroProfileToken MicroProfileGetCounterToken(const char* pName)
 		nResult = MicroProfileGetCounterTokenByParent(nResult, SubName);
 
 	}while(pName != 0);
+	S.CounterInfo[nResult].nFlags |= MICROPROFILE_COUNTER_FLAG_LEAF;
 
 	MP_ASSERT((int)nResult >= 0);
 	return nResult;
@@ -2818,8 +2820,9 @@ int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_
 {
 	if (!nCounter)
 	{
-		pOut[0] = '\0';
-		return 0;
+		pOut[0] = '0';
+		pOut[1] = '\0';
+		return 1;
 	}
 	int nLen = 0;
 	char* pBase = pOut;
