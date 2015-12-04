@@ -486,7 +486,7 @@ void MicroProfileDrawLine2D(uint32_t nVertices, float* pVertices, uint32_t nColo
 	if(!nVertices) return;
 
 	MicroProfileVertex* pVertex = PushVertices(GL_LINES, 2*(nVertices-1));
-	nColor = 0xff000000|((nColor&0xff)<<16)|(nColor&0xff00ff00)|((nColor>>16)&0xff);
+	nColor = ((nColor&0xff)<<16)|(nColor&0xff00ff00)|((nColor>>16)&0xff);
 	for(uint32_t i = 0; i < nVertices-1; ++i)
 	{
 		pVertex[0].nX = pVertices[i*2];
