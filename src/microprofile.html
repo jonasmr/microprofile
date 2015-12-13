@@ -2832,6 +2832,10 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 			{
 				var ThreadId = ContextSwitchThreads[i];
 				var ThreadName = '' + ThreadId;
+				if (CSwitchThreads && CSwitchThreads[ThreadId])
+				{
+				    ThreadName = ThreadName + ':' + CSwitchThreads[ThreadId];
+				}
 				DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled);
 				context.fillStyle = 'white';
 				context.fillText(ThreadName, 0, fOffsetY+5);

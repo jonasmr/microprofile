@@ -2850,11 +2850,15 @@ const char g_MicroProfileHtml_end_1[] =
 "			{\n"
 "				var ThreadId = ContextSwitchThreads[i];\n"
 "				var ThreadName = \'\' + ThreadId;\n"
-"				DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOffset, nHoverC";
+"				if (CSwitchThreads && CSwitchThreads[ThreadId])\n"
+"				{\n"
+"				    ThreadName = ThreadNam";
 
 const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
 const char g_MicroProfileHtml_end_2[] =
-"olor, MinWidth, bDrawEnabled);\n"
+"e + \':\' + CSwitchThreads[ThreadId];\n"
+"				}\n"
+"				DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled);\n"
 "				context.fillStyle = \'white\';\n"
 "				context.fillText(ThreadName, 0, fOffsetY+5);\n"
 "				fOffsetY += BoxHeight + 1;\n"
@@ -4319,17 +4323,17 @@ const char g_MicroProfileHtml_end_2[] =
 "		}\n"
 "		DeltaTimes.sort(function(a,b){return b-a;});\n"
 "		var SplitArray = Array(NumLodSplits);\n"
-"		var SplitIndex = DeltaTimes.length;\n"
+"		var SplitIndex = DeltaTi";
+
+const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
+const char g_MicroProfileHtml_end_3[] =
+"mes.length;\n"
 "\n"
 "		var j = 0;\n"
 "		for(j = 0; j < NumLodSplits; ++j)\n"
 "		{\n"
 "			SplitIndex = Math.floor(SplitIndex / 2);\n"
-"			while(SplitIndex ";
-
-const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
-const char g_MicroProfileHtml_end_3[] =
-"> 0 && !DeltaTimes[SplitIndex])\n"
+"			while(SplitIndex > 0 && !DeltaTimes[SplitIndex])\n"
 "			{\n"
 "				SplitIndex--;\n"
 "			}\n"

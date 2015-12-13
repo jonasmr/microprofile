@@ -541,6 +541,13 @@ struct MicroProfileScopeGpuHandler
 	}
 };
 
+struct MicroProfileInternalThread
+{
+	const char* pThreadName;
+	uint64_t tid;
+};
+
+
 
 #define MICROPROFILE_MAX_COUNTERS 512
 #define MICROPROFILE_MAX_COUNTER_NAME_CHARS (MICROPROFILE_MAX_COUNTERS*16)
@@ -3470,6 +3477,20 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 		MicroProfilePrintf(CB, Handle, "%f,", fTime);
 	}
 	MicroProfilePrintf(CB, Handle, "];\n");
+
+
+	MicroProfilePrintf(CB, Handle, "var CSwitchThreads = {");
+#ifdef MICROPROFILE_GET_INTERNAL_THREADS
+	MicroProfileInternalThread* pThreads;
+	int nNumThreads = MICROPROFILE_GET_INTERNAL_THREADS(&pThreads);
+	for (int i = 0; i < nNumThreads; ++i)
+	{
+		MicroProfilePrintf(CB, Handle, "%lld:\'%s\',", pThreads[i].tid, pThreads[i].pThreadName);
+	}
+#endif
+
+	MicroProfilePrintf(CB, Handle, "};\n");
+
 	uint32_t nWrittenAfter = S.nWebServerDataSent;
 	MicroProfilePrintf(CB, Handle, "//CSwitch Size %d\n", nWrittenAfter - nWrittenBefore);
 
