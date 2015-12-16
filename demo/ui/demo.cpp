@@ -291,7 +291,8 @@ int main(int argc, char* argv[])
 	static uint64_t FramesX = 0;
 	MICROPROFILE_COUNTER_SET_INT64_PTR("frames/int64", &FramesX);
 	MICROPROFILE_COUNTER_SET_INT32_PTR("frames/int32", &Frames);
-	MICROPROFILE_COUNTER_CONFIG("/test/sinus", MICROPROFILE_COUNTER_FORMAT_DEFAULT, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
+
+	MICROPROFILE_COUNTER_CONFIG("/test/sinus", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
 	MICROPROFILE_COUNTER_CONFIG("/test/cosinus", MICROPROFILE_COUNTER_FORMAT_DEFAULT, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
 	MICROPROFILE_COUNTER_CONFIG("/runtime/sdl_frame_events", MICROPROFILE_COUNTER_FORMAT_DEFAULT, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
 
@@ -340,8 +341,8 @@ int main(int argc, char* argv[])
 		MicroProfileFlip(0);
 		static float f = 0;
 		f += 0.1f;
-		int sinus = sinf(f) * 1000;
-		int cosinus = cosf(f*1.3) * 1000 + 500;
+		int sinus = 10000000 * (sinf(f));
+		int cosinus = cosf(f*1.3) * 100000 + 50000;
 		MICROPROFILE_COUNTER_SET("/test/sinus", sinus);
 		MICROPROFILE_COUNTER_SET("/test/cosinus", cosinus);
 		{

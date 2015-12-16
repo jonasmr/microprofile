@@ -186,10 +186,14 @@ function MakeFrame(id, framestart, frameend, framestartgpu, frameendgpu, ts, tt,
 	var frame = {"id":id, "framestart":framestart, "frameend":frameend, "framestartgpu":framestartgpu, "frameendgpu":frameendgpu, "ts":ts, "tt":tt, "ti":ti};
 	return frame;
 }
-
-function MakeCounter(id, parent, sibling, firstchild, level, name, value, formatted, limit, formattedlimit, counterprc, boxprc)
+function MakeCounterHistory(id, history, prc)
 {
-	var counter = { "id":id, "parent":parent, "sibling":sibling, "firstchild":firstchild, "level": level, "name":name, "value":value, "formatted":formatted, "limit":limit, "formattedlimit":formattedlimit, "counterprc":counterprc, "boxprc":boxprc};
+	var counterhistory = {"id":id, "history":history, "prc":prc};
+	return counterhistory;
+}
+function MakeCounter(id, parent, sibling, firstchild, level, name, value, minvalue, maxvalue, formatted, limit, formattedlimit, counterprc, boxprc, format, counterhistory)
+{
+	var counter = { "id":id, "parent":parent, "sibling":sibling, "firstchild":firstchild, "level": level, "name":name, "value":value, "formatted":formatted, "limit":limit, "formattedlimit":formattedlimit, "counterprc":counterprc, "boxprc":boxprc, "counterhistory":counterhistory, "format":format, "minvalue":minvalue, "maxvalue":maxvalue};
 	return counter;
 }
 
@@ -2306,6 +2310,78 @@ var CounterNameWidth = 100;
 var CounterValueWidth = 100;
 var CounterLimitWidth = 100;
 
+var FormatCounterDefault = 0;
+var FormatCounterBytes = 1;
+var FormatCounterBytesExt = [ "b","kb","mb","gb","tb","pb", "eb","zb", "yb" ];
+
+function FormatCounter(Format, Counter)
+{
+	if(!Counter)
+	{
+		return '0';
+	}
+	var Negative = 0;
+	if(Counter < 0)
+	{
+		Counter = -Counter;
+		Negative = 1;
+		if(Counter < 0) // handle INT_MIN
+		{
+			Counter = -(Counter+1);
+			if(Counter < 0)
+			{
+				return '?';
+			}
+		}
+	}
+	var str = Negative ? '-' :'' ;
+	if(Format == FormatCounterDefault)
+	{
+		var Seperate = 0;
+		var result = '';
+		while (Counter)
+		{
+			if (Seperate)
+			{
+				result += '.';
+			}
+			Seperate = 1;
+			for (var i = 0; Counter && i < 3; ++i)
+			{
+				var Digit = Math.floor(Counter % 10);
+				Counter = Math.floor(Counter / 10);
+				result += '' + Digit;
+			}
+		}
+
+		for(var i = 0; i < result.length; ++i)
+		{
+			str += result[result.length-1-i];
+		}
+		return str;
+	}
+	else if(Format == FormatCounterBytes)
+	{
+		var Shift = 0;
+		var Divisor = 1;
+		var CountShifted = Counter >> 10;
+		while(CountShifted)
+		{
+			Divisor <<= 10;
+			CountShifted >>= 10;
+			Shift++;
+		}
+		if(Shift)
+		{
+			return str + (Counter / Divisor).toFixed(2) + '' + FormatCounterBytesExt[Shift];
+		}
+		else
+		{
+			return str + Counter.toFixed(2) + '' + FormatCounterBytesExt[0];
+		}
+	}
+	return '?'
+}
 function DrawCounterView()
 {
 	ProfileEnter("DrawCounterView");
@@ -2377,14 +2453,16 @@ function DrawCounterView()
 
 		var X = 0;
 		nColorIndex = 1-nColorIndex;
-		bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
-		if(bMouseIn && Counter.firstchild != -1)
+		var HeightExpanded = Counter.Expanded ? Height * 5 : Height
+
+		bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + HeightExpanded;
+		if(bMouseIn)
 		{
 			nHoverCounter = Index;
 		}
 		var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
 		context.fillStyle = bgcolor;
-		context.fillRect(0, Y, Width, FontHeight+2);
+		context.fillRect(0, Y, Width, HeightExpanded);
 		context.fillStyle = 'white';
 		var c = Counter.closed ? '*' : ' ';
 		context.fillText(c + Counter.name, Indent, Y+Height-FontAscent);
@@ -2394,22 +2472,88 @@ function DrawCounterView()
 		context.fillText(Counter.formatted, X, Y+Height-FontAscent);
 		context.textAlign = 'left';
 		X += FontWidth * 4;
-		if(Counter.formattedlimit.length)
+		var Y0 = Y + 1;
+		if(Counter.limit != 0)
 		{
 			context.fillText(Counter.formattedlimit, X, Y+Height-FontAscent);
 			X += CounterLimitWidth;
 			var X0 = X + 1;
-			var Y0 = Y + 1;
-
 			context.fillStyle = 'white';
 			context.fillRect(X0, Y0, Counter.boxprc * (CounterWidth-2), Height-2);
 			context.fillStyle = bgcolor;
 			context.fillRect(X0+1, Y0+1, Counter.boxprc * (CounterWidth-4), Height-4);
 			context.fillStyle = 'cyan';
 			context.fillRect(X0+1, Y0+1, Counter.counterprc * (CounterWidth-4), Height-4);
+			X += CounterWidth + 10;
+		}
+		else
+		{
+			X += CounterLimitWidth;
+			X += CounterWidth + 10;
+		}
+		var CounterHistory = Counter.counterhistory;
+		if(CounterHistory)
+		{
+			var Prc = CounterHistory.prc;
+
+			context.fillStyle = 'cyan';
+			context.strokeStyle = 'cyan';
+			context.globalAlpha = 0.5;
+			context.beginPath();
+			var x = X;
+			var YBase = Y0 + HeightExpanded-1;
+			var YOffset = -(HeightExpanded-2);
+
+			context.moveTo(X, Y0);
+			for(var i = 0; i < Prc.length; ++i)
+			{
+				context.moveTo(x, YBase);
+				context.lineTo(x, YBase + Prc[i] * YOffset);
+				
+				x += 1;
+			}
+			context.stroke();
+
+			x = X;
+			context.globalAlpha = 1.0;
+			context.beginPath();
+			context.moveTo(X, YBase);
+
+			for(var i = 0; i < Prc.length; ++i)
+			{
+				context.lineTo(x, YBase + Prc[i] * YOffset);
+				x += 1;
+			}
+			context.stroke();
+			if(bMouseIn)
+			{
+				var MouseGraphX = Math.floor(DetailedViewMouseX - X);
+				if(MouseGraphX >= 0 && MouseGraphX < CounterHistory.history.length)
+				{
+					context.fillStyle = 'white';
+					var Formatted = FormatCounter(Counter.format, CounterHistory.history[MouseGraphX]);
+					context.fillText(Formatted, X, Y+Height-FontAscent);
+				}
+				context.strokeStyle = 'orange';
+				context.beginPath();
+				var CrossX = X + MouseGraphX;
+				var CrossY = YBase + Prc[MouseGraphX] * YOffset;
+				context.moveTo(CrossX-2, CrossY-2);
+				context.lineTo(CrossX+2, CrossY+2);
+				context.moveTo(CrossX+2, CrossY-2);
+				context.lineTo(CrossX-2, CrossY+2);
+				context.stroke();
+
+			}
+			X += Prc.length + 5;
+			context.fillStyle = 'white';
+			context.fillText( FormatCounter(Counter.format, Counter.minvalue), X, Y + Height - FontAscent);
+			X += CounterWidth + 5;
+			context.fillText( FormatCounter(Counter.format, Counter.maxvalue), X, Y + Height - FontAscent);
+			X += CounterWidth + 5;
 		}
 
-		Y += Height;
+		Y += HeightExpanded;
 
 		if(!Counter.closed)
 		{
@@ -3651,7 +3795,14 @@ function MouseHandleDragClick()
 		{
 			if(nHoverCounter != -1)
 			{
-				CounterInfo[nHoverCounter].closed = !CounterInfo[nHoverCounter].closed;
+				if(CounterInfo[nHoverCounter].firstchild != -1)
+				{
+					CounterInfo[nHoverCounter].closed = !CounterInfo[nHoverCounter].closed;
+				}
+				else
+				{
+					CounterInfo[nHoverCounter].Expanded = !CounterInfo[nHoverCounter].Expanded;
+				}
 				Draw(1);
 			}
 		}
