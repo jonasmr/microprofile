@@ -2998,6 +2998,10 @@ const char g_MicroProfileHtml_end_2[] =
 "			{\n"
 "				var ThreadId = ContextSwitchThreads[i];\n"
 "				var ThreadName = \'\' + ThreadId;\n"
+"				if (CSwitchThreads && CSwitchThreads[ThreadId])\n"
+"				{\n"
+"				    ThreadName = ThreadName + \':\' + CSwitchThreads[ThreadId];\n"
+"				}\n"
 "				DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled);\n"
 "				context.fillStyle = \'white\';\n"
 "				context.fillText(ThreadName, 0, fOffsetY+5);\n"
@@ -4344,13 +4348,13 @@ const char g_MicroProfileHtml_end_2[] =
 "	document.cookie = cookie;\n"
 "}\n"
 "\n"
-"var mousewheelevt = (/Firefox/i.test(navigator.userAgent)) ? \"DOMMouseScroll\" : \"mousewheel\" //FF doesn\'t recognize mousewheel as of FF3.x\n"
-"\n"
-"CanvasDetailedView.";
+"var mousewheelevt = (/Firefox";
 
 const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
 const char g_MicroProfileHtml_end_3[] =
-"addEventListener(\'mousemove\', MouseMove, false);\n"
+"/i.test(navigator.userAgent)) ? \"DOMMouseScroll\" : \"mousewheel\" //FF doesn\'t recognize mousewheel as of FF3.x\n"
+"\n"
+"CanvasDetailedView.addEventListener(\'mousemove\', MouseMove, false);\n"
 "CanvasDetailedView.addEventListener(\'mousedown\', function(evt) { MouseButton(true, evt); });\n"
 "CanvasDetailedView.addEventListener(\'mouseup\', function(evt) { MouseButton(false, evt); } );\n"
 "CanvasDetailedView.addEventListener(\'mouseout\', MouseOut);\n"
