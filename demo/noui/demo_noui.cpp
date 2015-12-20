@@ -68,7 +68,7 @@ int main(int argc, char* argv[])
 
 	MicroProfileStartContextSwitchTrace();
 
-	MICROPROFILE_COUNTER_CONFIG("/runtime/localcounter", MICROPROFILE_COUNTER_FORMAT_BYTES, 500);
+	MICROPROFILE_COUNTER_CONFIG("/runtime/localcounter", MICROPROFILE_COUNTER_FORMAT_BYTES, 500, 0);
 
 	MICROPROFILE_COUNTER_ADD("memory/main", 1000);
 	MICROPROFILE_COUNTER_ADD("memory/gpu/vertexbuffers", 1000);

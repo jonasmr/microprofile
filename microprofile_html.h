@@ -1078,7 +1078,7 @@ const char g_MicroProfileHtml_end_0[] =
 "		var ts = fr.ts[nLog];\n"
 "		var ti = fr.ti[nLog];\n"
 "		var tt = fr.tt[nLog];\n"
-"		var start = i == nFrameLast ? StartIndex-1 : ts.length-1;\n"
+"		var start = i == nFrameLast ? StartIndex-1-fr.LogStart[nLog] : ts.length-1;\n"
 "\n"
 "		for(var j = start; j >= 0; j--)\n"
 "		{\n"
@@ -1640,12 +1640,12 @@ const char g_MicroProfileHtml_end_0[] =
 "		{\n"
 "			continue;\n"
 "		}\n"
-"		var X = (frfr.framestart - fDetailedOffset) * fScaleX;\n"
-"		if(X ";
+"		var X = (frfr.framestart - fDetailedOffset) ";
 
 const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
 const char g_MicroProfileHtml_end_1[] =
-">= 0 && X < nWidth)\n"
+"* fScaleX;\n"
+"		if(X >= 0 && X < nWidth)\n"
 "		{\n"
 "			context.moveTo(X, 0);\n"
 "			context.lineTo(X, nHeight);\n"
@@ -2025,7 +2025,7 @@ const char g_MicroProfileHtml_end_1[] =
 "		context.fillText((\"      \" + Value.toFixed(2)).slice(-TimerLen), X, YText);\n"
 "		X += nWidthMs;\n"
 "	}\n"
-"	function DrawMeta(Value, Width, Dec)\n"
+"	function DrawMeta(Value, Width, Dec, YText)\n"
 "	{\n"
 "		Value = FormatMeta(Value, Dec);\n"
 "		X += (FontWidth*Width);\n"
@@ -2080,9 +2080,9 @@ const char g_MicroProfileHtml_end_1[] =
 "			context.fillStyle = \'white\';\n"
 "			for(var j = 0; j < nMetaLen; ++j)\n"
 "			{\n"
-"				DrawMeta(Timer.meta[j], MetaLengths[j], 0);\n"
-"				DrawMeta(Timer.metaavg[j], MetaLengthsAvg[j], 2);\n"
-"				DrawMeta(Timer.metamax[j], MetaLengthsMax[j], 0);\n"
+"			    DrawMeta(Timer.meta[j], MetaLengths[j], 0, YText);\n"
+"			    DrawMeta(Timer.metaavg[j], MetaLengthsAvg[j], 2, YText);\n"
+"			    DrawMeta(Timer.metamax[j], MetaLengthsMax[j], 0, YText);\n"
 "			}\n"
 "		}\n"
 "		context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];\n"
@@ -2889,12 +2889,12 @@ const char g_MicroProfileHtml_end_1[] =
 "\n"
 "							var StartIndex = Stack[StackPos];\n"
 "							var timestart = TimeArray[StartIndex];\n"
-"							var timeend = time;\n"
-"							var X = (timestart - fDetailedOffset)";
+"							var timee";
 
 const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
 const char g_MicroProfileHtml_end_2[] =
-" * fScaleX;\n"
+"nd = time;\n"
+"							var X = (timestart - fDetailedOffset) * fScaleX;\n"
 "							var Y = fOffsetY + StackPos * BoxHeight;\n"
 "							var W = (timeend-timestart)*fScaleX;\n"
 "\n"
@@ -2966,7 +2966,7 @@ const char g_MicroProfileHtml_end_2[] =
 "									nHoverTokenNext = index;\n"
 "									nHoverTokenIndexNext = j;\n"
 "									nHoverTokenLogIndexNext = nLog;\n"
-"									bHasSetHover = 1;\n"
+"									HasSetHover = 1;\n"
 "								}\n"
 "							}\n"
 "							if(StackPos == 0 && time > fTimeEnd)\n"
@@ -2981,7 +2981,7 @@ const char g_MicroProfileHtml_end_2[] =
 "					for(var i = 0; i < Frames.length-1; ++i)\n"
 "					{\n"
 "						var IndexStart = Lod.LogStart[i][nLog];\n"
-"						if(nHoverTokenNext >= IndexStart)\n"
+"						if(nHoverTokenIndexNext >= IndexStart)\n"
 "						{\n"
 "							nHoverFrame = i;\n"
 "						}\n"
@@ -4345,14 +4345,14 @@ const char g_MicroProfileHtml_end_2[] =
 "	var date = new Date();\n"
 "	date.setFullYear(2099);\n"
 "	var cookie = \'fisk=\' + JSON.stringify(Obj) + \';expires=\' + date;\n"
-"	document.cookie = cookie;\n"
-"}\n"
-"\n"
-"var mousewheelevt = (/Firefox";
+"";
 
 const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
 const char g_MicroProfileHtml_end_3[] =
-"/i.test(navigator.userAgent)) ? \"DOMMouseScroll\" : \"mousewheel\" //FF doesn\'t recognize mousewheel as of FF3.x\n"
+"	document.cookie = cookie;\n"
+"}\n"
+"\n"
+"var mousewheelevt = (/Firefox/i.test(navigator.userAgent)) ? \"DOMMouseScroll\" : \"mousewheel\" //FF doesn\'t recognize mousewheel as of FF3.x\n"
 "\n"
 "CanvasDetailedView.addEventListener(\'mousemove\', MouseMove, false);\n"
 "CanvasDetailedView.addEventListener(\'mousedown\', function(evt) { MouseButton(true, evt); });\n"

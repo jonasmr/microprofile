@@ -1064,7 +1064,7 @@ function GatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)
 		var ts = fr.ts[nLog];
 		var ti = fr.ti[nLog];
 		var tt = fr.tt[nLog];
-		var start = i == nFrameLast ? StartIndex-1 : ts.length-1;
+		var start = i == nFrameLast ? StartIndex-1-fr.LogStart[nLog] : ts.length-1;
 
 		for(var j = start; j >= 0; j--)
 		{
@@ -2007,7 +2007,7 @@ function DrawBarView()
 		context.fillText(("      " + Value.toFixed(2)).slice(-TimerLen), X, YText);
 		X += nWidthMs;
 	}
-	function DrawMeta(Value, Width, Dec)
+	function DrawMeta(Value, Width, Dec, YText)
 	{
 		Value = FormatMeta(Value, Dec);
 		X += (FontWidth*Width);
@@ -2062,9 +2062,9 @@ function DrawBarView()
 			context.fillStyle = 'white';
 			for(var j = 0; j < nMetaLen; ++j)
 			{
-				DrawMeta(Timer.meta[j], MetaLengths[j], 0);
-				DrawMeta(Timer.metaavg[j], MetaLengthsAvg[j], 2);
-				DrawMeta(Timer.metamax[j], MetaLengthsMax[j], 0);
+			    DrawMeta(Timer.meta[j], MetaLengths[j], 0, YText);
+			    DrawMeta(Timer.metaavg[j], MetaLengthsAvg[j], 2, YText);
+			    DrawMeta(Timer.metamax[j], MetaLengthsMax[j], 0, YText);
 			}
 		}
 		context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
@@ -2944,7 +2944,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 									nHoverTokenNext = index;
 									nHoverTokenIndexNext = j;
 									nHoverTokenLogIndexNext = nLog;
-									bHasSetHover = 1;
+									HasSetHover = 1;
 								}
 							}
 							if(StackPos == 0 && time > fTimeEnd)
@@ -2959,7 +2959,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 					for(var i = 0; i < Frames.length-1; ++i)
 					{
 						var IndexStart = Lod.LogStart[i][nLog];
-						if(nHoverTokenNext >= IndexStart)
+						if(nHoverTokenIndexNext >= IndexStart)
 						{
 							nHoverFrame = i;
 						}
