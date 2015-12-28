@@ -94,8 +94,11 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>Advapi32.lib;ws2_32.lib;winmm.lib</AdditionalDependencies>
+      <AdditionalDependencies>Advapi32.lib;ws2_32.lib;winmm.lib;Shell32.lib</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>copy ..\..\bin\microprofile-win32-cswitch_$(PlatformTarget).exe $(ProjectDir)</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -110,8 +113,11 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>Advapi32.lib;ws2_32.lib;winmm.lib</AdditionalDependencies>
+      <AdditionalDependencies>Advapi32.lib;ws2_32.lib;winmm.lib;Shell32.lib</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>copy ..\..\bin\microprofile-win32-cswitch_$(PlatformTarget).exe $(ProjectDir)</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -130,8 +136,11 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>Advapi32.lib;ws2_32.lib;winmm.lib</AdditionalDependencies>
+      <AdditionalDependencies>Advapi32.lib;ws2_32.lib;winmm.lib;Shell32.lib</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>copy ..\..\bin\microprofile-win32-cswitch_$(PlatformTarget).exe $(ProjectDir)</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -150,8 +159,11 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>Advapi32.lib;ws2_32.lib;winmm.lib</AdditionalDependencies>
+      <AdditionalDependencies>Advapi32.lib;ws2_32.lib;winmm.lib;Shell32.lib</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>copy ..\..\bin\microprofile-win32-cswitch_$(PlatformTarget).exe $(ProjectDir)</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="demo_noui.cpp" />

@@ -4128,7 +4128,9 @@ void MicroProfileContextSwitchShutdownTrace()
 
 }
 
-void* MicroProfileTraceThread(void* unused)
+typedef VOID (WINAPI *EventCallback)(PEVENT_TRACE);
+typedef ULONG (WINAPI *BufferCallback)(PEVENT_TRACE_LOGFILE);
+bool MicroProfileStartWin32Trace(EventCallback EvtCb, BufferCallback BufferCB)
 {
 	MicroProfileContextSwitchShutdownTrace();
 	ULONG status = ERROR_SUCCESS;
@@ -4142,19 +4144,18 @@ void* MicroProfileTraceThread(void* unused)
 	sessionProperties.Wnode.Guid = SystemTraceControlGuid;
 	sessionProperties.BufferSize = 1;
 	sessionProperties.NumberOfBuffers = 128;
-	sessionProperties.EnableFlags = EVENT_TRACE_FLAG_CSWITCH|EVENT_TRACE_FLAG_PROCESS;
+	sessionProperties.EnableFlags = EVENT_TRACE_FLAG_CSWITCH | EVENT_TRACE_FLAG_PROCESS;
 	sessionProperties.LogFileMode = EVENT_TRACE_REAL_TIME_MODE;
-	sessionProperties.MaximumFileSize = 0;  
+	sessionProperties.MaximumFileSize = 0;
 	sessionProperties.LoggerNameOffset = sizeof(EVENT_TRACE_PROPERTIES);
 	sessionProperties.LogFileNameOffset = 0;
 
-
-	status = StartTrace((PTRACEHANDLE) &SessionHandle, KERNEL_LOGGER_NAME, &sessionProperties);
+	StopTrace(NULL, KERNEL_LOGGER_NAME, &sessionProperties);
+	status = StartTrace((PTRACEHANDLE)&SessionHandle, KERNEL_LOGGER_NAME, &sessionProperties);
 
 	if (ERROR_SUCCESS != status)
 	{
-		S.bContextSwitchRunning = false;
-		return 0;
+		return false;
 	}
 
 	EVENT_TRACE_LOGFILE log;
@@ -4162,14 +4163,170 @@ void* MicroProfileTraceThread(void* unused)
 
 	log.LoggerName = KERNEL_LOGGER_NAME;
 	log.ProcessTraceMode = PROCESS_TRACE_MODE_REAL_TIME | PROCESS_TRACE_MODE_RAW_TIMESTAMP;
-	log.EventCallback = MicroProfileContextSwitchCallback;
-	log.BufferCallback = MicroProfileBufferCallback;
+	log.EventCallback = EvtCb;
+	log.BufferCallback = BufferCB;
 
 	TRACEHANDLE hLog = OpenTrace(&log);
 	ProcessTrace(&hLog, 1, 0, 0);
 	CloseTrace(hLog);
 	MicroProfileContextSwitchShutdownTrace();
+	return true;
 
+
+}
+
+struct MicroProfileWin32ContextSwitchShared
+{
+	std::atomic<int64_t> nPut;
+	std::atomic<int64_t> nGet;
+	std::atomic<int64_t> nQuit;
+	std::atomic<int64_t> nTickTrace;
+	std::atomic<int64_t> nTickProgram;
+	enum {
+		BUFFER_SIZE = (2 << 20) / sizeof(MicroProfileContextSwitch),
+	};
+	MicroProfileContextSwitch Buffer[BUFFER_SIZE];
+};
+
+#define MICROPROFILE_FILEMAPPING "microprofile-shared"
+#ifdef MICROPROFILE_WIN32_COLLECTOR
+#define MICROPROFILE_WIN32_CSWITCH_TIMEOUT 15 //seconds to wait before collector exits
+static MicroProfileWin32ContextSwitchShared* g_pShared = 0;
+VOID WINAPI MicroProfileContextSwitchCallbackCollector(PEVENT_TRACE pEvent)
+{
+	static int64_t nPackets = 0;
+	static int64_t nSkips = 0;
+	if (pEvent->Header.Guid == g_MicroProfileThreadClassGuid)
+	{
+		if (pEvent->Header.Class.Type == 36)
+		{
+			MicroProfileSCSwitch* pCSwitch = (MicroProfileSCSwitch*)pEvent->MofData;
+			if ((pCSwitch->NewThreadId != 0) || (pCSwitch->OldThreadId != 0))
+			{
+				MicroProfileContextSwitch Switch;
+				Switch.nThreadOut = pCSwitch->OldThreadId;
+				Switch.nThreadIn = pCSwitch->NewThreadId;
+				Switch.nCpu = pEvent->BufferContext.ProcessorNumber;
+				Switch.nTicks = pEvent->Header.TimeStamp.QuadPart;
+				int64_t nPut = g_pShared->nPut.load(std::memory_order_relaxed);
+				int64_t nGet = g_pShared->nGet.load(std::memory_order_relaxed);
+				nPackets++;
+				if(nPut - nGet < MicroProfileWin32ContextSwitchShared::BUFFER_SIZE)
+				{
+					g_pShared->Buffer[nPut%MicroProfileWin32ContextSwitchShared::BUFFER_SIZE] = Switch;
+					g_pShared->nPut.store(nPut + 1, std::memory_order_release);
+					nSkips = 0;
+				}
+				else
+				{
+					nSkips++;
+				}
+			}
+		}
+	}
+	if(0 == (nPackets%(4<<10)))
+	{
+		int64_t nTickTrace = MP_TICK();
+		g_pShared->nTickTrace.store(nTickTrace);
+		int64_t nTickProgram = g_pShared->nTickProgram.load();
+		float fTickToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+		float fTime = fabs(fTickToMs * (nTickTrace - nTickProgram));
+		printf("\rRead %" PRId64 " CSwitch Packets, Skips %" PRId64 " Time difference %6.3fms         ", nPackets, nSkips, fTime);
+		fflush(stdout);
+		if (fTime > MICROPROFILE_WIN32_CSWITCH_TIMEOUT * 1000)
+		{
+			g_pShared->nQuit.store(1);
+		}
+
+	}
+}
+
+ULONG WINAPI MicroProfileBufferCallbackCollector(PEVENT_TRACE_LOGFILE Buffer)
+{
+	return (g_pShared->nQuit.load()) ? FALSE : TRUE;
+}
+
+int main(int argc, char* argv[])
+{
+	if(argc != 2)
+	{
+		return 1;
+	}
+	printf("using file '%s'\n", argv[1]);
+	HANDLE hMemory = OpenFileMappingA(FILE_MAP_ALL_ACCESS, FALSE, argv[1]);
+	if (hMemory == NULL)
+	{
+		return 1;
+	}
+	g_pShared = (MicroProfileWin32ContextSwitchShared*)MapViewOfFile(hMemory, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(MicroProfileWin32ContextSwitchShared));
+	if (g_pShared != NULL)
+	{
+		MicroProfileStartWin32Trace(MicroProfileContextSwitchCallbackCollector, MicroProfileBufferCallbackCollector);
+		UnmapViewOfFile(g_pShared);
+	}
+
+	CloseHandle(hMemory);
+	return 0;
+}
+#endif
+
+void* MicroProfileTraceThread(void* unused)
+{
+	MicroProfileOnThreadCreate("ContextSwitchThread");
+	MicroProfileContextSwitchShutdownTrace();
+	if(!MicroProfileStartWin32Trace(MicroProfileContextSwitchCallback, MicroProfileBufferCallback))
+	{
+		MicroProfileContextSwitchShutdownTrace();
+		//not running as admin. try and start other process.
+		MicroProfileWin32ContextSwitchShared* pShared = 0;
+		char Filename[512];
+		time_t t = time(NULL);
+		_snprintf_s(Filename, sizeof(Filename), "%s_%d", MICROPROFILE_FILEMAPPING, (int)t);
+
+		HANDLE hMemory = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, sizeof(MicroProfileWin32ContextSwitchShared), Filename);
+		if (hMemory != NULL)
+		{
+			pShared = (MicroProfileWin32ContextSwitchShared*)MapViewOfFile(hMemory, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(MicroProfileWin32ContextSwitchShared));
+			if (pShared != NULL)
+			{
+#ifdef _M_IX86
+#define CSWITCH_EXE "microprofile-win32-cswitch_x86.exe"
+#else
+#define CSWITCH_EXE "microprofile-win32-cswitch_x64.exe"
+#endif
+				pShared->nTickProgram.store(MP_TICK());
+				pShared->nTickTrace.store(MP_TICK());
+				HINSTANCE Instance = ShellExecuteA(NULL, "runas", CSWITCH_EXE, Filename, "", SW_SHOWMINNOACTIVE);
+				int64_t nInstance = (int64_t)Instance;
+				if(nInstance >= 32)
+				{
+					int64_t nPut, nGet;
+					while(!S.bContextSwitchStop)
+					{
+						nPut = pShared->nPut.load(std::memory_order_acquire);
+						nGet = pShared->nGet.load(std::memory_order_relaxed);
+						if (nPut == nGet)
+						{
+							Sleep(20);
+						}
+						else
+						{
+							for (int64_t i = nGet; i != nPut; i++)
+							{
+								MicroProfileContextSwitchPut(&pShared->Buffer[i%MicroProfileWin32ContextSwitchShared::BUFFER_SIZE]);
+							}
+							pShared->nGet.store(nPut, std::memory_order_release);
+							pShared->nTickProgram.store(MP_TICK());
+						}
+					} 
+					pShared->nQuit.store(1);
+					
+				}
+			}
+			UnmapViewOfFile(pShared);
+		}
+		CloseHandle(hMemory);
+	}
 	S.bContextSwitchRunning = false;
 	return 0;
 }
