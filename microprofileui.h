@@ -517,6 +517,17 @@ void MicroProfileDrawFloatWindow(uint32_t nX, uint32_t nY, const char** ppString
 		nY += (MICROPROFILE_TEXT_HEIGHT+1);
 	}
 }
+
+
+void MicroProfileDrawTextBackground(uint32_t nX, uint32_t nY, uint32_t nColor, uint32_t nBgColor, const char* pString, uint32_t nStrLen)
+{
+	uint32_t nWidth = (MICROPROFILE_TEXT_WIDTH + 1) * (nStrLen) + 2 * MICROPROFILE_BORDER_SIZE;
+	uint32_t nHeight = (MICROPROFILE_TEXT_HEIGHT + 1) ;
+	MicroProfileDrawBox(nX, nY, nX + nWidth, nY + nHeight, nBgColor);
+	MicroProfileDrawText(nX, nY, nColor, pString, nStrLen);
+}
+
+
 void MicroProfileDrawTextBox(uint32_t nX, uint32_t nY, const char** ppStrings, uint32_t nNumStrings, uint32_t nColor, uint32_t* pColors = 0)
 {
 	uint32_t nWidth = 0, nHeight = 0;
@@ -859,6 +870,32 @@ void MicroProfileDrawDetailedContextSwitchBars(uint32_t nY, uint32_t nThreadId, 
 	}
 }
 
+void MicroProfileWriteThreadHeader(uint32_t nY, ThreadIdType ThreadId, const char* pNamedThread, const char* pThreadModule)
+{
+	char buffer[512];
+	int nStrLen = 0;
+	if (pThreadModule)
+	{
+		nStrLen = snprintf(buffer, sizeof(buffer) - 1, "TID:%04x: %s [%s]", ThreadId, pNamedThread ? pNamedThread : "", pThreadModule);
+	}
+	else
+	{
+		nStrLen = snprintf(buffer, sizeof(buffer) - 1, "TID:%04x: %s", ThreadId, pNamedThread ? pNamedThread : "");
+	}
+	const char* pBuffer = &buffer[0];
+	MicroProfileDrawTextBackground(10, nY, 0xffffff, 0x88777777, buffer, nStrLen);
+}
+	
+uint32_t MicroProfileWriteProcessHeader(uint32_t nY, uint32_t nProcessId, const char* pProcessModule)
+{
+	char buffer[512];
+	nY += MICROPROFILE_TEXT_HEIGHT + 1;
+	int nStrLen = snprintf(buffer, sizeof(buffer) - 1, "PID:%04x: %s", nProcessId, pProcessModule);
+	MicroProfileDrawTextBackground(0, nY, 0xffffff, 0x88777777, buffer, nStrLen);
+	nY += MICROPROFILE_TEXT_HEIGHT + 1;
+	return nY;
+}
+
 void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY, int nSelectedFrame)
 {
 	MicroProfile& S = *MicroProfileGet();
@@ -979,6 +1016,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 	}
 
 	bool bSkipBarView = S.bContextSwitchRunning && S.bContextSwitchNoBars;
+	const char* pProcessModule = nullptr;
 
 	if(!bSkipBarView)
 	{
@@ -1038,14 +1076,20 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			bool bGpu = pLog->nGpu != 0;
 			float fToMs = bGpu ? fToMsGpu : fToMsCpu;
 			int64_t nBaseTicks = bGpu ? nBaseTicksGpu : nBaseTicksCpu;
-			char ThreadName[MicroProfileThreadLog::THREAD_MAX_LEN + 16];
 			uint64_t nThreadId = pLog->nThreadId;
-			snprintf(ThreadName, sizeof(ThreadName)-1, "%04" PRIx64 ": %s", nThreadId, &pLog->ThreadName[0] );
+
+			MicroProfileThreadInfo ThreadInfo = MicroProfileGetThreadInfo(pLog->nThreadId);
+			if (pProcessModule != ThreadInfo.pProcessModule)
+			{
+				nY = MicroProfileWriteProcessHeader(nY, (uint32_t)ThreadInfo.ProcessId, ThreadInfo.pProcessModule);
+				pProcessModule = ThreadInfo.pProcessModule;
+			}
+			MicroProfileWriteThreadHeader(nY, ThreadInfo.ThreadId, &pLog->ThreadName[0], ThreadInfo.pThreadModule);
+
 			nY += 3;
 			uint32_t nThreadColor = -1;
 			if(pLog->nThreadId == nContextSwitchHoverThreadAfter || pLog->nThreadId == nContextSwitchHoverThreadBefore)
 				nThreadColor = UI.nHoverColorShared|0x906060;
-			MicroProfileDrawText(0, nY, nThreadColor, &ThreadName[0], (uint32_t)strlen(&ThreadName[0]));		
 			nY += 3;
 			nY += MICROPROFILE_TEXT_HEIGHT + 1;
 
@@ -1196,9 +1240,10 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 	if(S.bContextSwitchRunning && (S.bContextSwitchAllThreads||S.bContextSwitchNoBars))
 	{
 		uint32_t nNumThreads = 0;
-		uint32_t nThreads[MICROPROFILE_MAX_CONTEXT_SWITCH_THREADS];
+		MicroProfileThreadInfo Threads[MICROPROFILE_MAX_CONTEXT_SWITCH_THREADS];
+
 		for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS && S.Pool[i]; ++i)
-			nThreads[nNumThreads++] = S.Pool[i]->nThreadId;
+			Threads[nNumThreads++] = MicroProfileGetThreadInfo(S.Pool[i]->nThreadId);
 		uint32_t nNumThreadsBase = nNumThreads;
 		if(S.bContextSwitchAllThreads)
 		{
@@ -1211,7 +1256,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 					bool bSeen = false;
 					for(uint32_t j = 0; j < nNumThreads; ++j)
 					{
-						if(nThreads[j] == nThreadId)
+						if(Threads[j].ThreadId == nThreadId)
 						{
 							bSeen = true;
 							break;				
@@ -1219,7 +1264,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 					}
 					if(!bSeen)
 					{
-						nThreads[nNumThreads++] = nThreadId;
+						Threads[nNumThreads++] = MicroProfileGetThreadInfo(nThreadId);
 					}
 				}
 				if(nNumThreads == MICROPROFILE_MAX_CONTEXT_SWITCH_THREADS)
@@ -1228,26 +1273,31 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 					break;
 				}
 			}
-			std::sort(&nThreads[nNumThreadsBase], &nThreads[nNumThreads]);
+			std::sort(&Threads[nNumThreadsBase], &Threads[nNumThreads], 
+				[](const auto& l, const auto& r)
+			{
+				return l.nSort > r.nSort;
+			});
 		}
 		uint32_t nStart = nNumThreadsBase;
 		if(S.bContextSwitchNoBars)
 			nStart = 0;
 		for(uint32_t i = nStart; i < nNumThreads; ++i)
 		{
-			ThreadIdType nThreadId = nThreads[i];
-			if(nThreadId)
+			MicroProfileThreadInfo ThreadInfo = Threads[i];
+			if(ThreadInfo.ThreadId)
 			{
-				char ThreadName[MicroProfileThreadLog::THREAD_MAX_LEN + 16];
-				const char* cLocal = MicroProfileIsLocalThread(nThreadId) ? "*": " ";
-
-				int nStrLen = snprintf(ThreadName, sizeof(ThreadName)-1, "%04x: %s%s", (uint32_t)nThreadId, cLocal, i < nNumThreadsBase ? &S.Pool[i]->ThreadName[0] : MICROPROFILE_THREAD_NAME_FROM_ID(nThreadId) );
 				uint32_t nThreadColor = -1;
-				if(nThreadId == nContextSwitchHoverThreadAfter || nThreadId == nContextSwitchHoverThreadBefore)
-					nThreadColor = UI.nHoverColorShared|0x906060;
-				MicroProfileDrawDetailedContextSwitchBars(nY+2, nThreadId, nContextSwitchStart, nContextSwitchEnd, nBaseTicksCpu, nBaseY);
-				MicroProfileDrawText(0, nY, nThreadColor, &ThreadName[0], nStrLen);					
-				nY += MICROPROFILE_TEXT_HEIGHT+1;
+				if (pProcessModule != ThreadInfo.pProcessModule)
+				{
+					nY = MicroProfileWriteProcessHeader(nY, (uint32_t)ThreadInfo.ProcessId, ThreadInfo.pProcessModule);
+					pProcessModule = ThreadInfo.pProcessModule;
+				}
+				if (ThreadInfo.ThreadId == nContextSwitchHoverThreadAfter || ThreadInfo.ThreadId == nContextSwitchHoverThreadBefore)
+					nThreadColor = UI.nHoverColorShared | 0x906060;
+				MicroProfileDrawDetailedContextSwitchBars(nY + 2, ThreadInfo.ThreadId, nContextSwitchStart, nContextSwitchEnd, nBaseTicksCpu, nBaseY);
+				MicroProfileWriteThreadHeader(nY, ThreadInfo.ThreadId, i < nNumThreadsBase ? &S.Pool[i]->ThreadName[0] : nullptr, ThreadInfo.pThreadModule);
+				nY += MICROPROFILE_TEXT_HEIGHT + 1;
 			}
 		}
 	}
@@ -1948,7 +1998,7 @@ uint32_t MicroProfileDrawCounterRecursive(uint32_t nIndex, uint32_t nY, uint32_t
 			pGraphFillData[(i*4) + 0] = fX;
 			pGraphFillData[(i*4) + 1] = nYOffset + fPrc;
 			pGraphFillData[(i*4) + 2] = fX;
-			pGraphFillData[(i*4) + 3] = nYBottom;
+			pGraphFillData[(i*4) + 3] = (float)(nYBottom);
 
 			fX += 1;
 		}

@@ -15,7 +15,7 @@
 
 namespace SampleAssets
 {
-	const wchar_t DataFileName[] = L"SquidRoom.bin";
+	const char DataFileName[] = "SquidRoom.bin";
 
 	const D3D12_INPUT_ELEMENT_DESC StandardVertexDescription[] =
 	{

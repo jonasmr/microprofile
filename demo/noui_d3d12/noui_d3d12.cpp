@@ -28,7 +28,7 @@ inline void ThrowIfFailed(HRESULT hr)
 	}
 }
 
-inline void GetAssetsPath(_Out_writes_(pathSize) WCHAR* path, UINT pathSize)
+inline void GetAssetsPath(_Out_writes_(pathSize) CHAR* path, UINT pathSize)
 {
 	if (path == nullptr)
 	{
@@ -43,14 +43,14 @@ inline void GetAssetsPath(_Out_writes_(pathSize) WCHAR* path, UINT pathSize)
 		throw;
 	}
 
-	WCHAR* lastSlash = wcsrchr(path, L'\\');
+	CHAR* lastSlash = strrchr(path, L'\\');
 	if (lastSlash)
 	{
 		*(lastSlash + 1) = NULL;
 	}
 }
 
-inline HRESULT ReadDataFromFile(LPCWSTR filename, byte** data, UINT* size)
+inline HRESULT ReadDataFromFile(LPWSTR filename, byte** data, UINT* size)
 {
 	using namespace Microsoft::WRL;
 
@@ -113,11 +113,11 @@ inline HRESULT ReadDataFromFile(LPCWSTR filename, byte** data, UINT* size)
 class DXSample
 {
 public:
-	DXSample(UINT width, UINT height, std::wstring name);
+	DXSample(UINT width, UINT height, std::string name);
 	virtual ~DXSample();
 
 	int Run(HINSTANCE hInstance, int nCmdShow);
-	void SetCustomWindowText(LPCWSTR text);
+	void SetCustomWindowText(LPCSTR text);
 
 protected:
 	virtual void OnInit() = 0;
@@ -126,7 +126,7 @@ protected:
 	virtual void OnDestroy() = 0;
 	virtual bool OnEvent(MSG msg) = 0;
 
-	std::wstring GetAssetFullPath(LPCWSTR assetName);
+	std::string GetAssetFullPath(LPCSTR assetName);
 	void GetHardwareAdapter(_In_ IDXGIFactory4* pFactory, _Outptr_result_maybenull_ IDXGIAdapter1** ppAdapter);
 
 	static LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -146,23 +146,23 @@ private:
 	void ParseCommandLineArgs();
 
 	// Root assets path.
-	std::wstring m_assetsPath;
+	std::string m_assetsPath;
 
 	// Window title.
-	std::wstring m_title;
+	std::string m_title;
 };
 
 
-DXSample::DXSample(UINT width, UINT height, std::wstring name) :
+DXSample::DXSample(UINT width, UINT height, std::string name) :
 	m_width(width),
 	m_height(height),
 	m_useWarpDevice(false)
 {
 	ParseCommandLineArgs();
 
-	m_title = name + (m_useWarpDevice ? L" (WARP)" : L"");
+	m_title = name + (m_useWarpDevice ? " (WARP)" : "");
 
-	WCHAR assetsPath[512];
+	CHAR assetsPath[512];
 	GetAssetsPath(assetsPath, _countof(assetsPath));
 	m_assetsPath = assetsPath;
 
@@ -185,7 +185,7 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 	windowClass.lpfnWndProc = WindowProc;
 	windowClass.hInstance = hInstance;
 	windowClass.hCursor = LoadCursor(NULL, IDC_ARROW);
-	windowClass.lpszClassName = L"WindowClass1";
+	windowClass.lpszClassName = "WindowClass1";
 	RegisterClassEx(&windowClass);
 
 	RECT windowRect = { 0, 0, static_cast<LONG>(m_width), static_cast<LONG>(m_height) };
@@ -193,7 +193,7 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 
 	// Create the window and store a handle to it.
 	m_hwnd = CreateWindowEx(NULL,
-		L"WindowClass1",
+		"WindowClass1",
 		m_title.c_str(),
 		WS_OVERLAPPEDWINDOW,
 		300,
@@ -247,7 +247,7 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 }
 
 // Helper function for resolving the full path of assets.
-std::wstring DXSample::GetAssetFullPath(LPCWSTR assetName)
+std::string DXSample::GetAssetFullPath(LPCSTR assetName)
 {
 	return m_assetsPath + assetName;
 }
@@ -283,9 +283,9 @@ void DXSample::GetHardwareAdapter(_In_ IDXGIFactory4* pFactory, _Outptr_result_m
 }
 
 // Helper function for setting the window's title text.
-void DXSample::SetCustomWindowText(LPCWSTR text)
+void DXSample::SetCustomWindowText(LPCSTR text)
 {
-	std::wstring windowText = m_title + L": " + text;
+	std::string windowText = m_title + ": " + text;
 	SetWindowText(m_hwnd, windowText.c_str());
 }
 
@@ -327,7 +327,7 @@ using namespace Microsoft::WRL;
 class D3D12HelloTriangle : public DXSample
 {
 public:
-	D3D12HelloTriangle(UINT width, UINT height, std::wstring name);
+	D3D12HelloTriangle(UINT width, UINT height, std::string name);
 
 protected:
 	virtual void OnInit();
@@ -377,7 +377,7 @@ private:
 
 
 
-D3D12HelloTriangle::D3D12HelloTriangle(UINT width, UINT height, std::wstring name) :
+D3D12HelloTriangle::D3D12HelloTriangle(UINT width, UINT height, std::string name) :
 	DXSample(width, height, name),
 	m_frameIndex(0),
 	m_viewport(),
@@ -732,7 +732,7 @@ void D3D12HelloTriangle::WaitForPreviousFrame()
 _Use_decl_annotations_
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 {
-	D3D12HelloTriangle sample(1280, 720, L"D3D12 Hello Triangle");
+	D3D12HelloTriangle sample(1280, 720, "D3D12 Hello Triangle");
 	return sample.Run(hInstance, nCmdShow);
 }
 

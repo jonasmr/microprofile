@@ -341,8 +341,8 @@ int main(int argc, char* argv[])
 		MicroProfileFlip(0);
 		static float f = 0;
 		f += 0.1f;
-		int sinus = 10000000 * (sinf(f));
-		int cosinus = cosf(f*1.3) * 100000 + 50000;
+		int sinus = (int)(10000000 * (sinf(f)));
+		int cosinus = int(cosf(f*1.3f) * 100000 + 50000);
 		MICROPROFILE_COUNTER_SET("/test/sinus", sinus);
 		MICROPROFILE_COUNTER_SET("/test/cosinus", cosinus);
 		{

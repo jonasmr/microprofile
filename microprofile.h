@@ -460,6 +460,27 @@ MICROPROFILE_API MicroProfileThreadLogGpu* MicroProfileGetGlobaGpuThreadLog();
 MICROPROFILE_API int MicroProfileGetGlobaGpuQueue();
 MICROPROFILE_API void MicroProfileRegisterGroup(const char* pGroup, const char* pCategory, uint32_t nColor);
 
+struct MicroProfileThreadInfo
+{
+	union
+	{
+		//this truncates on platforms where ids are bigger.
+		//if you know of any please let me know
+		//also it assumes big endian
+		struct
+		{
+			uint32_t ThreadId;
+			uint32_t ProcessId : 31;
+			uint32_t nIsLocal : 1;
+		};
+		uint64_t nSort;
+	};
+			
+	const char* pThreadModule;
+	const char* pProcessModule;
+};
+MICROPROFILE_API MicroProfileThreadInfo MicroProfileGetThreadInfo(ThreadIdType nThreadId);
+
 #if defined(MICROPROFILE_GPU_TIMERS_D3D12)
 MICROPROFILE_API void MicroProfileGpuInitD3D12(void* pDevice, void* pCommandQueue);
 MICROPROFILE_API void MicroProfileGpuShutdown();
@@ -506,11 +527,6 @@ MICROPROFILE_API const char* MicroProfileGetThreadName();
 #else
 #define MicroProfileGetThreadName() "<implement MicroProfileGetThreadName to get threadnames>"
 #endif
-
-#if !defined(MICROPROFILE_THREAD_NAME_FROM_ID)
-#define MICROPROFILE_THREAD_NAME_FROM_ID(a) ""
-#endif
-
 
 struct MicroProfileScopeHandler
 {
@@ -4175,6 +4191,16 @@ bool MicroProfileStartWin32Trace(EventCallback EvtCb, BufferCallback BufferCB)
 
 }
 
+#include <winternl.h>
+#include <psapi.h>
+#include <tlhelp32.h>
+#define ThreadQuerySetWin32StartAddress 9
+typedef LONG    NTSTATUS;
+typedef NTSTATUS(WINAPI *pNtQIT)(HANDLE, LONG, PVOID, ULONG, PULONG);
+#define STATUS_SUCCESS    ((NTSTATUS)0x000 00000L)
+#define ThreadQuerySetWin32StartAddress 9
+
+
 struct MicroProfileWin32ContextSwitchShared
 {
 	std::atomic<int64_t> nPut;
@@ -4187,6 +4213,200 @@ struct MicroProfileWin32ContextSwitchShared
 	};
 	MicroProfileContextSwitch Buffer[BUFFER_SIZE];
 };
+
+struct MicroProfileWin32ThreadInfo
+{
+	struct Thread
+	{
+		uint32_t tid;
+		uint32_t pid;
+		const char* pThreadModule;
+		const char* pProcessModule;
+		uint32_t nIsLocal;
+	};
+	struct Process
+	{
+		uint32_t pid;
+		const char* pProcessModule;
+	};
+	enum {
+		MAX_PROCESSES = 5 * 1024,
+		MAX_THREADS = 20 * 1024,
+		MAX_STRINGS = 16 * 1024,
+		MAX_CHARS = 128 * 1024,
+	};
+	uint32_t nNumProcesses;
+	uint32_t nNumThreads;
+	uint32_t nStringOffset;
+	uint32_t nNumStrings;
+	Process P[MAX_PROCESSES];
+	Thread T[MAX_THREADS];
+	const char* pStrings[MAX_STRINGS];
+	
+	char StringData[MAX_CHARS];
+};
+
+static MicroProfileWin32ThreadInfo g_ThreadInfo;
+
+const char* MicroProfileWin32ThreadInfoAddString(const char* pString)
+{
+	size_t nLen = strlen(pString);
+	uint32_t nHash = *(uint32_t*)pString;
+	nHash ^= (nHash >> 16);
+	enum
+	{
+		MAX_SEARCH = 256,
+	};
+	for (uint32_t i = 0; i < MAX_SEARCH; ++i)
+	{
+		uint32_t idx = (i + nHash) % MicroProfileWin32ThreadInfo::MAX_STRINGS;
+		if (0 == g_ThreadInfo.pStrings[idx])
+		{
+			g_ThreadInfo.pStrings[idx] = &g_ThreadInfo.StringData[g_ThreadInfo.nStringOffset];
+			memcpy(&g_ThreadInfo.StringData[g_ThreadInfo.nStringOffset], pString, nLen + 1);
+			g_ThreadInfo.nStringOffset += (uint32_t)(nLen + 1);
+			return g_ThreadInfo.pStrings[idx];
+		}
+		if(0 == strcmp(g_ThreadInfo.pStrings[idx], pString))
+		{
+			return g_ThreadInfo.pStrings[idx];
+		}
+	}
+	return "internal hash table fail: should never happen";
+}
+
+
+void MicroProfileWin32InitThreadInfo()
+{
+	memset(&g_ThreadInfo, 0, sizeof(g_ThreadInfo));
+
+	HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPALL, 0);
+	PROCESSENTRY32 pe32;
+	THREADENTRY32 te32;
+	te32.dwSize = sizeof(THREADENTRY32);
+	pe32.dwSize = sizeof(PROCESSENTRY32);
+	if (Process32First(hSnap, &pe32))
+	{
+		do 
+		{
+			MicroProfileWin32ThreadInfo::Process P;
+			P.pid = pe32.th32ProcessID;
+			P.pProcessModule = MicroProfileWin32ThreadInfoAddString(pe32.szExeFile);
+			g_ThreadInfo.P[g_ThreadInfo.nNumProcesses++] = P;
+		} while (Process32Next(hSnap, &pe32) && g_ThreadInfo.nNumProcesses < MicroProfileWin32ThreadInfo::MAX_PROCESSES);
+	}
+
+
+	pNtQIT NtQueryInformationThread = (pNtQIT)GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtQueryInformationThread");
+	intptr_t dwStartAddress;
+	ULONG olen;
+	uint32_t nThreadsTested = 0;
+	uint32_t nThreadsSucceeded = 0;
+	uint32_t nThreadsSucceeded2 = 0;
+
+	if (Thread32First(hSnap, &te32))
+	{
+		do
+		{
+			nThreadsTested++;
+			const char* pModule = "?";
+			HANDLE hThread = OpenThread(THREAD_QUERY_INFORMATION, FALSE, te32.th32ThreadID);
+			if (hThread)
+			{
+
+				NTSTATUS ntStatus = NtQueryInformationThread(hThread, (THREADINFOCLASS)ThreadQuerySetWin32StartAddress, &dwStartAddress, sizeof(dwStartAddress), &olen);
+				if (0 == ntStatus)
+				{
+					bool bFound = false;
+					HANDLE hModuleSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, te32.th32OwnerProcessID);
+					MODULEENTRY32 me;
+					if (Module32First(hModuleSnapshot, &me))
+					{
+						do
+						{
+							intptr_t nBase = (intptr_t)me.modBaseAddr;
+							intptr_t nEnd = nBase + me.modBaseSize;
+							if (nBase <= dwStartAddress && nEnd >= dwStartAddress)
+							{
+								pModule = &me.szModule[0];
+								bFound = true;
+								nThreadsSucceeded2++;
+								break;
+							}
+						} while (Module32Next(hModuleSnapshot, &me));
+					}
+					if (hModuleSnapshot) CloseHandle(hModuleSnapshot);
+				}
+			}
+			if (hThread)
+				CloseHandle(hThread);
+
+
+			{
+				MicroProfileWin32ThreadInfo::Thread T;
+				T.pid = te32.th32OwnerProcessID;
+				T.tid = te32.th32ThreadID;
+				const char* pProcess = "unknown";
+				for (uint32_t i = 0; i < g_ThreadInfo.nNumProcesses; ++i)
+				{
+					if (g_ThreadInfo.P[i].pid == T.pid)
+					{
+						pProcess = g_ThreadInfo.P[i].pProcessModule;
+						break;
+					}
+				}
+				T.pProcessModule = pProcess;
+				T.pThreadModule = MicroProfileWin32ThreadInfoAddString(pModule);
+				T.nIsLocal = GetCurrentProcessId() == T.pid ? 1 : 0;
+				nThreadsSucceeded++;
+				g_ThreadInfo.T[g_ThreadInfo.nNumThreads++] = T;
+			}
+
+
+
+		} while (Thread32Next(hSnap, &te32) && g_ThreadInfo.nNumThreads < MicroProfileWin32ThreadInfo::MAX_THREADS);
+	}
+
+	//for (uint32_t i = 0; i < g_ThreadInfo.nNumProcesses; ++i)
+	//{
+	//	printf("process pid %d exe %s\n", g_ThreadInfo.P[i].pid, g_ThreadInfo.P[i].pProcessModule);
+	//}
+	//for (uint32_t i = 0; i < g_ThreadInfo.nNumThreads; ++i)
+	//{
+	//	printf("thread tid %d pid %d, entry %s, process %s\n", g_ThreadInfo.T[i].tid, g_ThreadInfo.T[i].pid, g_ThreadInfo.T[i].pThreadModule, g_ThreadInfo.T[i].pProcessModule);
+	//}
+	printf("Tested %d Succeeded %d syc2 %d\n", nThreadsTested, nThreadsSucceeded, nThreadsSucceeded2);
+}
+void MicroProfileWin32UpdateThreadInfo()
+{
+	static int nWasRunning = 1;
+	static int nOnce = 0;
+	int nRunning = S.nRunning;
+
+	if ((0 == nRunning && 1 == nWasRunning) || nOnce == 0)
+	{
+		nOnce = 1;
+		MicroProfileWin32InitThreadInfo();
+	}
+	nWasRunning = nRunning;
+
+}
+
+const char* MicroProfileThreadNameFromId(ThreadIdType nThreadId)
+{
+	MicroProfileWin32UpdateThreadInfo();
+	static char result[1024];
+	for (uint32_t i = 0; i < g_ThreadInfo.nNumThreads; ++i)
+	{
+		if (g_ThreadInfo.T[i].tid == nThreadId)
+		{
+			sprintf_s(result, "p:%s t:%s", g_ThreadInfo.T[i].pProcessModule, g_ThreadInfo.T[i].pThreadModule);
+			return result;
+		}
+	}
+	sprintf_s(result, "?");
+	return result;
+}
 
 #define MICROPROFILE_FILEMAPPING "microprofile-shared"
 #ifdef MICROPROFILE_WIN32_COLLECTOR
@@ -4259,6 +4479,7 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 	g_pShared = (MicroProfileWin32ContextSwitchShared*)MapViewOfFile(hMemory, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(MicroProfileWin32ContextSwitchShared));
+	
 	if (g_pShared != NULL)
 	{
 		MicroProfileStartWin32Trace(MicroProfileContextSwitchCallbackCollector, MicroProfileBufferCallbackCollector);
@@ -4331,15 +4552,28 @@ void* MicroProfileTraceThread(void* unused)
 	return 0;
 }
 
-bool MicroProfileIsLocalThread(uint32_t nThreadId) 
+
+MicroProfileThreadInfo MicroProfileGetThreadInfo(ThreadIdType nThreadId)
 {
-	HANDLE h = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, nThreadId);
-	if(h == NULL)
-		return false;
-	DWORD hProcess = GetProcessIdOfThread(h);
-	CloseHandle(h);
-	return GetCurrentProcessId() == hProcess;
+	MicroProfileThreadInfo TI = { (uint32_t)nThreadId,0,0,"?","?"};
+	MicroProfileWin32UpdateThreadInfo();
+
+	for (uint32_t i = 0; i < g_ThreadInfo.nNumThreads; ++i)
+	{
+		if (g_ThreadInfo.T[i].tid == nThreadId)
+		{
+			TI.nIsLocal = g_ThreadInfo.T[i].nIsLocal;
+			TI.pProcessModule = g_ThreadInfo.T[i].pProcessModule;
+			TI.pThreadModule = g_ThreadInfo.T[i].pThreadModule;
+			TI.ProcessId = g_ThreadInfo.T[i].pid;
+			break;
+		}
+	}
+
+	return TI;
 }
+
+
 
 #elif defined(__APPLE__)
 #include <sys/time.h>
@@ -4409,15 +4643,22 @@ void* MicroProfileTraceThread(void* unused)
 	return 0;
 }
 
-bool MicroProfileIsLocalThread(uint32_t nThreadId) 
+
+MicroProfileThreadInfo MicroProfileGetThreadInfo(ThreadIdType nThreadId)
 {
-	return false;
+	MicroProfileThreadInfo TI = { nThreadId,0,0, "?","?" };
+	return TI;
 }
+
 
 #endif
 #else
 
-bool MicroProfileIsLocalThread(uint32_t nThreadId){return false;}
+MicroProfileThreadInfo MicroProfileGetThreadInfo(ThreadIdType nThreadId)
+{
+	MicroProfileThreadInfo TI = { 0,nThreadId,0,"?","?" };
+	return TI;
+}
 void MicroProfileStopContextSwitchTrace(){}
 void MicroProfileStartContextSwitchTrace(){}
 
