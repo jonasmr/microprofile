@@ -1081,10 +1081,10 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			MicroProfileThreadInfo ThreadInfo = MicroProfileGetThreadInfo(pLog->nThreadId);
 			if (pProcessModule != ThreadInfo.pProcessModule)
 			{
-				nY = MicroProfileWriteProcessHeader(nY, (uint32_t)ThreadInfo.ProcessId, ThreadInfo.pProcessModule);
+				nY = MicroProfileWriteProcessHeader(nY, (uint32_t)ThreadInfo.pid, ThreadInfo.pProcessModule);
 				pProcessModule = ThreadInfo.pProcessModule;
 			}
-			MicroProfileWriteThreadHeader(nY, ThreadInfo.ThreadId, &pLog->ThreadName[0], ThreadInfo.pThreadModule);
+			MicroProfileWriteThreadHeader(nY, ThreadInfo.tid, &pLog->ThreadName[0], ThreadInfo.pThreadModule);
 
 			nY += 3;
 			uint32_t nThreadColor = -1;
@@ -1256,7 +1256,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 					bool bSeen = false;
 					for(uint32_t j = 0; j < nNumThreads; ++j)
 					{
-						if(Threads[j].ThreadId == nThreadId)
+						if(Threads[j].tid == nThreadId)
 						{
 							bSeen = true;
 							break;				
@@ -1276,7 +1276,8 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			std::sort(&Threads[nNumThreadsBase], &Threads[nNumThreads], 
 				[](const auto& l, const auto& r)
 			{
-				return l.nSort > r.nSort;
+				int r1 = memcmp(&r, &l , sizeof(r.nIsLocal) + sizeof(r.pid) + sizeof(r.tid));
+				return r1 < 0;
 			});
 		}
 		uint32_t nStart = nNumThreadsBase;
@@ -1284,19 +1285,20 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			nStart = 0;
 		for(uint32_t i = nStart; i < nNumThreads; ++i)
 		{
-			MicroProfileThreadInfo ThreadInfo = Threads[i];
-			if(ThreadInfo.ThreadId)
+			MicroProfileThreadInfo tt;
+			tt = Threads[i];
+			if(tt.tid)
 			{
 				uint32_t nThreadColor = -1;
-				if (pProcessModule != ThreadInfo.pProcessModule)
+				if (pProcessModule != tt.pProcessModule)
 				{
-					nY = MicroProfileWriteProcessHeader(nY, (uint32_t)ThreadInfo.ProcessId, ThreadInfo.pProcessModule);
-					pProcessModule = ThreadInfo.pProcessModule;
+					nY = MicroProfileWriteProcessHeader(nY, (uint32_t)tt.pid, tt.pProcessModule);
+					pProcessModule = tt.pProcessModule;
 				}
-				if (ThreadInfo.ThreadId == nContextSwitchHoverThreadAfter || ThreadInfo.ThreadId == nContextSwitchHoverThreadBefore)
+				if (tt.tid == nContextSwitchHoverThreadAfter || tt.tid == nContextSwitchHoverThreadBefore)
 					nThreadColor = UI.nHoverColorShared | 0x906060;
-				MicroProfileDrawDetailedContextSwitchBars(nY + 2, ThreadInfo.ThreadId, nContextSwitchStart, nContextSwitchEnd, nBaseTicksCpu, nBaseY);
-				MicroProfileWriteThreadHeader(nY, ThreadInfo.ThreadId, i < nNumThreadsBase ? &S.Pool[i]->ThreadName[0] : nullptr, ThreadInfo.pThreadModule);
+				MicroProfileDrawDetailedContextSwitchBars(nY + 2, tt.tid, nContextSwitchStart, nContextSwitchEnd, nBaseTicksCpu, nBaseY);
+				MicroProfileWriteThreadHeader(nY, tt.tid, i < nNumThreadsBase ? &S.Pool[i]->ThreadName[0] : nullptr, tt.pThreadModule);
 				nY += MICROPROFILE_TEXT_HEIGHT + 1;
 			}
 		}

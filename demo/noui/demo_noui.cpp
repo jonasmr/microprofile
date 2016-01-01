@@ -95,7 +95,7 @@ int main(int argc, char* argv[])
 	MicroProfileDumpFile("spike.html", "spike.csv", 200.f, -1.f);
 	#endif	
 
-	StartFakeWork();
+	//StartFakeWork();
 	while(!g_nQuit)
 	{
 		MICROPROFILE_SCOPE(MAIN);
@@ -136,7 +136,7 @@ int main(int argc, char* argv[])
 
 	}
 
-	StopFakeWork();
+	//StopFakeWork();
 	
 	MicroProfileShutdown();
 

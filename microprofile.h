@@ -462,24 +462,35 @@ MICROPROFILE_API void MicroProfileRegisterGroup(const char* pGroup, const char* 
 
 struct MicroProfileThreadInfo
 {
-	union
-	{
-		//this truncates on platforms where ids are bigger.
-		//if you know of any please let me know
-		//also it assumes big endian
-		struct
-		{
-			uint32_t ThreadId;
-			uint32_t ProcessId : 31;
-			uint32_t nIsLocal : 1;
-		};
-		uint64_t nSort;
-	};
-			
+	//3 first members are used to sort. dont reorder
+	uint32_t nIsLocal;
+	ThreadIdType pid;
+	ThreadIdType tid;
+	//3 first members are used to sort. dont reorder
+
 	const char* pThreadModule;
 	const char* pProcessModule;
+	MicroProfileThreadInfo()
+		:tid(0)
+		, pid(0)
+		, nIsLocal(0)
+		, pThreadModule("?")
+		, pProcessModule("?")
+	{
+	}
+	MicroProfileThreadInfo(uint32_t ThreadId, uint32_t ProcessId, uint32_t nIsLocal)
+		:tid(ThreadId)
+		,pid(ProcessId)
+		,nIsLocal(nIsLocal)
+		,pThreadModule("?")
+		,pProcessModule("?")
+	{
+	}
+	~MicroProfileThreadInfo() {}
 };
 MICROPROFILE_API MicroProfileThreadInfo MicroProfileGetThreadInfo(ThreadIdType nThreadId);
+MICROPROFILE_API uint32_t MicroProfileGetThreadInfoArray(MicroProfileThreadInfo** pThreadArray);
+
 
 #if defined(MICROPROFILE_GPU_TIMERS_D3D12)
 MICROPROFILE_API void MicroProfileGpuInitD3D12(void* pDevice, void* pCommandQueue);
@@ -3602,14 +3613,22 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 
 
 	MicroProfilePrintf(CB, Handle, "var CSwitchThreads = {");
-#ifdef MICROPROFILE_GET_INTERNAL_THREADS
-	MicroProfileInternalThread* pThreads;
-	int nNumThreads = MICROPROFILE_GET_INTERNAL_THREADS(&pThreads);
-	for (int i = 0; i < nNumThreads; ++i)
+
+
+	MicroProfileThreadInfo* pThreadInfo = nullptr;
+	uint32_t nNumThreads = MicroProfileGetThreadInfoArray(&pThreadInfo);
+	for (uint32_t i = 0; i < nNumThreads; ++i)
 	{
-		MicroProfilePrintf(CB, Handle, "%lld:\'%s\',", pThreads[i].tid, pThreads[i].pThreadName);
+		const char* p1 = pThreadInfo[i].pThreadModule ? pThreadInfo[i].pThreadModule : "?";
+		const char* p2 = pThreadInfo[i].pProcessModule ? pThreadInfo[i].pProcessModule : "?";
+
+		MicroProfilePrintf(CB, Handle, "%" PRId64 ":{\'tid\':%" PRId64 ",\'pid\':%" PRId64 ",\'t\':\'%s\',\'p\':\'%s\'},",
+			(uint64_t)pThreadInfo[i].tid,
+			(uint64_t)pThreadInfo[i].tid,
+			(uint64_t)pThreadInfo[i].pid,
+			p1, p2
+			);
 	}
-#endif
 
 	MicroProfilePrintf(CB, Handle, "};\n");
 
@@ -4216,14 +4235,6 @@ struct MicroProfileWin32ContextSwitchShared
 
 struct MicroProfileWin32ThreadInfo
 {
-	struct Thread
-	{
-		uint32_t tid;
-		uint32_t pid;
-		const char* pThreadModule;
-		const char* pProcessModule;
-		uint32_t nIsLocal;
-	};
 	struct Process
 	{
 		uint32_t pid;
@@ -4240,9 +4251,8 @@ struct MicroProfileWin32ThreadInfo
 	uint32_t nStringOffset;
 	uint32_t nNumStrings;
 	Process P[MAX_PROCESSES];
-	Thread T[MAX_THREADS];
-	const char* pStrings[MAX_STRINGS];
-	
+	MicroProfileThreadInfo T[MAX_THREADS];
+	const char* pStrings[MAX_STRINGS];	
 	char StringData[MAX_CHARS];
 };
 
@@ -4343,7 +4353,7 @@ void MicroProfileWin32InitThreadInfo()
 
 
 			{
-				MicroProfileWin32ThreadInfo::Thread T;
+				MicroProfileThreadInfo T;
 				T.pid = te32.th32OwnerProcessID;
 				T.tid = te32.th32ThreadID;
 				const char* pProcess = "unknown";
@@ -4555,24 +4565,24 @@ void* MicroProfileTraceThread(void* unused)
 
 MicroProfileThreadInfo MicroProfileGetThreadInfo(ThreadIdType nThreadId)
 {
-	MicroProfileThreadInfo TI = { (uint32_t)nThreadId,0,0,"?","?"};
 	MicroProfileWin32UpdateThreadInfo();
 
 	for (uint32_t i = 0; i < g_ThreadInfo.nNumThreads; ++i)
 	{
 		if (g_ThreadInfo.T[i].tid == nThreadId)
 		{
-			TI.nIsLocal = g_ThreadInfo.T[i].nIsLocal;
-			TI.pProcessModule = g_ThreadInfo.T[i].pProcessModule;
-			TI.pThreadModule = g_ThreadInfo.T[i].pThreadModule;
-			TI.ProcessId = g_ThreadInfo.T[i].pid;
-			break;
+			return g_ThreadInfo.T[i];
 		}
 	}
-
+	MicroProfileThreadInfo TI((uint32_t)nThreadId, 0, 0);
 	return TI;
 }
-
+uint32_t MicroProfileGetThreadInfoArray(MicroProfileThreadInfo** pThreadArray)
+{
+	MicroProfileWin32InitThreadInfo();
+	*pThreadArray = &g_ThreadInfo.T[0];
+	return g_ThreadInfo.nNumThreads;
+}
 
 
 #elif defined(__APPLE__)
@@ -4646,18 +4656,27 @@ void* MicroProfileTraceThread(void* unused)
 
 MicroProfileThreadInfo MicroProfileGetThreadInfo(ThreadIdType nThreadId)
 {
-	MicroProfileThreadInfo TI = { nThreadId,0,0, "?","?" };
+	MicroProfileThreadInfo TI((uint32_t)nThreadId, 0, 0);
 	return TI;
 }
-
+uint32_t MicroProfileGetThreadInfoArray(MicroProfileThreadInfo** pThreadArray)
+{
+	*pThreadArray = 0;
+	return 0;
+}
 
 #endif
 #else
 
 MicroProfileThreadInfo MicroProfileGetThreadInfo(ThreadIdType nThreadId)
 {
-	MicroProfileThreadInfo TI = { 0,nThreadId,0,"?","?" };
+	MicroProfileThreadInfo TI((uint32_t)nThreadId, 0, 0);
 	return TI;
+}
+uint32_t MicroProfileGetThreadInfoArray(MicroProfileThreadInfo** pThreadArray)
+{
+	*pThreadArray = 0;
+	return 0;
 }
 void MicroProfileStopContextSwitchTrace(){}
 void MicroProfileStartContextSwitchTrace(){}

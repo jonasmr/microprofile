@@ -2683,6 +2683,26 @@ function PreprocessContextSwitchCache()
 	{
 		PreprocessContextSwitchCacheItem(ThreadIds[i]);	
 	}
+	function HandleMissingThread(a)
+	{
+		if(!CSwitchThreads[a])
+		{
+			CSwitchThreads[a] = {'tid':a, 'pid':-1, 't':'?', 'p':'?'}
+		}
+	}
+	function CompareThreadInfo(a, b)
+	{
+		if(a.pid != b.pid)
+			return a.pid - b.pid;
+		else
+			return a.tid - b.tid;
+	}
+	CSwitchOnlyThreads.sort( function(a, b){ 
+		HandleMissingThread(a);
+		HandleMissingThread(b);
+		return CompareThreadInfo(CSwitchThreads[a], CSwitchThreads[b]); 
+	} );
+
 	ProfileLeave();
 }
 
@@ -2971,18 +2991,44 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 
 		if(nContextSwitchEnabled) //non instrumented threads.
 		{
+			var CurrentPid = -112;
 			var ContextSwitchThreads = CSwitchOnlyThreads;
+			function DrawHeader(str, X, Y)
+			{
+				var width = str.length * FontWidth;
+				context.globalAlpha = 0.5;
+				context.fillStyle = 'grey';
+				context.fillRect(X, Y-FontHeight + 2, width, FontHeight);
+				context.globalAlpha = 1.0;
+				context.fillStyle = 'white';
+				context.fillText(str, X, Y);
+
+
+			}
 			for(var i = 0; i < ContextSwitchThreads.length; ++i)
 			{
 				var ThreadId = ContextSwitchThreads[i];
 				var ThreadName = '' + ThreadId;
-				if (CSwitchThreads && CSwitchThreads[ThreadId])
+				var TI = CSwitchThreads[ThreadId];
+
+				if(TI)
 				{
-				    ThreadName = ThreadName + ':' + CSwitchThreads[ThreadId];
+					if(CurrentPid != TI.pid)
+					{
+						fOffsetY += BoxHeight + 1;
+						CurrentPid = TI.pid;
+						var str = TI.pid.toString(16) +':' +TI.p;
+						DrawHeader(str, 0, fOffsetY+5);
+						fOffsetY += BoxHeight + 1;
+					}
 				}
+
 				DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled);
-				context.fillStyle = 'white';
-				context.fillText(ThreadName, 0, fOffsetY+5);
+
+				if(TI)
+				{
+					DrawHeader(TI.tid.toString(16) +':' +TI.t, 0, fOffsetY+5);
+ 				}
 				fOffsetY += BoxHeight + 1;
 			}
 		}
