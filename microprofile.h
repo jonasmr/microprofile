@@ -471,17 +471,17 @@ struct MicroProfileThreadInfo
 	const char* pThreadModule;
 	const char* pProcessModule;
 	MicroProfileThreadInfo()
-		:tid(0)
-		, pid(0)
-		, nIsLocal(0)
+		:nIsLocal(0)
+		,pid(0)
+		,tid(0)
 		, pThreadModule("?")
 		, pProcessModule("?")
 	{
 	}
 	MicroProfileThreadInfo(uint32_t ThreadId, uint32_t ProcessId, uint32_t nIsLocal)
-		:tid(ThreadId)
+		:nIsLocal(nIsLocal)
 		,pid(ProcessId)
-		,nIsLocal(nIsLocal)
+		,tid(ThreadId)
 		,pThreadModule("?")
 		,pProcessModule("?")
 	{

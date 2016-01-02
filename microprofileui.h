@@ -876,13 +876,12 @@ void MicroProfileWriteThreadHeader(uint32_t nY, ThreadIdType ThreadId, const cha
 	int nStrLen = 0;
 	if (pThreadModule)
 	{
-		nStrLen = snprintf(buffer, sizeof(buffer) - 1, "TID:%04x: %s [%s]", ThreadId, pNamedThread ? pNamedThread : "", pThreadModule);
+		nStrLen = snprintf(buffer, sizeof(buffer) - 1, "TID:%04x: %s [%s]", (uint32_t)ThreadId, pNamedThread ? pNamedThread : "", pThreadModule);
 	}
 	else
 	{
-		nStrLen = snprintf(buffer, sizeof(buffer) - 1, "TID:%04x: %s", ThreadId, pNamedThread ? pNamedThread : "");
+		nStrLen = snprintf(buffer, sizeof(buffer) - 1, "TID:%04x: %s", (uint32_t)ThreadId, pNamedThread ? pNamedThread : "");
 	}
-	const char* pBuffer = &buffer[0];
 	MicroProfileDrawTextBackground(10, nY, 0xffffff, 0x88777777, buffer, nStrLen);
 }
 	
@@ -1076,7 +1075,6 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			bool bGpu = pLog->nGpu != 0;
 			float fToMs = bGpu ? fToMsGpu : fToMsCpu;
 			int64_t nBaseTicks = bGpu ? nBaseTicksGpu : nBaseTicksCpu;
-			uint64_t nThreadId = pLog->nThreadId;
 
 			MicroProfileThreadInfo ThreadInfo = MicroProfileGetThreadInfo(pLog->nThreadId);
 			if (pProcessModule != ThreadInfo.pProcessModule)
