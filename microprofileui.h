@@ -1274,7 +1274,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 				}
 			}
 			std::sort(&Threads[nNumThreadsBase], &Threads[nNumThreads], 
-				[](const auto& l, const auto& r)
+				[](const MicroProfileThreadInfo& l, const MicroProfileThreadInfo& r)
 			{
 				int r1 = memcmp(&r, &l , sizeof(r.nIsLocal) + sizeof(r.pid) + sizeof(r.tid));
 				return r1 < 0;

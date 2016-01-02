@@ -104,8 +104,8 @@
 #include <stdint.h>
 #if defined(_WIN32) && _MSC_VER == 1700
 #define PRIx64 "llx"
-#define PRIu64 "ull"
-#define PRId64 "dll"
+#define PRIu64 "llu"
+#define PRId64 "lld"
 #else
 #include <inttypes.h>
 #endif
@@ -148,7 +148,7 @@ typedef uint16_t MicroProfileGroupId;
 #define MICROPROFILE_COUNTER_CLEAR_PTR(name) do{} while(0)
 #define MICROPROFILE_COUNTER_SET_LIMIT(name, count) do{} while(0)
 #define MICROPROFILE_CONDITIONAL(expr) 
-#define MICROPROFILE_COUNTER_CONFIG(name, type, limit)
+#define MICROPROFILE_COUNTER_CONFIG(name, type, limit, flags)
 #define MICROPROFILE_DECLARE_LOCAL_COUNTER(var) 
 #define MICROPROFILE_DEFINE_LOCAL_COUNTER(var, name) 
 #define MICROPROFILE_DECLARE_LOCAL_ATOMIC_COUNTER(var) 
@@ -3622,7 +3622,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 		const char* p1 = pThreadInfo[i].pThreadModule ? pThreadInfo[i].pThreadModule : "?";
 		const char* p2 = pThreadInfo[i].pProcessModule ? pThreadInfo[i].pProcessModule : "?";
 
-		MicroProfilePrintf(CB, Handle, "%" PRId64 ":{\'tid\':%" PRId64 ",\'pid\':%" PRId64 ",\'t\':\'%s\',\'p\':\'%s\'},",
+		MicroProfilePrintf(CB, Handle, "%" PRId64 ":{\'tid\':%" PRId64 ",\'pid\':%" PRId64 ",\'t\':\'%s\',\'p\':\'%s\'},\n",
 			(uint64_t)pThreadInfo[i].tid,
 			(uint64_t)pThreadInfo[i].tid,
 			(uint64_t)pThreadInfo[i].pid,
