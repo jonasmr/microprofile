@@ -3049,7 +3049,7 @@ const char g_MicroProfileHtml_end_2[] =
 "\n"
 "				if(TI)\n"
 "				{\n"
-"					DrawHeader(TI.tid.toString(16) +\':\' +TI.t, 0, fOffsetY+5);\n"
+"					DrawHeader(TI.tid.toString(16) +\':\' +TI.t, 10, fOffsetY+5);\n"
 " 				}\n"
 "				fOffsetY += BoxHeight + 1;\n"
 "			}\n"
@@ -4354,11 +4354,11 @@ const char g_MicroProfileHtml_end_2[] =
 "		{\n"
 "			GroupColors = Obj.GroupColors;\n"
 "		}\n"
-"		e";
+"		";
 
 const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
 const char g_MicroProfileHtml_end_3[] =
-"lse\n"
+"else\n"
 "		{\n"
 "			GroupColors = 0;\n"
 "		}\n"
