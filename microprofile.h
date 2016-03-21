@@ -498,7 +498,7 @@ MICROPROFILE_API void MicroProfileGpuShutdown();
 #endif
 
 #if MICROPROFILE_WEBSERVER
-MICROPROFILE_API void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike = -1.f, float fGpuSpike = -1.f);
+MICROPROFILE_API void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, float fGpuSpike);
 MICROPROFILE_API uint32_t MicroProfileWebServerPort();
 #else
 #define MicroProfileDumpFile(html,csv,cpu, gpu) do{} while(0)

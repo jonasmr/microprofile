@@ -112,7 +112,7 @@ void HandleEvent(SDL_Event* pEvt)
 #if MICROPROFILE_WEBSERVER
 		if(pEvt->key.keysym.sym == 'd')
 		{
-			MicroProfileDumpFile("../dump.html", "../dump.csv");
+			MicroProfileDumpFile("../dump.html", "../dump.csv", -1, -1);
 		}
 #endif
 		if(pEvt->key.keysym.sym == 'l')
