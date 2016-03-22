@@ -2373,20 +2373,20 @@ void MicroProfileFlip(void* pContext)
 		}
 
 		uint8_t* pTimerToGroup = &S.TimerToGroup[0];
+		uint32_t nPutStart[MICROPROFILE_MAX_THREADS];
 		for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
 		{
 			MicroProfileThreadLog* pLog = S.Pool[i];
 			if(!pLog)
 			{
 				pFramePut->nLogStart[i] = 0;
+				nPutStart[i] = (uint32_t)-1;
 			}
 			else
 			{
 				uint32_t nPut = pLog->nPut.load(std::memory_order_acquire);
 				pFramePut->nLogStart[i] = nPut;
-				MP_ASSERT(nPut< MICROPROFILE_BUFFER_SIZE);
-				//need to keep last frame around to close timers. timers more than 1 frame old is ditched.
-				pLog->nGet.store(nPut, std::memory_order_relaxed);
+				nPutStart[i] = nPut;
 			}
 		}
 
@@ -2588,6 +2588,16 @@ void MicroProfileFlip(void* pContext)
 				nAggregateClear = 1;
 			}
 		}
+
+		for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
+		{
+			MicroProfileThreadLog* pLog = S.Pool[i];
+			if(pLog && nPutStart[i] != (uint32_t)-1)
+			{
+				pLog->nGet.store(nPutStart[i], std::memory_order_relaxed);
+			}
+		}
+
 	}
 	if(nAggregateFlip)
 	{
