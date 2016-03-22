@@ -97,7 +97,7 @@
       <AdditionalDependencies>Shell32.lib;Advapi32.lib;opengl32.lib;glu32.lib;winmm.lib;dxguid.lib;ws2_32.lib;../sdl2/visualc/win32/release/sdl2.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>copy ..\sdl2\visualc\sdl\win32\release\sdl2.dll $(TARGETDIR)
+      <Command>copy ..\sdl2\visualc\win32\release\sdl2.dll $(TARGETDIR)
 copy ..\..\bin\microprofile-win32-cswitch_$(PlatformTarget).exe $(ProjectDir)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -141,7 +141,7 @@ copy ..\..\bin\microprofile-win32-cswitch_$(PlatformTarget).exe $(ProjectDir)</C
       <AdditionalDependencies>Shell32.lib;Advapi32.lib;opengl32.lib;glu32.lib;winmm.lib;dxguid.lib;ws2_32.lib;../sdl2/visualc/win32/release/sdl2.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>copy ..\sdl2\visualc\sdl\win32\release\sdl2.dll $(TARGETDIR)
+      <Command>copy ..\sdl2\visualc\win32\release\sdl2.dll $(TARGETDIR)
 copy ..\..\bin\microprofile-win32-cswitch_$(PlatformTarget).exe $(ProjectDir)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>

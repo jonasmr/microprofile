@@ -162,6 +162,7 @@ typedef uint16_t MicroProfileGroupId;
 
 #define MicroProfileGetTime(group, name) 0.f
 #define MicroProfileOnThreadCreate(foo) do{}while(0)
+#define MicroProfileOnThreadExit() do{}while(0)
 #define MicroProfileFlip(pContext) do{}while(0)
 #define MicroProfileSetAggregateFrames(a) do{}while(0)
 #define MicroProfileGetAggregateFrames() 0
@@ -193,10 +194,6 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileGpuInitD3D11(pDevice,pDeviceContext) do{}while(0)
 #define MicroProfileGpuShutdown() do{}while(0)
 #define MicroProfileGpuInitGL() do{}while(0)
-
-
-
-
 
 #else
 
@@ -817,6 +814,7 @@ struct MicroProfileThreadLog
 
 	std::atomic<uint32_t>	nPut;
 	std::atomic<uint32_t>	nGet;
+	uint32_t				nStackPut;
 	uint32_t 				nActive;
 	uint32_t 				nGpu;
 	ThreadIdType			nThreadId;
@@ -1898,18 +1896,60 @@ inline void MicroProfileLogPut(MicroProfileLogEntry LE, MicroProfileThreadLog* p
 {
 	MP_ASSERT(pLog != 0); //this assert is hit if MicroProfileOnCreateThread is not called
 	MP_ASSERT(pLog->nActive);
-	uint32_t nPos = pLog->nPut.load(std::memory_order_relaxed);
-	uint32_t nNextPos = (nPos+1) % MICROPROFILE_BUFFER_SIZE;
-	if(nNextPos == pLog->nGet.load(std::memory_order_relaxed))
+	uint32_t nPut = pLog->nPut.load(std::memory_order_relaxed);
+	uint32_t nNextPos = (nPut+1) % MICROPROFILE_BUFFER_SIZE;
+	uint32_t nGet = pLog->nGet.load(std::memory_order_relaxed);
+	uint32_t nDistance = (nGet - nNextPos) % MICROPROFILE_BUFFER_SIZE;
+	uint32_t nStackPut = pLog->nStackPut;
+	if (nDistance < nStackPut)
 	{
 		S.nOverflow = 100;
 	}
 	else
 	{
-		pLog->Log[nPos] = LE;
+		pLog->Log[nPut] = LE;
 		pLog->nPut.store(nNextPos, std::memory_order_release);
 	}
 }
+
+inline uint64_t MicroProfileLogPutEnter(MicroProfileToken nToken_, uint64_t nTick, MicroProfileThreadLog* pLog)
+{
+	MP_ASSERT(pLog != 0); //this assert is hit if MicroProfileOnCreateThread is not called
+	MP_ASSERT(pLog->nActive);
+	uint64_t LE = MicroProfileMakeLogIndex(MP_LOG_ENTER, nToken_, nTick);
+	uint32_t nPut = pLog->nPut.load(std::memory_order_relaxed);
+	uint32_t nNextPos = (nPut + 1) % MICROPROFILE_BUFFER_SIZE;
+	uint32_t nGet = pLog->nGet.load(std::memory_order_relaxed);
+	uint32_t nDistance = (nGet - nNextPos) % MICROPROFILE_BUFFER_SIZE;
+	uint32_t nStackPut = ++(pLog->nStackPut);
+	if (nDistance < nStackPut+1)
+	{
+		--pLog->nStackPut;
+		S.nOverflow = 100;
+		return MICROPROFILE_INVALID_TICK;
+	}
+	else
+	{
+		pLog->Log[nPut] = LE;
+		pLog->nPut.store(nNextPos, std::memory_order_release);
+		return nTick;
+	}
+}
+inline void MicroProfileLogPutLeave(MicroProfileToken nToken_, uint64_t nTick, MicroProfileThreadLog* pLog)
+{
+	MP_ASSERT(pLog != 0); //this assert is hit if MicroProfileOnCreateThread is not called
+	MP_ASSERT(pLog->nActive);
+	uint64_t LE = MicroProfileMakeLogIndex(MP_LOG_LEAVE, nToken_, nTick);
+	uint32_t nPos = pLog->nPut.load(std::memory_order_relaxed);
+	uint32_t nNextPos = (nPos + 1) % MICROPROFILE_BUFFER_SIZE;
+	uint32_t nGet = pLog->nGet.load(std::memory_order_relaxed);
+	uint32_t nStackPut = --(pLog->nStackPut);
+	MP_ASSERT(nStackPut < MICROPROFILE_STACK_MAX);
+	MP_ASSERT(nNextPos != nPos); //should never happen
+	pLog->Log[nPos] = LE;
+	pLog->nPut.store(nNextPos, std::memory_order_release);
+}
+
 
 inline void MicroProfileLogPut(MicroProfileToken nToken_, uint64_t nTick, uint64_t nBegin, MicroProfileThreadLog* pLog)
 {
@@ -1941,8 +1981,7 @@ uint64_t MicroProfileEnter(MicroProfileToken nToken_)
 			MicroProfileInitThreadLog();
 		}
 		uint64_t nTick = MP_TICK();
-		MicroProfileLogPut(nToken_, nTick, MP_LOG_ENTER, MicroProfileGetThreadLog());
-		return nTick;
+		return MicroProfileLogPutEnter(nToken_, nTick, MicroProfileGetThreadLog());
 	}
 	return MICROPROFILE_INVALID_TICK;
 }
@@ -2059,7 +2098,7 @@ void MicroProfileLeave(MicroProfileToken nToken_, uint64_t nTickStart)
 		}
 		uint64_t nTick = MP_TICK();
 		MicroProfileThreadLog* pLog = MicroProfileGetThreadLog();
-		MicroProfileLogPut(nToken_, nTick, MP_LOG_LEAVE, pLog);
+		MicroProfileLogPutLeave(nToken_, nTick, pLog);
 	}
 }
 

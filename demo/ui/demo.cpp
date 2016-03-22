@@ -69,6 +69,19 @@ MICROPROFILE_DEFINE(MAIN, "MAIN", "Main", 0xff0000);
 
 
 
+void HammerThread()
+{
+	MicroProfileOnThreadCreate("HammerThread");
+	while (!g_nQuit)
+	{
+		MICROPROFILE_SCOPEI("Hammer", "Thread", 0xff00ff);
+
+	}
+	MicroProfileOnThreadExit();
+}
+
+
+
 void HandleEvent(SDL_Event* pEvt)
 {
 	switch(pEvt->type)
@@ -236,7 +249,7 @@ int main(int argc, char* argv[])
 	}
 	glGetError(); //glew generates an error
 		
-
+	std::thread HT(HammerThread);
 
 #if MICROPROFILE_ENABLED
 	MicroProfileGpuInitGL();
