@@ -44,9 +44,29 @@
 #define MicroProfileMousePosition(foo, bar, z) do{}while(0)
 #define MicroProfileModKey(key) do{}while(0)
 #define MicroProfileDraw(foo, bar) do{}while(0)
-#define MicroProfileIsDrawing() 0
 #define MicroProfileToggleDisplayMode() do{}while(0)
 #define MicroProfileSetDisplayMode(f) do{}while(0)
+#define MicroProfileIsDrawing() do{}while(0)
+#define MicroProfileToggleGraph(nToken) do{}while(0) 
+#define MicroProfileDrawGraph(nScreenWidth, nScreenHeight) do{}while(0)
+#define MicroProfileClearGraph() do{}while(0)
+#define MicroProfileDrawLineVertical(nX,nTop,nBottom,nColor) do{}while(0)
+#define MicroProfileDrawLineHorizontal(nLeft, nRight, nY, nColor) do{}while(0)
+#define MicroProfileLoadPreset(pSuffix) do{}while(0)
+#define MicroProfileSavePreset(pSuffix) do{}while(0)
+#define MicroProfileDrawText(nX, nY, nColor, pText, nNumCharacters) do{}while(0)
+#define MicroProfileDrawBox(nX, nY, nX1, nY1, nColor, MicroProfileBoxType) do{}while(0)
+#define MicroProfileDrawLine2D(nVertices,pVertices,nColor) do{}while(0)
+#define MicroProfileDumpTimers() do{}while(0)
+#define MicroProfileInitUI() do{}while(0)
+#define MicroProfileCustomGroupToggle(pCustomName) do{}while(0)
+#define MicroProfileCustomGroupEnable(pCustomName) do{}while(0)
+#define MicroProfileCustomGroupEnable(nIndex) do{}while(0)
+#define MicroProfileCustomGroupDisable() do{}while(0)
+#define MicroProfileCustomGroup(pCustomName,nMaxTimers,nAggregateFlip,fReferenceTime,nFlags) do{}while(0)
+#define MicroProfileCustomGroupAddTimer(pCustomName,pGroup,pTimer) do{}while(0)
+
+
 #else
 
 #ifndef MICROPROFILE_DRAWCURSOR

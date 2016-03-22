@@ -11,3 +11,4 @@ demo\microprofile.vcxproj.filters
 *.tlog
 *.lastbuildstate
 *.o
+*.ipdb

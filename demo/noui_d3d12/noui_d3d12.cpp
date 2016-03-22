@@ -214,7 +214,7 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 	MicroProfileSetForceEnable(true);
 	MicroProfileSetEnableAllGroups(true);
 	MicroProfileSetForceMetaCounters(true);
-	g_QueueGraphics = MICROPROFILE_GPU_INIT_QUEUE("GPU-Graphics-Queue");
+	MICROPROFILE_CONDITIONAL(g_QueueGraphics = MICROPROFILE_GPU_INIT_QUEUE("GPU-Graphics-Queue"));
 	MicroProfileGpuInitD3D12(g_pDevice, g_pCommandQueue);
 	//MICROPROFILE_GPU_BEGIN(0, MicroProfileGetGlobaGpuThreadLog());
 
@@ -674,7 +674,7 @@ void D3D12HelloTriangle::PopulateCommandList()
 	// list, that command list can then be reset at any time and must be before 
 	// re-recording.
 	ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), m_pipelineState.Get()));
-	MicroProfileGpuSetContext(m_commandList.Get(), MicroProfileGetGlobaGpuThreadLog());
+	MICROPROFILE_GPU_SET_CONTEXT(m_commandList.Get(), MicroProfileGetGlobaGpuThreadLog());
 	MICROPROFILE_SCOPEGPUI("Full Frame", 0xff00ff00);
 	// Set necessary state.
 	m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());

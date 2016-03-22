@@ -197,7 +197,7 @@ int main(int argc, char* argv[])
 	MICROPROFILE_REGISTER_GROUP("MAIN", "main", 0x88fff00f);
 
 
-	g_QueueGraphics = MICROPROFILE_GPU_INIT_QUEUE("GPU-Graphics-Queue");
+	MICROPROFILE_CONDITIONAL(g_QueueGraphics = MICROPROFILE_GPU_INIT_QUEUE("GPU-Graphics-Queue"));
 
 	printf("press 'z' to toggle microprofile drawing\n");
 	printf("press 'right shift' to pause microprofile update\n");

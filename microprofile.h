@@ -132,8 +132,9 @@ typedef uint16_t MicroProfileGroupId;
 #define MICROPROFILE_GPU_GET_QUEUE(QueueName) do {} while(0)
 #define MICROPROFILE_GPU_BEGIN(pContext, pLog) do {} while(0)
 #define MICROPROFILE_GPU_SET_CONTEXT(pContext, pLog) do {} while(0)
-#define MICROPROFILE_GPU_END(pLog) do {} while(0)
+#define MICROPROFILE_GPU_END(pLog) 0
 #define MICROPROFILE_GPU_SUBMIT(Queue, Work) do {} while(0)
+#define MICROPROFILE_THREADLOGGPURESET(a) do{}while(0)
 #define MICROPROFILE_META_CPU(name, count)
 #define MICROPROFILE_META_GPU(name, count)
 #define MICROPROFILE_FORCEENABLECPUGROUP(s) do{} while(0)
@@ -181,6 +182,21 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileDisableMetaCounter(c) do{}while(0)
 #define MicroProfileDumpFile(html,csv,spikecpu,spikegpu) do{} while(0)
 #define MicroProfileWebServerPort() ((uint32_t)-1)
+#define MicroProfileStartContextSwitchTrace() do{}while(0)
+#define MicroProfileDumpFile(html,csv,cpu, gpu) do{} while(0)
+#define MicroProfileWebServerPort() ((uint32_t)-1)
+#define MicroProfileGpuInsertTimeStamp(a) 1
+#define MicroProfileGpuGetTimeStamp(a) 0
+#define MicroProfileTicksPerSecondGpu() 1
+#define MicroProfileGetGpuTickReference(a,b) 0
+#define MicroProfileGpuInitD3D12(pDevice,pCommandQueue) do{}while(0)
+#define MicroProfileGpuInitD3D11(pDevice,pDeviceContext) do{}while(0)
+#define MicroProfileGpuShutdown() do{}while(0)
+#define MicroProfileGpuInitGL() do{}while(0)
+
+
+
+
 
 #else
 
@@ -292,6 +308,7 @@ typedef uint32_t ThreadIdType;
 #define MICROPROFILE_GPU_SET_CONTEXT(pContext, pLog) MicroProfileGpuSetContext(pContext, pLog)
 #define MICROPROFILE_GPU_END(pLog) MicroProfileGpuEnd(pLog)
 #define MICROPROFILE_GPU_SUBMIT(Queue, Work) MicroProfileGpuSubmit(Queue, Work)
+#define MICROPROFILE_THREADLOGGPURESET(a) MicroProfileThreadLogGpuReset(a)
 #define MICROPROFILE_META_CPU(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__) = MicroProfileGetMetaToken(name); MicroProfileMetaUpdate(MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__), count, MicroProfileTokenTypeCpu)
 //#define MICROPROFILE_META_GPU(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__) = MicroProfileGetMetaToken(name); MicroProfileMetaUpdate(MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__), count, MicroProfileTokenTypeGpu)
 #define MICROPROFILE_COUNTER_ADD(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__) = MicroProfileGetCounterToken(name); MicroProfileCounterAdd(MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__), count)

@@ -10,6 +10,8 @@
 #include "microprofile.h"
 uint32_t g_nQuit = 0;
 
+#include <stdio.h>
+
 using namespace DirectX;
 struct SimpleVertex
 {

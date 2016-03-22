@@ -365,7 +365,7 @@ void MicroProfileEndDraw()
 }
 
 
-
+#if MICROPROFILEUI_ENABLED
 void MicroProfileDrawText(int nX, int nY, uint32_t nColor, const char* pText, uint32_t nLen)
 {
 	MICROPROFILE_SCOPEI("MicroProfile", "TextDraw", 0xff88ee);
@@ -502,6 +502,7 @@ void MicroProfileDrawLine2D(uint32_t nVertices, float* pVertices, uint32_t nColo
 		pVertex += 2;
 	}
 }
+#endif
 
 namespace
 {

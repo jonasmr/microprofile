@@ -56,7 +56,9 @@ ID3D12Fence* g_pFenceCompute = 0;
 UINT g_nSrc = 0;
 UINT g_nDst = 1;
 
+#if MICROPROFILE_ENABLED
 MicroProfileThreadLogGpu* g_gpuThreadLog[NumContexts];
+#endif
 
 inline void ThrowIfFailed(HRESULT hr)
 {
@@ -506,8 +508,8 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 
 	ShowWindow(m_hwnd, nCmdShow);
 
-	g_QueueGraphics = MICROPROFILE_GPU_INIT_QUEUE("GPU-Graphics-Queue");
-	g_QueueCompute = MICROPROFILE_GPU_INIT_QUEUE("GPU-Compute-Queue");
+	MICROPROFILE_CONDITIONAL( g_QueueGraphics = MICROPROFILE_GPU_INIT_QUEUE("GPU-Graphics-Queue"));
+	MICROPROFILE_CONDITIONAL( g_QueueCompute = MICROPROFILE_GPU_INIT_QUEUE("GPU-Compute-Queue"));
 
 	MicroProfileOnThreadCreate("Main");
 	MicroProfileSetForceEnable(true);
@@ -517,7 +519,7 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 	// Initialize the sample. OnInit is defined in each child-implementation of DXSample.
 	OnInit();
 
-
+#if MICROPROFILE_ENABLED
 	for (uint32_t i = 0; i < _countof(g_TokenGpuFrameIndex); ++i)
 	{
 		char frame[255];
@@ -531,7 +533,6 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 		snprintf(frame, sizeof(frame) - 1, "Compute-Write-%d", i);
 		g_TokenGpuComputeFrameIndex[i] = MicroProfileGetToken("GPU", frame, (uint32_t)-1, MicroProfileTokenTypeGpu);
 	}
-
 	MicroProfileGpuInitD3D12(g_pDevice, g_pCommandQueue);
 
 
@@ -539,6 +540,7 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 	{
 		g_gpuThreadLog[i] = MicroProfileThreadLogGpuAlloc();
 	}
+#endif
 
 	// Main sample loop.
 	MSG msg = { 0 };
@@ -1649,7 +1651,7 @@ void D3D12Multithreading::OnRender()
 
 	for (uint32_t i = 0; i < NumContexts; ++i)
 	{
-		MicroProfileThreadLogGpuReset(g_gpuThreadLog[i]);
+		MICROPROFILE_THREADLOGGPURESET(g_gpuThreadLog[i]);
 	}
 
 
@@ -1800,8 +1802,8 @@ void D3D12Multithreading::BeginFrame()
 	counter++;
 	{
 		ID3D12GraphicsCommandList* pCommandList = m_pCurrentFrameResource->m_commandListCompute.Get();
-		MicroProfileThreadLogGpu* pGpuLog = MicroProfileThreadLogGpuAlloc();
-		MicroProfileGpuBegin(pCommandList, pGpuLog);
+		MICROPROFILE_CONDITIONAL(MicroProfileThreadLogGpu* pGpuLog = MicroProfileThreadLogGpuAlloc());
+		MICROPROFILE_GPU_BEGIN(pCommandList, pGpuLog);
 		{
 			MICROPROFILE_SCOPEGPU_TOKEN_L(pGpuLog, g_TokenGpuComputeFrameIndex[g_nDst]);
 			MICROPROFILE_SCOPEGPUI_L(pGpuLog, "Compute-Demo", 0xffffffff);
@@ -1844,9 +1846,9 @@ void D3D12Multithreading::BeginFrame()
 		g_FenceCompute++;
 		g_pComputeQueue->Signal(g_pFenceCompute, g_FenceCompute);
 		m_pCurrentFrameResource->m_computeFenceValue = g_FenceCompute;
-		uint64_t nGpuBlock = MicroProfileGpuEnd(pGpuLog);
+		uint64_t nGpuBlock = MICROPROFILE_GPU_END(pGpuLog);
 		MICROPROFILE_GPU_SUBMIT(g_QueueCompute, nGpuBlock);
-		MicroProfileThreadLogGpuFree(pGpuLog);
+		MICROPROFILE_CONDITIONAL( MicroProfileThreadLogGpuFree(pGpuLog) );
 	}
 
 	// Indicate that the back buffer will be used as a render target.
@@ -1909,7 +1911,7 @@ void D3D12Multithreading::WorkerThread(int threadIndex)
 		//
 		
 
-		MicroProfileThreadLogGpu* pMicroProfileLog = g_gpuThreadLog[threadIndex];
+		MICROPROFILE_CONDITIONAL( MicroProfileThreadLogGpu* pMicroProfileLog = g_gpuThreadLog[threadIndex] );
 
 		// Populate the command list.
 		SetCommonPipelineState(pShadowCommandList);
@@ -1924,7 +1926,7 @@ void D3D12Multithreading::WorkerThread(int threadIndex)
 		PIXBeginEvent(pShadowCommandList, 0, L"Worker drawing shadow pass...");
 		{
 			MICROPROFILE_SCOPEI("CPU", "Shadows", 0xff00ff00);
-			MicroProfileGpuBegin(pShadowCommandList, pMicroProfileLog);
+			MICROPROFILE_GPU_BEGIN(pShadowCommandList, pMicroProfileLog);
 			{
 				MICROPROFILE_SCOPEGPU_TOKEN_L(pMicroProfileLog, g_TokenGpuFrameIndex[g_nSrc]);
  				MICROPROFILE_SCOPEGPUI_L(pMicroProfileLog, "Shadows", 0xff00);
@@ -1937,7 +1939,7 @@ void D3D12Multithreading::WorkerThread(int threadIndex)
 				}
 			}
 
-			m_pCurrentFrameResource->m_shadowMicroProfile[threadIndex] = MicroProfileGpuEnd(pMicroProfileLog);
+			m_pCurrentFrameResource->m_shadowMicroProfile[threadIndex] = MICROPROFILE_GPU_END(pMicroProfileLog);
 
 		}
 
@@ -1956,7 +1958,7 @@ void D3D12Multithreading::WorkerThread(int threadIndex)
 
 		// Populate the command list.  These can only be sent after the shadow 
 		// passes for this frame have been submitted.
-		MicroProfileGpuBegin(pSceneCommandList, pMicroProfileLog);
+		MICROPROFILE_GPU_BEGIN(pSceneCommandList, pMicroProfileLog);
 		{
 			MICROPROFILE_SCOPEI("CPU", "Scene", 0xff00ffff);
 			MICROPROFILE_SCOPEGPU_TOKEN_L(pMicroProfileLog, g_TokenGpuFrameIndex[g_nSrc]);
@@ -1984,7 +1986,7 @@ void D3D12Multithreading::WorkerThread(int threadIndex)
 
 			PIXEndEvent(pSceneCommandList);
 		}
-		m_pCurrentFrameResource->m_sceneMicroProfile[threadIndex] = MicroProfileGpuEnd(pMicroProfileLog);
+		m_pCurrentFrameResource->m_sceneMicroProfile[threadIndex] = MICROPROFILE_GPU_END(pMicroProfileLog);
 		ThrowIfFailed(pSceneCommandList->Close());
 
 #if !SINGLETHREADED
