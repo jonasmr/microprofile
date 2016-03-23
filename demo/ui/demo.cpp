@@ -75,6 +75,7 @@ void HammerThread()
 	while (!g_nQuit)
 	{
 		MICROPROFILE_SCOPEI("Hammer", "Thread", 0xff00ff);
+		usleep(10);
 
 	}
 	MicroProfileOnThreadExit();

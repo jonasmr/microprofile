@@ -2240,21 +2240,6 @@ void MicroProfileFlip(void* pContext)
 	MICROPROFILE_SCOPE(g_MicroProfileFlip);
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 
-	int64_t nGpuWork = MicroProfileGpuEnd(S.pGpuGlobal);
-	MicroProfileGpuSubmit(S.GpuQueue, nGpuWork);
-	MicroProfileThreadLogGpuReset(S.pGpuGlobal);
-	for (uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
-	{
-		if (S.PoolGpu[i])
-		{
-			S.PoolGpu[i]->nPut = 0;
-		}
-	}
-
-	MicroProfileGpuBegin(0, S.pGpuGlobal);
-
-	uint32_t nGpuTimeStamp = MicroProfileGpuFlip(pContext);
-
 	if(S.nToggleRunning)
 	{
 		S.nRunning = !S.nRunning;
@@ -2305,6 +2290,23 @@ void MicroProfileFlip(void* pContext)
 
 	if(S.nRunning || S.nForceEnable)
 	{
+		int64_t nGpuWork = MicroProfileGpuEnd(S.pGpuGlobal);
+		MicroProfileGpuSubmit(S.GpuQueue, nGpuWork);
+		MicroProfileThreadLogGpuReset(S.pGpuGlobal);
+		for (uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
+		{
+			if (S.PoolGpu[i])
+			{
+				S.PoolGpu[i]->nPut = 0;
+			}
+		}
+
+		MicroProfileGpuBegin(0, S.pGpuGlobal);
+
+		uint32_t nGpuTimeStamp = MicroProfileGpuFlip(pContext);
+
+
+
 		S.nFramePutIndex++;
 		S.nFramePut = (S.nFramePut+1) % MICROPROFILE_MAX_FRAME_HISTORY;
 		MP_ASSERT((S.nFramePutIndex % MICROPROFILE_MAX_FRAME_HISTORY) == S.nFramePut);
