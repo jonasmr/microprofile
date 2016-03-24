@@ -1942,7 +1942,6 @@ inline void MicroProfileLogPutLeave(MicroProfileToken nToken_, uint64_t nTick, M
 	uint64_t LE = MicroProfileMakeLogIndex(MP_LOG_LEAVE, nToken_, nTick);
 	uint32_t nPos = pLog->nPut.load(std::memory_order_relaxed);
 	uint32_t nNextPos = (nPos + 1) % MICROPROFILE_BUFFER_SIZE;
-	uint32_t nGet = pLog->nGet.load(std::memory_order_relaxed);
 	uint32_t nStackPut = --(pLog->nStackPut);
 	MP_ASSERT(nStackPut < MICROPROFILE_STACK_MAX);
 	MP_ASSERT(nNextPos != nPos); //should never happen
