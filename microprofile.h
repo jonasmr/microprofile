@@ -1070,6 +1070,9 @@ struct MicroProfile
 
 	uint64_t 					nWebServerDataSent;
 
+	MpSocket 					WebSockets[4];
+	uint32_t					nNumWebSockets;
+
 
 
 	char 						CounterNames[MICROPROFILE_MAX_COUNTER_NAME_CHARS];
@@ -4017,11 +4020,466 @@ int MicroProfileParseGet(const char* pGet)
 		return MICROPROFILE_WEBSERVER_MAXFRAMES;
 	}
 }
+
+
+
+
+void MicroProfileBase64Encode(char* pOut, const uint8_t* pIn, uint32_t nLen)
+{
+	static const char* CODES ="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+	//..straight from wikipedia.
+	int b;
+	char* o = pOut;
+	for(uint32_t i = 0; i < nLen; i += 3)
+	{
+		b = (pIn[i] & 0xfc) >> 2;
+		*o++ = CODES[b];
+		b = (pIn[i] & 0x3) << 4;
+		if(i + 1 < nLen)
+		{
+			b |= (pIn[i + 1] & 0xF0) >> 4;
+			*o++ = CODES[b];
+            b = (pIn[i + 1] & 0x0F) << 2;
+			if (i + 2 < nLen)
+			{
+				b |= (pIn[i + 2] & 0xC0) >> 6;
+				*o++ = CODES[b];
+				b = pIn[i + 2] & 0x3F;
+				*o++ = CODES[b];
+			} 
+			else
+			{
+				*o++ = CODES[b];
+				*o++ = '=';
+			}
+		}
+		else
+		{
+			*o++ = CODES[b];
+			*o++ = '=';
+			*o++ = '=';
+		}
+	}
+}
+
+//begin: SHA-1 in C
+//ftp://ftp.funet.fi/pub/crypt/hash/sha/sha1.c
+//SHA-1 in C
+//By Steve Reid <steve@edmweb.com>
+//100% Public Domain
+
+typedef struct {
+	uint32_t state[5];
+	uint32_t count[2];
+	unsigned char buffer[64];
+} MicroProfile_SHA1_CTX;
+#include <string.h>
+#include <netinet/in.h>
+
+static void MicroProfile_SHA1_Transform(u_int32_t[5], const unsigned char[64]);
+
+#define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
+
+#define blk0(i) (block->l[i] = htonl(block->l[i]))
+#define blk(i) (block->l[i&15] = rol(block->l[(i+13)&15]^block->l[(i+8)&15] \
+    ^block->l[(i+2)&15]^block->l[i&15],1))
+
+#define R0(v,w,x,y,z,i) z+=((w&(x^y))^y)+blk0(i)+0x5A827999+rol(v,5);w=rol(w,30);
+#define R1(v,w,x,y,z,i) z+=((w&(x^y))^y)+blk(i)+0x5A827999+rol(v,5);w=rol(w,30);
+#define R2(v,w,x,y,z,i) z+=(w^x^y)+blk(i)+0x6ED9EBA1+rol(v,5);w=rol(w,30);
+#define R3(v,w,x,y,z,i) z+=(((w|x)&y)|(w&x))+blk(i)+0x8F1BBCDC+rol(v,5);w=rol(w,30);
+#define R4(v,w,x,y,z,i) z+=(w^x^y)+blk(i)+0xCA62C1D6+rol(v,5);w=rol(w,30);
+
+
+// Hash a single 512-bit block. This is the core of the algorithm. 
+
+static void MicroProfile_SHA1_Transform(u_int32_t state[5], const unsigned char buffer[64])
+{
+    u_int32_t a, b, c, d, e;
+    typedef union {
+	unsigned char c[64];
+	u_int32_t l[16];
+    } CHAR64LONG16;
+    CHAR64LONG16 *block;
+
+    block = (CHAR64LONG16 *) buffer;
+    // Copy context->state[] to working vars
+    a = state[0];
+    b = state[1];
+    c = state[2];
+    d = state[3];
+    e = state[4];
+    // 4 rounds of 20 operations each. Loop unrolled. 
+    R0(a,b,c,d,e, 0); R0(e,a,b,c,d, 1); R0(d,e,a,b,c, 2); R0(c,d,e,a,b, 3);
+    R0(b,c,d,e,a, 4); R0(a,b,c,d,e, 5); R0(e,a,b,c,d, 6); R0(d,e,a,b,c, 7);
+    R0(c,d,e,a,b, 8); R0(b,c,d,e,a, 9); R0(a,b,c,d,e,10); R0(e,a,b,c,d,11);
+    R0(d,e,a,b,c,12); R0(c,d,e,a,b,13); R0(b,c,d,e,a,14); R0(a,b,c,d,e,15);
+    R1(e,a,b,c,d,16); R1(d,e,a,b,c,17); R1(c,d,e,a,b,18); R1(b,c,d,e,a,19);
+    R2(a,b,c,d,e,20); R2(e,a,b,c,d,21); R2(d,e,a,b,c,22); R2(c,d,e,a,b,23);
+    R2(b,c,d,e,a,24); R2(a,b,c,d,e,25); R2(e,a,b,c,d,26); R2(d,e,a,b,c,27);
+    R2(c,d,e,a,b,28); R2(b,c,d,e,a,29); R2(a,b,c,d,e,30); R2(e,a,b,c,d,31);
+    R2(d,e,a,b,c,32); R2(c,d,e,a,b,33); R2(b,c,d,e,a,34); R2(a,b,c,d,e,35);
+    R2(e,a,b,c,d,36); R2(d,e,a,b,c,37); R2(c,d,e,a,b,38); R2(b,c,d,e,a,39);
+    R3(a,b,c,d,e,40); R3(e,a,b,c,d,41); R3(d,e,a,b,c,42); R3(c,d,e,a,b,43);
+    R3(b,c,d,e,a,44); R3(a,b,c,d,e,45); R3(e,a,b,c,d,46); R3(d,e,a,b,c,47);
+    R3(c,d,e,a,b,48); R3(b,c,d,e,a,49); R3(a,b,c,d,e,50); R3(e,a,b,c,d,51);
+    R3(d,e,a,b,c,52); R3(c,d,e,a,b,53); R3(b,c,d,e,a,54); R3(a,b,c,d,e,55);
+    R3(e,a,b,c,d,56); R3(d,e,a,b,c,57); R3(c,d,e,a,b,58); R3(b,c,d,e,a,59);
+    R4(a,b,c,d,e,60); R4(e,a,b,c,d,61); R4(d,e,a,b,c,62); R4(c,d,e,a,b,63);
+    R4(b,c,d,e,a,64); R4(a,b,c,d,e,65); R4(e,a,b,c,d,66); R4(d,e,a,b,c,67);
+    R4(c,d,e,a,b,68); R4(b,c,d,e,a,69); R4(a,b,c,d,e,70); R4(e,a,b,c,d,71);
+    R4(d,e,a,b,c,72); R4(c,d,e,a,b,73); R4(b,c,d,e,a,74); R4(a,b,c,d,e,75);
+    R4(e,a,b,c,d,76); R4(d,e,a,b,c,77); R4(c,d,e,a,b,78); R4(b,c,d,e,a,79);
+    // Add the working vars back into context.state[] 
+    state[0] += a;
+    state[1] += b;
+    state[2] += c;
+    state[3] += d;
+    state[4] += e;
+    // Wipe variables 
+    a = b = c = d = e = 0;
+}
+
+
+void MicroProfile_SHA1_Init(MicroProfile_SHA1_CTX *context)
+{
+    // SHA1 initialization constants 
+    context->state[0] = 0x67452301;
+    context->state[1] = 0xEFCDAB89;
+    context->state[2] = 0x98BADCFE;
+    context->state[3] = 0x10325476;
+    context->state[4] = 0xC3D2E1F0;
+    context->count[0] = context->count[1] = 0;
+}
+
+
+// Run your data through this. 
+
+void MicroProfile_SHA1_Update(MicroProfile_SHA1_CTX *context, const unsigned char *data, unsigned int len)
+{
+    unsigned int i, j;
+
+    j = (context->count[0] >> 3) & 63;
+    if ((context->count[0] += len << 3) < (len << 3)) context->count[1]++;
+    context->count[1] += (len >> 29);
+    i = 64 - j;
+    while (len >= i) {
+		memcpy(&context->buffer[j], data, i);
+		MicroProfile_SHA1_Transform(context->state, context->buffer);
+		data += i;
+		len -= i;
+		i = 64;
+		j = 0;
+    }
+
+    memcpy(&context->buffer[j], data, len);
+}
+
+
+// Add padding and return the message digest.
+
+void MicroProfile_SHA1_Final(unsigned char digest[20], MicroProfile_SHA1_CTX *context)
+{
+    u_int32_t i, j;
+    unsigned char finalcount[8];
+
+    for (i = 0; i < 8; i++) {
+        finalcount[i] = (unsigned char)((context->count[(i >= 4 ? 0 : 1)]
+         >> ((3-(i & 3)) * 8) ) & 255);  // Endian independent
+    }
+    MicroProfile_SHA1_Update(context, (unsigned char *) "\200", 1);
+    while ((context->count[0] & 504) != 448) {
+		MicroProfile_SHA1_Update(context, (unsigned char *) "\0", 1);
+    }
+    MicroProfile_SHA1_Update(context, finalcount, 8);  // Should cause a SHA1Transform()
+    for (i = 0; i < 20; i++) {
+		digest[i] = (unsigned char)((context->state[i>>2] >> ((3-(i & 3)) * 8) ) & 255);
+    }
+    // Wipe variables
+    i = j = 0;
+    memset(context->buffer, 0, 64);
+    memset(context->state, 0, 20);
+    memset(context->count, 0, 8);
+    memset(&finalcount, 0, 8);
+}
+
+
+#undef rol
+#undef blk0
+#undef blk
+#undef R0
+#undef R1
+#undef R2
+#undef R3
+#undef R4
+
+//end: SHA-1 in C
+
+void MicroProfileSocketSend(MpSocket Connection, char* pMessage, int nLen)
+{
+	int s = send(Connection, pMessage, nLen, 0);
+	MP_ASSERT(s == nLen);
+}
+struct MicroProfileWebSocketHeader0
+{
+	union
+	{
+		struct
+		{
+			uint8_t opcode  : 4;
+			uint8_t RSV3 : 1;
+			uint8_t RSV2 : 1;
+			uint8_t RSV1 : 1;
+			uint8_t FIN  : 1;
+		};
+		uint8_t v;
+	};
+};
+
+struct MicroProfileWebSocketHeader1
+{
+	union
+	{
+		struct
+		{
+			uint8_t payload : 7;
+			uint8_t MASK  : 1;
+		};
+		uint8_t v;
+	};
+};
+
+
+bool MicroProfileWebSocketSend(MpSocket Connection, const char* pMessage, uint64_t nLen)
+{
+	MicroProfileWebSocketHeader0 h0;
+	MicroProfileWebSocketHeader1 h1;
+	h0.v = 0;
+	h1.v = 0;
+	h0.opcode = 1;
+	h0.FIN = 1;
+	uint32_t nExtraSizeBytes = 0;
+	uint8_t nExtraSize[8];
+	if(nLen > 125)
+	{
+		if(nLen > 0xffff)
+		{
+			nExtraSizeBytes = 8;
+			h1.payload = 127;
+		}
+		else
+		{
+			h1.payload = 126;
+			nExtraSizeBytes = 2;
+		}
+		uint64_t nCount = nLen;
+		for(uint32_t i = 0; i < nExtraSizeBytes; ++i)
+		{
+			nExtraSize[nExtraSizeBytes-i-1] = nCount & 0xff;
+			nCount >>= 8;
+		}
+
+		uint32_t nSize = 0;
+		for(uint32_t i = 0; i < nExtraSizeBytes; i++)
+		{
+			nSize <<= 8;
+			nSize += nExtraSize[i];			
+		}
+		MP_ASSERT(nSize == nLen); // verify
+	}
+	else
+	{
+		h1.payload = nLen;
+	}
+	send(Connection, &h0, 1, 0);
+	send(Connection, &h1, 1, 0);
+	if(nExtraSizeBytes)
+	{
+		send(Connection, &nExtraSize[0], nExtraSizeBytes, 0);
+	}
+	send(Connection, pMessage, nLen, 0);
+	return true;
+
+}
+
+bool MicroProfileWebSocketReceive(MpSocket Connection)
+{
+
+     //  0                   1                   2                   3
+     //  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+     // +-+-+-+-+-------+-+-------------+-------------------------------+
+     // |F|R|R|R| opcode|M| Payload len |    Extended payload length    |
+     // |I|S|S|S|  (4)  |A|     (7)     |             (16/64)           |
+     // |N|V|V|V|       |S|             |   (if payload len==126/127)   |
+     // | |1|2|3|       |K|             |                               |
+     // +-+-+-+-+-------+-+-------------+ - - - - - - - - - - - - - - - +
+	int r;
+	char* bytes = 0;
+	uint64_t nSize;
+	uint64_t nSizeBytes = 0;
+	uint8_t Mask[4];
+	static unsigned char* Bytes = 0;
+	static char BytesAllocated = 0;
+	MicroProfileWebSocketHeader0 h0;
+	MicroProfileWebSocketHeader1 h1;
+	static_assert(sizeof(h0) == 1, "");
+	static_assert(sizeof(h1) == 1, "");
+	
+	r = recv(Connection, &h0, 1, 0);
+	if(1 != r)
+		goto fail;
+	r = recv(Connection, &h1, 1, 0);
+	if(1 != r)
+		goto fail;
+	printf("received %d opcode %d .. mask %d %02x\n", h1.payload, h0.opcode, h1.MASK, h0.v);
+
+
+	if(h0.RSV1 != 0 || h0.RSV2 != 0 || h0.RSV3 != 0)
+		goto fail;
+
+
+	nSize = h1.payload;
+	nSizeBytes = 0;
+	switch(nSize)
+	{
+		case 126: 
+			nSizeBytes = 2;
+			break;
+		case 127:
+			nSizeBytes = 8;
+			break;
+		default:
+			break;
+	}
+	if(nSizeBytes)
+	{
+		nSize = 0;
+        uint64_t MessageLength = 0;
+
+		uint8_t Bytes[8];
+		int r = recv(Connection, &Bytes[0], nSizeBytes, 0);
+		if(nSizeBytes != r)
+			goto fail;
+		for(uint32_t i = 0; i < nSizeBytes; i++)
+		{
+			nSize <<= 8;
+			nSize += Bytes[i];			
+		}
+
+        for(uint32_t i = 0; i < nSizeBytes; i++)
+            MessageLength |= Bytes[i] << ((nSizeBytes - 1 - i) * 8);
+        printf("size xx %lld %lld\n", MessageLength, nSize);
+        MP_ASSERT(MessageLength == nSize);
+	}
+
+	if(h1.MASK)
+	{
+		recv(Connection, &Mask[0], 4, 0);
+	}
+
+
+
+
+	if(nSize+1 > BytesAllocated)
+	{
+		if(Bytes)
+			free(Bytes);
+		Bytes = new unsigned char[nSize+1];
+		BytesAllocated = nSize + 1;
+	}
+	recv(Connection, Bytes, nSize, 0);
+	for(uint32_t i = 0; i < nSize; ++i)
+		Bytes[i] ^= Mask[i&3];
+
+	Bytes[nSize] = '\0';
+	printf("got message size %lld: '%s'\n", nSize, Bytes);
+	return true;
+
+	fail:
+
+	printf("failing\n");
+	printf("addr %p\n", bytes);
+	MP_ASSERT(0);
+
+}
+
+void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
+{
+	const char* pGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+	const char* pHandShake = "HTTP/1.1 101 Switching Protocols\r\n"
+	"Upgrade: websocket\r\n" 
+	"Connection: Upgrade\r\n"
+	"Sec-WebSocket-Accept: ";
+
+	char EncodeBuffer[512];
+	int nLen = snprintf(EncodeBuffer, sizeof(EncodeBuffer)-1, "%s%s", pWebSocketKey, pGUID);
+	printf("encode buffer is '%s' %d, %d\n", EncodeBuffer, nLen, (int)strlen(EncodeBuffer));
+
+	uint8_t sha[20];
+	MicroProfile_SHA1_CTX ctx;
+    MicroProfile_SHA1_Init(&ctx);
+ 	MicroProfile_SHA1_Update(&ctx, (unsigned char*)EncodeBuffer, nLen);
+	MicroProfile_SHA1_Final((unsigned char*)&sha[0], &ctx);
+	char HashOut[(1+sizeof(sha)/3)*4];
+	MicroProfileBase64Encode(&HashOut[0], &sha[0], sizeof(sha));
+
+	char Reply[1024];
+	nLen = snprintf(Reply, sizeof(Reply)-1, "%s%s\r\n\r\n", pHandShake, HashOut);;
+	MP_ASSERT(nLen < sizeof(Reply));
+	// printf("reply is \n%s\n", Reply);
+	// printf("RESRES is \n%s\n", response_buffer);
+	MicroProfileSocketSend(Connection, Reply, nLen);
+	S.WebSockets[S.nNumWebSockets++] = Connection;
+}
+
+
+
+void MicroProfileWebSocketUpdate()
+{
+	MICROPROFILE_SCOPEI("MicroProfile", "Websocket-update", -1);
+	fd_set Read, Write, Error;
+	FD_ZERO(&Read);
+	FD_ZERO(&Write);
+	FD_ZERO(&Error);
+	int LastSocket = 1;
+	for(uint32_t i = 0; i < S.nNumWebSockets; ++i)
+	{
+		LastSocket = MicroProfileMax(LastSocket, S.WebSockets[i]+1);
+		FD_SET(S.WebSockets[i], &Read);
+		FD_SET(S.WebSockets[i], &Write);
+		FD_SET(S.WebSockets[i], &Error);
+	}
+	timeval tv;
+	tv.tv_sec = 0;
+    tv.tv_usec = 0;
+
+    if(-1 == select(LastSocket, &Read, &Write, &Error, &tv))
+    {
+    	MP_ASSERT(0);
+    }
+	for(uint32_t i = 0; i < S.nNumWebSockets; ++i)
+	{
+		MpSocket s = S.WebSockets[i];
+		if(FD_ISSET(s, &Error))
+		{
+			MP_ASSERT(0); // todo, remove & fix.
+		}
+		if(FD_ISSET(s, &Read))
+		{
+			MicroProfileWebSocketReceive(s);
+		}
+
+#define SSS "{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hes"
+		MicroProfileWebSocketSend(s, SSS, sizeof(SSS)-1);
+	}
+}
+
 bool MicroProfileWebServerUpdate()
 {
 	MICROPROFILE_SCOPEI("MicroProfile", "Webserver-update", -1);
 	MpSocket Connection = accept(S.ListenerSocket, 0, 0);
 	bool bServed = false;
+	MicroProfileWebSocketUpdate();
 	if(!MP_INVALID_SOCKET(Connection))
 	{
 		std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
@@ -4030,6 +4488,7 @@ bool MicroProfileWebServerUpdate()
 		if(nReceived > 0)
 		{
 			Req[nReceived] = '\0';
+			printf("req received\n%s", Req);
 #if MICROPROFILE_MINIZ
 #define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nContent-Encoding: deflate\r\nExpires: Tue, 01 Jan 2199 16:00:00 GMT\r\n\r\n"
 #else
@@ -4038,6 +4497,7 @@ bool MicroProfileWebServerUpdate()
 			char* pHttp = strstr(Req, "HTTP/");
 			char* pGet = strstr(Req, "GET /");
 			char* pHost = strstr(Req, "Host: ");
+			char* pWebSocketKey = strstr(Req, "Sec-WebSocket-Key: ");
 			auto Terminate = [](char* pString)
 			{
 				char* pEnd = pString;
@@ -4051,6 +4511,16 @@ bool MicroProfileWebServerUpdate()
 					pEnd++;
 				}
 			};
+
+			if(pWebSocketKey)
+			{
+				pWebSocketKey += sizeof("Sec-WebSocket-Key: ")-1;
+				Terminate(pWebSocketKey);
+				printf("websocketkey is ---%s---\n", pWebSocketKey);
+				MicroProfileWebSocketHandshake(Connection, pWebSocketKey);
+				return false;
+			}
+
 			if(pHost)
 			{
 				pHost += sizeof("Host: ")-1;

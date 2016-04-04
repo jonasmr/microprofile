@@ -1,0 +1,81 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<title>MicroProfile Capture</title>
+<style>
+/* about css: http://bit.ly/1eMQ42U */
+body {margin: 0px;padding: 0px; font: 12px Courier New;background-color:#474747; color:white;overflow:hidden;}
+ul {list-style-type: none;margin: 0;padding: 0;}
+li{display: inline; float:left;border:5px; position:relative;text-align:center;}
+a {
+    float:left;
+    text-decoration:none;
+    display: inline;
+    text-align: center;
+	padding:5px;
+	padding-bottom:0px;
+	padding-top:0px;
+    color: #FFFFFF;
+    background-color: #474747;
+}
+a:hover, a:active{
+	background-color: #000000;
+}
+
+ul ul {
+    position:absolute;
+    left:0;
+    top:100%;
+    margin-left:-999em;
+}
+li:hover ul {
+    margin-left:0;
+    margin-right:0;
+}
+ul li ul{ display:block;float:none;width:100%;}
+ul li ul li{ display:block;float:none;width:100%;}
+li li a{ display:block;float:none;width:100%;text-align:left;}
+#nav li:hover div {margin-left:0;}
+.help {position:absolute;z-index:5;text-align:left;padding:2px;margin-left:-999em;background-color: #313131;width:300px;}
+.helpstart {position:absolute;z-index:5;text-align:left;padding:2px;background-color: #313131;width:300px;display:none}
+.root {z-index:1;position:absolute;top:0px;left:0px;}
+.filterinput0{position:fixed;bottom:10px;left:25px;background-color: #313131}
+.filterinput1{position:fixed;bottom:10px;left:175px;background-color: #313131}
+</style>
+</head>
+<body style="">
+<div id='filterinput'>
+<div class="filterinput0">Group<br><input type="text" id="filtergroup"></div>
+<div class="filterinput1">Timer/Thread<br><input type="text" id="filtertimer"></div>
+</div>
+<canvas id="DetailedView" height="100%" style="background-color:#f7e747;margin:0px;padding:0px;"></canvas>
+<script>
+var CanvasDetailedView = document.getElementById('DetailedView');
+var nWidth = CanvasDetailedView.width;
+var nHeight = CanvasDetailedView.height;
+
+var exampleSocket = new WebSocket("ws://localhost:1338/ws");
+exampleSocket.onopen = function(event)
+{
+	console.log('socket is OPEN!!');
+	exampleSocket.send("{hesthest}{hesthest}{hesthest}{hesthest}{hesthest}{hesthest}{hesthest}{hesthest}{hesthest}{hesthest}{hesthest}{hesthest}{hesthe");
+	exampleSocket.send("{fisk}");
+	exampleSocket.send("{ged,tang}");
+	exampleSocket.send("{ged,tang}");
+	exampleSocket.send("{ged,tang}");
+	exampleSocket.send("{ged,tang}");
+	console.log('hest is sent');
+};
+exampleSocket.onmessage = function (event) {
+	console.log(event.data);
+	console.log(event.data.length);	
+	console.log('done websocket message');
+	exampleSocket.send('hest!');
+}
+console.log('done');
+
+</script>
+</body>
+</html>      
+
+
