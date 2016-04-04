@@ -80,7 +80,7 @@
 // 		uint64_t MicroProfileGpuGetTimeStamp(uint32_t nKey);
 // 		uint64_t MicroProfileTicksPerSecondGpu();
 //  threading:
-//      const char* MicroProfileGetThreadName(); Threadnames in detailed view
+//      const char* MicroProfileGetThreadName(char* pzName); Threadnames in detailed view
 //
 // Default implementations of Gpu timestamp functions:
 // 		Opengl:
@@ -194,6 +194,8 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileGpuInitD3D11(pDevice,pDeviceContext) do{}while(0)
 #define MicroProfileGpuShutdown() do{}while(0)
 #define MicroProfileGpuInitGL() do{}while(0)
+#define MicroProfilePlatformMarkersGetEnabled() 0
+#define MicroProfilePlatformMarkersSetEnabled(bEnabled) do{}while(0)
 
 #else
 
@@ -327,6 +329,23 @@ typedef uint32_t ThreadIdType;
 #define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET(var) MicroProfileCounterSet(g_mp_counter_token##var, MicroProfileLocalCounterSet(&g_mp_local_counter##var, 0))
 #define MICROPROFILE_CONDITIONAL(expr) expr
 
+#ifndef MICROPROFILE_PLATFORM_MARKERS
+#define MICROPROFILE_PLATFORM_MARKERS 0
+#endif
+
+#if MICROPROFILE_PLATFORM_MARKERS
+#define MICROPROFILE_PLATFORM_MARKERS_ENABLED S.nPlatformMarkersEnabled
+#define MICROPROFILE_PLATFORM_MARKER_BEGIN(color,marker) MicroProfilePlatformMarkerBegin(color,marker)
+#define MICROPROFILE_PLATFORM_MARKER_END() MicroProfilePlatformMarkerEnd()
+#else
+#define MICROPROFILE_PLATFORM_MARKER_BEGIN(color,marker) do{}while(0)
+#define MICROPROFILE_PLATFORM_MARKER_END() do{}while(0)
+#define MICROPROFILE_PLATFORM_MARKERS_ENABLED 0
+#endif
+
+
+
+
 #ifndef MICROPROFILE_USE_THREAD_NAME_CALLBACK
 #define MICROPROFILE_USE_THREAD_NAME_CALLBACK 0
 #endif
@@ -446,6 +465,8 @@ MICROPROFILE_API void MicroProfileTogglePause();
 MICROPROFILE_API void MicroProfileForceEnableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API float MicroProfileGetTime(const char* pGroup, const char* pName);
+MICROPROFILE_API bool MicroProfilePlatformMarkersGetEnabled(); //enable platform markers. disables microprofile markers
+MICROPROFILE_API void MicroProfilePlatformMarkersSetEnabled(bool bEnabled); //enable platform markers. disables microprofile markers
 MICROPROFILE_API void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pContextSwitchEnd, uint64_t nBaseTicksCpu, uint64_t nBaseTicksEndCpu);
 MICROPROFILE_API void MicroProfileOnThreadCreate(const char* pThreadName); //should be called from newly created threads
 MICROPROFILE_API void MicroProfileOnThreadExit(); //call on exit to reuse log
@@ -473,6 +494,10 @@ MICROPROFILE_API int MicroProfileFormatCounter(int eFormat, int64_t nCounter, ch
 MICROPROFILE_API MicroProfileThreadLogGpu* MicroProfileGetGlobaGpuThreadLog();
 MICROPROFILE_API int MicroProfileGetGlobaGpuQueue();
 MICROPROFILE_API void MicroProfileRegisterGroup(const char* pGroup, const char* pCategory, uint32_t nColor);
+#if MICROPROFILE_PLATFORM_MARKERS
+MICROPROFILE_API void MicroProfilePlatformMarkerBegin(uint32_t nColor, const char * pMarker); //not implemented by microprofile.
+MICROPROFILE_API void MicroProfilePlatformMarkerEnd();//not implemented by microprofile.
+#endif
 
 struct MicroProfileThreadInfo
 {
@@ -485,17 +510,17 @@ struct MicroProfileThreadInfo
 	const char* pThreadModule;
 	const char* pProcessModule;
 	MicroProfileThreadInfo()
-		:nIsLocal(0)
+		:tid(0)
 		,pid(0)
-		,tid(0)
+		, nIsLocal(0)
 		, pThreadModule("?")
 		, pProcessModule("?")
 	{
 	}
 	MicroProfileThreadInfo(uint32_t ThreadId, uint32_t ProcessId, uint32_t nIsLocal)
-		:nIsLocal(nIsLocal)
+		:tid(ThreadId)
 		,pid(ProcessId)
-		,tid(ThreadId)
+		,nIsLocal(nIsLocal)
 		,pThreadModule("?")
 		,pProcessModule("?")
 	{
@@ -548,9 +573,9 @@ MICROPROFILE_API void MicroProfileGpuInitGL();
 
 
 #if MICROPROFILE_USE_THREAD_NAME_CALLBACK
-MICROPROFILE_API const char* MicroProfileGetThreadName();
+MICROPROFILE_API const char* MicroProfileGetThreadName(char* pzName);
 #else
-#define MicroProfileGetThreadName() "<implement MicroProfileGetThreadName to get threadnames>"
+#define MicroProfileGetThreadName(a) "<implement MicroProfileGetThreadName to get threadnames>"
 #endif
 
 struct MicroProfileScopeHandler
@@ -753,6 +778,7 @@ struct MicroProfileTimerInfo
 	uint32_t nTimerIndex;
 	uint32_t nGroupIndex;
 	char pName[MICROPROFILE_NAME_MAX_LEN];
+	char pNameExt[MICROPROFILE_NAME_MAX_LEN];
 	uint32_t nNameLen;
 	uint32_t nColor;
 	bool bGraph;
@@ -938,6 +964,7 @@ struct MicroProfile
 	uint32_t nBars;
 	uint64_t nActiveGroup;
 	uint32_t nActiveBars;
+	uint32_t nPlatformMarkersEnabled;
 
 	uint64_t nForceGroup;
 	uint32_t nForceEnable;
@@ -1478,7 +1505,8 @@ void MicroProfileOnThreadCreate(const char* pThreadName)
 	g_bUseLock = true;
 	MicroProfileInit();
 	MP_ASSERT(MicroProfileGetThreadLog() == 0);
-	MicroProfileThreadLog* pLog = MicroProfileCreateThreadLog(pThreadName ? pThreadName : MicroProfileGetThreadName());
+	char Buffer[512];
+	MicroProfileThreadLog* pLog = MicroProfileCreateThreadLog(pThreadName ? pThreadName : MicroProfileGetThreadName(Buffer));
 	MP_ASSERT(pLog);
 	MicroProfileSetThreadLog(pLog);
 }
@@ -1741,6 +1769,7 @@ MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, ui
 	if(nLen > MICROPROFILE_NAME_MAX_LEN-1)
 		nLen = MICROPROFILE_NAME_MAX_LEN-1;
 	memcpy(&S.TimerInfo[nTimerIndex].pName, pName, nLen);
+	snprintf(&S.TimerInfo[nTimerIndex].pNameExt[0], sizeof(S.TimerInfo[nTimerIndex].pNameExt)-1, "%s %s", S.GroupInfo[nGroupIndex].pName, pName);
 	S.TimerInfo[nTimerIndex].pName[nLen] = '\0';
 	S.TimerInfo[nTimerIndex].nNameLen = nLen;
 	S.TimerInfo[nTimerIndex].nColor = nColor&0xffffff;
@@ -1975,12 +2004,21 @@ uint64_t MicroProfileEnter(MicroProfileToken nToken_)
 {
 	if(MicroProfileGetGroupMask(nToken_) & S.nActiveGroup)
 	{
-		if(!MicroProfileGetThreadLog())
-		{
-			MicroProfileInitThreadLog();
-		}
 		uint64_t nTick = MP_TICK();
-		return MicroProfileLogPutEnter(nToken_, nTick, MicroProfileGetThreadLog());
+		if(MICROPROFILE_PLATFORM_MARKERS_ENABLED)
+		{
+			uint32 idx = MicroProfileGetTimerIndex(nToken_);
+			MicroProfileTimerInfo& TI = S.TimerInfo[idx];
+			MICROPROFILE_PLATFORM_MARKER_BEGIN(TI.nColor, TI.pNameExt);
+		}
+		else
+		{
+			if(!MicroProfileGetThreadLog())
+			{
+				MicroProfileInitThreadLog();
+			}
+			return MicroProfileLogPutEnter(nToken_, nTick, MicroProfileGetThreadLog());
+		}
 	}
 	return MICROPROFILE_INVALID_TICK;
 }
@@ -2091,13 +2129,20 @@ void MicroProfileLeave(MicroProfileToken nToken_, uint64_t nTickStart)
 {
 	if(MICROPROFILE_INVALID_TICK != nTickStart)
 	{
-		if(!MicroProfileGetThreadLog())
+		if(MICROPROFILE_PLATFORM_MARKERS_ENABLED)
 		{
-			MicroProfileInitThreadLog();
+			MICROPROFILE_PLATFORM_MARKER_END();
 		}
-		uint64_t nTick = MP_TICK();
-		MicroProfileThreadLog* pLog = MicroProfileGetThreadLog();
-		MicroProfileLogPutLeave(nToken_, nTick, pLog);
+		else
+		{
+			if(!MicroProfileGetThreadLog())
+			{
+				MicroProfileInitThreadLog();
+			}
+			uint64_t nTick = MP_TICK();
+			MicroProfileThreadLog* pLog = MicroProfileGetThreadLog();
+			MicroProfileLogPutLeave(nToken_, nTick, pLog);
+		}
 	}
 }
 
@@ -2901,6 +2946,16 @@ float MicroProfileGetTime(const char* pGroup, const char* pName)
 	return S.Frame[nTimerIndex].nTicks * fToMs;
 }
 
+bool MicroProfilePlatformMarkersGetEnabled()
+{
+	return S.nPlatformMarkersEnabled != 0;
+}
+void MicroProfilePlatformMarkersSetEnabled(bool bEnabled)
+{
+	S.nPlatformMarkersEnabled = bEnabled ? 1 : 0;
+}
+
+
 
 void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pContextSwitchEnd, uint64_t nBaseTicksCpu, uint64_t nBaseTicksEndCpu)
 {
@@ -3451,7 +3506,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 				nCounterHeightBase = nCounterMax - nCounterMin;
 				nCounterOffset = -nCounterMin;
 			}
-			double fRcp = 1.0 / nCounterHeightBase;
+			double fRcp = nCounterHeightBase? (1.0 / nCounterHeightBase) : 0;
 
 			MicroProfilePrintf(CB, Handle, "\nvar CounterHistoryArrayPrc%d =[", i);
 			for(uint32_t j = 0; j < MICROPROFILE_GRAPH_HISTORY; ++j)
@@ -4916,7 +4971,7 @@ void MicroProfileGpuShutdown()
 	{
 		if(S.GPU.m_pQueries[i])
 		{
-			((ID3D11Query*)&S.GPU.m_pQueries[i])->Release();
+			ID3D11Query* pQuery = (ID3D11Query*)S.GPU.m_pQueries[i];
 			S.GPU.m_pQueries[i] = 0;
 		}
 	}
@@ -4924,13 +4979,16 @@ void MicroProfileGpuShutdown()
 	{
 		if(S.GPU.m_QueryFrames[i].m_pRateQuery)
 		{
-			((ID3D11Query*)S.GPU.m_QueryFrames[i].m_pRateQuery)->Release();
+			ID3D11Query* pQuery = (ID3D11Query*)S.GPU.m_QueryFrames[i].m_pRateQuery;
+			pQuery->Release();
 			S.GPU.m_QueryFrames[i].m_pRateQuery = 0;
 		}
 	}
 	if(S.GPU.pSyncQuery)
 	{
-		((ID3D11Query*)S.GPU.pSyncQuery)->Release();
+		ID3D11Query* pSyncQuery = (ID3D11Query*)S.GPU.pSyncQuery;
+		pSyncQuery->Release();
+		S.GPU.pSyncQuery = 0;
 	}
 }
 
@@ -5092,7 +5150,6 @@ void MicroProfileGpuInitD3D12(void* pDevice_, void* pCommandQueue_)
 	memset(&S.GPU, 0, sizeof(S.GPU));
 	S.GPU.pDevice = pDevice;
 	S.GPU.pCommandQueue = pCommandQueue;
-	pDevice->SetStablePowerState(TRUE);
 	pCommandQueue->GetTimestampFrequency((uint64_t*)&S.GPU.nFrequency);
 	
 	HRESULT hr;
