@@ -4433,6 +4433,18 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 }
 
 
+void MicroProfileWebSockSendUpdate(MpSocket Connection)
+{
+	float fValue = 0.20 + 0.13f * ((float)rand() / RAND_MAX);
+
+
+	char buffer[1024];
+	int nLen = snprintf(buffer, sizeof(buffer)-1, "{\"%d\":%08f}", 1234, fValue);
+	MicroProfileWebSocketSend(Connection, buffer, nLen);
+
+
+}
+
 
 void MicroProfileWebSocketUpdate()
 {
@@ -4469,8 +4481,9 @@ void MicroProfileWebSocketUpdate()
 			MicroProfileWebSocketReceive(s);
 		}
 
-#define SSS "{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hes"
-		MicroProfileWebSocketSend(s, SSS, sizeof(SSS)-1);
+// #define SSS "{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hesthest{{hes"
+// 		MicroProfileWebSocketSend(s, SSS, sizeof(SSS)-1)
+		MicroProfileWebSockSendUpdate(s);
 	}
 }
 

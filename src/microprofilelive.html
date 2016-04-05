@@ -48,31 +48,121 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 <div class="filterinput0">Group<br><input type="text" id="filtergroup"></div>
 <div class="filterinput1">Timer/Thread<br><input type="text" id="filtertimer"></div>
 </div>
-<canvas id="DetailedView" height="100%" style="background-color:#f7e747;margin:0px;padding:0px;"></canvas>
+<canvas id="DetailedView" height="100%" style="background-color:#474747;margin:0px;padding:0px;"></canvas>
 <script>
 var CanvasDetailedView = document.getElementById('DetailedView');
+var CanvasDetailedOffscreen = document.createElement('canvas');
+
 var nWidth = CanvasDetailedView.width;
 var nHeight = CanvasDetailedView.height;
 
-var exampleSocket = new WebSocket("ws://localhost:1338/ws");
-exampleSocket.onopen = function(event)
+function ResizeCanvas() 
 {
-	console.log('socket is OPEN!!');
-	exampleSocket.send("{hesthest}{hesthest}{hesthest}{hesthest}{hesthest}{hesthest}{hesthest}{hesthest}{hesthest}{hesthest}{hesthest}{hesthest}{hesthe");
-	exampleSocket.send("{fisk}");
-	exampleSocket.send("{ged,tang}");
-	exampleSocket.send("{ged,tang}");
-	exampleSocket.send("{ged,tang}");
-	exampleSocket.send("{ged,tang}");
-	console.log('hest is sent');
-};
-exampleSocket.onmessage = function (event) {
-	console.log(event.data);
-	console.log(event.data.length);	
-	console.log('done websocket message');
-	exampleSocket.send('hest!');
+	nWidth = window.innerWidth;
+	nHeight = window.innerHeight;
+	DPR = window.devicePixelRatio;
+
+	if(DPR)
+	{
+		CanvasDetailedView.style.width = nWidth + 'px'; 
+		CanvasDetailedView.style.height = nHeight + 'px';
+		CanvasDetailedView.width = nWidth * DPR;
+		CanvasDetailedView.height = nHeight * DPR;
+		CanvasDetailedView.getContext('2d').scale(DPR,DPR);
+
+		CanvasDetailedOffscreen.style.width = nWidth + 'px';
+		CanvasDetailedOffscreen.style.height = nHeight + 'px';
+		CanvasDetailedOffscreen.width = nWidth * DPR;
+		CanvasDetailedOffscreen.height = nHeight * DPR;
+		CanvasDetailedOffscreen.getContext('2d').scale(DPR,DPR);
+
+	}
+	else
+	{
+		DPR = 1;
+		CanvasDetailedView.width = nWidth;
+		CanvasDetailedView.height = nHeight;
+		CanvasDetailedOffscreen.width = nWidth;
+		CanvasDetailedOffscreen.height = nHeight;
+	}
 }
-console.log('done');
+
+
+
+
+var hest = new Object;
+hest.gr = 0.2001;
+var strstr = JSON.stringify(hest);
+console.log(strstr);
+var gah = JSON.parse('{"hest":0.200001}');
+console.log(JSON.stringify(gah));
+
+var WSConnected = 0;
+var WSFail = 0;
+var WS;
+var WSPort = 1337;
+var WSPath;
+function WSOpen()
+{
+	console.log('socket is OPEN!! path ' + WSPath);
+	WS.send("{fisk}");
+	WS.send("{ged,tang}");
+	WS.send("{ged,tang}");
+}
+function WSMessage()
+{
+	var Obj = JSON.parse(event.data);
+	for(var key in Obj)
+	{
+		console.log('key:' + key + ' val:' + Obj[key]);
+	}
+}
+function WSError()
+{
+	console.log('WSError');
+}
+function WSClose()
+{
+	console.log('WSClose');
+}
+
+
+function Connect()
+{
+	if(WS && (WS.readyState == 1 || WS.readyState == 0))
+	{
+		WSConnected = 1;
+		WSFail = 0;
+	}
+	else
+	{
+		WSConnected = 0;
+		if(!WS || WSFail > 3)
+		{
+			WSPort++;
+			if(WSPort > 1338+5)
+			{
+				WSPort = 1338;
+			}
+			WSPath = "ws://localhost:" + WSPort + "/ws";
+			console.log('connecting to ' + WSPath);
+			WS = new WebSocket(WSPath);
+			WS.onopen = WSOpen;
+			WS.onmessage = WSMessage;
+			WS.onerror = WSError;
+			WS.onclose = WSClose;
+			WSFail = 0;
+		}
+		else
+		{
+			WSFail++;
+		}
+	}
+}
+
+ResizeCanvas();
+setInterval(Connect, 10);
+
 
 </script>
 </body>
