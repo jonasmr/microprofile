@@ -1473,6 +1473,7 @@ inline void MicroProfileSetThreadLog(MicroProfileThreadLog* pLog)
 
 MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 {
+	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 	MicroProfileThreadLog* pLog = 0;
 	if(S.nFreeListHead != -1)
 	{
