@@ -50,11 +50,30 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 </div>
 <canvas id="DetailedView" height="100%" style="background-color:#474747;margin:0px;padding:0px;"></canvas>
 <script>
+
+
 var CanvasDetailedView = document.getElementById('DetailedView');
 var CanvasDetailedOffscreen = document.createElement('canvas');
-
 var nWidth = CanvasDetailedView.width;
 var nHeight = CanvasDetailedView.height;
+var nBackColors = ['#474747', '#313131' ];
+var nBackColorOffset = '#606060';
+var FontHeight = 10;
+var FontWidth = 1;
+var FontAscent = 3; //Set manually
+var Font = 'Bold ' + FontHeight + 'px Courier New';
+var FontFlash = 'Bold ' + 35 + 'px Courier New';
+var BoxHeight = FontHeight + 2;
+
+
+
+function MeasureFont()
+{
+	var context = CanvasDetailedView.getContext('2d');
+	//context.font = Font;
+	FontWidth = context.measureText('W').width;
+
+}
 
 function ResizeCanvas() 
 {
@@ -85,23 +104,84 @@ function ResizeCanvas()
 		CanvasDetailedOffscreen.width = nWidth;
 		CanvasDetailedOffscreen.height = nHeight;
 	}
+	MeasureFont();
+
 }
 
 
+function DrawViews()
+{
+
+}
+function DrawMenu()
+{
+	var context = CanvasDetailedView.getContext('2d');
+	var nColorIndex = 0;
+	var Y = 0;
+	var Width = 800;
+
+	function DrawMenuRecursive(Index, Indent)
+	{
+		var X = 0;
+		nColorIndex = 1-nColorIndex;
+		var v = TimerArray[Index];
+		var Closed = 0;
+		if(Index > 0)
+		{
+			var Name = v.name + ' -> ' + v.id + ' -> ' + v.pid;
+			bMouseIn = 0; //todo DetailedViewMouseY >= Y && DetailedViewMouseY < Y + HeightExpanded;
+
+			var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+			context.fillStyle = bgcolor;
+			context.fillRect(0, Y, Width, nHeight);
+			context.fillStyle = v.color;
+			context.fillText(Name, Indent, Y+BoxHeight-FontAscent);
 
 
-var hest = new Object;
-hest.gr = 0.2001;
-var strstr = JSON.stringify(hest);
-console.log(strstr);
-var gah = JSON.parse('{"hest":0.200001}');
-console.log(JSON.stringify(gah));
+			Y += BoxHeight;
+		}
+
+		if(!Closed)
+		{
+			var ChildIndex = v.firstchild;
+			while(ChildIndex)
+			{
+				DrawMenuRecursive(ChildIndex, Indent + FontWidth * 2);
+				ChildIndex = TimerArray[ChildIndex].sibling;
+			}
+		}
+	}
+	DrawMenuRecursive(0, 0);
+}
+function Draw()
+{
+	DrawViews();
+	DrawMenu();
+}
+function RequestDraw()
+{
+	requestAnimationFrame(Draw);
+}
+
+function AutoRedraw(Timestamp)
+{
+	Draw();
+	requestAnimationFrame(AutoRedraw);
+}
+
+
 
 var WSConnected = 0;
 var WSFail = 0;
 var WS;
 var WSPort = 1337;
 var WSPath;
+var WSMsgTimerTree = 1; //MSG_TIMER_TREE
+var TimerArray = [];
+var Empty = {"id":0};
+
+TimerArray.push(Empty); // 0 is root of tree
+
 function WSOpen()
 {
 	console.log('socket is OPEN!! path ' + WSPath);
@@ -109,12 +189,65 @@ function WSOpen()
 	WS.send("{ged,tang}");
 	WS.send("{ged,tang}");
 }
+
+function SplitIdTop(v)
+{
+	return v >> 24; // todo: verify
+}
+
+function SplitIdBottom(v)
+{
+	return v & 0xffffff; // todo: verify
+}
+
+function GetTimer(id)
+{
+	for(var i = 0; i < TimerArray.length; ++i)
+	{
+		if(TimerArray[i].id == id)
+		{
+			return i;
+		}
+	}
+	return null;
+}
+function AddTimer(T)
+{
+	var idx = TimerArray.length;
+	var existing = GetTimer(T.id);
+	if(existing)
+	{
+		idx = existing;
+	}
+	TimerArray[idx] = T;
+	TimerArray[idx].idtype = SplitIdTop(T.id);
+	TimerArray[idx].idelement = SplitIdBottom(T.id);
+	var pidx = GetTimer(T.pid);
+	if(pidx >= 0)
+	{
+
+		var Parent = TimerArray[pidx];
+		var Sibling = Parent.firstchild;
+		Parent.firstchild = idx;
+		TimerArray[idx].sibling = Sibling;
+
+	}
+	else
+	{
+		debugger;//fail
+	}
+	console.log('add timer ' + idx + ' parent ' + pidx);
+	RequestDraw();
+
+}
 function WSMessage()
 {
+	console.log(event.data);
 	var Obj = JSON.parse(event.data);
-	for(var key in Obj)
+	var k = Obj.k;
+	if(k == WSMsgTimerTree)
 	{
-		console.log('key:' + key + ' val:' + Obj[key]);
+		AddTimer(Obj.v);
 	}
 }
 function WSError()
@@ -140,7 +273,7 @@ function Connect()
 		if(!WS || WSFail > 3)
 		{
 			WSPort++;
-			if(WSPort > 1338+5)
+			if(WSPort > 1338+3)
 			{
 				WSPort = 1338;
 			}
@@ -160,8 +293,259 @@ function Connect()
 	}
 }
 
+
+function MouseMove(evt)
+{
+    evt.preventDefault();
+ //    ZoomActive = 0;
+ //    MouseDrag(MouseDragMove, evt);
+ // 	MouseHistory = 0;
+	// MouseDetailed = 0;
+	// HistoryViewMouseX = HistoryViewMouseY = -1;
+	// var rect = evt.target.getBoundingClientRect();
+	// var x = evt.clientX - rect.left;
+	// var y = evt.clientY - rect.top;
+	// if(evt.target == CanvasDetailedView)
+	// {
+	// 	if(!MouseDragSelectRange())
+	// 	{
+	// 		RangeCpu = RangeInit();
+	// 	}
+	// 	DetailedViewMouseX = x;
+	// 	DetailedViewMouseY = y;
+	// }
+	// else if(evt.target = CanvasHistory)
+	// {
+	// 	var Rect = CanvasHistory.getBoundingClientRect();
+	// 	HistoryViewMouseX = x;
+	// 	HistoryViewMouseY = y;
+	// }
+	// Draw(1);
+	Draw();
+}
+
+function MouseButton(bPressed, evt)
+{
+    evt.preventDefault();
+	// MouseDrag(bPressed ? MouseDragDown : MouseDragUp, evt);
+	// if(!bPressed)
+	// {
+	// 	if(SortColumnMouseOverNext)
+	// 	{
+	// 		if(SortColumnMouseOverNext == SortColumnMouseOver)
+	// 		{
+	// 			SortColumnOrderFlip =  1 - SortColumnOrderFlip;
+	// 		}
+	// 		else
+	// 		{
+	// 			SortColumnOrderFlip = 0;
+	// 		}
+
+	// 		SortColumnMouseOver = SortColumnMouseOverNext;
+	// 		SortColumnMouseOverNext = null;
+	// 		if(SortColumnMouseOver == StrAverage)
+	// 		{
+	// 			SortColumn = 1;
+	// 		}
+	// 		else if(SortColumnMouseOver == StrMax)
+	// 		{
+	// 			SortColumn = 2;
+	// 		}
+	// 		else if(SortColumnMouseOver == StrTotal)
+	// 		{
+	// 			SortColumn = 3;
+	// 		}			
+	// 		else if(SortColumnMouseOver == StrMin)
+	// 		{
+	// 			SortColumn = 4;
+	// 		}
+	// 		else if(SortColumnMouseOver == StrSpike)
+	// 		{
+	// 			SortColumn = 5;
+	// 		}
+	// 		else if(SortColumnMouseOver == StrCallAverage)
+	// 		{
+	// 			SortColumn = 6;
+	// 		}
+	// 		else if(SortColumnMouseOver == StrCount)
+	// 		{
+	// 			SortColumn = 7;
+	// 		}
+	// 		else if(SortColumnMouseOver == StrExclAverage)
+	// 		{
+	// 			SortColumn = 8;
+	// 		}
+	// 		else if(SortColumnMouseOver == StrExclMax)
+	// 		{
+	// 			SortColumn = 9;
+	// 		}
+	// 		else if(SortColumnMouseOver == StrGroup)
+	// 		{
+	// 			SortColumn = 0;
+	// 		}
+	// 		RequestRedraw();
+	// 	}
+	// }
+}
+
+function MouseOut(evt)
+{
+	// MouseDrag(MouseDragOff, evt);
+	// KeyCtrlDown = 0;
+	// KeyShiftDown = 0;
+	// MouseDragButton = 0;
+	// nHoverToken = -1;
+	// RangeCpu = RangeInit();
+}
+
+function MouseWheel(e)
+{
+//     var e = window.event || e;
+//     var delta = (e.wheelDelta || e.detail * (-120));
+//     ZoomGraph((-4 * delta / 120.0) | 0);
+//     Draw(1);
+}
+
+function KeyUp(evt)
+{
+	// if(evt.keyCode == 39)
+	// {
+	// 	MoveToNext(1);
+	// }
+	// if(evt.keyCode == 37)
+	// {
+	// 	MoveToNext(-1);
+	// }
+	// if(evt.keyCode == 17)
+	// {
+	// 	KeyCtrlDown = 0;
+	// 	MouseDragKeyUp();
+	// }
+	// else if(evt.keyCode == 16)
+	// {
+	// 	KeyShiftDown = 0;
+	// 	MouseDragKeyUp();
+	// }
+	// if(evt.keyCode == 32)
+	// {
+	// 	if(RangeSelect.Begin < RangeSelect.End)
+	// 	{
+	// 		ZoomTo(RangeSelect.Begin, RangeSelect.End);
+	// 		RangeSelect = RangeInit();
+	// 		MouseHandleDragEnd();
+	// 	}
+	// }
+	// if(evt.keyCode == 9)
+	// {
+	// 	evt.preventDefault();
+	// 	if(Mode == ModeDetailed)
+	// 	{
+	// 		var Token = nHoverToken;
+	// 		if(Token == -1 && RangeValid(RangeSelect) && RangeSelect.Index >= 0)
+	// 		{
+	// 			Token = RangeSelect.Index;
+	// 		}
+	// 		if(Token != -1 && Token < TimerInfo.length)
+	// 		{
+	// 			var start = TimerInfo[Token].worststart;
+	// 			var end = TimerInfo[Token].worstend;
+	// 			RangeSelect.Begin = start;
+	// 			RangeSelect.End = end;
+	// 			RangeSelect.Thread = TimerInfo[Token].worstthread;
+	// 			RangeSelect.Index = Token;
+	// 			ShowFlashMessage('Worst: ' + (end-start).toFixed(2) + 'ms', 100);
+	// 			MoveTo(RangeSelect.Begin, RangeSelect.End, ThreadY[RangeSelect.Thread] + nOffsetY, ThreadY[RangeSelect.Thread+1] + nOffsetY);
+	// 			MouseHandleDragEnd();
+	// 		}
+	// 	}
+	// 	else if(Mode == ModeTimers)
+	// 	{
+	// 		ToggleFilterInput(0);
+	// 		evt.preventDefault();
+	// 	}
+
+	// }
+	// if(evt.keyCode == 27)
+	// {
+	// 	RangeSelect = RangeInit();
+	// 	SortColumn = 0;
+	// 	SortColumnMouseOver = "";
+	// 	if(Mode == ModeTimers)
+	// 	{
+	// 		ToggleFilterInput(1);
+	// 		evt.preventDefault();
+	// 	}
+	// }
+
+	// if(evt.keyCode == 18 || evt.keyCode == 90) // z/tab to toggle tooltip
+	// {
+	// 	ToolTip = (ToolTip+1)%3; //0: off, 1: default, 2: flipped
+	// 	var ToolTipStr = 'Off';
+	// 	var bShowTimers = Mode == ModeTimers;
+	// 	if(ToolTip == 2)
+	// 	{
+	// 		bShowTimers = !bShowTimers;
+	// 	}
+	// 	if(ToolTip)
+	// 	{
+	// 		if(bShowTimers)
+	// 			ToolTipStr = "Timers";
+	// 		else
+	// 			ToolTipStr = "Detailed";
+	// 	}
+	// 	ShowFlashMessage('ToolTip: ' + ToolTipStr, 100);
+	// }
+
+
+	// Invalidate = 0;
+}
+
+function KeyDown(evt)
+{
+	// if(evt.keyCode == 17)
+	// {
+	// 	KeyCtrlDown = 1;
+	// }
+	// else if(evt.keyCode == 16)
+	// {
+	// 	KeyShiftDown = 1;
+	// }
+	// else if(evt.keyCode == 9)
+	// {
+	// 	evt.preventDefault();
+	// }
+	// Invalidate = 0;
+}
+
+
+function SetupEvents()
+{
+	var mousewheelevt = (/Firefox/i.test(navigator.userAgent)) ? "DOMMouseScroll" : "mousewheel" //FF doesn't recognize mousewheel as of 
+	CanvasDetailedView.addEventListener('mousemove', MouseMove, false);
+	CanvasDetailedView.addEventListener('mousedown', function(evt) { MouseButton(true, evt); });
+	CanvasDetailedView.addEventListener('mouseup', function(evt) { MouseButton(false, evt); } );
+	CanvasDetailedView.addEventListener('mouseout', MouseOut);
+	CanvasDetailedView.addEventListener("contextmenu", function (e) { e.preventDefault(); }, false);
+	CanvasDetailedView.addEventListener(mousewheelevt, MouseWheel, false);
+	// FilterInputTimer.addEventListener('keyup', FilterKeyUp);
+	// FilterInputGroup.addEventListener('keyup', FilterKeyUp);
+	window.addEventListener('keydown', KeyDown);
+	window.addEventListener('keyup', KeyUp);
+	window.addEventListener('resize', ResizeCanvas, false);
+
+
+
+}
+
 ResizeCanvas();
+SetupEvents();
+
 setInterval(Connect, 10);
+
+
+
+Draw();
+AutoRedraw();
 
 
 </script>
