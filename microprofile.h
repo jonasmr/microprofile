@@ -1468,12 +1468,25 @@ inline void MicroProfileSetThreadLog(MicroProfileThreadLog* pLog)
 }
 #endif
 
-
-
+struct MicroProfileScopeLock
+{
+	bool bUseLock;
+	std::recursive_mutex& m;
+	MicroProfileScopeLock(std::recursive_mutex& m) : bUseLock(g_bUseLock), m(m)
+	{
+		if(bUseLock)
+			m.lock();
+	}
+	~MicroProfileScopeLock()
+	{
+		if(bUseLock)
+			m.unlock();
+	}
+};
 
 MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 {
-	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+	MicroProfileScopeLock L(MicroProfileMutex());
 	MicroProfileThreadLog* pLog = 0;
 	if(S.nFreeListHead != -1)
 	{
@@ -1655,23 +1668,6 @@ void MicroProfileInitThreadLog()
 {
 	MicroProfileOnThreadCreate(nullptr);
 }
-
-
-struct MicroProfileScopeLock
-{
-	bool bUseLock;
-	std::recursive_mutex& m;
-	MicroProfileScopeLock(std::recursive_mutex& m) : bUseLock(g_bUseLock), m(m)
-	{
-		if(bUseLock)
-			m.lock();
-	}
-	~MicroProfileScopeLock()
-	{
-		if(bUseLock)
-			m.unlock();
-	}
-};
 
 MicroProfileToken MicroProfileFindToken(const char* pGroup, const char* pName)
 {
