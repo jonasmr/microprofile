@@ -4568,7 +4568,9 @@ void MicroProfileWebSocketSendState(MpSocket C)
 		uint32_t id = MicroProfileWebSocketId(TYPE_CATEGORY, i);
 		uint32_t parent = 0;
 		WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
-		WSPrintf("\"name\":\"%s\"", CI.pName);
+		WSPrintf("\"name\":\"%s\",", CI.pName);
+		WSPrintf("\"color\":\"#ffffff\"");
+
 		WSPrintf("}}");
 		WSFlush();
 	}
@@ -4584,7 +4586,7 @@ void MicroProfileWebSocketSendState(MpSocket C)
 		WSPrintf("}}");
 		WSFlush();
 	}
-	
+
 	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
 	{
 		MicroProfileTimerInfo& TI = S.TimerInfo[i];

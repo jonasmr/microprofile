@@ -52,6 +52,19 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 <script>
 
 
+
+//todo
+// on demand redraw
+// selection
+// base graph
+//connection status window
+// log window 
+// menu item
+
+
+
+
+
 var CanvasDetailedView = document.getElementById('DetailedView');
 var CanvasDetailedOffscreen = document.createElement('canvas');
 var nWidth = CanvasDetailedView.width;
@@ -64,6 +77,149 @@ var FontAscent = 3; //Set manually
 var Font = 'Bold ' + FontHeight + 'px Courier New';
 var FontFlash = 'Bold ' + 35 + 'px Courier New';
 var BoxHeight = FontHeight + 2;
+var MouseX = 0;
+var MouseY = 0;
+
+
+var ProfileMode = 1;
+var ProfileRedraw0 = 0;
+var ProfileRedraw1 = 0;
+var ProfileRedraw2 = 0;
+var ProfileFps = 0;
+var ProfileFpsAggr = 0;
+var ProfileFpsCount = 0;
+var ProfileLastTimeStamp = new Date();
+var PlotfArray = new Array();
+
+
+function Plotf(str)
+{
+	PlotfArray.push(str)
+}
+function PlotfClear()
+{
+	PlotfArray = new Array();
+}
+
+function ProfileModeClear()
+{
+	if(ProfileMode)
+	{
+		ProfileData = new Object();
+		ProfileStackTime = new Array();
+		ProfileStackName = new Array();
+	}
+}
+function ProfileEnter(Name)
+{
+	if(ProfileMode)
+	{
+		ProfileStackTime.push(new Date());
+		ProfileStackName.push(Name);
+	}
+}
+function ProfileLeave()
+{
+	if(ProfileMode)
+	{
+		var Time = new Date();
+		var Delta = Time - ProfileStackTime.pop();
+		var Name = ProfileStackName.pop();
+		var Obj = ProfileData[Name];
+		if(!Obj)
+		{
+			Obj = new Object();
+			Obj.Count = 0;
+			Obj.Name = Name;
+			Obj.Time = 0;
+			ProfileData[Name] = Obj;
+		}
+		Obj.Time += Delta;
+		Obj.Count += 1;
+	}
+}
+
+function ProfilePlot(s)
+{
+	if(ProfileMode)
+	{
+		var A = ProfileData.Plot;
+		if(!A)
+		{
+			ProfileData.Plot = Array();
+			A = ProfileData.Plot;
+		}
+		if(A.length<10)
+		{
+			A.push(s);
+		}
+	}
+}
+function ProfileModeDump()
+{
+	for(var idx in ProfileData)
+	{
+		var Timer = ProfileData[idx];
+		console.log(Timer.Name + " " + Timer.Time + "ms " + Timer.Count);
+	}
+
+}
+function ProfileModeDraw(Canvas)
+{
+	if(ProfileMode)
+	{
+		var StringArray = [];
+		for(var idx in ProfileData)
+		{
+			if(idx == "Plot")
+				continue;
+			var Timer = ProfileData[idx];
+			StringArray.push(Timer.Name);
+			StringArray.push(Timer.Time + "ms");
+			StringArray.push("#");
+			StringArray.push("" + Timer.Count);
+		}
+		// StringArray.push("debug");
+		// StringArray.push(Debug);
+		var Time = new Date();
+		var Delta = Time - ProfileLastTimeStamp;
+		ProfileLastTimeStamp = Time;
+		StringArray.push("Frame Delta");
+		StringArray.push(Delta + "ms");
+		if(ProfileMode == 2)
+		{
+			ProfileFpsAggr += Delta;
+			ProfileFpsCount ++ ;
+			var AggrFrames = 10;
+			if(ProfileFpsCount == AggrFrames)
+			{
+				ProfileFps = 1000 / (ProfileFpsAggr / AggrFrames);
+				ProfileFpsAggr = 0;
+				ProfileFpsCount = 0;
+			}
+			StringArray.push("FPS");
+			StringArray.push("" + ProfileFps.toFixed(2));
+		}
+		StringArray.push("ProfileRedraw0");
+		StringArray.push("" + ProfileRedraw0);
+		StringArray.push("ProfileRedraw1");
+		StringArray.push("" + ProfileRedraw1);
+		StringArray.push("ProfileRedraw2");
+		StringArray.push("" + ProfileRedraw2);
+		ProfileRedraw0 = 0;
+		ProfileRedraw1 = 0;
+		ProfileRedraw2 = 0;
+
+
+		for(var i = 0; i < ProfileData.Plot; ++i)
+		{
+			StringArray.push("");
+			StringArray.push(ProfileData.Plot[i]);
+		}
+		ProfileData.Plot = Array();
+		DrawToolTip(StringArray, Canvas, 0, 200);
+	}
+}
 
 
 
@@ -111,6 +267,7 @@ function ResizeCanvas()
 
 function DrawViews()
 {
+	Plotf("DrawViews");
 
 }
 function DrawMenu()
@@ -119,23 +276,25 @@ function DrawMenu()
 	var nColorIndex = 0;
 	var Y = 0;
 	var Width = 800;
+	ProfileEnter("DrawMenu");
 
 	function DrawMenuRecursive(Index, Indent)
 	{
+		ProfileEnter("DrawMenuRecursive");
 		var X = 0;
 		nColorIndex = 1-nColorIndex;
 		var v = TimerArray[Index];
 		var Closed = 0;
 		if(Index > 0)
 		{
-			var Name = v.name + ' -> ' + v.id + ' -> ' + v.pid;
-			bMouseIn = 0; //todo DetailedViewMouseY >= Y && DetailedViewMouseY < Y + HeightExpanded;
+			var Name = v.idtype + '::' +v.name;// + ' -> ' + v.id + ' -> ' + v.pid; idtype
+			bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
 
 			var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
 			context.fillStyle = bgcolor;
-			context.fillRect(0, Y, Width, nHeight);
+			context.fillRect(0, Y, Width, BoxHeight);
 			context.fillStyle = v.color;
-			context.fillText(Name, Indent, Y+BoxHeight-FontAscent);
+			context.fillText(Name, Indent*FontWidth, Y+BoxHeight-FontAscent);
 
 
 			Y += BoxHeight;
@@ -146,26 +305,60 @@ function DrawMenu()
 			var ChildIndex = v.firstchild;
 			while(ChildIndex)
 			{
-				DrawMenuRecursive(ChildIndex, Indent + FontWidth * 2);
+				DrawMenuRecursive(ChildIndex, Indent + 1);
 				ChildIndex = TimerArray[ChildIndex].sibling;
 			}
 		}
+		ProfileLeave();
 	}
-	DrawMenuRecursive(0, 0);
+	DrawMenuRecursive(0, -1);
+	// var Indent = 0;
+	// for(i= 1; i < TimerArray.length; ++i)
+	// {
+	// 	var Index = i;
+	// 			var X = 0;
+	// 	nColorIndex = 1-nColorIndex;
+	// 	var v = TimerArray[Index];
+	// 	var Closed = 0;
+	// 	if(Index > 0)
+	// 	{
+	// 		var Name = v.idtype + '::' +v.name;// + ' -> ' + v.id + ' -> ' + v.pid; idtype
+	// 		bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+
+	// 		var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+	// 		context.fillStyle = bgcolor;
+	// 		context.fillRect(0, Y, Width, BoxHeight);
+	// 		context.fillStyle = v.color;
+	// 		context.fillText(Name, Indent + Index, Y+BoxHeight-FontAscent);
+
+
+	// 		Y += BoxHeight;
+	// 	}
+
+	// }
+
+	ProfileLeave();
 }
 function Draw()
 {
+	ProfileModeClear();
+	ProfileEnter("Total");
+	
 	DrawViews();
 	DrawMenu();
+	DrawPlotf(CanvasDetailedView);
+	ProfileLeave();
+	ProfileModeDraw(CanvasDetailedView);
 }
 function RequestDraw()
 {
-	requestAnimationFrame(Draw);
+	//requestAnimationFrame(Draw);
 }
 
 function AutoRedraw(Timestamp)
 {
 	Draw();
+	PlotfClear();
 	requestAnimationFrame(AutoRedraw);
 }
 
@@ -302,17 +495,19 @@ function MouseMove(evt)
  // 	MouseHistory = 0;
 	// MouseDetailed = 0;
 	// HistoryViewMouseX = HistoryViewMouseY = -1;
-	// var rect = evt.target.getBoundingClientRect();
-	// var x = evt.clientX - rect.left;
-	// var y = evt.clientY - rect.top;
+	var rect = evt.target.getBoundingClientRect();
+	var x = evt.clientX - rect.left;
+	var y = evt.clientY - rect.top;
+	MouseX = x;
+	MouseY = y;
+
+
 	// if(evt.target == CanvasDetailedView)
 	// {
 	// 	if(!MouseDragSelectRange())
 	// 	{
 	// 		RangeCpu = RangeInit();
 	// 	}
-	// 	DetailedViewMouseX = x;
-	// 	DetailedViewMouseY = y;
 	// }
 	// else if(evt.target = CanvasHistory)
 	// {
@@ -321,7 +516,7 @@ function MouseMove(evt)
 	// 	HistoryViewMouseY = y;
 	// }
 	// Draw(1);
-	Draw();
+	//Draw();
 }
 
 function MouseButton(bPressed, evt)
@@ -532,9 +727,92 @@ function SetupEvents()
 	window.addEventListener('keydown', KeyDown);
 	window.addEventListener('keyup', KeyUp);
 	window.addEventListener('resize', ResizeCanvas, false);
+}
 
+function DrawToolTip(StringArray, Canvas, x, y)
+{
+	var context = Canvas.getContext('2d');
+	context.font = Font;
+	var WidthArray = Array(StringArray.length);
+	var nMaxWidth = 0;
+	var nHeight = 0;
+	for(i = 0; i < StringArray.length; i += 2)
+	{
+		var nWidth0 = context.measureText(StringArray[i]).width;
+		var nWidth1 = context.measureText(StringArray[i+1]).width;
+		var nSum = nWidth0 + nWidth1;
+		WidthArray[i] = nWidth0;
+		WidthArray[i+1] = nWidth1;
+		if(nSum > nMaxWidth)
+		{
+			nMaxWidth = nSum;
+		}
+		nHeight += BoxHeight;
+	}
+	nMaxWidth += 15;
+	//bounds check.
+	var CanvasRect = Canvas.getBoundingClientRect();
+	if(y + nHeight > CanvasRect.height)
+	{
+		y = CanvasRect.height - nHeight;
+		x += 20;
+	}
+	if(x + nMaxWidth > CanvasRect.width)
+	{
+		x = CanvasRect.width - nMaxWidth;
+	}
 
+	context.fillStyle = 'black';
+	context.fillRect(x-1, y, nMaxWidth+2, nHeight);
+	context.fillStyle = 'white';
 
+	var XPos = x;
+	var XPosRight = x + nMaxWidth;
+	var YPos = y + BoxHeight-2;
+	for(i = 0; i < StringArray.length; i += 2)
+	{
+		context.fillText(StringArray[i], XPos, YPos);
+		context.fillText(StringArray[i+1], XPosRight - WidthArray[i+1], YPos);
+		YPos += BoxHeight;
+	}
+}
+
+function DrawPlotf(Canvas)
+{
+	return;
+	var context = Canvas.getContext('2d');
+	context.font = Font;
+	var WidthArray = Array(PlotfArray.length);
+	var nMaxWidth = 0;
+	var nHeight = 0;
+
+	context.font = Font;
+	for(i = 0; i < PlotfArray.length; i++)
+	{
+		var nWidth = context.measureText(PlotfArray[i]).width;
+		WidthArray[i] = nWidth;
+		if(nWidth > nMaxWidth)
+		{
+			nMaxWidth = nWidth;
+		}
+		nHeight += BoxHeight;
+	}
+	nMaxWidth += 15;
+	var x = 0;
+	var y = 0;
+
+	context.fillStyle = 'black';
+	context.fillRect(x-1, y, nMaxWidth+2, nHeight);
+	context.fillStyle = 'white';
+
+	var XPos = x;
+	var XPosRight = x + nMaxWidth;
+	var YPos = y + BoxHeight-2;
+	for(i = 0; i < PlotfArray.length; i++)
+	{
+		context.fillText(PlotfArray[i], XPos, YPos);
+		YPos += BoxHeight;
+	}
 }
 
 ResizeCanvas();
@@ -544,7 +822,7 @@ setInterval(Connect, 10);
 
 
 
-Draw();
+//Draw();
 AutoRedraw();
 
 
