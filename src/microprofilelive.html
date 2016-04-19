@@ -62,11 +62,18 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 // menu item
 
 
+var FRAME_HISTORY_COLOR_CPU = '#ff7f27';
+var FRAME_HISTORY_COLOR_GPU = '#ffffff';
 
 
 
 var CanvasDetailedView = document.getElementById('DetailedView');
 var CanvasDetailedOffscreen = document.createElement('canvas');
+
+var CanvasArray0 = [];
+var CanvasArray1 = [];
+var Views = [];
+
 var nWidth = CanvasDetailedView.width;
 var nHeight = CanvasDetailedView.height;
 var nBackColors = ['#474747', '#313131' ];
@@ -79,9 +86,11 @@ var FontFlash = 'Bold ' + 35 + 'px Courier New';
 var BoxHeight = FontHeight + 2;
 var MouseX = 0;
 var MouseY = 0;
+var MouseReleased = false;
 
+var ReferenceTime = 33.0;
 
-var ProfileMode = 1;
+var ProfileMode = 0;
 var ProfileRedraw0 = 0;
 var ProfileRedraw1 = 0;
 var ProfileRedraw2 = 0;
@@ -90,6 +99,32 @@ var ProfileFpsAggr = 0;
 var ProfileFpsCount = 0;
 var ProfileLastTimeStamp = new Date();
 var PlotfArray = new Array();
+
+var FrameData = {};
+var FrameCount = 256;
+var FrameOffset = 0;
+
+var WSConnected = 0;
+var WSSeconds = 0;
+var WSFail = 0;
+var WS;
+var WSPort = 1337;
+var WSPath;
+var WSMsgTimerTree = 1; //MSG_TIMER_TREE
+var WSMsgEnabled = 2; // MSG_ENABLED
+var WSMsgFrame = 3; // MSG_FRAME
+var WSSend = 0;
+var WSReceive = 0;
+var WSSendBytes = 0;
+var WSReceiveBytes = 0;
+var WSOpenTime = 0;
+
+
+var TimerArray = [];
+var Empty = {"id":0};
+
+TimerArray.push(Empty); // 0 is root of tree
+
 
 
 function Plotf(str)
@@ -230,12 +265,91 @@ function MeasureFont()
 	FontWidth = context.measureText('W').width;
 
 }
+function ResizeCanvasDPR(w, h, c)
+{
+	DPR = window.devicePixelRatio;
+	if(DPR)
+	{
+		c.style.width = w + 'px'; 
+		c.style.height = h + 'px';
+		c.width = w * DPR;
+		c.height = h * DPR;
+		c.getContext('2d').scale(DPR,DPR);
+	}
+	else
+	{
+		c.width = w;
+		c.height = h;
+	}
+
+}
+
+function ResizeCanvasDPR2(w, h, c)
+{
+	DPR = window.devicePixelRatio;
+	if(DPR)
+	{
+		c.style.width = w + 'px'; 
+		c.style.height = h + 'px';
+		c.width = w * DPR;
+		c.height = h * DPR;
+		c.getContext('2d').scale(DPR,DPR);
+	}
+	else
+	{
+		c.width = w;
+		c.height = h;
+	}
+
+}
+function CreateView(x, y, w, h, name, DisplayFunc)
+{
+	var idx = Views.length;
+	var c0 = CanvasArray0[idx];
+	var c1 = CanvasArray1[idx];
+	if(!c0)
+	{
+		c0 = document.createElement('canvas');
+		CanvasArray0[idx] = c0;
+	}
+	if(!c1)
+	{
+		c1 = document.createElement('canvas');
+		CanvasArray1[idx] = c1;
+	}
+	var View = {};
+	View.x = x;
+	View.y = y;
+	View.w = w;
+	View.h = h;
+	View.Canvas = [c0, c1];
+	View.OffscreenData = [null, null];
+	ResizeCanvasDPR(w, h, c0);
+	ResizeCanvasDPR(w, h, c1);
+
+	c0.getContext('2d').clearRect(0, 0, w, h);
+	c1.getContext('2d').clearRect(0, 0, w, h);
+	View.OffscreenData[0] = c0.getContext('2d').getImageData(0, 0, c0.width, c0.height);
+	View.OffscreenData[1] = c1.getContext('2d').getImageData(0, 0, c1.width, c1.height);
+	View.BackBuffer = 0;
+	View.DisplayFunc = DisplayFunc;
+	return View;
+}
+
+function CreateViews(Width, Height)
+{
+	Views = [];
+	var History = CreateView(0, 0, Width, 100, "History", DrawHistory);
+	Views.push(History);
+}
 
 function ResizeCanvas() 
 {
 	nWidth = window.innerWidth;
 	nHeight = window.innerHeight;
 	DPR = window.devicePixelRatio;
+	ResizeCanvasDPR(nWidth, nHeight, CanvasDetailedView);
+	ResizeCanvasDPR(nWidth, nHeight, CanvasDetailedOffscreen);
 
 	if(DPR)
 	{
@@ -261,21 +375,130 @@ function ResizeCanvas()
 		CanvasDetailedOffscreen.height = nHeight;
 	}
 	MeasureFont();
+	CreateViews(nWidth, nHeight);
+
+
 
 }
+function DrawHistory(View, LocalMouseX, LocalMouseY)
+{
+	ProfileEnter("DrawHistory");
+	var Canvas = View.Canvas[View.BackBuffer];
+	var context = Canvas.getContext('2d');
+	context.clearRect(0, 0, View.w, View.h);
+	if(!FrameData.Time)
+		return;
+	//var NumFrames = 0;//FrameCount
+	var fHeight = View.h;
+	var fWidth = nWidth / FrameCount;
+	var fHeightScale = fHeight / ReferenceTime;
+	var fX = 0;
+	var FrameIndex = -1;
+	var MouseDragging = 0;
 
+	// MouseDragState != MouseDragOff;
+	// RangeCpuHistory = RangeInit();
+	// RangeGpuHistory = RangeInit()
+
+	for(var i = 0; i < FrameCount; i++)
+	{
+		var idx = (FrameOffset + i) % FrameCount;
+		if(idx < 0 || idx > FrameCount)
+			debugger;
+		var fMs = FrameData.Time[idx];
+
+		var fH = fHeightScale * fMs;
+		var bMouse = LocalMouseX > fX && LocalMouseX < fX + fWidth;
+		if(bMouse && !MouseDragging)
+		{
+			context.fillStyle = FRAME_HISTORY_COLOR_GPU;
+			// RangeCpuHistory.Begin = Frames[i].framestart;
+			// RangeCpuHistory.End = Frames[i].frameend;
+			// if(Frames[i].framestartgpu)
+			// {
+			// 	RangeGpuHistory.Begin = Frames[i].framestartgpu;
+			// 	RangeGpuHistory.End = Frames[i].frameendgpu;
+			// }
+			// FrameIndex = i;
+		}
+		else
+		{
+			context.fillStyle = FRAME_HISTORY_COLOR_CPU;
+		}
+		context.fillRect(fX, fHeight - fH, fWidth-1, fH);
+		fX += fWidth;
+	}
+
+
+	//range stuff
+	// var fRangeHistoryBegin = FrameFirst;
+	// var fRangeHistoryEnd = FrameLast;
+	// var X = fRangeHistoryBegin;
+	// var Y = 0;
+	// var W = fRangeHistoryEnd - fRangeHistoryBegin;
+	// context.globalAlpha = 0.35;
+	// context.fillStyle = '#009900';
+	// context.fillRect(X, Y, W, fHeight);
+	// context.globalAlpha = 1;
+	// context.strokeStyle = '#00ff00';
+	// context.beginPath();
+	// context.moveTo(X, Y);
+	// context.lineTo(X, Y+fHeight);
+	// context.moveTo(X+W, Y);
+	// context.lineTo(X+W, Y+fHeight);
+	// context.stroke();
+
+
+
+
+	// DrawCaptureInfo(context);
+
+	// if(FrameIndex>=0 && !MouseDragging)
+	// {
+	// 	var StringArray = [];
+	// 	StringArray.push("Frame");
+	// 	StringArray.push("" + FrameIndex);
+	// 	StringArray.push("Time");
+	// 	StringArray.push("" + (Frames[FrameIndex].frameend - Frames[FrameIndex].framestart).toFixed(3));
+
+	// 	DrawToolTip(StringArray, CanvasHistory, HistoryViewMouseX, HistoryViewMouseY+20);
+
+	// }
+	ProfileLeave();
+
+	View.OffscreenData[View.BackBuffer] = context.getImageData(0, 0, Canvas.width, Canvas.height);
+}
 
 function DrawViews()
 {
 	Plotf("DrawViews");
+	ProfileEnter("UpdateViews");
+	for(var i = 0; i < Views.length; ++i)
+	{
+		var View = Views[i];
+		var LocalMouseX = MouseX - View.x;
+		var LocalMouseY = MouseY - View.y;
+		View.DisplayFunc(View, LocalMouseX, LocalMouseY);
+	}
+	ProfileLeave();
+	var context = CanvasDetailedView.getContext('2d');
+	ProfileEnter("BlitViews");
+	for(var i = 0; i < Views.length; ++i)
+	{
+		var View = Views[i];
+		context.putImageData(View.OffscreenData[View.BackBuffer], View.x, View.y);
+	}
+	ProfileLeave();
 
 }
+
 function DrawMenu()
 {
 	var context = CanvasDetailedView.getContext('2d');
 	var nColorIndex = 0;
 	var Y = 0;
 	var Width = 800;
+	var Selection = null;
 	ProfileEnter("DrawMenu");
 
 	function DrawMenuRecursive(Index, Indent)
@@ -287,7 +510,7 @@ function DrawMenu()
 		var Closed = 0;
 		if(Index > 0)
 		{
-			var Name = v.idtype + '::' +v.name;// + ' -> ' + v.id + ' -> ' + v.pid; idtype
+			var Name = (v.e?'*':' ')+v.name;// + ' -> ' + v.id + ' -> ' + v.pid; idtype
 			bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
 
 			var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
@@ -295,7 +518,11 @@ function DrawMenu()
 			context.fillRect(0, Y, Width, BoxHeight);
 			context.fillStyle = v.color;
 			context.fillText(Name, Indent*FontWidth, Y+BoxHeight-FontAscent);
+			if(bMouseIn)
+			{
+				Selection = v.id;
 
+			}
 
 			Y += BoxHeight;
 		}
@@ -312,43 +539,63 @@ function DrawMenu()
 		ProfileLeave();
 	}
 	DrawMenuRecursive(0, -1);
-	// var Indent = 0;
-	// for(i= 1; i < TimerArray.length; ++i)
-	// {
-	// 	var Index = i;
-	// 			var X = 0;
-	// 	nColorIndex = 1-nColorIndex;
-	// 	var v = TimerArray[Index];
-	// 	var Closed = 0;
-	// 	if(Index > 0)
-	// 	{
-	// 		var Name = v.idtype + '::' +v.name;// + ' -> ' + v.id + ' -> ' + v.pid; idtype
-	// 		bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
 
-	// 		var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-	// 		context.fillStyle = bgcolor;
-	// 		context.fillRect(0, Y, Width, BoxHeight);
-	// 		context.fillStyle = v.color;
-	// 		context.fillText(Name, Indent + Index, Y+BoxHeight-FontAscent);
-
-
-	// 		Y += BoxHeight;
-	// 	}
-
-	// }
-
+	if(Selection && MouseReleased)
+	{
+		console.log('pressed on ' + Selection);
+		WSSendMessage("c" + Selection);
+	}
 	ProfileLeave();
+}
+var ConnectionStr = ["\\", "|", "/", "-" ];
+var ConnectionIdx = 0;
+function DrawConnectionStatus()
+{
+	var Strings = new Array();
+	Strings.push("Status");
+	if(WSConnected && WS && WS.readyState == 1)
+	{
+		Strings.push("[X]");
+	}
+	else
+	{
+		ConnectionIdx = (ConnectionIdx + 1 ) % ConnectionStr.length;
+		Strings.push("[" + ConnectionStr[ConnectionIdx]+"]");
+	}
+	Strings.push("Port");
+	Strings.push("" + WSPort);
+	Strings.push("Path");
+	Strings.push("" + WSPath);
+	Strings.push("Sends");
+	Strings.push("" + WSSend);
+	Strings.push("Receives");
+	Strings.push("" + WSReceive);
+	Strings.push("SendBytes");
+	Strings.push("" + WSSendBytes);
+	Strings.push("ReceiveBytes");
+	Strings.push("" + WSReceiveBytes);
+	Strings.push("Seconds");
+	Strings.push("" + WSSeconds);
+
+
+	DrawToolTip(Strings, CanvasDetailedView, 50000, 0);
+
 }
 function Draw()
 {
 	ProfileModeClear();
 	ProfileEnter("Total");
 	
-	DrawViews();
 	DrawMenu();
+
+	DrawViews();
+
+	DrawConnectionStatus();
 	DrawPlotf(CanvasDetailedView);
 	ProfileLeave();
 	ProfileModeDraw(CanvasDetailedView);
+
+	MouseReleased = false;
 }
 function RequestDraw()
 {
@@ -364,23 +611,20 @@ function AutoRedraw(Timestamp)
 
 
 
-var WSConnected = 0;
-var WSFail = 0;
-var WS;
-var WSPort = 1337;
-var WSPath;
-var WSMsgTimerTree = 1; //MSG_TIMER_TREE
-var TimerArray = [];
-var Empty = {"id":0};
-
-TimerArray.push(Empty); // 0 is root of tree
 
 function WSOpen()
 {
+	WSSend = 0;
+	WSReceive = 0;
+	WSSendBytes = 0;
+	WSReceiveBytes = 0;
+
+	TimerArray = [];
+	TimerArray.push(Empty);
+
+	ResetFrameData();
+
 	console.log('socket is OPEN!! path ' + WSPath);
-	WS.send("{fisk}");
-	WS.send("{ged,tang}");
-	WS.send("{ged,tang}");
 }
 
 function SplitIdTop(v)
@@ -403,6 +647,14 @@ function GetTimer(id)
 		}
 	}
 	return null;
+}
+function EnableTimer(T)
+{
+	var idx = GetTimer(T.id);
+	if(idx>=0)
+	{
+		TimerArray[idx].e = T.e;
+	}
 }
 function AddTimer(T)
 {
@@ -433,14 +685,75 @@ function AddTimer(T)
 	RequestDraw();
 
 }
+
+function AllocClearedArray(Size)
+{
+	var A = new Array(Size);
+	for(var i = 0; i < Size; ++i)
+	{
+		A[i] = 0;
+	}
+	return A;
+}
+function ResetFrameData()
+{
+	FrameData = {};
+	FrameOffset = 0;
+	FrameData.x = {};
+	FrameData.Time = AllocClearedArray(FrameCount);
+	FrameData.Ids = AllocClearedArray(FrameCount);
+}
+function GetFrameData(id)
+{
+	if(FrameData[id])
+	{
+		return FrameData[id];
+	}
+	else
+	{
+		var FD = {};
+		FD.Count = AllocClearedArray(FrameCount);
+		FD.Time = AllocClearedArray(FrameCount);
+		FD.TimeExcl = AllocClearedArray(FrameCount);
+		FrameData.x[id] = FD;
+	}
+}
+
+function ProcessFrame(F)
+{
+	FrameData.Time[FrameOffset] = F.t;
+	FrameData.Ids[FrameOffset] = F.f;
+	for(var idx in F.x)
+	{
+		var FD = GetFrameData(idx);
+		var Data = F[idx];
+		FD.Time[FrameOffset] = Data[0];
+		FD.TimeExcl[FrameOffset] = Data[1];
+		FD.Count[FrameOffset] = Data[2];
+	}
+	FrameOffset = (FrameOffset + 1) % FrameCount;
+}
+
 function WSMessage()
 {
 	console.log(event.data);
 	var Obj = JSON.parse(event.data);
+	WSReceive++;
+	WSReceiveBytes += event.data.length;
 	var k = Obj.k;
 	if(k == WSMsgTimerTree)
 	{
 		AddTimer(Obj.v);
+	}
+	else if(k == WSMsgEnabled)
+	{
+		console.log('got enable message ' + event);
+		EnableTimer(Obj.v);
+	}
+	else if(k == WSMsgFrame)
+	{
+		console.log('frame message');
+		ProcessFrame(Obj.v);
 	}
 }
 function WSError()
@@ -451,25 +764,43 @@ function WSClose()
 {
 	console.log('WSClose');
 }
+function WSSendMessage(msgid)
+{
+	if(WSConnected)
+	{
+		var str = '' + msgid;
+		WSSend++;
+		WSSendBytes += str.length;
+		WS.send(str);
+	}
+}
 
 
 function Connect()
 {
 	if(WS && (WS.readyState == 1 || WS.readyState == 0))
 	{
-		WSConnected = 1;
+		WSConnected = WS.readyState == 1;
 		WSFail = 0;
+		WSSeconds = 0;
 	}
 	else
 	{
 		WSConnected = 0;
-		if(!WS || WSFail > 3)
+		WSSeconds = (new Date() - WSOpenTime);
+		if(!WS || WSSeconds > 2000)
 		{
 			WSPort++;
-			if(WSPort > 1338+3)
+			if(WSPort > 1338+2)
 			{
 				WSPort = 1338;
 			}
+			if(WS)
+			{
+				WS.close();
+				WS = null;
+			}
+			WSOpenTime = new Date();
 			WSPath = "ws://localhost:" + WSPort + "/ws";
 			console.log('connecting to ' + WSPath);
 			WS = new WebSocket(WSPath);
@@ -522,6 +853,7 @@ function MouseMove(evt)
 function MouseButton(bPressed, evt)
 {
     evt.preventDefault();
+    MouseReleased = !bPressed;
 	// MouseDrag(bPressed ? MouseDragDown : MouseDragUp, evt);
 	// if(!bPressed)
 	// {
@@ -603,6 +935,11 @@ function MouseWheel(e)
 
 function KeyUp(evt)
 {
+	console.log('keyup ' + evt.keyCode);
+	if(evt.keyCode == 220)
+	{
+		ProfileMode = !ProfileMode;
+	}
 	// if(evt.keyCode == 39)
 	// {
 	// 	MoveToNext(1);
