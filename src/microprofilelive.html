@@ -60,6 +60,10 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 //connection status window
 // log window 
 // menu item
+//scrolling in menu
+//sub menus
+// bars view
+// graph view
 
 
 var FRAME_HISTORY_COLOR_CPU = '#ff7f27';
@@ -102,7 +106,7 @@ var PlotfArray = new Array();
 
 var FrameData = {};
 var FrameCount = 256;
-var FrameOffset = 0;
+var FramePending = 0;
 
 var WSConnected = 0;
 var WSSeconds = 0;
@@ -341,6 +345,8 @@ function CreateViews(Width, Height)
 	Views = [];
 	var History = CreateView(0, 0, Width, 100, "History", DrawHistory);
 	Views.push(History);
+	var MainView = CreateView(0, 100, Width, Height-100, "Main", DrawGraph2);
+	Views.push(MainView);
 }
 
 function ResizeCanvas() 
@@ -376,10 +382,186 @@ function ResizeCanvas()
 	}
 	MeasureFont();
 	CreateViews(nWidth, nHeight);
-
-
-
 }
+
+function DrawGraph(View, LocalMouseX, LocalMouseY)
+{
+	//return;
+	var Bars = FrameData.x;
+	if(!Bars)
+		return;
+
+	ProfileEnter("DrawGraph");
+	var CanvasPrev = View.Canvas[View.BackBuffer];
+	var OffscreenPrev = View.OffscreenData[View.BackBuffer];
+	View.BackBuffer = 1 - View.BackBuffer;
+	var Canvas = View.Canvas[View.BackBuffer];
+	var context = Canvas.getContext('2d');
+	
+	context.clearRect(0, 0, View.w, View.h);
+	// context.drawImage(CanvasPrev, -1, 0, View.w, View.h);
+	// context.putImageData(OffscreenPrev, View.OffscreenData[View.BackBuffer], View.x*2, View.y*2);
+	// context.fillStyle = '#005500';
+	// context.fillRect(0, 0, 1000, 1000);
+
+	var h = View.h;
+	var h1 = h-1;
+	var w = View.w;
+	var fHeightScale = h / ReferenceTime;
+	var MouseDragging = 0;
+
+	// MouseDragState != MouseDragOff;
+	// RangeCpuHistory = RangeInit();
+	// RangeGpuHistory = RangeInit()
+	
+	var FrameBegin = FramePendingBegin;
+	var FrameEnd = FramePendingEnd;
+	var NumFrames = FrameEnd - FrameBegin;
+
+	if(FrameEnd < FrameBegin)
+	{
+		NumFrames = FrameEnd + FrameCount - FrameBegin;
+	}
+	if(NumFrames < 0)
+		debugger;
+
+	if(FrameEnd - FrameBegin > FrameCount -1 )
+	{
+		if(FrameEnd < FrameCount)
+			debugger;
+		FrameBegin = FrameEnd - FrameCount + 1;
+	}
+	//var NumFrames = FrameEnd - FrameBegin;
+	var Keys = [];
+	for(var key in Bars)
+	{
+		Keys.push(key);
+	}
+	console.log('numframes ' + NumFrames);
+	if(0 != NumFrames)
+	{
+		context.drawImage(CanvasPrev, -NumFrames, 0, View.w, View.h);
+		
+		var dY = i * 2;//30*(1+(i%30));//* t * fHeightScale;
+		var FramesLeft = NumFrames;
+
+//		if(i != FrameEnd)
+		for(var i = FrameBegin; i != FrameEnd; i = (i+1) % FrameCount)
+		{
+			ProfileEnter("loop0");
+			//sort indices based on timer value.
+			Keys.sort( function(a, b){ 
+				var BlockA = Bars[a];
+				var BlockB = Bars[b];
+				var TimeArrayA = BlockA.Time;
+				var TimeArrayB = BlockB.Time;
+				return TimeArrayA[i] - TimeArrayB[i];
+			} );
+			var Y = h1;
+			var X = w-FramesLeft;
+			FramesLeft -= 1;
+			var TimeLast = 0;
+			for(var x = 0; x < Keys.length; ++x)
+			{
+				ProfileEnter("loop1");
+
+				var k = Keys[x];
+				var idx = GetTimer(k);
+				if(!idx && 0 != idx)
+				{
+					debugger;
+				}
+				var color = TimerArray[idx].color;
+				var Block = Bars[k];
+				var TimeArray = Block.Time;
+				var t = TimeArray[(FrameBegin + i) % FrameCount];
+				if(t > ReferenceTime)
+					ReferenceTime = t;
+				if(t < TimeLast)
+				{
+					ProfileLeave();
+					break;
+				}
+				dY = (t-TimeLast) * fHeightScale;
+				context.strokeStyle = color;
+				context.beginPath();
+				// context.moveTo(0,0);
+				// context.lineTo(w,h);
+				// context.lineTo(0,h);
+				// context.lineTo(w, 0);			
+				context.moveTo(X, Y);
+				Y -= dY;
+				context.lineTo(X, Y);
+				context.stroke();
+
+				TimeLast = t;
+			}
+			ProfileLeave();
+		}
+	}
+	else
+	{
+			context.drawImage(CanvasPrev, 0, 0, View.w, View.h);
+
+	}
+	ProfileLeave();
+}
+
+
+function DrawGraph2(View, LocalMouseX, LocalMouseY)
+{
+	//return;
+	var Bars = FrameData.x;
+	if(!Bars)
+		return;
+
+	ProfileEnter("DrawGraph");
+	var CanvasPrev = View.Canvas[View.BackBuffer];
+	var OffscreenPrev = View.OffscreenData[View.BackBuffer];
+	View.BackBuffer = 1 - View.BackBuffer;
+	var Canvas = View.Canvas[View.BackBuffer];
+	var context = Canvas.getContext('2d');
+	context.clearRect(0, 0, View.w, View.h);
+
+	var h = View.h;
+	//var h1 = h-1;
+	var w = View.w;
+	var fHeightScale = h / ReferenceTime;
+	var MouseDragging = 0;
+	var fWidth = w / FrameCount;
+
+	var Keys = [];
+	for(var key in Bars)
+	{
+		var idx = GetTimer(key);
+		if(!idx && idx != 0)
+		{
+			debugger;
+		}
+		var Block = Bars[key];
+		var Time = Block.Time;
+		var color = TimerArray[idx].color;
+		var X = w - Time.length*fWidth;
+		var Y = h;
+		context.strokeStyle = color;
+		context.fillStyle = color;
+
+		context.beginPath();
+		context.moveTo(X,Y);
+		for(var i = 0; i < Time.length; ++i)
+		{
+			Y = h - Time[i] * fHeightScale;
+			context.lineTo(X, Y);
+			X += fWidth;
+		}
+		context.lineTo(X,h);
+		context.stroke();
+	}
+
+	ProfileLeave();
+}
+
+
 function DrawHistory(View, LocalMouseX, LocalMouseY)
 {
 	ProfileEnter("DrawHistory");
@@ -402,12 +584,16 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 
 	for(var i = 0; i < FrameCount; i++)
 	{
-		var idx = (FrameOffset + i) % FrameCount;
-		if(idx < 0 || idx > FrameCount)
-			debugger;
-		var fMs = FrameData.Time[idx];
+		// var idx = (FrameOffset + i) % FrameCount;
+		// if(idx < 0 || idx > FrameCount)
+		// 	debugger;
+		var fMs = FrameData.Time[i];
 
 		var fH = fHeightScale * fMs;
+		// if((i % 3) < 0.1)
+		// {
+		// 	fH = fHeight;
+		// }
 		var bMouse = LocalMouseX > fX && LocalMouseX < fX + fWidth;
 		if(bMouse && !MouseDragging)
 		{
@@ -466,7 +652,8 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 	// }
 	ProfileLeave();
 
-	View.OffscreenData[View.BackBuffer] = context.getImageData(0, 0, Canvas.width, Canvas.height);
+	//View.OffscreenData[View.BackBuffer] = context.getImageData(0, 0, Canvas.width, Canvas.height);
+	//console.log('height ' +
 }
 
 function DrawViews()
@@ -479,15 +666,35 @@ function DrawViews()
 		var LocalMouseX = MouseX - View.x;
 		var LocalMouseY = MouseY - View.y;
 		View.DisplayFunc(View, LocalMouseX, LocalMouseY);
+		var Canvas = View.Canvas[View.BackBuffer];
+		var Context = Canvas.getContext('2d');
+		//ProfileEnter("GetOffScreen" + i);
+		//View.OffscreenData[View.BackBuffer] = Context.getImageData(0, 0, Canvas.width, Canvas.height);
+		ProfileLeave();
 	}
 	ProfileLeave();
 	var context = CanvasDetailedView.getContext('2d');
+	// context.fillStyle = '#009900';
+	context.clearRect(0, 0, nWidth, nHeight);
+
+
+//	context.clearRect(0, 0, nWidth, nHeight);
 	ProfileEnter("BlitViews");
+	var DPR = window.devicePixelRatio;
+	// if(DPR)
+	// {
+	// 	context.scale(1,1);
+	// }
 	for(var i = 0; i < Views.length; ++i)
 	{
 		var View = Views[i];
-		context.putImageData(View.OffscreenData[View.BackBuffer], View.x, View.y);
+		//context.putImageData(View.OffscreenData[View.BackBuffer], View.x*2, View.y*2);
+		context.drawImage(View.Canvas[View.BackBuffer], View.x, View.y, View.w, View.h);
 	}
+	// if(DPR)
+	// {
+	// 	context.scale(DPR, DPR);
+	// }
 	ProfileLeave();
 
 }
@@ -497,7 +704,7 @@ function DrawMenu()
 	var context = CanvasDetailedView.getContext('2d');
 	var nColorIndex = 0;
 	var Y = 0;
-	var Width = 800;
+	var Width = 300;
 	var Selection = null;
 	ProfileEnter("DrawMenu");
 
@@ -551,6 +758,11 @@ var ConnectionStr = ["\\", "|", "/", "-" ];
 var ConnectionIdx = 0;
 function DrawConnectionStatus()
 {
+	if(WSConnected && WS && WS.readyState == 1)
+	{
+		if(!ProfileMode)
+			return;
+	}
 	var Strings = new Array();
 	Strings.push("Status");
 	if(WSConnected && WS && WS.readyState == 1)
@@ -585,17 +797,18 @@ function Draw()
 {
 	ProfileModeClear();
 	ProfileEnter("Total");
-	
-	DrawMenu();
-
 	DrawViews();
-
+	DrawMenu();
 	DrawConnectionStatus();
 	DrawPlotf(CanvasDetailedView);
 	ProfileLeave();
 	ProfileModeDraw(CanvasDetailedView);
 
 	MouseReleased = false;
+
+
+	//FramePendingBegin
+	// FramePendingBegin = FramePendingEnd;
 }
 function RequestDraw()
 {
@@ -695,6 +908,11 @@ function AllocClearedArray(Size)
 	}
 	return A;
 }
+function PushIntoArray(A, v)
+{
+	A.shift();
+	A.push(v);
+}
 function ResetFrameData()
 {
 	FrameData = {};
@@ -705,9 +923,9 @@ function ResetFrameData()
 }
 function GetFrameData(id)
 {
-	if(FrameData[id])
+	if(FrameData.x[id])
 	{
-		return FrameData[id];
+		return FrameData.x[id];
 	}
 	else
 	{
@@ -716,27 +934,45 @@ function GetFrameData(id)
 		FD.Time = AllocClearedArray(FrameCount);
 		FD.TimeExcl = AllocClearedArray(FrameCount);
 		FrameData.x[id] = FD;
+		return FD;
 	}
 }
 
 function ProcessFrame(F)
 {
-	FrameData.Time[FrameOffset] = F.t;
-	FrameData.Ids[FrameOffset] = F.f;
+	PushIntoArray(FrameData.Time, F.t);
+	PushIntoArray(FrameData.Ids, F.f);
+	// FrameData.Time[FrameOffset] = F.t;
+	// FrameData.Ids[FrameOffset] = F.f;
 	for(var idx in F.x)
 	{
 		var FD = GetFrameData(idx);
-		var Data = F[idx];
-		FD.Time[FrameOffset] = Data[0];
-		FD.TimeExcl[FrameOffset] = Data[1];
-		FD.Count[FrameOffset] = Data[2];
+		var Data = F.x[idx];
+		PushIntoArray(FD.Time, Data[0]);
+		PushIntoArray(FD.TimeExcl, Data[1]);
+		PushIntoArray(FD.Count, Data[2]);
 	}
+	for(var idx in FrameData.x)
+	{
+		if(!F.x[idx])
+		{
+			FD = FrameData.x[idx];
+			PushIntoArray(FD.Time,0.0);
+			PushIntoArray(FD.TimeExcl, 0.0);
+			PushIntoArray(FD.Count, 0);
+		}
+
+	}
+	FramePending++;
 	FrameOffset = (FrameOffset + 1) % FrameCount;
+	FramePendingEnd = FrameOffset;
+
+
 }
 
 function WSMessage()
 {
-	console.log(event.data);
+//	console.log(event.data);
 	var Obj = JSON.parse(event.data);
 	WSReceive++;
 	WSReceiveBytes += event.data.length;
@@ -747,12 +983,12 @@ function WSMessage()
 	}
 	else if(k == WSMsgEnabled)
 	{
-		console.log('got enable message ' + event);
+		//console.log('got enable message ' + event);
 		EnableTimer(Obj.v);
 	}
 	else if(k == WSMsgFrame)
 	{
-		console.log('frame message');
+		//console.log('frame message');
 		ProcessFrame(Obj.v);
 	}
 }

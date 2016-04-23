@@ -4648,7 +4648,7 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 	uint64_t nFrameTicks = pFrameNext->nFrameStartCpu - pFrameCurrent->nFrameStartCpu;
 	uint64_t nFrame = pFrameCurrent->nFrameId;
 	double fTime = nFrameTicks * fTickToMsCpu;
-	WSPrintf("{\"k\":\"%d\",\"v\":{\"t\":%f,\"f\":%lld", MSG_FRAME, fTime, nFrame);
+	WSPrintf("{\"k\":\"%d\",\"v\":{\"t\":%f,\"f\":%lld,\"x\":{", MSG_FRAME, fTime, nFrame);
 	int nTimer = S.WebSocketTimers;
 	while(-1 != nTimer)
 	{
@@ -4663,7 +4663,7 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 		nTimer = TI.nWSNext;
 		WSPrintf("\"%d\":[%f,%f,%f]%c", id, fTime, fTimeExcl, fCount, nTimer == -1 ? ' ' : ',');
 	}
-	WSPrintf("}}");
+	WSPrintf("}}}");
 	WSFlush();
 	WSPrintEnd();
 }
