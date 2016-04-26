@@ -39,18 +39,15 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 .help {position:absolute;z-index:5;text-align:left;padding:2px;margin-left:-999em;background-color: #313131;width:300px;}
 .helpstart {position:absolute;z-index:5;text-align:left;padding:2px;background-color: #313131;width:300px;display:none}
 .root {z-index:1;position:absolute;top:0px;left:0px;}
-.filterinput0{position:fixed;bottom:10px;left:25px;background-color: #313131}
-.filterinput1{position:fixed;bottom:10px;left:175px;background-color: #313131}
+.filterinput0{position:fixed;background-color: #313131;display:none;}
+.filterinput{width:100px;}
 </style>
 </head>
 <body style="">
-<div id='filterinput'>
-<div class="filterinput0">Group<br><input type="text" id="filtergroup"></div>
-<div class="filterinput1">Timer/Thread<br><input type="text" id="filtertimer"></div>
-</div>
+<div class="filterinput0" id="filterinputdiv">Filter<br><input type="text" id="filter" class="filterinput"></div>
 <canvas id="DetailedView" height="100%" style="background-color:#474747;margin:0px;padding:0px;"></canvas>
 <script>
-
+"use strict"
 
 
 //todo
@@ -70,7 +67,7 @@ var FRAME_HISTORY_COLOR_CPU = '#ff7f27';
 var FRAME_HISTORY_COLOR_GPU = '#ffffff';
 
 
-
+var HistoryHeight = 100;
 var CanvasDetailedView = document.getElementById('DetailedView');
 var CanvasDetailedOffscreen = document.createElement('canvas');
 
@@ -91,6 +88,7 @@ var BoxHeight = FontHeight + 2;
 var MouseX = 0;
 var MouseY = 0;
 var MouseReleased = false;
+var DPR = 0;
 
 var ReferenceTime = 33.0;
 
@@ -114,9 +112,17 @@ var WSFail = 0;
 var WS;
 var WSPort = 1337;
 var WSPath;
-var WSMsgTimerTree = 1; //MSG_TIMER_TREE
-var WSMsgEnabled = 2; // MSG_ENABLED
-var WSMsgFrame = 3; // MSG_FRAME
+
+var MSG_TIMER_TREE = 1; //MSG_TIMER_TREE
+var MSG_ENABLED = 2; // MSG_ENABLED
+var MSG_FRAME = 3; // MSG_FRAME
+
+var TYPE_NONE = 0;
+var TYPE_TIMER = 1;
+var TYPE_GROUP = 2;
+var TYPE_CATEGORY = 3;
+
+
 var WSSend = 0;
 var WSReceive = 0;
 var WSSendBytes = 0;
@@ -126,6 +132,7 @@ var WSOpenTime = 0;
 
 var TimerArray = [];
 var Empty = {"id":0};
+var WidthArray = [];
 
 TimerArray.push(Empty); // 0 is root of tree
 
@@ -239,17 +246,6 @@ function ProfileModeDraw(Canvas)
 			StringArray.push("FPS");
 			StringArray.push("" + ProfileFps.toFixed(2));
 		}
-		StringArray.push("ProfileRedraw0");
-		StringArray.push("" + ProfileRedraw0);
-		StringArray.push("ProfileRedraw1");
-		StringArray.push("" + ProfileRedraw1);
-		StringArray.push("ProfileRedraw2");
-		StringArray.push("" + ProfileRedraw2);
-		ProfileRedraw0 = 0;
-		ProfileRedraw1 = 0;
-		ProfileRedraw2 = 0;
-
-
 		for(var i = 0; i < ProfileData.Plot; ++i)
 		{
 			StringArray.push("");
@@ -343,9 +339,9 @@ function CreateView(x, y, w, h, name, DisplayFunc)
 function CreateViews(Width, Height)
 {
 	Views = [];
-	var History = CreateView(0, 0, Width, 100, "History", DrawHistory);
+	var History = CreateView(0, 0, Width, HistoryHeight, "History", DrawHistory);
 	Views.push(History);
-	var MainView = CreateView(0, 100, Width, Height-100, "Main", DrawGraph2);
+	var MainView = CreateView(0, HistoryHeight, Width, Height-HistoryHeight, "Main", DrawGraph2);
 	Views.push(MainView);
 }
 
@@ -534,10 +530,6 @@ function DrawGraph2(View, LocalMouseX, LocalMouseY)
 	for(var key in Bars)
 	{
 		var idx = GetTimer(key);
-		if(!idx && idx != 0)
-		{
-			debugger;
-		}
 		var Block = Bars[key];
 		var Time = Block.Time;
 		var color = TimerArray[idx].color;
@@ -570,42 +562,21 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 	context.clearRect(0, 0, View.w, View.h);
 	if(!FrameData.Time)
 		return;
-	//var NumFrames = 0;//FrameCount
 	var fHeight = View.h;
 	var fWidth = nWidth / FrameCount;
 	var fHeightScale = fHeight / ReferenceTime;
 	var fX = 0;
 	var FrameIndex = -1;
 	var MouseDragging = 0;
-
-	// MouseDragState != MouseDragOff;
-	// RangeCpuHistory = RangeInit();
-	// RangeGpuHistory = RangeInit()
-
 	for(var i = 0; i < FrameCount; i++)
 	{
-		// var idx = (FrameOffset + i) % FrameCount;
-		// if(idx < 0 || idx > FrameCount)
-		// 	debugger;
 		var fMs = FrameData.Time[i];
 
 		var fH = fHeightScale * fMs;
-		// if((i % 3) < 0.1)
-		// {
-		// 	fH = fHeight;
-		// }
 		var bMouse = LocalMouseX > fX && LocalMouseX < fX + fWidth;
 		if(bMouse && !MouseDragging)
 		{
 			context.fillStyle = FRAME_HISTORY_COLOR_GPU;
-			// RangeCpuHistory.Begin = Frames[i].framestart;
-			// RangeCpuHistory.End = Frames[i].frameend;
-			// if(Frames[i].framestartgpu)
-			// {
-			// 	RangeGpuHistory.Begin = Frames[i].framestartgpu;
-			// 	RangeGpuHistory.End = Frames[i].frameendgpu;
-			// }
-			// FrameIndex = i;
 		}
 		else
 		{
@@ -614,46 +585,8 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 		context.fillRect(fX, fHeight - fH, fWidth-1, fH);
 		fX += fWidth;
 	}
-
-
-	//range stuff
-	// var fRangeHistoryBegin = FrameFirst;
-	// var fRangeHistoryEnd = FrameLast;
-	// var X = fRangeHistoryBegin;
-	// var Y = 0;
-	// var W = fRangeHistoryEnd - fRangeHistoryBegin;
-	// context.globalAlpha = 0.35;
-	// context.fillStyle = '#009900';
-	// context.fillRect(X, Y, W, fHeight);
-	// context.globalAlpha = 1;
-	// context.strokeStyle = '#00ff00';
-	// context.beginPath();
-	// context.moveTo(X, Y);
-	// context.lineTo(X, Y+fHeight);
-	// context.moveTo(X+W, Y);
-	// context.lineTo(X+W, Y+fHeight);
-	// context.stroke();
-
-
-
-
-	// DrawCaptureInfo(context);
-
-	// if(FrameIndex>=0 && !MouseDragging)
-	// {
-	// 	var StringArray = [];
-	// 	StringArray.push("Frame");
-	// 	StringArray.push("" + FrameIndex);
-	// 	StringArray.push("Time");
-	// 	StringArray.push("" + (Frames[FrameIndex].frameend - Frames[FrameIndex].framestart).toFixed(3));
-
-	// 	DrawToolTip(StringArray, CanvasHistory, HistoryViewMouseX, HistoryViewMouseY+20);
-
-	// }
 	ProfileLeave();
 
-	//View.OffscreenData[View.BackBuffer] = context.getImageData(0, 0, Canvas.width, Canvas.height);
-	//console.log('height ' +
 }
 
 function DrawViews()
@@ -668,46 +601,156 @@ function DrawViews()
 		View.DisplayFunc(View, LocalMouseX, LocalMouseY);
 		var Canvas = View.Canvas[View.BackBuffer];
 		var Context = Canvas.getContext('2d');
-		//ProfileEnter("GetOffScreen" + i);
-		//View.OffscreenData[View.BackBuffer] = Context.getImageData(0, 0, Canvas.width, Canvas.height);
 		ProfileLeave();
 	}
 	ProfileLeave();
 	var context = CanvasDetailedView.getContext('2d');
-	// context.fillStyle = '#009900';
 	context.clearRect(0, 0, nWidth, nHeight);
-
-
-//	context.clearRect(0, 0, nWidth, nHeight);
 	ProfileEnter("BlitViews");
 	var DPR = window.devicePixelRatio;
-	// if(DPR)
-	// {
-	// 	context.scale(1,1);
-	// }
 	for(var i = 0; i < Views.length; ++i)
 	{
 		var View = Views[i];
-		//context.putImageData(View.OffscreenData[View.BackBuffer], View.x*2, View.y*2);
 		context.drawImage(View.Canvas[View.BackBuffer], View.x, View.y, View.w, View.h);
 	}
-	// if(DPR)
-	// {
-	// 	context.scale(DPR, DPR);
-	// }
 	ProfileLeave();
 
 }
+var SubMenuGroup = 0;
+var SubMenuTimers = 1;
+var SubMenuSettings = 2;
+var SubMenuActive = -1;
+var MenuItems = [];
 
-function DrawMenu()
+function MakeMenuItem(name, f)
+{
+	var Item = {};
+	Item.name = name
+	Item.f = f;
+	Item.w = name.length;
+	return Item;
+}
+function ToggleSubMenu(m)
+{
+	if(m != SubMenuActive)
+	{
+		SubMenuActive = m;
+	}
+	else
+	{
+		SubMenuActive = -1;
+	}
+	var filterinput = document.getElementById('filterinputdiv');
+	if(SubMenuActive == 1)
+	{
+		var s = TimerMenuSize();
+		filterinput.style['display'] = 'inline';
+		var y = s.y - 40;
+		filterinput.style['left'] = s.x + 'px';
+		filterinput.style['top'] = y + 'px';
+		filterinput.style['right'] = (s.x+s.w) + 'px';
+		document.getElementById('filter').style['width'] = s.w + 'px';
+
+	}
+	else
+	{
+		filterinput.style['display'] = 'none';
+	}
+	console.log("submenuactive " + SubMenuActive);
+}
+function InitMenu()
+{
+	MenuItems = [];
+	MenuItems.push(MakeMenuItem("Groups", function(){ToggleSubMenu(SubMenuGroup); } ));
+	MenuItems.push(MakeMenuItem("Timers", function(){ToggleSubMenu(SubMenuTimers); } ));
+	MenuItems.push(MakeMenuItem("Settings", function(){ ToggleSubMenu(SubMenuSettings); } ));
+}
+function DrawTopMenu()
+{
+	var context = CanvasDetailedView.getContext('2d');
+	var X = 0;
+	var Y = 0;
+	var MouseInY = MouseY < BoxHeight;
+	for(var i = 0; i < MenuItems.length; ++i)
+	{
+		var Item = MenuItems[i];
+		var w = context.measureText(Item.name).width + 4;
+		var MouseIn = MouseInY && MouseX >= X && MouseX < X + w;
+		var color = MouseIn ? nBackColors[1] : "black";
+		context.fillStyle = color;
+		context.fillRect(X, Y, w, BoxHeight);
+		context.fillStyle = "white";
+		context.fillText(Item.name, X+2, Y+BoxHeight-FontAscent);
+		if(MouseIn && MouseReleased)
+		{
+			Item.f();
+		}
+		X += w + 6;
+	}
+}
+function TimerMenuSize()
+{
+	var Obj = {};
+	Obj.w = WidthArray[TYPE_TIMER] + WidthArray[TYPE_GROUP] + 5 + FontWidth;
+	Obj.x = nWidth / 2 - Obj.w / 2;
+	Obj.y = HistoryHeight + 25;
+	return Obj;
+}
+
+function DrawTimerMenu()
+{
+
+
+	var context = CanvasDetailedView.getContext('2d');
+	var nColorIndex = 0;
+	var SizeInfo = TimerMenuSize();
+	var Y = SizeInfo.y;
+	var Width = SizeInfo.w;
+	var Selection = null;
+	var X = nWidth / 2 - Width / 2;
+	for(var i = 0; i < TimerArray.length; ++i)
+	{
+		var v = TimerArray[i];
+		if(v.idtype == TYPE_TIMER)
+		{
+			var Name = (v.e?'*':' ')+v.name;
+			var ParentName = TimerArray[v.pidx].name;
+			var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+			var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+			context.fillStyle = bgcolor;
+			context.fillRect(X, Y, Width, BoxHeight);
+			context.fillStyle = 'white';
+
+			var TextY = Y+BoxHeight-FontAscent;
+			context.fillText(ParentName, X + 2, TextY);
+			context.fillStyle = v.color;
+			context.textAlign = 'right';
+			context.fillText(Name, X + Width - 2, TextY);
+			context.textAlign = 'left';
+			if(bMouseIn)
+			{
+				Selection = v.id;
+			}
+			Y += BoxHeight;
+			nColorIndex = 1-nColorIndex;
+
+		}
+	}
+	if(Selection && MouseReleased)
+	{
+		console.log('pressed on ' + Selection);
+		WSSendMessage("c" + Selection);
+	}
+}
+
+
+function DrawGroupMenu()
 {
 	var context = CanvasDetailedView.getContext('2d');
 	var nColorIndex = 0;
-	var Y = 0;
+	var Y = 50;
 	var Width = 300;
 	var Selection = null;
-	ProfileEnter("DrawMenu");
-
 	function DrawMenuRecursive(Index, Indent)
 	{
 		ProfileEnter("DrawMenuRecursive");
@@ -718,7 +761,7 @@ function DrawMenu()
 		if(Index > 0)
 		{
 			var Name = (v.e?'*':' ')+v.name;// + ' -> ' + v.id + ' -> ' + v.pid; idtype
-			bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+			var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
 
 			var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
 			context.fillStyle = bgcolor;
@@ -730,7 +773,6 @@ function DrawMenu()
 				Selection = v.id;
 
 			}
-
 			Y += BoxHeight;
 		}
 
@@ -746,13 +788,36 @@ function DrawMenu()
 		ProfileLeave();
 	}
 	DrawMenuRecursive(0, -1);
-
 	if(Selection && MouseReleased)
 	{
 		console.log('pressed on ' + Selection);
 		WSSendMessage("c" + Selection);
 	}
-	ProfileLeave();
+}
+
+
+function DrawMenu()
+{
+	if(WSConnected && WS && WS.readyState == 1)
+	{
+		var context = CanvasDetailedView.getContext('2d');
+		var nColorIndex = 0;
+		var Y = 50;
+		var Width = 300;
+		var Selection = null;
+		ProfileEnter("DrawMenu");
+		DrawTopMenu();
+
+		if(SubMenuActive == 0)
+		{
+			DrawGroupMenu();
+		}
+		else if(SubMenuActive == 1)
+		{
+			DrawTimerMenu();
+		}
+		ProfileLeave();
+	}
 }
 var ConnectionStr = ["\\", "|", "/", "-" ];
 var ConnectionIdx = 0;
@@ -805,14 +870,9 @@ function Draw()
 	ProfileModeDraw(CanvasDetailedView);
 
 	MouseReleased = false;
-
-
-	//FramePendingBegin
-	// FramePendingBegin = FramePendingEnd;
 }
 function RequestDraw()
 {
-	//requestAnimationFrame(Draw);
 }
 
 function AutoRedraw(Timestamp)
@@ -834,6 +894,11 @@ function WSOpen()
 
 	TimerArray = [];
 	TimerArray.push(Empty);
+	WidthArray = [];
+	WidthArray[TYPE_NONE] = 0;
+	WidthArray[TYPE_TIMER] = 0;
+	WidthArray[TYPE_GROUP] = 0;
+	WidthArray[TYPE_CATEGORY] = 0;
 
 	ResetFrameData();
 
@@ -869,6 +934,11 @@ function EnableTimer(T)
 		TimerArray[idx].e = T.e;
 	}
 }
+function MeasureWidth(str)
+{
+	var context = CanvasDetailedView.getContext('2d');
+	return context.measureText(str).width;
+}
 function AddTimer(T)
 {
 	var idx = TimerArray.length;
@@ -878,17 +948,22 @@ function AddTimer(T)
 		idx = existing;
 	}
 	TimerArray[idx] = T;
-	TimerArray[idx].idtype = SplitIdTop(T.id);
+	var idtype = SplitIdTop(T.id);
+	TimerArray[idx].idtype = idtype;
 	TimerArray[idx].idelement = SplitIdBottom(T.id);
+	var w = MeasureWidth(T.name);
+	if(w > WidthArray[idtype])
+	{
+		WidthArray[idtype] = w;
+	}
 	var pidx = GetTimer(T.pid);
 	if(pidx >= 0)
 	{
-
+		TimerArray[idx].pidx = pidx;
 		var Parent = TimerArray[pidx];
 		var Sibling = Parent.firstchild;
 		Parent.firstchild = idx;
 		TimerArray[idx].sibling = Sibling;
-
 	}
 	else
 	{
@@ -916,7 +991,6 @@ function PushIntoArray(A, v)
 function ResetFrameData()
 {
 	FrameData = {};
-	FrameOffset = 0;
 	FrameData.x = {};
 	FrameData.Time = AllocClearedArray(FrameCount);
 	FrameData.Ids = AllocClearedArray(FrameCount);
@@ -964,10 +1038,6 @@ function ProcessFrame(F)
 
 	}
 	FramePending++;
-	FrameOffset = (FrameOffset + 1) % FrameCount;
-	FramePendingEnd = FrameOffset;
-
-
 }
 
 function WSMessage()
@@ -977,16 +1047,16 @@ function WSMessage()
 	WSReceive++;
 	WSReceiveBytes += event.data.length;
 	var k = Obj.k;
-	if(k == WSMsgTimerTree)
+	if(k == MSG_TIMER_TREE)
 	{
 		AddTimer(Obj.v);
 	}
-	else if(k == WSMsgEnabled)
+	else if(k == MSG_ENABLED)
 	{
 		//console.log('got enable message ' + event);
 		EnableTimer(Obj.v);
 	}
-	else if(k == WSMsgFrame)
+	else if(k == MSG_FRAME)
 	{
 		//console.log('frame message');
 		ProcessFrame(Obj.v);
@@ -1309,7 +1379,7 @@ function DrawToolTip(StringArray, Canvas, x, y)
 	var WidthArray = Array(StringArray.length);
 	var nMaxWidth = 0;
 	var nHeight = 0;
-	for(i = 0; i < StringArray.length; i += 2)
+	for(var i = 0; i < StringArray.length; i += 2)
 	{
 		var nWidth0 = context.measureText(StringArray[i]).width;
 		var nWidth1 = context.measureText(StringArray[i+1]).width;
@@ -1390,6 +1460,7 @@ function DrawPlotf(Canvas)
 
 ResizeCanvas();
 SetupEvents();
+InitMenu();
 
 setInterval(Connect, 10);
 
