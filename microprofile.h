@@ -338,7 +338,7 @@ typedef uint32_t ThreadIdType;
 #define MICROPROFILE_PLATFORM_MARKER_BEGIN(color,marker) MicroProfilePlatformMarkerBegin(color,marker)
 #define MICROPROFILE_PLATFORM_MARKER_END() MicroProfilePlatformMarkerEnd()
 #else
-#define MICROPROFILE_PLATFORM_MARKER_BEGIN(color,marker) do{}while(0)
+#define MICROPROFILE_PLATFORM_MARKER_BEGIN(color,marker) do{(void)color;(void)marker;}while(0)
 #define MICROPROFILE_PLATFORM_MARKER_END() do{}while(0)
 #define MICROPROFILE_PLATFORM_MARKERS_ENABLED 0
 #endif
@@ -510,17 +510,17 @@ struct MicroProfileThreadInfo
 	const char* pThreadModule;
 	const char* pProcessModule;
 	MicroProfileThreadInfo()
-		:tid(0)
+		:nIsLocal(0)
 		,pid(0)
-		, nIsLocal(0)
-		, pThreadModule("?")
-		, pProcessModule("?")
+		,tid(0)
+		,pThreadModule("?")
+		,pProcessModule("?")
 	{
 	}
 	MicroProfileThreadInfo(uint32_t ThreadId, uint32_t ProcessId, uint32_t nIsLocal)
-		:tid(ThreadId)
+		:nIsLocal(nIsLocal)
 		,pid(ProcessId)
-		,nIsLocal(nIsLocal)
+		,tid(ThreadId)
 		,pThreadModule("?")
 		,pProcessModule("?")
 	{
@@ -1519,7 +1519,6 @@ void MicroProfileOnThreadCreate(const char* pThreadName)
 	g_bUseLock = true;
 	MicroProfileInit();
 	MP_ASSERT(MicroProfileGetThreadLog() == 0);
-	char Buffer[512];
 	MicroProfileThreadLog* pLog = MicroProfileCreateThreadLog(pThreadName ? pThreadName : MicroProfileGetThreadName(Buffer));
 	MP_ASSERT(pLog);
 	MicroProfileSetThreadLog(pLog);
@@ -2004,7 +2003,7 @@ uint64_t MicroProfileEnter(MicroProfileToken nToken_)
 		uint64_t nTick = MP_TICK();
 		if(MICROPROFILE_PLATFORM_MARKERS_ENABLED)
 		{
-			uint32 idx = MicroProfileGetTimerIndex(nToken_);
+			uint32_t idx = MicroProfileGetTimerIndex(nToken_);
 			MicroProfileTimerInfo& TI = S.TimerInfo[idx];
 			MICROPROFILE_PLATFORM_MARKER_BEGIN(TI.nColor, TI.pNameExt);
 		}
