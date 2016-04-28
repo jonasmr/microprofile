@@ -59,7 +59,7 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 // menu item
 //scrolling in menu
 //sub menus
-// bars view
+// TimerMap view
 // graph view
 
 
@@ -361,7 +361,7 @@ function CreateViews(Width, Height)
 	Views = [];
 	var History = CreateView(0, 0, Width, HistoryHeight, "History", DrawHistory);
 	Views.push(History);
-	var MainView = CreateView(0, HistoryHeight, Width, Height-HistoryHeight, "Main", DrawGraph2);
+	var MainView = CreateView(0, HistoryHeight, Width, Height-HistoryHeight, "Main", DrawBars);
 	Views.push(MainView);
 }
 
@@ -400,134 +400,200 @@ function ResizeCanvas()
 	CreateViews(nWidth, nHeight);
 }
 
-function DrawGraph(View, LocalMouseX, LocalMouseY)
+// function DrawGraph(View, LocalMouseX, LocalMouseY)
+// {
+// 	var Bars = FrameData.TimerMap;
+// 	if(!Bars)
+// 		return;
+
+// 	ProfileEnter("DrawGraph");
+// 	var CanvasPrev = View.Canvas[View.BackBuffer];
+// 	var OffscreenPrev = View.OffscreenData[View.BackBuffer];
+// 	View.BackBuffer = 1 - View.BackBuffer;
+// 	var Canvas = View.Canvas[View.BackBuffer];
+// 	var context = Canvas.getContext('2d');
+	
+// 	context.clearRect(0, 0, View.w, View.h);
+// 	// context.drawImage(CanvasPrev, -1, 0, View.w, View.h);
+// 	// context.putImageData(OffscreenPrev, View.OffscreenData[View.BackBuffer], View.x*2, View.y*2);
+// 	// context.fillStyle = '#005500';
+// 	// context.fillRect(0, 0, 1000, 1000);
+
+// 	var h = View.h;
+// 	var h1 = h-1;
+// 	var w = View.w;
+// 	var fHeightScale = h / ReferenceTime;
+// 	var MouseDragging = 0;
+
+// 	// MouseDragState != MouseDragOff;
+// 	// RangeCpuHistory = RangeInit();
+// 	// RangeGpuHistory = RangeInit()
+	
+// 	var FrameBegin = FramePendingBegin;
+// 	var FrameEnd = FramePendingEnd;
+// 	var NumFrames = FrameEnd - FrameBegin;
+
+// 	if(FrameEnd < FrameBegin)
+// 	{
+// 		NumFrames = FrameEnd + FrameCount - FrameBegin;
+// 	}
+// 	if(NumFrames < 0)
+// 		debugger;
+
+// 	if(FrameEnd - FrameBegin > FrameCount -1 )
+// 	{
+// 		if(FrameEnd < FrameCount)
+// 			debugger;
+// 		FrameBegin = FrameEnd - FrameCount + 1;
+// 	}
+// 	//var NumFrames = FrameEnd - FrameBegin;
+// 	var Keys = [];
+// 	for(var key in Bars)
+// 	{
+// 		Keys.push(key);
+// 	}
+// 	console.log('numframes ' + NumFrames);
+// 	if(0 != NumFrames)
+// 	{
+// 		context.drawImage(CanvasPrev, -NumFrames, 0, View.w, View.h);
+		
+// 		var dY = i * 2;
+// 		var FramesLeft = NumFrames;
+
+// 		for(var i = FrameBegin; i != FrameEnd; i = (i+1) % FrameCount)
+// 		{
+// 			ProfileEnter("loop0");
+// 			//sort indices based on timer value.
+// 			Keys.sort( function(a, b){ 
+// 				var BlockA = Bars[a];
+// 				var BlockB = Bars[b];
+// 				var TimeArrayA = BlockA.Time;
+// 				var TimeArrayB = BlockB.Time;
+// 				return TimeArrayA[i] - TimeArrayB[i];
+// 			} );
+// 			var Y = h1;
+// 			var X = w-FramesLeft;
+// 			FramesLeft -= 1;
+// 			var TimeLast = 0;
+// 			for(var x = 0; x < Keys.length; ++x)
+// 			{
+// 				ProfileEnter("loop1");
+
+// 				var k = Keys[x];
+// 				var idx = GetTimer(k);
+// 				if(!idx && 0 != idx)
+// 				{
+// 					debugger;
+// 				}
+// 				var color = TimerArray[idx].color;
+// 				var TimerState = Bars[k];
+// 				var TimeArray = Block.Time;
+// 				var t = TimeArray[(FrameBegin + i) % FrameCount];
+// 				if(t > ReferenceTime)
+// 					ReferenceTime = t;
+// 				if(t < TimeLast)
+// 				{
+// 					ProfileLeave();
+// 					break;
+// 				}
+// 				dY = (t-TimeLast) * fHeightScale;
+// 				context.strokeStyle = color;
+// 				context.beginPath();
+// 				// context.moveTo(0,0);
+// 				// context.lineTo(w,h);
+// 				// context.lineTo(0,h);
+// 				// context.lineTo(w, 0);			
+// 				context.moveTo(X, Y);
+// 				Y -= dY;
+// 				context.lineTo(X, Y);
+// 				context.stroke();
+
+// 				TimeLast = t;
+// 			}
+// 			ProfileLeave();
+// 		}
+// 	}
+// 	else
+// 	{
+// 			context.drawImage(CanvasPrev, 0, 0, View.w, View.h);
+
+// 	}
+// 	ProfileLeave();
+// }
+
+
+function DrawBars(View, LocalMouseX, LocalMouseY)
 {
-	//return;
-	var Bars = FrameData.x;
-	if(!Bars)
+	var TimerMap = FrameData.TimerMap;
+	if(!TimerMap)
 		return;
 
-	ProfileEnter("DrawGraph");
-	var CanvasPrev = View.Canvas[View.BackBuffer];
-	var OffscreenPrev = View.OffscreenData[View.BackBuffer];
-	View.BackBuffer = 1 - View.BackBuffer;
+	ProfileEnter("DrawBar");
 	var Canvas = View.Canvas[View.BackBuffer];
 	var context = Canvas.getContext('2d');
-	
 	context.clearRect(0, 0, View.w, View.h);
-	// context.drawImage(CanvasPrev, -1, 0, View.w, View.h);
-	// context.putImageData(OffscreenPrev, View.OffscreenData[View.BackBuffer], View.x*2, View.y*2);
-	// context.fillStyle = '#005500';
-	// context.fillRect(0, 0, 1000, 1000);
-
-	var h = View.h;
-	var h1 = h-1;
-	var w = View.w;
-	var fHeightScale = h / ReferenceTime;
-	var MouseDragging = 0;
-
-	// MouseDragState != MouseDragOff;
-	// RangeCpuHistory = RangeInit();
-	// RangeGpuHistory = RangeInit()
-	
-	var FrameBegin = FramePendingBegin;
-	var FrameEnd = FramePendingEnd;
-	var NumFrames = FrameEnd - FrameBegin;
-
-	if(FrameEnd < FrameBegin)
+	var nNumBars = 0;
+	for(var key in TimerMap)
 	{
-		NumFrames = FrameEnd + FrameCount - FrameBegin;
-	}
-	if(NumFrames < 0)
-		debugger;
-
-	if(FrameEnd - FrameBegin > FrameCount -1 )
-	{
-		if(FrameEnd < FrameCount)
-			debugger;
-		FrameBegin = FrameEnd - FrameCount + 1;
-	}
-	//var NumFrames = FrameEnd - FrameBegin;
-	var Keys = [];
-	for(var key in Bars)
-	{
-		Keys.push(key);
-	}
-	console.log('numframes ' + NumFrames);
-	if(0 != NumFrames)
-	{
-		context.drawImage(CanvasPrev, -NumFrames, 0, View.w, View.h);
-		
-		var dY = i * 2;
-		var FramesLeft = NumFrames;
-
-		for(var i = FrameBegin; i != FrameEnd; i = (i+1) % FrameCount)
+		var idx = GetTimer(key);
+		var T = TimerArray[idx];
+		if(T.e)
 		{
-			ProfileEnter("loop0");
-			//sort indices based on timer value.
-			Keys.sort( function(a, b){ 
-				var BlockA = Bars[a];
-				var BlockB = Bars[b];
-				var TimeArrayA = BlockA.Time;
-				var TimeArrayB = BlockB.Time;
-				return TimeArrayA[i] - TimeArrayB[i];
-			} );
-			var Y = h1;
-			var X = w-FramesLeft;
-			FramesLeft -= 1;
-			var TimeLast = 0;
-			for(var x = 0; x < Keys.length; ++x)
-			{
-				ProfileEnter("loop1");
-
-				var k = Keys[x];
-				var idx = GetTimer(k);
-				if(!idx && 0 != idx)
-				{
-					debugger;
-				}
-				var color = TimerArray[idx].color;
-				var Block = Bars[k];
-				var TimeArray = Block.Time;
-				var t = TimeArray[(FrameBegin + i) % FrameCount];
-				if(t > ReferenceTime)
-					ReferenceTime = t;
-				if(t < TimeLast)
-				{
-					ProfileLeave();
-					break;
-				}
-				dY = (t-TimeLast) * fHeightScale;
-				context.strokeStyle = color;
-				context.beginPath();
-				// context.moveTo(0,0);
-				// context.lineTo(w,h);
-				// context.lineTo(0,h);
-				// context.lineTo(w, 0);			
-				context.moveTo(X, Y);
-				Y -= dY;
-				context.lineTo(X, Y);
-				context.stroke();
-
-				TimeLast = t;
-			}
-			ProfileLeave();
+			nNumBars++;
 		}
 	}
-	else
-	{
-			context.drawImage(CanvasPrev, 0, 0, View.w, View.h);
+	if(!nNumBars)
+		return;
 
+	var h = View.h;
+	var w = View.w;
+	var DrawX = 25;
+	var DrawY = 25;
+	var DrawWidth = w -  2 * DrawX;
+	var DrawHeight = h - 2 * DrawY;
+	var SpaceWidth = 10;
+	var BarWidth = (DrawWidth-SpaceWidth*(nNumBars-1))/ nNumBars;
+	if(BarWidth > 75)
+		BarWidth = 75;
+	var BarHeight = DrawHeight - 10;
+	
+	var fHeightScale = h / ReferenceTime;
+	var MouseDragging = 0;
+	var fWidth = w / FrameCount;
+	var Keys = [];
+	var X = DrawX;
+	for(var key in TimerMap)
+	{
+		var idx = GetTimer(key);
+		var T = TimerArray[idx];
+		if(T.e)
+		{
+			var TimerState = TimerMap[key];
+			var Time = TimerState.FrameTime;
+			var color = T.color;
+			var fPrc = TimerState.FrameTime / ReferenceTime;
+			if(fPrc > 1.0)
+				fPrc = 1.0
+			var BarH = fPrc * BarHeight;
+
+			var X0 = X;
+			var Y0 =  DrawX + DrawHeight - BarH;
+			context.fillStyle = color;
+			context.fillRect(X0, Y0, BarWidth, BarH);
+			X += BarWidth + SpaceWidth;
+			context.strokeStyle = color;
+		}
 	}
 	ProfileLeave();
 }
 
 
-function DrawGraph2(View, LocalMouseX, LocalMouseY)
+
+function DrawGraph(View, LocalMouseX, LocalMouseY)
 {
 	//return;
-	var Bars = FrameData.x;
-	if(!Bars)
+	var TimerMap = FrameData.TimerMap;
+	if(!TimerMap)
 		return;
 
 	ProfileEnter("DrawGraph");
@@ -546,11 +612,11 @@ function DrawGraph2(View, LocalMouseX, LocalMouseY)
 	var fWidth = w / FrameCount;
 
 	var Keys = [];
-	for(var key in Bars)
+	for(var key in TimerMap)
 	{
 		var idx = GetTimer(key);
-		var Block = Bars[key];
-		var Time = Block.Time;
+		var TimerState = TimerMap[key];
+		var Time = TimerState.Time;
 		var color = TimerArray[idx].color;
 		var X = w - Time.length*fWidth;
 		var Y = h;
@@ -1170,15 +1236,15 @@ function PushIntoArray(A, v)
 function ResetFrameData()
 {
 	FrameData = {};
-	FrameData.x = {};
+	FrameData.TimerMap = {};
 	FrameData.Time = AllocClearedArray(FrameCount);
 	FrameData.Ids = AllocClearedArray(FrameCount);
 }
 function GetFrameData(id)
 {
-	if(FrameData.x[id])
+	if(FrameData.TimerMap[id])
 	{
-		return FrameData.x[id];
+		return FrameData.TimerMap[id];
 	}
 	else
 	{
@@ -1186,7 +1252,9 @@ function GetFrameData(id)
 		FD.Count = AllocClearedArray(FrameCount);
 		FD.Time = AllocClearedArray(FrameCount);
 		FD.TimeExcl = AllocClearedArray(FrameCount);
-		FrameData.x[id] = FD;
+		FD.FrameTime = 0.0;
+		FD.AggregateTime = 0.0;
+		FrameData.TimerMap[id] = FD;
 		return FD;
 	}
 }
@@ -1195,8 +1263,6 @@ function ProcessFrame(F)
 {
 	PushIntoArray(FrameData.Time, F.t);
 	PushIntoArray(FrameData.Ids, F.f);
-	// FrameData.Time[FrameOffset] = F.t;
-	// FrameData.Ids[FrameOffset] = F.f;
 	for(var idx in F.x)
 	{
 		var FD = GetFrameData(idx);
@@ -1205,15 +1271,17 @@ function ProcessFrame(F)
 		PushIntoArray(FD.TimeExcl, Data[1]);
 		PushIntoArray(FD.Count, Data[2]);
 	}
-	for(var idx in FrameData.x)
+	for(var idx in FrameData.TimerMap)
 	{
+		FD = FrameData.TimerMap[idx];
 		if(!F.x[idx])
 		{
-			FD = FrameData.x[idx];
 			PushIntoArray(FD.Time,0.0);
 			PushIntoArray(FD.TimeExcl, 0.0);
 			PushIntoArray(FD.Count, 0);
 		}
+		FD.FrameTime = FD.Time[FD.Time.length-1];
+		FD.AggregateTime = FD.Time[FD.Time.length-1];
 
 	}
 	FramePending++;
