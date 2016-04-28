@@ -39,12 +39,12 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 .help {position:absolute;z-index:5;text-align:left;padding:2px;margin-left:-999em;background-color: #313131;width:300px;}
 .helpstart {position:absolute;z-index:5;text-align:left;padding:2px;background-color: #313131;width:300px;display:none}
 .root {z-index:1;position:absolute;top:0px;left:0px;}
-.filterinput0{position:fixed;background-color: #313131;display:none;}
+.filterinput0{position:fixed; background-color: #313131;display:none;}
 .filterinput{width:100px;}
 </style>
 </head>
 <body style="">
-<div class="filterinput0" id="filterinputdiv">Filter<br><input type="text" id="filter" class="filterinput"></div>
+<div class="filterinput0" id="FilterInputDiv">Filter<br><input type="text" id="FilterInput" class="filterinput"></div>
 <canvas id="DetailedView" height="100%" style="background-color:#474747;margin:0px;padding:0px;"></canvas>
 <script>
 "use strict"
@@ -63,6 +63,14 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 // graph view
 
 
+//settings to implement
+// aggregate
+// reference time
+// preset menu
+//
+
+
+
 var FRAME_HISTORY_COLOR_CPU = '#ff7f27';
 var FRAME_HISTORY_COLOR_GPU = '#ffffff';
 
@@ -70,6 +78,8 @@ var FRAME_HISTORY_COLOR_GPU = '#ffffff';
 var HistoryHeight = 100;
 var CanvasDetailedView = document.getElementById('DetailedView');
 var CanvasDetailedOffscreen = document.createElement('canvas');
+var FilterInput = document.getElementById('FilterInput');
+var FilterInputDiv = document.getElementById('FilterInputDiv');
 
 var CanvasArray0 = [];
 var CanvasArray1 = [];
@@ -91,6 +101,11 @@ var MouseReleased = false;
 var DPR = 0;
 
 var ReferenceTime = 33.0;
+var ReferencePresets = [5.0, 10.0, 15.0, 20,33.33,66.66,100.0,250.0,500,1000.0];
+
+
+var AggregateFrames = 60;
+var AggregatePresets = [-1, 10,20,30,60,90,120];
 
 var ProfileMode = 0;
 var ProfileRedraw0 = 0;
@@ -102,6 +117,10 @@ var ProfileFpsCount = 0;
 var ProfileLastTimeStamp = new Date();
 var PlotfArray = new Array();
 
+var ConnectionStr = ["\\", "|", "/", "-" ];
+var ConnectionIdx = 0;
+
+
 var FrameData = {};
 var FrameCount = 256;
 var FramePending = 0;
@@ -110,7 +129,7 @@ var WSConnected = 0;
 var WSSeconds = 0;
 var WSFail = 0;
 var WS;
-var WSPort = 1337;
+var WSPort = 1338;
 var WSPath;
 
 var MSG_TIMER_TREE = 1; //MSG_TIMER_TREE
@@ -131,8 +150,9 @@ var WSOpenTime = 0;
 
 
 var TimerArray = [];
-var Empty = {"id":0};
+var Empty = {"id":0, "w":0, "depth":0};
 var WidthArray = [];
+var WidthTree = 0;
 
 TimerArray.push(Empty); // 0 is root of tree
 
@@ -438,10 +458,9 @@ function DrawGraph(View, LocalMouseX, LocalMouseY)
 	{
 		context.drawImage(CanvasPrev, -NumFrames, 0, View.w, View.h);
 		
-		var dY = i * 2;//30*(1+(i%30));//* t * fHeightScale;
+		var dY = i * 2;
 		var FramesLeft = NumFrames;
 
-//		if(i != FrameEnd)
 		for(var i = FrameBegin; i != FrameEnd; i = (i+1) % FrameCount)
 		{
 			ProfileEnter("loop0");
@@ -640,35 +659,39 @@ function ToggleSubMenu(m)
 	{
 		SubMenuActive = -1;
 	}
-	var filterinput = document.getElementById('filterinputdiv');
 	if(SubMenuActive == 1)
 	{
+
 		var s = TimerMenuSize();
-		filterinput.style['display'] = 'inline';
+		FilterInputDiv.style['display'] = 'inline';
 		var y = s.y - 40;
-		filterinput.style['left'] = s.x + 'px';
-		filterinput.style['top'] = y + 'px';
-		filterinput.style['right'] = (s.x+s.w) + 'px';
-		document.getElementById('filter').style['width'] = s.w + 'px';
+		FilterInputDiv.style['left'] = s.x + 'px';
+		FilterInputDiv.style['top'] = y + 'px';
+		FilterInputDiv.style['right'] = (s.x+s.w) + 'px';
+		FilterInput.style['width'] = s.w + 'px';
+		FilterInput.focus();
+
 
 	}
 	else
 	{
-		filterinput.style['display'] = 'none';
+		FilterInputDiv.style['display'] = 'none';
 	}
 	console.log("submenuactive " + SubMenuActive);
 }
 function InitMenu()
 {
 	MenuItems = [];
-	MenuItems.push(MakeMenuItem("Groups", function(){ToggleSubMenu(SubMenuGroup); } ));
+	MenuItems.push(MakeMenuItem("Control", function(){ToggleSubMenu(SubMenuGroup); } ));
 	MenuItems.push(MakeMenuItem("Timers", function(){ToggleSubMenu(SubMenuTimers); } ));
 	MenuItems.push(MakeMenuItem("Settings", function(){ ToggleSubMenu(SubMenuSettings); } ));
+	MenuItems.push(MakeMenuItem("Capture", function(){ ToggleSubMenu(SubMenuSettings); } ));
+	MenuItems.push(MakeMenuItem("Presets", function(){ ToggleSubMenu(SubMenuSettings); } ));
 }
 function DrawTopMenu()
 {
 	var context = CanvasDetailedView.getContext('2d');
-	var X = 0;
+	var X = 2;
 	var Y = 0;
 	var MouseInY = MouseY < BoxHeight;
 	for(var i = 0; i < MenuItems.length; ++i)
@@ -677,6 +700,11 @@ function DrawTopMenu()
 		var w = context.measureText(Item.name).width + 4;
 		var MouseIn = MouseInY && MouseX >= X && MouseX < X + w;
 		var color = MouseIn ? nBackColors[1] : "black";
+		if(i == SubMenuActive)
+		{
+			context.fillStyle = 'white';
+			context.fillRect(X-2, Y, w+4, BoxHeight);
+		}
 		context.fillStyle = color;
 		context.fillRect(X, Y, w, BoxHeight);
 		context.fillStyle = "white";
@@ -688,52 +716,172 @@ function DrawTopMenu()
 		X += w + 6;
 	}
 }
+
+function AggregateMenuSize()
+{
+	var Obj = {};
+	Obj.w = 250 + 5 + FontWidth;
+	Obj.x = nWidth / 2 - Obj.w / 2;
+	Obj.y = HistoryHeight + 50;
+	return Obj;
+}
+
 function TimerMenuSize()
 {
 	var Obj = {};
 	Obj.w = WidthArray[TYPE_TIMER] + WidthArray[TYPE_GROUP] + 5 + FontWidth;
 	Obj.x = nWidth / 2 - Obj.w / 2;
-	Obj.y = HistoryHeight + 25;
+	Obj.y = HistoryHeight + 50;
+	return Obj;
+}
+function GroupMenuSize()
+{
+	var Obj = {};
+	Obj.w = WidthTree;
+	Obj.x = nWidth / 2 - Obj.w / 2;
+	Obj.y = HistoryHeight + 50;
 	return Obj;
 }
 
+function CreateFilter(Filter)
+{
+	if(!Filter || Filter.length == 0)
+	{
+		return null;
+	}
+	Filter = Filter.split(' ');
+	for(var i = 0; i < Filter.length; ++i)
+	{
+		Filter[i] = new RegExp(Filter[i], "i");
+	}
+	return Filter;
+}
+
+function FilterMatch(FilterArray, value)
+{
+	if(!FilterArray)
+		return true;
+	for(var i = 0; i < FilterArray.length; ++i)
+	{
+		var res = value.search(FilterArray[i]);
+		if(res<0)
+			return false;
+	}
+	return true;
+}
+function DrawSettingsMenu()
+{
+	var context = CanvasDetailedView.getContext('2d');
+	var nColorIndex = 0;
+	var SizeInfo = AggregateMenuSize();
+	var Y = SizeInfo.y;
+	var Width = SizeInfo.w;
+	var Selection = null;
+	var X = SizeInfo.x;
+	for(var i = 0; i < AggregatePresets.length; ++i)
+	{
+		var Preset = AggregatePresets[i];
+		var Selected = AggregateFrames == Preset;
+		var Name = Preset < 0 ? "inifnite" : (Preset + '');
+		var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+		var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+		var TextY = Y+BoxHeight-FontAscent;
+		if(Selected)
+		{
+			context.fillStyle = 'white';
+			context.fillRect(X-2, Y, Width+4, BoxHeight);
+		}
+		context.fillStyle = bgcolor;
+		context.fillRect(X, Y, Width, BoxHeight);
+		context.fillStyle = 'white';
+		context.fillText("Aggregate", X + 2, TextY);
+		context.textAlign = 'right';
+		context.fillText(Name, X + Width - 2, TextY);
+		context.textAlign = 'left';
+		if(bMouseIn && MouseReleased)
+		{
+			AggregateFrames = Preset;
+		}
+		Y += BoxHeight;
+		nColorIndex = 1-nColorIndex;
+	}
+
+	for(var i = 0; i < ReferencePresets.length; ++i)
+	{
+		var Preset = ReferencePresets[i];
+		var Selected = ReferenceTime == Preset;
+		var Name = Preset + '';
+		var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+		var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+		var TextY = Y+BoxHeight-FontAscent;
+		if(Selected)
+		{
+			context.fillStyle = 'white';
+			context.fillRect(X-2, Y, Width+4, BoxHeight);
+		}
+		context.fillStyle = bgcolor;
+		context.fillRect(X, Y, Width, BoxHeight);
+		context.fillStyle = 'white';
+		context.fillText("Reference", X + 2, TextY);
+		context.textAlign = 'right';
+		context.fillText(Name, X + Width - 2, TextY);
+		context.textAlign = 'left';
+		if(bMouseIn && MouseReleased)
+		{
+			ReferenceTime = Preset;
+		}
+		Y += BoxHeight;
+		nColorIndex = 1-nColorIndex;
+	}
+
+
+}
+
+
 function DrawTimerMenu()
 {
-
-
+	var FilterArray = CreateFilter(FilterInput.value);
 	var context = CanvasDetailedView.getContext('2d');
 	var nColorIndex = 0;
 	var SizeInfo = TimerMenuSize();
 	var Y = SizeInfo.y;
 	var Width = SizeInfo.w;
 	var Selection = null;
-	var X = nWidth / 2 - Width / 2;
+	var X = SizeInfo.x;
 	for(var i = 0; i < TimerArray.length; ++i)
 	{
 		var v = TimerArray[i];
 		if(v.idtype == TYPE_TIMER)
 		{
-			var Name = (v.e?'*':' ')+v.name;
-			var ParentName = TimerArray[v.pidx].name;
-			var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
-			var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-			context.fillStyle = bgcolor;
-			context.fillRect(X, Y, Width, BoxHeight);
-			context.fillStyle = 'white';
-
-			var TextY = Y+BoxHeight-FontAscent;
-			context.fillText(ParentName, X + 2, TextY);
-			context.fillStyle = v.color;
-			context.textAlign = 'right';
-			context.fillText(Name, X + Width - 2, TextY);
-			context.textAlign = 'left';
-			if(bMouseIn)
+			var Name = v.name;
+			if(FilterMatch(FilterArray, Name))
 			{
-				Selection = v.id;
-			}
-			Y += BoxHeight;
-			nColorIndex = 1-nColorIndex;
+				var ParentName = TimerArray[v.pidx].name;
+				var ParentColor = TimerArray[v.pidx].e ? 'white' : 'grey';
+				var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+				var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+				var TextY = Y+BoxHeight-FontAscent;
+				if(v.e)
+				{
+					context.fillStyle = 'white';
+					context.fillRect(X-2, Y, Width+4, BoxHeight);
 
+				}
+				context.fillStyle = bgcolor;
+				context.fillRect(X, Y, Width, BoxHeight);
+				context.fillStyle = ParentColor;
+				context.fillText(ParentName, X + 2, TextY);
+				context.fillStyle = v.color;
+				context.textAlign = 'right';
+				context.fillText(Name, X + Width - 2, TextY);
+				context.textAlign = 'left';
+				if(bMouseIn)
+				{
+					Selection = v.id;
+				}
+				Y += BoxHeight;
+				nColorIndex = 1-nColorIndex;
+			}
 		}
 	}
 	if(Selection && MouseReleased)
@@ -748,32 +896,45 @@ function DrawGroupMenu()
 {
 	var context = CanvasDetailedView.getContext('2d');
 	var nColorIndex = 0;
-	var Y = 50;
-	var Width = 300;
 	var Selection = null;
+	var SizeInfo = GroupMenuSize();
+	var Y = SizeInfo.y;
+	var X = SizeInfo.x;
+	var Width = SizeInfo.w;
+
+	function DrawMenuElement(Selected, Name, color, Indent)
+	{
+		var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+		var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+		if(Selected)
+		{
+			context.fillStyle = 'white';
+			context.fillRect(X-2, Y, Width+4, BoxHeight);
+		}
+		context.fillStyle = bgcolor;
+		context.fillRect(X, Y, Width, BoxHeight);
+		context.fillStyle = color;
+		if(!Indent) Indent = 0;
+		context.fillText(Name, X + Indent*FontWidth, Y+BoxHeight-FontAscent);
+		nColorIndex = 1-nColorIndex;
+		Y += BoxHeight;
+		return bMouseIn;
+	}
 	function DrawMenuRecursive(Index, Indent)
 	{
-		ProfileEnter("DrawMenuRecursive");
-		var X = 0;
-		nColorIndex = 1-nColorIndex;
+		ProfileEnter("DrawMenuRecursive");		
 		var v = TimerArray[Index];
+		if(v.idtype == TYPE_TIMER)
+		{
+			return;
+		}
 		var Closed = 0;
 		if(Index > 0)
 		{
-			var Name = (v.e?'*':' ')+v.name;// + ' -> ' + v.id + ' -> ' + v.pid; idtype
-			var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
-
-			var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-			context.fillStyle = bgcolor;
-			context.fillRect(0, Y, Width, BoxHeight);
-			context.fillStyle = v.color;
-			context.fillText(Name, Indent*FontWidth, Y+BoxHeight-FontAscent);
-			if(bMouseIn)
+			if(DrawMenuElement(v.e, v.name, v.color, Indent))
 			{
 				Selection = v.id;
-
 			}
-			Y += BoxHeight;
 		}
 
 		if(!Closed)
@@ -808,19 +969,22 @@ function DrawMenu()
 		ProfileEnter("DrawMenu");
 		DrawTopMenu();
 
-		if(SubMenuActive == 0)
+		if(SubMenuActive == SubMenuGroup)
 		{
 			DrawGroupMenu();
 		}
-		else if(SubMenuActive == 1)
+		else if(SubMenuActive == SubMenuTimers)
 		{
 			DrawTimerMenu();
+		}
+		else if(SubMenuActive == SubMenuSettings)
+		{
+			DrawSettingsMenu();
 		}
 		ProfileLeave();
 	}
 }
-var ConnectionStr = ["\\", "|", "/", "-" ];
-var ConnectionIdx = 0;
+
 function DrawConnectionStatus()
 {
 	if(WSConnected && WS && WS.readyState == 1)
@@ -899,6 +1063,7 @@ function WSOpen()
 	WidthArray[TYPE_TIMER] = 0;
 	WidthArray[TYPE_GROUP] = 0;
 	WidthArray[TYPE_CATEGORY] = 0;
+	WidthTree = FontWidth;
 
 	ResetFrameData();
 
@@ -932,6 +1097,11 @@ function EnableTimer(T)
 	if(idx>=0)
 	{
 		TimerArray[idx].e = T.e;
+		console.log('tenable ', TimerArray[idx].idtype, " ", TimerArray[idx].idelement, " ", TimerArray[idx].e);
+	}
+	else
+	{
+		console.log('unknown enable message');
 	}
 }
 function MeasureWidth(str)
@@ -948,14 +1118,17 @@ function AddTimer(T)
 		idx = existing;
 	}
 	TimerArray[idx] = T;
+	var w = MeasureWidth(T.name);
 	var idtype = SplitIdTop(T.id);
 	TimerArray[idx].idtype = idtype;
 	TimerArray[idx].idelement = SplitIdBottom(T.id);
-	var w = MeasureWidth(T.name);
+	TimerArray[idx].w = w;
+	TimerArray[idx].wtree = w;
 	if(w > WidthArray[idtype])
 	{
 		WidthArray[idtype] = w;
 	}
+
 	var pidx = GetTimer(T.pid);
 	if(pidx >= 0)
 	{
@@ -964,6 +1137,12 @@ function AddTimer(T)
 		var Sibling = Parent.firstchild;
 		Parent.firstchild = idx;
 		TimerArray[idx].sibling = Sibling;
+		TimerArray[idx].wtree += Parent.depth * FontWidth;
+		TimerArray[idx].depth = Parent.depth + 1;
+		if(TimerArray[idx].wtree > WidthTree)
+		{
+			WidthTree = TimerArray[idx].wtree;
+		}
 	}
 	else
 	{
@@ -1053,7 +1232,7 @@ function WSMessage()
 	}
 	else if(k == MSG_ENABLED)
 	{
-		//console.log('got enable message ' + event);
+		console.log('got enable message ' + event.data);
 		EnableTimer(Obj.v);
 	}
 	else if(k == MSG_FRAME)
@@ -1096,11 +1275,11 @@ function Connect()
 		WSSeconds = (new Date() - WSOpenTime);
 		if(!WS || WSSeconds > 2000)
 		{
-			WSPort++;
-			if(WSPort > 1338+2)
-			{
-				WSPort = 1338;
-			}
+			// WSPort++;
+			// if(WSPort > 1338+2)
+			// {
+			// 	WSPort = 1338;
+			// }
 			if(WS)
 			{
 				WS.close();
@@ -1241,10 +1420,39 @@ function MouseWheel(e)
 
 function KeyUp(evt)
 {
-	console.log('keyup ' + evt.keyCode);
-	if(evt.keyCode == 220)
+	var k = evt.keyCode;
+	console.log('keyup ' + k);
+	if(k == 220)
 	{
 		ProfileMode = !ProfileMode;
+	}
+	if(k == 27)
+	{
+		if(FilterInput.value.trim() != "")
+		{
+			FilterInput.value = "";
+		}
+		else
+		{
+			ToggleSubMenu(-1);
+		}
+	}
+	if(k == 191)
+	{
+		WSPort++;
+		if(WSPort > 1338+2)
+		{
+			WSPort = 1338;
+		}
+		if(WS)
+		{
+			WS.close();
+			WS = null;
+		}
+	}
+	if(k == 32)
+	{
+		WSSendMessage("f");
 	}
 	// if(evt.keyCode == 39)
 	// {

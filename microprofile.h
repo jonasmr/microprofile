@@ -173,7 +173,8 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileShutdown() do{}while(0)
 #define MicroProfileSetForceEnable(a) do{} while(0)
 #define MicroProfileGetForceEnable() false
-#define MicroProfileSetEnableAllGroups(a) do{} while(0)
+#define MicroProfileSetEnableAllGroups(b) do{} while(0)
+#define MicroProfileSetGroupsStartEnabled(b) do{} while(0)
 #define MicroProfileEnableCategory(a) do{} while(0)
 #define MicroProfileDisableCategory(a) do{} while(0)
 #define MicroProfileGetEnableAllGroups() false
@@ -442,7 +443,7 @@ inline uint16_t MicroProfileGetTimerIndex(MicroProfileToken t){ return (t&0xffff
 inline uint64_t MicroProfileGetGroupMask(MicroProfileToken t){ return ((t>>16)&MICROPROFILE_GROUP_MASK_ALL);}
 inline MicroProfileToken MicroProfileMakeToken(uint64_t nGroupMask, uint16_t nTimer){ return (nGroupMask<<16) | nTimer;}
 MICROPROFILE_API void MicroProfileFlip(void* pGpuContext); //! call once per frame.
-MICROPROFILE_API void MicroProfileTogglePause();
+MICROPROFILE_API void MicroProfileToggleFreeze();
 MICROPROFILE_API void MicroProfileForceEnableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API float MicroProfileGetTime(const char* pGroup, const char* pName);
@@ -450,9 +451,8 @@ MICROPROFILE_API void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchSt
 MICROPROFILE_API void MicroProfileOnThreadCreate(const char* pThreadName); //should be called from newly created threads
 MICROPROFILE_API void MicroProfileOnThreadExit(); //call on exit to reuse log
 MICROPROFILE_API void MicroProfileInitThreadLog();
-MICROPROFILE_API void MicroProfileSetForceEnable(bool bForceEnable);
-MICROPROFILE_API bool MicroProfileGetForceEnable();
 MICROPROFILE_API void MicroProfileSetEnableAllGroups(bool bEnable); 
+MICROPROFILE_API void MicroProfileSetGroupsStartEnabled(bool bEnable); 
 MICROPROFILE_API void MicroProfileEnableCategory(const char* pCategory); 
 MICROPROFILE_API void MicroProfileDisableCategory(const char* pCategory); 
 MICROPROFILE_API bool MicroProfileGetEnableAllGroups();
@@ -958,6 +958,7 @@ struct MicroProfile
 	uint32_t nBars;
 	uint64_t nActiveGroup;
 	uint32_t nActiveBars;
+	uint32_t nFrozen;
 
 	uint64_t nForceGroup;
 	uint32_t nForceEnable;
@@ -965,14 +966,12 @@ struct MicroProfile
 
 	uint64_t nForceGroupUI;
 	uint64_t nActiveGroupWanted;
-	uint32_t nAllGroupsWanted;
+	uint32_t nStartEnabled;
 	uint32_t nAllThreadsWanted;
 
 	uint32_t nOverflow;
 
 	uint64_t nGroupMask;
-	uint32_t nRunning;
-	uint32_t nToggleRunning;
 	uint32_t nMaxGroupSize;
 	uint32_t nDumpFileNextFrame;
 	uint32_t nDumpFileCountDown;
@@ -1396,9 +1395,10 @@ void MicroProfileInit()
 		S.nAggregateFlipTick = MP_TICK();
 		S.nActiveGroup = 0;
 		S.nActiveBars = 0;
+		S.nFrozen = 0;
 		S.nForceGroup = 0;
-		S.nAllGroupsWanted = 0;
 		S.nActiveGroupWanted = 0;
+		S.nStartEnabled = 0;
 		S.nAllThreadsWanted = 1;
 		S.nAggregateFlip = 0;
 		S.nTotalTimers = 0;
@@ -1406,7 +1406,6 @@ void MicroProfileInit()
 		{
 			S.Graph[i].nToken = MICROPROFILE_INVALID_TOKEN;
 		}
-		S.nRunning = 1;
 		S.fReferenceTime = 33.33f;
 		S.fRcpReferenceTime = 1.f / S.fReferenceTime;
 		S.nFreeListHead = -1;
@@ -1710,6 +1709,10 @@ uint16_t MicroProfileGetGroup(const char* pGroup, MicroProfileTokenType Type)
 	S.CategoryInfo[0].nGroupMask |= (1ll << (uint64_t)S.nGroupCount);
 	nGroupIndex = S.nGroupCount++;
 	S.nGroupMask = (S.nGroupMask<<1)|1;
+	if(S.nStartEnabled)
+	{
+		S.nActiveGroupWanted |= (1ll << (uint64_t)S.nGroupCount);
+	}
 	MP_ASSERT(nGroupIndex < MICROPROFILE_MAX_GROUPS);
 	return nGroupIndex;
 }
@@ -2227,7 +2230,7 @@ void MicroProfileGpuLeave(MicroProfileThreadLogGpu* pGpuLog, MicroProfileToken n
 
 void MicroProfileContextSwitchPut(MicroProfileContextSwitch* pContextSwitch)
 {
-	if(S.nRunning || pContextSwitch->nTicks <= S.nPauseTicks)
+	if(pContextSwitch->nTicks <= S.nPauseTicks)
 	{
 		uint32_t nPut = S.nContextSwitchPut;
 		S.ContextSwitch[nPut] = *pContextSwitch;
@@ -2255,6 +2258,47 @@ void MicroProfileGetRange(uint32_t nPut, uint32_t nGet, uint32_t nRange[2][2])
 	}
 }
 
+static void MicroProfileToggleFrozen()
+{
+	S.nFrozen = !S.nFrozen;
+	printf("microprofile frozen %d\n", S.nFrozen);	
+}
+static void MicroProfileFlipEnabled()
+{
+	uint64_t nNewActiveGroup = 0;
+	uint64_t nActiveBefore = S.nActiveGroup;
+	nNewActiveGroup = S.nActiveGroupWanted;
+	nNewActiveGroup |= S.nForceGroup;
+	nNewActiveGroup |= S.nForceGroupUI;
+	if(S.nActiveGroup != nNewActiveGroup)
+		S.nActiveGroup = nNewActiveGroup;
+	uint32_t nNewActiveBars = 0;
+	nNewActiveBars = S.nBars;
+	if(S.nForceMetaCounters)
+	{
+		for(int i = 0; i < MICROPROFILE_META_MAX; ++i)
+		{
+			if(S.MetaCounters[i].pName)
+			{
+				nNewActiveBars |= (MP_DRAW_META_FIRST<<i);
+			}
+		}
+	}
+	if(nNewActiveBars != S.nActiveBars)
+		S.nActiveBars = nNewActiveBars;
+	if(S.nFrozen)
+	{
+		S.nActiveBars = 0;
+		S.nActiveGroup = 0;
+	}
+
+	if(nActiveBefore != S.nActiveGroup)
+	{
+		printf("new active group is %08llx %08llx\n", S.nActiveGroup, S.nGroupMask);
+	}
+
+}
+
 void MicroProfileFlip(void* pContext)
 {
 	#if 0
@@ -2269,21 +2313,6 @@ void MicroProfileFlip(void* pContext)
 	MICROPROFILE_SCOPE(g_MicroProfileFlip);
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 
-	if(S.nToggleRunning)
-	{
-		S.nRunning = !S.nRunning;
-		if(!S.nRunning)
-			S.nPauseTicks = MP_TICK();
-		S.nToggleRunning = 0;
-		for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
-		{
-			MicroProfileThreadLog* pLog = S.Pool[i];
-			if(pLog)
-			{
-				pLog->nStackPos = 0;
-			}
-		}
-	}
 	uint32_t nAggregateClear = S.nAggregateClear || S.nAutoClearFrames, nAggregateFlip = 0;
 	if(S.nDumpFileNextFrame)
 	{
@@ -2304,10 +2333,26 @@ void MicroProfileFlip(void* pContext)
 		S.nWebServerDataSent = 0;
 	}
 
-	if(MicroProfileWebServerUpdate())
-	{	
-		S.nAutoClearFrames = MICROPROFILE_GPU_FRAME_DELAY + 3; //hide spike from dumping webpage
-	}
+	int nLoop = 0;
+	do
+	{
+		if(MicroProfileWebServerUpdate())
+		{	
+			S.nAutoClearFrames = MICROPROFILE_GPU_FRAME_DELAY + 3; //hide spike from dumping webpage
+		}
+		if(nLoop++)
+		{
+			#ifdef _WIN32
+			Sleep(100);
+			#else
+			usleep(100 * 1000);
+			#endif
+			if((nLoop % 10) == 0)
+			{
+				printf("microprofile frozen %d\n", nLoop);
+			}
+		}
+	}while(S.nFrozen);
 
 	if(S.nAutoClearFrames)
 	{
@@ -2316,8 +2361,8 @@ void MicroProfileFlip(void* pContext)
 		S.nAutoClearFrames -= 1;
 	}
 
+	bool nRunning = S.nActiveGroup != 0;
 
-	if(S.nRunning || S.nForceEnable)
 	{
 		int64_t nGpuWork = MicroProfileGpuEnd(S.pGpuGlobal);
 		MicroProfileGpuSubmit(S.GpuQueue, nGpuWork);
@@ -2423,7 +2468,7 @@ void MicroProfileFlip(void* pContext)
 			}
 		}
 
-		if(S.nRunning)
+		if(nRunning)
 		{
 			uint64_t* pFrameGroup = &S.FrameGroup[0];
 			{
@@ -2613,7 +2658,7 @@ void MicroProfileFlip(void* pContext)
 		}
 
 
-		if(S.nRunning && S.nAggregateFlip <= ++S.nAggregateFlipCount)
+		if(S.nAggregateFlip <= ++S.nAggregateFlipCount)
 		{
 			nAggregateFlip = 1;
 			if(S.nAggregateFlip) // if 0 accumulate indefinitely
@@ -2718,44 +2763,25 @@ void MicroProfileFlip(void* pContext)
 	}
 	S.nAggregateClear = 0;
 
-	uint64_t nNewActiveGroup = 0;
-	if(S.nForceEnable || (S.nDisplay && S.nRunning))
-		nNewActiveGroup = S.nAllGroupsWanted ? S.nGroupMask : S.nActiveGroupWanted;
-	nNewActiveGroup |= S.nForceGroup;
-	nNewActiveGroup |= S.nForceGroupUI;
-	if(S.nActiveGroup != nNewActiveGroup)
-		S.nActiveGroup = nNewActiveGroup;
-	uint32_t nNewActiveBars = 0;
-	if(S.nDisplay && S.nRunning)
-		nNewActiveBars = S.nBars;
-	if(S.nForceMetaCounters)
+
+	MicroProfileFlipEnabled();
+}
+
+void MicroProfileSetEnableAllGroups(bool bEnable)
+{
+	if(bEnable)
 	{
-		for(int i = 0; i < MICROPROFILE_META_MAX; ++i)
-		{
-			if(S.MetaCounters[i].pName)
-			{
-				nNewActiveBars |= (MP_DRAW_META_FIRST<<i);
-			}
-		}
+		S.nActiveGroupWanted = S.nGroupMask;
 	}
-	if(nNewActiveBars != S.nActiveBars)
-		S.nActiveBars = nNewActiveBars;
+	else
+	{
+		S.nActiveGroupWanted = 0;
+	}
 }
-
-void MicroProfileSetForceEnable(bool bEnable)
+void MicroProfileSetGroupsStartEnabled(bool bEnable)
 {
-	S.nForceEnable = bEnable ? 1 : 0;
+	S.nStartEnabled = bEnable ? 1 : 0;
 }
-bool MicroProfileGetForceEnable()
-{
-	return S.nForceEnable != 0;
-}
-
-void MicroProfileSetEnableAllGroups(bool bEnableAllGroups)
-{
-	S.nAllGroupsWanted = bEnableAllGroups ? 1 : 0;
-}
-
 void MicroProfileEnableCategory(const char* pCategory, bool bEnabled)
 {
 	int nCategoryIndex = -1;
@@ -2792,7 +2818,7 @@ void MicroProfileDisableCategory(const char* pCategory)
 
 bool MicroProfileGetEnableAllGroups()
 {
-	return 0 != S.nAllGroupsWanted;
+	return S.nGroupMask == S.nActiveGroupWanted;
 }
 
 void MicroProfileSetForceMetaCounters(bool bForce)
@@ -2816,6 +2842,7 @@ void MicroProfileEnableMetaCounter(const char* pMeta)
 		}
 	}
 }
+
 void MicroProfileDisableMetaCounter(const char* pMeta)
 {
 	for(uint32_t i = 0; i < MICROPROFILE_META_MAX; ++i)
@@ -2827,7 +2854,6 @@ void MicroProfileDisableMetaCounter(const char* pMeta)
 		}
 	}
 }
-
 
 void MicroProfileSetAggregateFrames(int nFrames)
 {
@@ -2913,11 +2939,6 @@ void MicroProfileCalcAllTimers(float* pTimers, float* pAverage, float* pMax, flo
 		pTotal[nIdx] = fTotalMs;
 		pTotal[nIdx+1] = 0.f;
 	}
-}
-
-void MicroProfileTogglePause()
-{
-	S.nToggleRunning = 1;
 }
 
 float MicroProfileGetTime(const char* pGroup, const char* pName)
@@ -3228,8 +3249,6 @@ void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFra
 
 void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFrames, const char* pHost)
 {
-	uint32_t nRunning = S.nRunning;
-	S.nRunning = 0;
 	//stall pushing of timers
 	uint64_t nActiveGroup = S.nActiveGroup;
 	S.nActiveGroup = 0;
@@ -3788,7 +3807,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	MicroProfilePrintf(CB, Handle, "\n-->\n");
 
 	S.nActiveGroup = nActiveGroup;
-	S.nRunning = nRunning;
 
 #if MICROPROFILE_DEBUG
 	int64_t nTicksEnd = MP_TICK();
@@ -4260,7 +4278,15 @@ enum
 	TYPE_TIMER = 1,
 	TYPE_GROUP = 2,
 	TYPE_CATEGORY = 3,
+	TYPE_SETTING = 4, 
 };
+
+enum
+{
+	SETTING_FORCE_ENABLE = 0,
+	SETTING_CONTEXT_SWITCH_TRACE = 1,
+};
+
 enum
 {
 	MSG_TIMER_TREE=1,
@@ -4423,7 +4449,7 @@ bool MicroProfileGroupEnabled(uint32_t nGroup)
 {
 	if(nGroup < S.nGroupCount)
 	{
-		return 0 != (S.nActiveGroupWanted & (1ll << nGroup));
+		return 0 != (S.nActiveGroup & (1ll << nGroup));
 	}
 	return false;
 }
@@ -4464,6 +4490,26 @@ void MicroProfileWebSocketCommand(uint32_t nCommand)
 	case TYPE_NONE:
 		printf("None %d\n", nType);
 		break;
+	case TYPE_SETTING:
+		switch(nElement)
+		{
+		case SETTING_FORCE_ENABLE:
+			MicroProfileSetEnableAllGroups(!MicroProfileGetEnableAllGroups());
+			break;
+		case SETTING_CONTEXT_SWITCH_TRACE:
+			printf("Settings context switch\n");
+		    if(!S.bContextSwitchRunning)
+		    {
+		    	MicroProfileStartContextSwitchTrace();
+		    }
+		    else
+		    {
+		    	MicroProfileStopContextSwitchTrace();
+		    }
+			break;
+		}
+		S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
+		break;
 	case TYPE_TIMER:
 		printf("Timer %d\n", nType);
 		MicroProfileToggleWebSocketToggleTimer(nElement);
@@ -4480,7 +4526,10 @@ void MicroProfileWebSocketCommand(uint32_t nCommand)
 		printf("unknown type %d\n", nType);
 
 	}
-
+}
+void MicroProfileToggleFreeze()
+{
+	S.nFrozen = !S.nFrozen;	
 }
 
 bool MicroProfileWebSocketReceive(MpSocket Connection)
@@ -4583,6 +4632,9 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 				MicroProfileWebSocketCommand(Message);
 			}
 			break;
+		case 'f':
+			MicroProfileToggleFrozen();
+			break;
 		default:
 			printf("got unknown message size %lld: '%s'\n", nSize, Bytes);
 	}
@@ -4632,6 +4684,7 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 {
 	if(S.nWebSocketDirty)
 	{
+		MicroProfileFlipEnabled();
 		MicroProfileWebSocketSendEnabled(Connection);
 		S.nWebSocketDirty = 0;
 	}
@@ -4655,6 +4708,10 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 		float fTime = fTickToMs * S.Frame[nTimer].nTicks;
 		float fCount = (float)S.Frame[nTimer].nCount;
 		float fTimeExcl = fTickToMs * S.FrameExclusive[nTimer];
+		if(0 == (S.nActiveGroup & (1 << TI.nGroupIndex)))
+		{
+			fTime = fCount = fTimeExcl = 0.f;
+		}
 
 
 		nTimer = TI.nWSNext;
@@ -4702,7 +4759,10 @@ void MicroProfileWebSocketFrame()
 		}
 		if(FD_ISSET(s, &Write))
 		{
-			MicroProfileWebSocketSendFrame(s);
+			if(!S.nFrozen)
+			{
+				MicroProfileWebSocketSendFrame(s);
+			}
 		}
 	}
 }
@@ -4745,6 +4805,11 @@ void WSFlush()
 	MP_ASSERT(S.WSBuf.nPut != 0);
 	MicroProfileWebSocketSend(S.WSBuf.Socket, &S.WSBuf.Buffer[0], S.WSBuf.nPut);
 	S.WSBuf.nPut = 0;
+}
+void MicroProfileWebSocketSendEnabledMessage(uint32_t id, bool bEnabled)
+{
+	WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"e\":%d}}", MSG_ENABLED, id, bEnabled?1:0);
+	WSFlush();
 
 }
 void MicroProfileWebSocketSendEnabled(MpSocket C)
@@ -4752,41 +4817,61 @@ void MicroProfileWebSocketSendEnabled(MpSocket C)
 	WSPrintStart(C);
 	for(uint32_t i = 0; i < S.nCategoryCount; ++i)
 	{
-		uint32_t id = MicroProfileWebSocketIdPack(TYPE_CATEGORY, i);
-		WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"e\":%d}}", MSG_ENABLED, id, MicroProfileCategoryEnabled(i));
-		WSFlush();
+		MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_CATEGORY, i), MicroProfileCategoryEnabled(i));
+		// WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"e\":%d}}", MSG_ENABLED, id, MicroProfileCategoryEnabled(i));
+		// WSFlush();
 	}
 
 	for(uint32_t i = 0; i < S.nGroupCount; ++i)
 	{
-		uint32_t id = MicroProfileWebSocketIdPack(TYPE_GROUP, i);
-		WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"e\":%d}}", MSG_ENABLED, id, MicroProfileGroupEnabled(i));
-		WSFlush();
+		MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_GROUP, i), MicroProfileGroupEnabled(i));
+		printf("group en %d %d\n", i, MicroProfileGroupEnabled(i));
+		// WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"e\":%d}}", MSG_ENABLED, id, MicroProfileGroupEnabled(i));
+		// WSFlush();
 	}
-
 	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
 	{
-		uint32_t id = MicroProfileWebSocketIdPack(TYPE_TIMER, i);
-		WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"e\":%d}}", MSG_ENABLED, id, MicroProfileWebSocketTimerEnabled(i));
-		WSFlush();
+		MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_TIMER, i), MicroProfileWebSocketTimerEnabled(i));
+		// WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"e\":%d}}", MSG_ENABLED, id, MicroProfileWebSocketTimerEnabled(i));
+		// WSFlush();
 	}
+	MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_FORCE_ENABLE), MicroProfileGetEnableAllGroups());
+	MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_CONTEXT_SWITCH_TRACE), S.bContextSwitchRunning);
+
+
 	WSPrintEnd();
+}
+void MicroProfileWebSocketSendEntry(uint32_t id, uint32_t parent, const char* pName, int nEnabled, uint32_t nColor)
+{
+	WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
+	WSPrintf("\"name\":\"%s\",", pName);
+	WSPrintf("\"e\":%d,", nEnabled);	
+	WSPrintf("\"color\":\"#%02x%02x%02x\"", MICROPROFILE_UNPACK_RED(nColor) & 0xff, MICROPROFILE_UNPACK_GREEN(nColor) & 0xff, MICROPROFILE_UNPACK_BLUE(nColor) & 0xff);
+	WSPrintf("}}");
+	WSFlush();
+
+
 }
 
 void MicroProfileWebSocketSendState(MpSocket C)
 {
 	WSPrintStart(C);
+	uint32_t root = MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_FORCE_ENABLE);
+	MicroProfileWebSocketSendEntry(root, 0, "All", MicroProfileGetEnableAllGroups(), (uint32_t)-1);
+
+
 	for(uint32_t i = 0; i < S.nCategoryCount; ++i)
 	{
 		MicroProfileCategory& CI = S.CategoryInfo[i];
 		uint32_t id = MicroProfileWebSocketIdPack(TYPE_CATEGORY, i);
-		uint32_t parent = 0;
-		WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
-		WSPrintf("\"name\":\"%s\",", CI.pName);
-		WSPrintf("\"e\":%d,", MicroProfileCategoryEnabled(i));
-		WSPrintf("\"color\":\"#ffffff\"");
-		WSPrintf("}}");
-		WSFlush();
+		uint32_t parent = root;
+		MicroProfileWebSocketSendEntry(id, parent, CI.pName, MicroProfileCategoryEnabled(i), 0xffffffff);
+		// WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
+		// WSPrintf("\"name\":\"%s\",", CI.pName);
+		// WSPrintf("\"e\":%d,", MicroProfileCategoryEnabled(i));
+		// WSPrintf("\"color\":\"#ffffff\"");
+		// WSPrintf("}}");
+		// WSFlush();
 	}
 
 	for(uint32_t i = 0; i < S.nGroupCount; ++i)
@@ -4794,12 +4879,13 @@ void MicroProfileWebSocketSendState(MpSocket C)
 		MicroProfileGroupInfo& GI = S.GroupInfo[i];
 		uint32_t id = MicroProfileWebSocketIdPack(TYPE_GROUP, i);
 		uint32_t parent = MicroProfileWebSocketIdPack(TYPE_CATEGORY, GI.nCategory);
-		WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
-		WSPrintf("\"name\":\"%s\",", GI.pName);
-		WSPrintf("\"e\":%d,", MicroProfileGroupEnabled(i));
-		WSPrintf("\"color\":\"#%02x%02x%02x\"", MICROPROFILE_UNPACK_RED(GI.nColor) & 0xff, MICROPROFILE_UNPACK_GREEN(GI.nColor) & 0xff, MICROPROFILE_UNPACK_BLUE(GI.nColor) & 0xff);
-		WSPrintf("}}");
-		WSFlush();
+		MicroProfileWebSocketSendEntry(id, parent, GI.pName, MicroProfileGroupEnabled(i), GI.nColor);
+		// WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
+		// WSPrintf("\"name\":\"%s\",", GI.pName);
+		// WSPrintf("\"e\":%d,", MicroProfileGroupEnabled(i));
+		// WSPrintf("\"color\":\"#%02x%02x%02x\"", MICROPROFILE_UNPACK_RED(GI.nColor) & 0xff, MICROPROFILE_UNPACK_GREEN(GI.nColor) & 0xff, MICROPROFILE_UNPACK_BLUE(GI.nColor) & 0xff);
+		// WSPrintf("}}");
+		// WSFlush();
 	}
 
 	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
@@ -4807,13 +4893,18 @@ void MicroProfileWebSocketSendState(MpSocket C)
 		MicroProfileTimerInfo& TI = S.TimerInfo[i];
 		uint32_t id = MicroProfileWebSocketIdPack(TYPE_TIMER, i);
 		uint32_t parent = MicroProfileWebSocketIdPack(TYPE_GROUP, TI.nGroupIndex);
-		WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
-		WSPrintf("\"name\":\"%s\",", TI.pName);
-		WSPrintf("\"e\":%d,", MicroProfileWebSocketTimerEnabled(i));	
-		WSPrintf("\"color\":\"#%02x%02x%02x\"", MICROPROFILE_UNPACK_RED(TI.nColor) & 0xff, MICROPROFILE_UNPACK_GREEN(TI.nColor) & 0xff, MICROPROFILE_UNPACK_BLUE(TI.nColor) & 0xff);
-		WSPrintf("}}");
-		WSFlush();
+		MicroProfileWebSocketSendEntry(id, parent, TI.pName, MicroProfileWebSocketTimerEnabled(i), TI.nColor);
+		// WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
+		// WSPrintf("\"name\":\"%s\",", TI.pName);
+		// WSPrintf("\"e\":%d,", MicroProfileWebSocketTimerEnabled(i));	
+		// WSPrintf("\"color\":\"#%02x%02x%02x\"", MICROPROFILE_UNPACK_RED(TI.nColor) & 0xff, MICROPROFILE_UNPACK_GREEN(TI.nColor) & 0xff, MICROPROFILE_UNPACK_BLUE(TI.nColor) & 0xff);
+		// WSPrintf("}}");
+		// WSFlush();
 	}
+
+
+	MicroProfileWebSocketSendEntry(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_CONTEXT_SWITCH_TRACE), 0, "Context Switch Trace", S.bContextSwitchRunning, (uint32_t)-1);
+
 
 
 	WSPrintEnd();
@@ -5275,7 +5366,7 @@ void MicroProfileWin32UpdateThreadInfo()
 {
 	static int nWasRunning = 1;
 	static int nOnce = 0;
-	int nRunning = S.nRunning;
+	int nRunning = S.nActiveGroup != 0;
 
 	if ((0 == nRunning && 1 == nWasRunning) || nOnce == 0)
 	{
