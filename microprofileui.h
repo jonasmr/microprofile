@@ -269,9 +269,9 @@ enum
 	MICROPROFILE_NUM_REFERENCE_PRESETS = sizeof(g_MicroProfileReferenceTimePresets)/sizeof(g_MicroProfileReferenceTimePresets[0]),
 	MICROPROFILE_NUM_OPACITY_PRESETS = sizeof(g_MicroProfileOpacityPresets)/sizeof(g_MicroProfileOpacityPresets[0]),
 #if MICROPROFILE_CONTEXT_SWITCH_TRACE
-	MICROPROFILE_OPTION_SIZE = MICROPROFILE_NUM_REFERENCE_PRESETS + MICROPROFILE_NUM_OPACITY_PRESETS * 2 + 2 + 7,
+	MICROPROFILE_OPTION_SIZE = MICROPROFILE_NUM_REFERENCE_PRESETS + MICROPROFILE_NUM_OPACITY_PRESETS * 2 + 2 + 2 + 7,
 #else
-	MICROPROFILE_OPTION_SIZE = MICROPROFILE_NUM_REFERENCE_PRESETS + MICROPROFILE_NUM_OPACITY_PRESETS * 2 + 2 + 3,
+	MICROPROFILE_OPTION_SIZE = MICROPROFILE_NUM_REFERENCE_PRESETS + MICROPROFILE_NUM_OPACITY_PRESETS * 2 + 2 + 2 + 3,
 #endif
 };
 
@@ -419,11 +419,15 @@ void MicroProfileInitUI()
 		UI.Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "Spike Display");		
 		UI.Options[nIndex++] = SOptionDesc(3, 0, "%s", "  Enable");
 
+		UI.Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "Platform Markers");		
+		UI.Options[nIndex++] = SOptionDesc(4, 0, "%s", "  Enable");
+
+
 #if MICROPROFILE_CONTEXT_SWITCH_TRACE
 		UI.Options[nIndex++] = SOptionDesc(0xff, 0, "%s", "CSwitch Trace");		
-		UI.Options[nIndex++] = SOptionDesc(4, 0, "%s", "  Enable");
-		UI.Options[nIndex++] = SOptionDesc(4, 1, "%s", "  All Threads");
-		UI.Options[nIndex++] = SOptionDesc(4, 2, "%s", "  No Bars");
+		UI.Options[nIndex++] = SOptionDesc(5, 0, "%s", "  Enable");
+		UI.Options[nIndex++] = SOptionDesc(5, 1, "%s", "  All Threads");
+		UI.Options[nIndex++] = SOptionDesc(5, 2, "%s", "  No Bars");
 #endif
 		MP_ASSERT(nIndex == MICROPROFILE_OPTION_SIZE);
 
@@ -1095,6 +1099,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			bool bGpu = pLog->nGpu != 0;
 			float fToMs = bGpu ? fToMsGpu : fToMsCpu;
 			int64_t nBaseTicks = bGpu ? nBaseTicksGpu : nBaseTicksCpu;
+			uint64_t nThreadId = pLog->nThreadId;
 
 			MicroProfileThreadInfo ThreadInfo = MicroProfileGetThreadInfo(pLog->nThreadId);
 			if (pProcessModule != ThreadInfo.pProcessModule)
@@ -1890,7 +1895,6 @@ void MicroProfileDumpTimers()
 }
 
 
-
 uint32_t MicroProfileDrawCounterRecursive(uint32_t nIndex, uint32_t nY, uint32_t nOffset, uint32_t nTimerWidth)
 {
 	MicroProfile& S = *MicroProfileGet();
@@ -2003,6 +2007,7 @@ uint32_t MicroProfileDrawCounterRecursive(uint32_t nIndex, uint32_t nY, uint32_t
 			nCounterHeightBase = nCounterMax - nCounterMin;
 			nCounterOffset = -nCounterMin;
 		}
+		nCounterHeightBase = nCounterHeightBase ? nCounterHeightBase : 1;
 		const int32_t nGraphHeight = nRows * nHeight;
 		double fRcpMax = nGraphHeight * 1.0 / nCounterHeightBase;
 		const int32_t nYOffset = nY0 + (bGraphDetailed ? 3 : 1);
@@ -2128,7 +2133,6 @@ void MicroProfileDrawCounterView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 	UI.nLimitWidth = (1+UI.nLimitWidthTemp) * (MICROPROFILE_TEXT_WIDTH+1);
 
 }
-
 
 
 void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
@@ -2406,8 +2410,11 @@ const char* MicroProfileUIMenuOptions(int nIndex, bool* bSelected)
 	case 3:
 		*bSelected = UI.bShowSpikes;
 		break;
-#if MICROPROFILE_CONTEXT_SWITCH_TRACE
 	case 4:
+		*bSelected = S.nPlatformMarkersEnabled != 0;
+		break;
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+	case 5:
 		{
 			switch(UI.Options[nIndex].nIndex)
 			{
@@ -2579,8 +2586,11 @@ void MicroProfileUIClickOptions(int nIndex)
 	case 3:
 		UI.bShowSpikes = !UI.bShowSpikes;
 		break;
-#if MICROPROFILE_CONTEXT_SWITCH_TRACE
 	case 4:
+		S.nPlatformMarkersEnabled = !S.nPlatformMarkersEnabled;
+		break;
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+	case 5:
 		{
 			switch(UI.Options[nIndex].nIndex)
 			{
