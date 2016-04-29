@@ -4345,10 +4345,126 @@ enum
 	MSG_FRAME = 3,
 };
 
-
-void MicroProfileSocketSend(MpSocket Connection, char* pMessage, int nLen)
+void MicroProfileSocketDumpState()
 {
+	fd_set Read, Write, Error;
+	FD_ZERO(&Read);
+	FD_ZERO(&Write);
+	FD_ZERO(&Error);
+	int LastSocket = 1;
+	for(uint32_t i = 0; i < S.nNumWebSockets; ++i)
+	{
+		LastSocket = MicroProfileMax(LastSocket, S.WebSockets[i]+1);
+		FD_SET(S.WebSockets[i], &Read);
+		FD_SET(S.WebSockets[i], &Write);
+		FD_SET(S.WebSockets[i], &Error);
+	}
+	timeval tv;
+	tv.tv_sec = 0;
+    tv.tv_usec = 0;
+
+    if(-1 == select(LastSocket, &Read, &Write, &Error, &tv))
+    {
+    	MP_ASSERT(0);
+    }
+	for(uint32_t i = 0; i < S.nNumWebSockets; i++)
+	{
+		MpSocket s = S.WebSockets[i];
+		printf("%d ", s);
+
+		if(FD_ISSET(s, &Error))
+		{
+			printf("e");
+		}
+		else
+		{
+			printf("_");
+
+		}
+		if(FD_ISSET(s, &Read))
+		{
+			printf("r");
+		}
+		else
+		{
+			printf(" ");
+		}
+		if(FD_ISSET(s, &Write))
+		{
+			printf("w");
+		}
+		else
+		{
+			printf(" ");
+		}
+	}
+	printf("\n");
+	for(uint32_t i = 1; i < S.nNumWebSockets; i++)
+	{
+		MpSocket s = S.WebSockets[i];
+		int error_code;
+		socklen_t error_code_size = sizeof(error_code);
+		int r = getsockopt(s, SOL_SOCKET, SO_ERROR, &error_code, &error_code_size);
+		MP_ASSERT(r >= 0);
+
+
+		if (error_code != 0) {
+		    /* socket has a non zero error status */
+		    fprintf(stderr, "socket error: %d %s\n", s, strerror(error_code));
+		    MP_ASSERT(0);
+		}
+
+	}
+
+}
+
+void MicroProfileSocketSend(MpSocket Connection, const void* pMessage, int nLen)
+{
+//	MicroProfileSocketDumpState();
+
+	fd_set Read, Write, Error;
+	FD_ZERO(&Read);
+	FD_ZERO(&Write);
+	FD_ZERO(&Error);
+	int LastSocket = Connection;
+	FD_SET(Connection, &Read);
+	FD_SET(Connection, &Write);
+	FD_SET(Connection, &Error);
+	timeval tv;
+	tv.tv_sec = 0;
+    tv.tv_usec = 0;
+
+    if(-1 == select(LastSocket+1, &Read, &Write, &Error, &tv))
+    {
+    	MP_ASSERT(0);
+    }
+    bool bWrite = FD_ISSET(Connection, &Write);
+    bool bError = FD_ISSET(Connection, &Error);
+    if(!bWrite)
+    {
+    	printf("error cannot write\n");
+    	MP_ASSERT(0);
+    }
+    if(bError)
+    {
+    	printf("error write\n");
+    	MP_ASSERT(0);
+    }
+
+	int error_code;
+	socklen_t error_code_size = sizeof(error_code);
+	getsockopt(Connection, SOL_SOCKET, SO_ERROR, &error_code, &error_code_size);
+if (error_code != 0) {
+    /* socket has a non zero error status */
+    fprintf(stderr, "socket error xxx: %d %s\n", Connection, strerror(error_code));
+}
+
+
+
 	int s = send(Connection, pMessage, nLen, 0);
+
+
+
 	MP_ASSERT(s == nLen);
 }
 
@@ -4436,13 +4552,14 @@ bool MicroProfileWebSocketSend(MpSocket Connection, const char* pMessage, uint64
 	{
 		h1.payload = nLen;
 	}
-	send(Connection, &h0, 1, 0);
-	send(Connection, &h1, 1, 0);
+
+	MicroProfileSocketSend(Connection, &h0, 1);
+	MicroProfileSocketSend(Connection, &h1, 1);
 	if(nExtraSizeBytes)
 	{
-		send(Connection, &nExtraSize[0], nExtraSizeBytes, 0);
+		MicroProfileSocketSend(Connection, &nExtraSize[0], nExtraSizeBytes);
 	}
-	send(Connection, pMessage, nLen, 0);
+	MicroProfileSocketSend(Connection, pMessage, nLen);
 	return true;
 
 }
@@ -4595,7 +4712,8 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
      // | |1|2|3|       |K|             |                               |
      // +-+-+-+-+-------+-+-------------+ - - - - - - - - - - - - - - - +
 	int r;
-	char* bytes = 0;
+	int foo = 0;
+	//char* bytes = 0;
 	uint64_t nSize;
 	uint64_t nSizeBytes = 0;
 	uint8_t Mask[4];
@@ -4605,20 +4723,27 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 	MicroProfileWebSocketHeader1 h1;
 	static_assert(sizeof(h0) == 1, "");
 	static_assert(sizeof(h1) == 1, "");
-	
+	foo= 1;
 	r = recv(Connection, &h0, 1, 0);
 	if(1 != r)
 		goto fail;
 	r = recv(Connection, &h1, 1, 0);
 	if(1 != r)
 		goto fail;
+	foo= 2;
 	printf("received %d opcode %d .. mask %d %02x\n", h1.payload, h0.opcode, h1.MASK, h0.v);
 
+	if(h0.v == 0x88)
+	{
+
+		printf("got disconnect");
+		goto fail;
+	}
 
 	if(h0.RSV1 != 0 || h0.RSV2 != 0 || h0.RSV3 != 0)
 		goto fail;
 
-
+foo= 3;
 	nSize = h1.payload;
 	nSizeBytes = 0;
 	switch(nSize)
@@ -4658,7 +4783,7 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 		recv(Connection, &Mask[0], 4, 0);
 	}
 
-
+foo= 4;
 
 
 	if(nSize+1 > BytesAllocated)
@@ -4691,11 +4816,9 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 	}
 	return true;
 
-	fail:
-
-	printf("failing\n");
-	printf("addr %p\n", bytes);
-	MP_ASSERT(0);
+fail:
+	printf("sock fail %d\n", foo );
+	return false;
 
 }
 
@@ -4797,16 +4920,18 @@ void MicroProfileWebSocketFrame()
     {
     	MP_ASSERT(0);
     }
-	for(uint32_t i = 0; i < S.nNumWebSockets; ++i)
+	for(uint32_t i = 0; i < S.nNumWebSockets;)
 	{
 		MpSocket s = S.WebSockets[i];
+		bool bConnected = true;
 		if(FD_ISSET(s, &Error))
 		{
 			MP_ASSERT(0); // todo, remove & fix.
+			printf("error!!1\n");
 		}
 		if(FD_ISSET(s, &Read))
 		{
-			MicroProfileWebSocketReceive(s);
+			bConnected = MicroProfileWebSocketReceive(s);
 		}
 		if(FD_ISSET(s, &Write))
 		{
@@ -4814,6 +4939,33 @@ void MicroProfileWebSocketFrame()
 			{
 				MicroProfileWebSocketSendFrame(s);
 			}
+		}
+
+		if(!bConnected)
+		{
+			printf("removing socket %d\n", s);
+
+
+        	shutdown(S.WebSockets[i], SHUT_WR);
+            char tmp[128];
+            int r = 1;
+            while(r > 0)
+            {
+                r = recv(S.WebSockets[i], tmp, sizeof(tmp), 0);
+            }
+            #ifdef _WIN32
+			closesocket(S.WebSockets[i]);
+			#else
+			close(S.WebSockets[i]);
+			#endif
+
+			--S.nNumWebSockets;
+			S.WebSockets[i] = S.WebSockets[S.nNumWebSockets];
+			printf("done removing\n");
+		}
+		else
+		{
+			++i;
 		}
 	}
 }
@@ -5003,9 +5155,11 @@ bool MicroProfileWebServerUpdate()
 
 			if(pWebSocketKey)
 			{
+				printf("got new connection %d\n", Connection);
 				pWebSocketKey += sizeof("Sec-WebSocket-Key: ")-1;
 				Terminate(pWebSocketKey);
 				printf("websocketkey is ---%s---\n", pWebSocketKey);
+
 				MicroProfileWebSocketHandshake(Connection, pWebSocketKey);
 				return false;
 			}

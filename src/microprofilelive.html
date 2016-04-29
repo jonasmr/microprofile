@@ -521,7 +521,10 @@ function ResizeCanvas()
 // 	ProfileLeave();
 // }
 
-
+function FormatTime(Time)
+{
+	return Time.toFixed(2) + 'ms';
+}
 function DrawBars(View, LocalMouseX, LocalMouseY)
 {
 	var TimerMap = FrameData.TimerMap;
@@ -553,15 +556,17 @@ function DrawBars(View, LocalMouseX, LocalMouseY)
 	var DrawHeight = h - 2 * DrawY;
 	var SpaceWidth = 10;
 	var BarWidth = (DrawWidth-SpaceWidth*(nNumBars-1))/ nNumBars;
-	if(BarWidth > 75)
-		BarWidth = 75;
+	if(BarWidth > 50)
+		BarWidth = 50;
 	var BarHeight = DrawHeight - 10;
-	
+
 	var fHeightScale = h / ReferenceTime;
 	var MouseDragging = 0;
 	var fWidth = w / FrameCount;
 	var Keys = [];
 	var X = DrawX;
+	context.textAlign = 'right';
+	var offset = 0;
 	for(var key in TimerMap)
 	{
 		var idx = GetTimer(key);
@@ -580,6 +585,11 @@ function DrawBars(View, LocalMouseX, LocalMouseY)
 			var Y0 =  DrawX + DrawHeight - BarH;
 			context.fillStyle = color;
 			context.fillRect(X0, Y0, BarWidth, BarH);
+			context.fillStyle = '#ffffff';
+			var TimeText = FormatTime(TimerState.FrameTime);
+			context.fillText(TimeText, X+BarWidth, DrawX+DrawHeight + FontHeight);
+			context.fillStyle = color;
+			context.fillText(T.name, X+BarWidth, DrawY - yoffset);
 			X += BarWidth + SpaceWidth;
 			context.strokeStyle = color;
 		}
