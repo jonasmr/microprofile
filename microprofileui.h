@@ -894,7 +894,7 @@ void MicroProfileDrawDetailedContextSwitchBars(uint32_t nY, uint32_t nThreadId, 
 	}
 }
 
-void MicroProfileWriteThreadHeader(uint32_t nY, ThreadIdType ThreadId, const char* pNamedThread, const char* pThreadModule)
+void MicroProfileWriteThreadHeader(uint32_t nY, MicroProfileThreadIdType ThreadId, const char* pNamedThread, const char* pThreadModule)
 {
 	char buffer[512];
 	int nStrLen = 0;
@@ -1273,7 +1273,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			for(uint32_t i = nContextSwitchStart; i != nContextSwitchEnd; i = (i+1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE)
 			{
 				MicroProfileContextSwitch CS = S.ContextSwitch[i];
-				ThreadIdType nThreadId = CS.nThreadIn;
+				MicroProfileThreadIdType nThreadId = CS.nThreadIn;
 				if(nThreadId)
 				{
 					bool bSeen = false;
