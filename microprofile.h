@@ -245,7 +245,7 @@ inline uint64_t MicroProfileGetCurrentThreadId()
 #define MP_THREAD_LOCAL __thread
 #define MP_STRCASECMP strcasecmp
 #define MP_GETCURRENTTHREADID() MicroProfileGetCurrentThreadId()
-typedef uint64_t ThreadIdType;
+typedef uint64_t MicroProfileThreadIdType;
 #elif defined(_WIN32)
 int64_t MicroProfileGetTick();
 #define MP_TICK() MicroProfileGetTick()
@@ -253,7 +253,7 @@ int64_t MicroProfileGetTick();
 #define MP_THREAD_LOCAL __declspec(thread)
 #define MP_STRCASECMP _stricmp
 #define MP_GETCURRENTTHREADID() GetCurrentThreadId()
-typedef uint32_t ThreadIdType;
+typedef uint32_t MicroProfileThreadIdType;
 
 #elif defined(__linux__)
 #include <unistd.h>
@@ -274,13 +274,13 @@ inline int64_t MicroProfileGetTick()
 #define MP_THREAD_LOCAL __thread
 #define MP_STRCASECMP strcasecmp
 #define MP_GETCURRENTTHREADID() (uint64_t)pthread_self()
-typedef uint64_t ThreadIdType;
+typedef uint64_t MicroProfileThreadIdType;
 #endif
 
 
 #ifndef MP_GETCURRENTTHREADID 
 #define MP_GETCURRENTTHREADID() 0
-typedef uint32_t ThreadIdType;
+typedef uint32_t MicroProfileThreadIdType;
 #endif
 
 
@@ -503,8 +503,8 @@ struct MicroProfileThreadInfo
 {
 	//3 first members are used to sort. dont reorder
 	uint32_t nIsLocal;
-	ThreadIdType pid;
-	ThreadIdType tid;
+	MicroProfileThreadIdType pid;
+	MicroProfileThreadIdType tid;
 	//3 first members are used to sort. dont reorder
 
 	const char* pThreadModule;
@@ -527,7 +527,7 @@ struct MicroProfileThreadInfo
 	}
 	~MicroProfileThreadInfo() {}
 };
-MICROPROFILE_API MicroProfileThreadInfo MicroProfileGetThreadInfo(ThreadIdType nThreadId);
+MICROPROFILE_API MicroProfileThreadInfo MicroProfileGetThreadInfo(MicroProfileThreadIdType nThreadId);
 MICROPROFILE_API uint32_t MicroProfileGetThreadInfoArray(MicroProfileThreadInfo** pThreadArray);
 
 
@@ -820,8 +820,8 @@ struct MicroProfileGraphState
 
 struct MicroProfileContextSwitch
 {
-	ThreadIdType nThreadOut;
-	ThreadIdType nThreadIn;
+	MicroProfileThreadIdType nThreadOut;
+	MicroProfileThreadIdType nThreadIn;
 	int64_t nCpu : 8;
 	int64_t nTicks : 56;
 };
@@ -843,7 +843,7 @@ struct MicroProfileThreadLog
 	uint32_t				nStackPut;
 	uint32_t 				nActive;
 	uint32_t 				nGpu;
-	ThreadIdType			nThreadId;
+	MicroProfileThreadIdType			nThreadId;
 	uint32_t 				nLogIndex;
 
 	uint32_t				nStack[MICROPROFILE_STACK_MAX];
@@ -3454,10 +3454,10 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	{
 		if(S.Pool[i])
 		{
-			ThreadIdType ThreadId = S.Pool[i]->nThreadId;
+			MicroProfileThreadIdType ThreadId = S.Pool[i]->nThreadId;
 			if(!ThreadId)
 			{
-				ThreadId = (ThreadIdType)-1;
+				ThreadId = (MicroProfileThreadIdType)-1;
 			}
 			MicroProfilePrintf(CB, Handle, "%d,", ThreadId);
 		}
@@ -4520,7 +4520,7 @@ void MicroProfileWin32UpdateThreadInfo()
 
 }
 
-const char* MicroProfileThreadNameFromId(ThreadIdType nThreadId)
+const char* MicroProfileThreadNameFromId(MicroProfileThreadIdType nThreadId)
 {
 	MicroProfileWin32UpdateThreadInfo();
 	static char result[1024];
@@ -4681,7 +4681,7 @@ void* MicroProfileTraceThread(void* unused)
 }
 
 
-MicroProfileThreadInfo MicroProfileGetThreadInfo(ThreadIdType nThreadId)
+MicroProfileThreadInfo MicroProfileGetThreadInfo(MicroProfileThreadIdType nThreadId)
 {
 	MicroProfileWin32UpdateThreadInfo();
 
@@ -4772,7 +4772,7 @@ void* MicroProfileTraceThread(void* unused)
 }
 
 
-MicroProfileThreadInfo MicroProfileGetThreadInfo(ThreadIdType nThreadId)
+MicroProfileThreadInfo MicroProfileGetThreadInfo(MicroProfileThreadIdType nThreadId)
 {
 	MicroProfileThreadInfo TI((uint32_t)nThreadId, 0, 0);
 	return TI;
@@ -4786,7 +4786,7 @@ uint32_t MicroProfileGetThreadInfoArray(MicroProfileThreadInfo** pThreadArray)
 #endif
 #else
 
-MicroProfileThreadInfo MicroProfileGetThreadInfo(ThreadIdType nThreadId)
+MicroProfileThreadInfo MicroProfileGetThreadInfo(MicroProfileThreadIdType nThreadId)
 {
 	MicroProfileThreadInfo TI((uint32_t)nThreadId, 0, 0);
 	return TI;
