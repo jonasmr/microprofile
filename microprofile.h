@@ -101,6 +101,9 @@
 #define MICROPROFILE_ENABLED 1
 #endif
 
+#ifndef MICROPROFILE_ONCE
+#define MICROPROFILE_ONCE
+
 #include <stdint.h>
 #if defined(_WIN32) && _MSC_VER == 1700
 #define PRIx64 "llx"
@@ -1192,10 +1195,9 @@ inline uint16_t MicroProfileGetGroupIndex(MicroProfileToken t)
 {
 	return (uint16_t)MicroProfileGet()->TimerToGroup[MicroProfileGetTimerIndex(t)];
 }
-
-
-
-#ifdef MICROPROFILE_IMPL
+#endif //enabled
+#endif //once
+#if defined(MICROPROFILE_IMPL) && MICROPROFILE_ENABLED
 
 #ifdef _WIN32
 #include <windows.h>
@@ -5286,12 +5288,8 @@ int MicroProfileGetGpuTickReference(int64_t* pOutCpu, int64_t* pOutGpu)
 #pragma warning(pop)
 #endif
 
-
-
-
-
 #endif
-#endif
+
 #ifdef MICROPROFILE_EMBED_HTML
 #include "microprofile_html.h"
 #endif
