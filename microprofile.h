@@ -3132,6 +3132,13 @@ extern const char* g_MicroProfileHtml_end[];
 extern size_t g_MicroProfileHtml_end_sizes[];
 extern size_t g_MicroProfileHtml_end_count;
 
+extern const char* g_MicroProfileHtmlLive_begin[];
+extern size_t g_MicroProfileHtmlLive_begin_sizes[];
+extern size_t g_MicroProfileHtmlLive_begin_count;
+extern const char* g_MicroProfileHtmlLive_end[];
+extern size_t g_MicroProfileHtmlLive_end_sizes[];
+extern size_t g_MicroProfileHtmlLive_end_count;
+
 typedef void MicroProfileWriteCallback(void* Handle, size_t size, const char* pData);
 
 uint32_t MicroProfileWebServerPort()
@@ -3297,7 +3304,18 @@ void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFra
 }
 #undef printf
 
+void MicroProfileDumpHtmlLive(MicroProfileWriteCallback CB, void* Handle)
+{
+	for(size_t i = 0; i < g_MicroProfileHtmlLive_begin_count; ++i)
+	{
+		CB(Handle, g_MicroProfileHtmlLive_begin_sizes[i]-1, g_MicroProfileHtmlLive_begin[i]);
+	}
+	for(size_t i = 0; i < g_MicroProfileHtmlLive_end_count; ++i)
+	{
+		CB(Handle, g_MicroProfileHtmlLive_end_sizes[i]-1, g_MicroProfileHtmlLive_end[i]);
+	}
 
+}
 void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFrames, const char* pHost)
 {
 	//stall pushing of timers
@@ -3630,8 +3648,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	const int64_t nTickStart = S.Frames[nFirstFrame].nFrameStartCpu;
 	const int64_t nTickEnd = S.Frames[nLastFrame].nFrameStartCpu;
 	int64_t nTickStartGpu = S.Frames[nFirstFrame].nFrameStartGpu;
-	//uprintf("got timestamp %llp from frame %d\n", nTickStartGpu, nFirstFrame );
-
+\
 	int64_t nTickReferenceCpu, nTickReferenceGpu;
 	int64_t nTicksPerSecondCpu = MicroProfileTicksPerSecondCpu();
 	int64_t nTicksPerSecondGpu = MicroProfileTicksPerSecondGpu();
@@ -4098,25 +4115,36 @@ void MicroProfileWebServerStop()
 	close(S.ListenerSocket);
 #endif
 }
-
-int MicroProfileParseGet(const char* pGet)
+enum MicroProfileGetCommand
 {
+	EMICROPROFILE_GET_COMMAND_DUMP,
+	EMICROPROFILE_GET_COMMAND_LIVE,
+	EMICROPROFILE_GET_COMMAND_UNKNOWN,
+};
+MicroProfileGetCommand MicroProfileParseGet(const char* pGet, int* pNumFrames)
+{
+	printf("get is '%s' %zu\n", pGet, strlen(pGet));
+	if(0 == strlen(pGet))
+	{
+		return EMICROPROFILE_GET_COMMAND_LIVE;
+	}
 	const char* pStart = pGet;
 	while(*pGet != '\0')
 	{
 		if(*pGet < '0' || *pGet > '9')
-			return 0;
+			return EMICROPROFILE_GET_COMMAND_UNKNOWN;
 		pGet++;
 	}
 	int nFrames = atoi(pStart);
 	if(nFrames)
 	{
-		return nFrames;
+		*pNumFrames = nFrames;
 	}
 	else
 	{
-		return MICROPROFILE_WEBSERVER_MAXFRAMES;
+		*pNumFrames = MICROPROFILE_WEBSERVER_MAXFRAMES;
 	}
+	return EMICROPROFILE_GET_COMMAND_LIVE;
 }
 
 
@@ -5175,43 +5203,94 @@ bool MicroProfileWebServerUpdate()
 				*pHttp = '\0';
 				pGet += sizeof("GET /")-1;
 				Terminate(pGet);
-				int nFrames = MicroProfileParseGet(pGet);
-				if(nFrames)
+				int nFrames = 0;
+				switch(MicroProfileParseGet(pGet, &nFrames))
 				{
-					MicroProfileSetNonBlocking(Connection, 0);
-					uint64_t nTickStart = MP_TICK();
-					send(Connection, MICROPROFILE_HTML_HEADER, sizeof(MICROPROFILE_HTML_HEADER)-1, 0);
-					uint64_t nDataStart = S.nWebServerDataSent;
-					S.WebServerPut = 0;
-	#if 0 == MICROPROFILE_MINIZ
-					MicroProfileDumpHtml(MicroProfileWriteSocket, &Connection, nFrames, pHost);
-					uint64_t nDataEnd = S.nWebServerDataSent;
-					uint64_t nTickEnd = MP_TICK();
-					uint64_t nDiff = (nTickEnd - nTickStart);
-					float fMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu()) * nDiff;
-					int nKb = ((nDataEnd-nDataStart)>>10) + 1;
-					int nCompressedKb = nKb;
-					MicroProfilePrintf(MicroProfileWriteSocket, &Connection, "\n<!-- Sent %dkb in %.2fms-->\n\n",nKb, fMs);
-					MicroProfileFlushSocket(Connection);
-	#else
-					MicroProfileCompressedSocketState CompressState;
-					MicroProfileCompressedSocketStart(&CompressState, Connection);
-					MicroProfileDumpHtml(MicroProfileCompressedWriteSocket, &CompressState, nFrames, pHost);
-					S.nWebServerDataSent += CompressState.nSize;
-					uint64_t nDataEnd = S.nWebServerDataSent;
-					uint64_t nTickEnd = MP_TICK();
-					uint64_t nDiff = (nTickEnd - nTickStart);
-					float fMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu()) * nDiff;
-					int nKb = ((nDataEnd-nDataStart)>>10) + 1;
-					int nCompressedKb = ((CompressState.nCompressedSize)>>10) + 1;
-					MicroProfilePrintf(MicroProfileCompressedWriteSocket, &CompressState, "\n<!-- Sent %dkb(compressed %dkb) in %.2fms-->\n\n", nKb, nCompressedKb, fMs);
-					MicroProfileCompressedSocketFinish(&CompressState);
-					MicroProfileFlushSocket(Connection);
-	#endif
+					case EMICROPROFILE_GET_COMMAND_LIVE:
+					{
+							MicroProfileSetNonBlocking(Connection, 0);
+							uint64_t nTickStart = MP_TICK();
+							send(Connection, MICROPROFILE_HTML_HEADER, sizeof(MICROPROFILE_HTML_HEADER)-1, 0);
+							uint64_t nDataStart = S.nWebServerDataSent;
+							S.WebServerPut = 0;
+			#if 0 == MICROPROFILE_MINIZ
+							MicroProfileDumpHtmlLive(MicroProfileWriteSocket, &Connection);
+							uint64_t nDataEnd = S.nWebServerDataSent;
+							uint64_t nTickEnd = MP_TICK();
+							uint64_t nDiff = (nTickEnd - nTickStart);
+							float fMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu()) * nDiff;
+							int nKb = ((nDataEnd-nDataStart)>>10) + 1;
+							int nCompressedKb = nKb;
+							MicroProfilePrintf(MicroProfileWriteSocket, &Connection, "\n<!-- Sent %dkb in %.2fms-->\n\n",nKb, fMs);
+							MicroProfileFlushSocket(Connection);
+			#else
+							MicroProfileCompressedSocketState CompressState;
+							MicroProfileCompressedSocketStart(&CompressState, Connection);
+							MicroProfileDumpHtmlLive(MicroProfileCompressedWriteSocket, &CompressState);
+							S.nWebServerDataSent += CompressState.nSize;
+							uint64_t nDataEnd = S.nWebServerDataSent;
+							uint64_t nTickEnd = MP_TICK();
+							uint64_t nDiff = (nTickEnd - nTickStart);
+							float fMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu()) * nDiff;
+							int nKb = ((nDataEnd-nDataStart)>>10) + 1;
+							int nCompressedKb = ((CompressState.nCompressedSize)>>10) + 1;
+							MicroProfilePrintf(MicroProfileCompressedWriteSocket, &CompressState, "\n<!-- Sent %dkb(compressed %dkb) in %.2fms-->\n\n", nKb, nCompressedKb, fMs);
+							MicroProfileCompressedSocketFinish(&CompressState);
+							MicroProfileFlushSocket(Connection);
+			#endif
 
-	#if MICROPROFILE_DEBUG
-					printf("\n<!-- Sent %dkb(compressed %dkb) in %.2fms-->\n\n", nKb, nCompressedKb, fMs);
-	#endif
+			#if MICROPROFILE_DEBUG
+							printf("\n<!-- Sent %dkb(compressed %dkb) in %.2fms-->\n\n", nKb, nCompressedKb, fMs);
+			#endif
+					}
+					break;
+					case EMICROPROFILE_GET_COMMAND_DUMP:
+					{
+						if(nFrames)
+						{
+							MicroProfileSetNonBlocking(Connection, 0);
+							uint64_t nTickStart = MP_TICK();
+							send(Connection, MICROPROFILE_HTML_HEADER, sizeof(MICROPROFILE_HTML_HEADER)-1, 0);
+							uint64_t nDataStart = S.nWebServerDataSent;
+							S.WebServerPut = 0;
+			#if 0 == MICROPROFILE_MINIZ
+							MicroProfileDumpHtml(MicroProfileWriteSocket, &Connection, nFrames, pHost);
+							uint64_t nDataEnd = S.nWebServerDataSent;
+							uint64_t nTickEnd = MP_TICK();
+							uint64_t nDiff = (nTickEnd - nTickStart);
+							float fMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu()) * nDiff;
+							int nKb = ((nDataEnd-nDataStart)>>10) + 1;
+							int nCompressedKb = nKb;
+							MicroProfilePrintf(MicroProfileWriteSocket, &Connection, "\n<!-- Sent %dkb in %.2fms-->\n\n",nKb, fMs);
+							MicroProfileFlushSocket(Connection);
+			#else
+							MicroProfileCompressedSocketState CompressState;
+							MicroProfileCompressedSocketStart(&CompressState, Connection);
+							MicroProfileDumpHtml(MicroProfileCompressedWriteSocket, &CompressState, nFrames, pHost);
+							S.nWebServerDataSent += CompressState.nSize;
+							uint64_t nDataEnd = S.nWebServerDataSent;
+							uint64_t nTickEnd = MP_TICK();
+							uint64_t nDiff = (nTickEnd - nTickStart);
+							float fMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu()) * nDiff;
+							int nKb = ((nDataEnd-nDataStart)>>10) + 1;
+							int nCompressedKb = ((CompressState.nCompressedSize)>>10) + 1;
+							MicroProfilePrintf(MicroProfileCompressedWriteSocket, &CompressState, "\n<!-- Sent %dkb(compressed %dkb) in %.2fms-->\n\n", nKb, nCompressedKb, fMs);
+							MicroProfileCompressedSocketFinish(&CompressState);
+							MicroProfileFlushSocket(Connection);
+			#endif
+
+			#if MICROPROFILE_DEBUG
+							printf("\n<!-- Sent %dkb(compressed %dkb) in %.2fms-->\n\n", nKb, nCompressedKb, fMs);
+			#endif
+						}
+					}
+					break;
+					case EMICROPROFILE_GET_COMMAND_UNKNOWN:
+					{
+						printf("unknown get command %s\n", pGet);
+					}
+					break;
+
 				}
 			}
 		}

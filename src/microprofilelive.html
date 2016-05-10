@@ -123,8 +123,9 @@ var ProfileFpsCount = 0;
 var ProfileLastTimeStamp = new Date();
 var PlotfArray = new Array();
 
-var ConnectionStr = ["\\", "|", "/", "-" ];
+var ConnectionStr = ["x", "|", "x", "-" ];
 var ConnectionIdx = 0;
+var EnabledArray = [];
 
 
 var FrameData = {};
@@ -135,7 +136,8 @@ var WSConnected = 0;
 var WSSeconds = 0;
 var WSFail = 0;
 var WS;
-var WSPort = 1338;
+var WSHost = location.hostname ? location.hostname : "localhost";
+var WSPort = location.port?location.port : 1338;
 var WSPath;
 
 var MSG_TIMER_TREE = 1; //MSG_TIMER_TREE
@@ -160,10 +162,12 @@ var Empty = {"id":0, "w":0, "depth":0};
 var WidthArray = [];
 var WidthTree = 0;
 var ViewActive = 0;
-var ViewNames = ["Graph", "Bar Time[all]", "Multi Bar[all]"];
+var ViewNames = ["Graph", "Bar Time[all]", "Multi Bar[all]", "Multi Bar[single]"];
+var SingleTimerBars = 0;
 var History;
 var MainView;
 var X5Views;
+
 
 TimerArray.push(Empty); // 0 is root of tree
 
@@ -423,126 +427,6 @@ function ResizeCanvas()
 	CreateViews(nWidth, nHeight);
 }
 
-// function DrawGraph(View, LocalMouseX, LocalMouseY)
-// {
-// 	var Bars = FrameData.TimerMap;
-// 	if(!Bars)
-// 		return;
-
-// 	ProfileEnter("DrawGraph");
-// 	var CanvasPrev = View.Canvas[View.BackBuffer];
-// 	var OffscreenPrev = View.OffscreenData[View.BackBuffer];
-// 	View.BackBuffer = 1 - View.BackBuffer;
-// 	var Canvas = View.Canvas[View.BackBuffer];
-// 	var context = Canvas.getContext('2d');
-	
-// 	context.clearRect(0, 0, View.w, View.h);
-// 	// context.drawImage(CanvasPrev, -1, 0, View.w, View.h);
-// 	// context.putImageData(OffscreenPrev, View.OffscreenData[View.BackBuffer], View.x*2, View.y*2);
-// 	// context.fillStyle = '#005500';
-// 	// context.fillRect(0, 0, 1000, 1000);
-
-// 	var h = View.h;
-// 	var h1 = h-1;
-// 	var w = View.w;
-// 	var fHeightScale = h / ReferenceTime;
-// 	var MouseDragging = 0;
-
-// 	// MouseDragState != MouseDragOff;
-// 	// RangeCpuHistory = RangeInit();
-// 	// RangeGpuHistory = RangeInit()
-	
-// 	var FrameBegin = FramePendingBegin;
-// 	var FrameEnd = FramePendingEnd;
-// 	var NumFrames = FrameEnd - FrameBegin;
-
-// 	if(FrameEnd < FrameBegin)
-// 	{
-// 		NumFrames = FrameEnd + FrameCount - FrameBegin;
-// 	}
-// 	if(NumFrames < 0)
-// 		debugger;
-
-// 	if(FrameEnd - FrameBegin > FrameCount -1 )
-// 	{
-// 		if(FrameEnd < FrameCount)
-// 			debugger;
-// 		FrameBegin = FrameEnd - FrameCount + 1;
-// 	}
-// 	//var NumFrames = FrameEnd - FrameBegin;
-// 	var Keys = [];
-// 	for(var key in Bars)
-// 	{
-// 		Keys.push(key);
-// 	}
-// 	console.log('numframes ' + NumFrames);
-// 	if(0 != NumFrames)
-// 	{
-// 		context.drawImage(CanvasPrev, -NumFrames, 0, View.w, View.h);
-		
-// 		var dY = i * 2;
-// 		var FramesLeft = NumFrames;
-
-// 		for(var i = FrameBegin; i != FrameEnd; i = (i+1) % FrameCount)
-// 		{
-// 			ProfileEnter("loop0");
-// 			//sort indices based on timer value.
-// 			Keys.sort( function(a, b){ 
-// 				var BlockA = Bars[a];
-// 				var BlockB = Bars[b];
-// 				var TimeArrayA = BlockA.Time;
-// 				var TimeArrayB = BlockB.Time;
-// 				return TimeArrayA[i] - TimeArrayB[i];
-// 			} );
-// 			var Y = h1;
-// 			var X = w-FramesLeft;
-// 			FramesLeft -= 1;
-// 			var TimeLast = 0;
-// 			for(var x = 0; x < Keys.length; ++x)
-// 			{
-// 				ProfileEnter("loop1");
-
-// 				var k = Keys[x];
-// 				var idx = GetTimer(k);
-// 				if(!idx && 0 != idx)
-// 				{
-// 					debugger;
-// 				}
-// 				var color = TimerArray[idx].color;
-// 				var TimerState = Bars[k];
-// 				var TimeArray = Block.Time;
-// 				var t = TimeArray[(FrameBegin + i) % FrameCount];
-// 				if(t > ReferenceTime)
-// 					ReferenceTime = t;
-// 				if(t < TimeLast)
-// 				{
-// 					ProfileLeave();
-// 					break;
-// 				}
-// 				dY = (t-TimeLast) * fHeightScale;
-// 				context.strokeStyle = color;
-// 				context.beginPath();
-// 				// context.moveTo(0,0);
-// 				// context.lineTo(w,h);
-// 				// context.lineTo(0,h);
-// 				// context.lineTo(w, 0);			
-// 				context.moveTo(X, Y);
-// 				Y -= dY;
-// 				context.lineTo(X, Y);
-// 				context.stroke();
-
-// 				TimeLast = t;
-// 			}
-// 			ProfileLeave();
-// 		}
-// 	}
-// 	else
-// 	{
-// 			context.drawImage(CanvasPrev, 0, 0, View.w, View.h);
-
-// 	}
-// 	ProfileLeave();
-// }
 
 function FormatTime(Time)
 {
@@ -564,6 +448,7 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 	context.clearRect(0, 0, View.w, View.h);
 
 	var Title = "?";
+	var TitleName = null;
 	var nNumBars = 0;
 	var BarNames = [];
 	var BarTimes = [];
@@ -571,57 +456,111 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 	var AggregateIndex = ReferenceTime < 0 ? AggregateHistorySize-1 : AggregateHistorySize-2; //fix med 
 	var GetTime = null;
 
-	if(SubIndex == 0)
+	if(SingleTimerBars == 0)
 	{
-		Title = "Time";
-		GetTime = function(FD){ return FD.FrameTime; };
-	}
-	else if(SubIndex == 1)
-	{
-		Title = "Average";
-		GetTime = function(FD){ return FD.TimeAvg[AggregateIndex]; };
-	}
-	else if(SubIndex == 2)
-	{
-		Title = "Max";
-		GetTime = function(FD){ return FD.TimeMax[AggregateIndex]; };
-	}
-	else if(SubIndex == 3)
-	{
-		Title = "Min";
-		GetTime = function(FD){ return FD.TimeMin[AggregateIndex]; };
-	}
-	else if(SubIndex == 4)
-	{
-		Title = "Exclusive Avg";
-		GetTime = function(FD){ return FD.TimeExclAvg[AggregateIndex]; };
-	}
-	else if(SubIndex == 5)
-	{
-		Title = "Exclusive Max";
-		GetTime = function(FD){ return FD.TimeExclMax[AggregateIndex]; };
-	}
-	else if(SubIndex == 6)
-	{
-		Title = "Exclusive Min";
-		GetTime = function(FD){ return FD.TimeExclMin[AggregateIndex]; };
+		if(SubIndex == 0)
+		{
+			Title = "Time";
+			GetTime = function(FD){ return FD.FrameTime; };
+		}
+		else if(SubIndex == 1)
+		{
+			Title = "Average";
+			GetTime = function(FD){ return FD.TimeAvg[AggregateIndex]; };
+		}
+		else if(SubIndex == 2)
+		{
+			Title = "Max";
+			GetTime = function(FD){ return FD.TimeMax[AggregateIndex]; };
+		}
+		else if(SubIndex == 3)
+		{
+			Title = "Min";
+			GetTime = function(FD){ return FD.TimeMin[AggregateIndex]; };
+		}
+		else if(SubIndex == 4)
+		{
+			Title = "Exclusive Avg";
+			GetTime = function(FD){ return FD.TimeExclAvg[AggregateIndex]; };
+		}
+		else if(SubIndex == 5)
+		{
+			Title = "Exclusive Max";
+			GetTime = function(FD){ return FD.TimeExclMax[AggregateIndex]; };
+		}
+		else if(SubIndex == 6)
+		{
+			Title = "Exclusive Min";
+			GetTime = function(FD){ return FD.TimeExclMin[AggregateIndex]; };
+
+		}
+		for(var key in TimerMap)
+		{
+			var idx = GetTimer(key);
+			var T = TimerArray[idx];
+			if(T.e)
+			{
+				nNumBars++;
+				var FD = TimerMap[key];
+				var Time = GetTime(FD);
+				BarNames.push(T.name);
+				BarTimes.push(Time);
+				BarColors.push(T.color);
+			}
+		}
 
 	}
-
-
-	for(var key in TimerMap)
+	else if(EnabledArray.length > 0)
 	{
-		var idx = GetTimer(key);
+		var idx = EnabledArray[0];
 		var T = TimerArray[idx];
-		if(T.e)
+		var FD =  GetFrameData(T.id);
+		var Property = null;
+		if(SubIndex == 0)
+		{
+			Title = "Average";
+			Property = "TimeAvg";
+		}
+		else if(SubIndex == 1)
+		{
+			Title = "Max";
+			Property = "TimeMax";
+		}
+		else if(SubIndex == 2)
+		{
+			Title = "Min";
+			Property = "TimeMin";
+		}
+		else if(SubIndex == 3)
+		{
+			Title = "Exclusive Average";
+			Property = "TimeExclAvg";
+		}
+		else if(SubIndex == 4)
+		{
+			Title = "Exclusive Max";
+			Property = "TimeExclMax"
+		}
+		else if(SubIndex == 5)
+		{
+			Title = "Exclusive Min";
+			Property = "TimeExclMin"
+		}
+		else if(SubIndex == 6)
+		{
+			Title = "Call Average";
+			Property = "TimeCallAvg"
+		}
+		TitleName = T.name;
+		for(var i = 0; i < AggregateHistorySize; ++i)
 		{
 			nNumBars++;
-			var FD = TimerMap[key];
-			var Time = GetTime(FD);
-			BarNames.push(T.name);
+			var A = FD[Property];
+			var Time = A[i];
 			BarTimes.push(Time);
 			BarColors.push(T.color);
 		}
+
 	}
 
 
@@ -629,11 +568,6 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 	{
 		ProfileLeave();
 		return;
-	}
-	hh+= 0.01;
-	if(hh > 1)
-	{
-		hh = 0;
 	}
 
 	var h = View.h;
@@ -653,17 +587,20 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 	var fWidth = w / FrameCount;
 	var Keys = [];
 	var X = DrawX;
+	var offset = 0;
 	context.textAlign = 'center'
 	context.fillStyle = '#ffffff';
 	context.fillText(Title, w / 2.0, FontHeight);
+	if(TitleName)
+	{
+		context.fillText(TitleName, w / 2.0, DrawY - offset);
+	}
 	context.textAlign = 'right';
-	var offset = 0;
 
-	for(var i = 0; i < BarNames.length; ++i)
+	for(var i = 0; i < BarTimes.length; ++i)
 	{
 		var Time = BarTimes[i];
 		var Color = BarColors[i];
-		var Name = BarNames[i];
 		var fPrc = Time / ReferenceTime;
 		if(fPrc > 1.0)
 			fPrc = 1.0
@@ -676,7 +613,11 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 		context.fillStyle = '#ffffff';
 		var TimeText = FormatTime(Time);
 		context.fillText(TimeText, X+BarWidth, DrawX+DrawHeight + FontHeight);
-		context.fillText(Name, X+BarWidth, DrawY - offset);
+		if(!TitleName)
+		{
+			var Name = BarNames[i];
+			context.fillText(Name, X+BarWidth, DrawY - offset);
+		}
 		X += BarWidth + SpaceWidth;
 	}
 	ProfileLeave();
@@ -686,26 +627,16 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 
 function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex)
 {
-	//return;
 	var TimerMap = FrameData.TimerMap;
 	if(!TimerMap)
 		return;
 
 	ProfileEnter("DrawGraph");
-	// var CanvasPrev = View.Canvas[View.BackBuffer];
-	// var OffscreenPrev = View.OffscreenData[View.BackBuffer];
-//	View.BackBuffer = 1 - View.BackBuffer;
 	var Canvas = View.Canvas[View.BackBuffer];
 	var context = Canvas.getContext('2d');
 	context.clearRect(0, 0, View.w, View.h);
 
-	// context.fillStyle = 'white';
-	// context.fillRect(0,0, View.w, View.h);
-
-
-
 	var h = View.h;
-	//var h1 = h-1;
 	var w = View.w;
 	var fHeightScale = h / ReferenceTime;
 	var MouseDragging = 0;
@@ -901,20 +832,10 @@ function AggregateMenuSize()
 
 function TimerMenuSize()
 {
-	// var Obj = {};
-	// Obj.w = WidthArray[TYPE_TIMER] + WidthArray[TYPE_GROUP] + 5 + FontWidth;
-	// Obj.x = nWidth / 2 - Obj.w / 2;
-	// Obj.y = HistoryHeight + 50;
-	// return Obj;
 	return MenuSize(WidthArray[TYPE_TIMER] + WidthArray[TYPE_GROUP] + 5 + FontWidth);
 }
 function GroupMenuSize()
 {
-	// var Obj = {};
-	// Obj.w = WidthTree;
-	// Obj.x = nWidth / 2 - Obj.w / 2;
-	// Obj.y = HistoryHeight + 50;
-	// return Obj;
 	return MenuSize(WidthTree);
 }
 
@@ -971,13 +892,13 @@ function DrawMenuViews()
 			MainView.DisplayFunc = DrawBars;
 			MainView.visible = true;
 		}
-		else if(idx == 2)
+		else if(idx == 2 || idx == 3)
 		{
 			for(var i = 0; i < X5Views.length; ++i)
 			{
 				X5Views[i].visible = true;
 			}
-
+			SingleTimerBars = idx == 2 ? 0 : 1;
 		}
 		ViewActive = idx;
 	};
@@ -1351,12 +1272,33 @@ function GetTimer(id)
 	}
 	return null;
 }
+
+function UpdateEnabledTimer(idx)
+{
+	if(TimerArray[idx].idtype != TYPE_TIMER)
+	{
+		return;
+	}
+	var enabled = TimerArray[idx].e;
+	var i = EnabledArray.indexOf(idx);
+	if(i >= 0)
+	{
+		EnabledArray.splice(i, 1);
+	}
+	if(enabled)
+	{
+		EnabledArray.unshift(idx);
+	}
+
+
+}
 function EnableTimer(T)
 {
 	var idx = GetTimer(T.id);
 	if(idx>=0)
 	{
 		TimerArray[idx].e = T.e;
+		UpdateEnabledTimer(idx);
 		console.log('tenable ', TimerArray[idx].idtype, " ", TimerArray[idx].idelement, " ", TimerArray[idx].e);
 	}
 	else
@@ -1388,6 +1330,9 @@ function AddTimer(T)
 	{
 		WidthArray[idtype] = w;
 	}
+	
+	
+	UpdateEnabledTimer(idx);
 
 	var pidx = GetTimer(T.pid);
 	if(pidx >= 0)
@@ -1477,10 +1422,10 @@ function ProcessFrame(F)
 {
 	PushIntoArray(FrameData.Time, F.t);
 	PushIntoArray(FrameData.Ids, F.f);
-	for(var idx in F.x)
+	for(var id in F.x)
 	{
-		var FD = GetFrameData(idx);
-		var Data = F.x[idx];
+		var FD = GetFrameData(id);
+		var Data = F.x[id];
 		var Time = Data[0];
 		var TimeExcl = Data[1];
 		var Count = Data[2];
@@ -1531,7 +1476,7 @@ function ProcessFrame(F)
 		FD.AggregateExclMin = FD.AggregateExclMin < TimeExcl ? FD.AggregateExclMin : TimeExcl;
 		FD.AggregateCount += Count;
 		var UpdatePos = AggregateHistorySize-1;
-		if(UpdatePos != FD.TimeMax.lenght - 1)
+		if(UpdatePos != FD.TimeMax.length - 1)
 		{
 			debugger;
 		}
@@ -1544,10 +1489,10 @@ function ProcessFrame(F)
 		FD.TimeExclMax[UpdatePos] = FD.AggregateExclMax;
 		FD.TimeExclMin[UpdatePos] = FD.AggregateExclMin;
 	}
-	for(var idx in FrameData.TimerMap)
+	for(var id in FrameData.TimerMap)
 	{
-		FD = FrameData.TimerMap[idx];
-		if(!F.x[idx])
+		FD = FrameData.TimerMap[id];
+		if(!F.x[id])
 		{
 			PushIntoArray(FD.Time,0.0);
 			PushIntoArray(FD.TimeExcl, 0.0);
@@ -1616,18 +1561,13 @@ function Connect()
 		WSSeconds = (new Date() - WSOpenTime);
 		if(!WS || WSSeconds > 2000)
 		{
-			// WSPort++;
-			// if(WSPort > 1338+2)
-			// {
-			// 	WSPort = 1338;
-			// }
 			if(WS)
 			{
 				WS.close();
 				WS = null;
 			}
 			WSOpenTime = new Date();
-			WSPath = "ws://localhost:" + WSPort + "/ws";
+			WSPath = "ws://" + WSHost + ":" + WSPort + "/ws";
 			console.log('connecting to ' + WSPath);
 			WS = new WebSocket(WSPath);
 			WS.onopen = WSOpen;
@@ -1647,33 +1587,11 @@ function Connect()
 function MouseMove(evt)
 {
     evt.preventDefault();
- //    ZoomActive = 0;
- //    MouseDrag(MouseDragMove, evt);
- // 	MouseHistory = 0;
-	// MouseDetailed = 0;
-	// HistoryViewMouseX = HistoryViewMouseY = -1;
 	var rect = evt.target.getBoundingClientRect();
 	var x = evt.clientX - rect.left;
 	var y = evt.clientY - rect.top;
 	MouseX = x;
 	MouseY = y;
-
-
-	// if(evt.target == CanvasDetailedView)
-	// {
-	// 	if(!MouseDragSelectRange())
-	// 	{
-	// 		RangeCpu = RangeInit();
-	// 	}
-	// }
-	// else if(evt.target = CanvasHistory)
-	// {
-	// 	var Rect = CanvasHistory.getBoundingClientRect();
-	// 	HistoryViewMouseX = x;
-	// 	HistoryViewMouseY = y;
-	// }
-	// Draw(1);
-	//Draw();
 }
 
 function MouseButton(bPressed, evt)
@@ -1795,113 +1713,10 @@ function KeyUp(evt)
 	{
 		WSSendMessage("f");
 	}
-	// if(evt.keyCode == 39)
-	// {
-	// 	MoveToNext(1);
-	// }
-	// if(evt.keyCode == 37)
-	// {
-	// 	MoveToNext(-1);
-	// }
-	// if(evt.keyCode == 17)
-	// {
-	// 	KeyCtrlDown = 0;
-	// 	MouseDragKeyUp();
-	// }
-	// else if(evt.keyCode == 16)
-	// {
-	// 	KeyShiftDown = 0;
-	// 	MouseDragKeyUp();
-	// }
-	// if(evt.keyCode == 32)
-	// {
-	// 	if(RangeSelect.Begin < RangeSelect.End)
-	// 	{
-	// 		ZoomTo(RangeSelect.Begin, RangeSelect.End);
-	// 		RangeSelect = RangeInit();
-	// 		MouseHandleDragEnd();
-	// 	}
-	// }
-	// if(evt.keyCode == 9)
-	// {
-	// 	evt.preventDefault();
-	// 	if(Mode == ModeDetailed)
-	// 	{
-	// 		var Token = nHoverToken;
-	// 		if(Token == -1 && RangeValid(RangeSelect) && RangeSelect.Index >= 0)
-	// 		{
-	// 			Token = RangeSelect.Index;
-	// 		}
-	// 		if(Token != -1 && Token < TimerInfo.length)
-	// 		{
-	// 			var start = TimerInfo[Token].worststart;
-	// 			var end = TimerInfo[Token].worstend;
-	// 			RangeSelect.Begin = start;
-	// 			RangeSelect.End = end;
-	// 			RangeSelect.Thread = TimerInfo[Token].worstthread;
-	// 			RangeSelect.Index = Token;
-	// 			ShowFlashMessage('Worst: ' + (end-start).toFixed(2) + 'ms', 100);
-	// 			MoveTo(RangeSelect.Begin, RangeSelect.End, ThreadY[RangeSelect.Thread] + nOffsetY, ThreadY[RangeSelect.Thread+1] + nOffsetY);
-	// 			MouseHandleDragEnd();
-	// 		}
-	// 	}
-	// 	else if(Mode == ModeTimers)
-	// 	{
-	// 		ToggleFilterInput(0);
-	// 		evt.preventDefault();
-	// 	}
-
-	// }
-	// if(evt.keyCode == 27)
-	// {
-	// 	RangeSelect = RangeInit();
-	// 	SortColumn = 0;
-	// 	SortColumnMouseOver = "";
-	// 	if(Mode == ModeTimers)
-	// 	{
-	// 		ToggleFilterInput(1);
-	// 		evt.preventDefault();
-	// 	}
-	// }
-
-	// if(evt.keyCode == 18 || evt.keyCode == 90) // z/tab to toggle tooltip
-	// {
-	// 	ToolTip = (ToolTip+1)%3; //0: off, 1: default, 2: flipped
-	// 	var ToolTipStr = 'Off';
-	// 	var bShowTimers = Mode == ModeTimers;
-	// 	if(ToolTip == 2)
-	// 	{
-	// 		bShowTimers = !bShowTimers;
-	// 	}
-	// 	if(ToolTip)
-	// 	{
-	// 		if(bShowTimers)
-	// 			ToolTipStr = "Timers";
-	// 		else
-	// 			ToolTipStr = "Detailed";
-	// 	}
-	// 	ShowFlashMessage('ToolTip: ' + ToolTipStr, 100);
-	// }
-
-
-	// Invalidate = 0;
 }
 
 function KeyDown(evt)
 {
-	// if(evt.keyCode == 17)
-	// {
-	// 	KeyCtrlDown = 1;
-	// }
-	// else if(evt.keyCode == 16)
-	// {
-	// 	KeyShiftDown = 1;
-	// }
-	// else if(evt.keyCode == 9)
-	// {
-	// 	evt.preventDefault();
-	// }
-	// Invalidate = 0;
 }
 
 
@@ -1914,8 +1729,6 @@ function SetupEvents()
 	CanvasDetailedView.addEventListener('mouseout', MouseOut);
 	CanvasDetailedView.addEventListener("contextmenu", function (e) { e.preventDefault(); }, false);
 	CanvasDetailedView.addEventListener(mousewheelevt, MouseWheel, false);
-	// FilterInputTimer.addEventListener('keyup', FilterKeyUp);
-	// FilterInputGroup.addEventListener('keyup', FilterKeyUp);
 	window.addEventListener('keydown', KeyDown);
 	window.addEventListener('keyup', KeyUp);
 	window.addEventListener('resize', ResizeCanvas, false);
@@ -2012,14 +1825,19 @@ SetupEvents();
 InitMenu();
 
 setInterval(Connect, 10);
-
+// window.alert(' host is ' + location.hostname + ' port ' + location.port);
 
 
 //Draw();
 AutoRedraw();
 
 
+
+
+
 </script>
+
+
 </body>
 </html>      
 

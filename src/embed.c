@@ -27,7 +27,7 @@ void DumpFile(FILE* pOut, const char* pEmbedData, const char* pPrefix, const cha
 	// fprintf(pOut, "const size_t %s_begin_size = sizeof(%s_begin);\n", pSymbolArg, pSymbolArg);
 
 
-	size_t len = strlen(pEmbedData);
+	size_t len = pEmbedData ? strlen(pEmbedData) : 0;
 	int nNumBlocks = 0;
 	while(len)
 	{
@@ -103,10 +103,14 @@ int main(int argc, char* argv[])
 
 	char* pEmbedStart = pEmbedSrc;
 	char* pEmbedStartEnd = strstr(pEmbedStart, pPatternArg);
-	char* pEmbedEnd = pEmbedStartEnd + strlen(pPatternArg);
-	*pEmbedStartEnd = '\0';
+	char* pEmbedEnd = 0;
+	if(pEmbedStartEnd)
+	{
+		pEmbedEnd = pEmbedStartEnd + strlen(pPatternArg);
+		*pEmbedStartEnd = '\0';
+	}
 
-	FILE* pOut = fopen(pDestArg, "w");
+	FILE* pOut = fopen(pDestArg, "a");
 	if(!pOut)
 	{
 		free(pEmbedSrc);
