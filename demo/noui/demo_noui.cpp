@@ -102,6 +102,13 @@ int main(int argc, char* argv[])
 		{
 			usleep(16000);
 		}
+		static int xx = 1;
+		if(0 == (++xx % 1000))
+		{
+			printf("sleep 1000\n");
+
+			usleep(201 * 1000);
+		} 
 		MICROPROFILE_COUNTER_LOCAL_ADD(LocalCounter, 3);
 		MICROPROFILE_COUNTER_LOCAL_SUB(LocalCounter, 1);
 		MicroProfileFlip(0);
@@ -128,7 +135,12 @@ int main(int argc, char* argv[])
 			}
 		}
 		#endif
-
+		if(0 == (xx % 300) && 0 != (xx % 1000))
+		{
+			MICROPROFILE_SCOPEI("hest", "fisk", 0xff00ff);
+			printf("sleep 500\n");
+			usleep(75 * 1000);
+		}
 
 		MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD(ThreadsStarted);
 		MICROPROFILE_COUNTER_LOCAL_UPDATE_SET(ThreadSpinSleep);

@@ -985,6 +985,7 @@ struct MicroProfile
 	uint64_t nActiveGroup;
 	uint32_t nActiveBars;
 	uint32_t nFrozen;
+	uint32_t nWasFrozen;
 	uint32_t nPlatformMarkersEnabled;
 
 	uint64_t nForceGroup;
@@ -1423,6 +1424,7 @@ void MicroProfileInit()
 		S.nActiveGroup = 0;
 		S.nActiveBars = 0;
 		S.nFrozen = 0;
+		S.nWasFrozen = 0;
 		S.nForceGroup = 0;
 		S.nActiveGroupWanted = 0;
 		S.nStartEnabled = 0;
@@ -4723,10 +4725,6 @@ void MicroProfileWebSocketCommand(uint32_t nCommand)
 
 	}
 }
-void MicroProfileToggleFreeze()
-{
-	S.nFrozen = !S.nFrozen;	
-}
 
 bool MicroProfileWebSocketReceive(MpSocket Connection)
 {
@@ -4900,7 +4898,12 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 	uint64_t nFrameTicks = pFrameNext->nFrameStartCpu - pFrameCurrent->nFrameStartCpu;
 	uint64_t nFrame = pFrameCurrent->nFrameId;
 	double fTime = nFrameTicks * fTickToMsCpu;
-	WSPrintf("{\"k\":\"%d\",\"v\":{\"t\":%f,\"f\":%lld,\"x\":{", MSG_FRAME, fTime, nFrame);
+	WSPrintf("{\"k\":\"%d\",\"v\":{\"t\":%f,\"f\":%lld", MSG_FRAME, fTime, nFrame);
+	if(S.nWasFrozen)
+	{
+		WSPrintf(",\"wasfrozen\":1");
+	}
+	WSPrintf(",\"x\":{");
 	int nTimer = S.WebSocketTimers;
 	while(-1 != nTimer)
 	{
@@ -4967,6 +4970,10 @@ void MicroProfileWebSocketFrame()
 			{
 				MicroProfileWebSocketSendFrame(s);
 			}
+			else
+			{
+				S.nWasFrozen = 3;
+			}
 		}
 
 		if(!bConnected)
@@ -4995,6 +5002,10 @@ void MicroProfileWebSocketFrame()
 		{
 			++i;
 		}
+	}
+	if(S.nWasFrozen)
+	{
+		S.nWasFrozen--;
 	}
 }
 

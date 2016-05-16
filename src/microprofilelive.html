@@ -72,6 +72,7 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 // socket crash on chrome shutdown
 // old view
 //fix graph
+//resend added timers
 
 
 
@@ -1933,8 +1934,35 @@ function GetFrameData(id)
 
 function ProcessFrame(F)
 {
+	var TriggerAutoCapture = 0;
 	PushIntoArray(FrameData.Time, F.t);
 	PushIntoArray(FrameData.Ids, F.f);
+	var CaptureId = null;
+	var AutoCapture = AutoCaptureEnabled && !F.wasfrozen;
+
+	if(AutoCapture)
+	{
+		if(AutoCaptureSourceIndex == -1 && F.t > AutoCaptureTheshold)
+		{
+			TriggerAutoCapture = 1;
+			console.log('trigger capture! ', F.t, ' ', AutoCaptureTheshold);
+		}
+		else if(AutoCaptureSourceIndex >= 0 && AutoCaptureSourceIndex < EnabledArray.length)
+		{
+			var id = TimerArray[EnabledArray[AutoCaptureSourceIndex]].id;
+			var Data = F.x[id];
+			if(Data && Data[0])
+			{
+			 	if(Data[0] > AutoCaptureTheshold)
+			 	{
+			 		TriggerAutoCapture = 1;
+					console.log('trigger capture! ', Data[0], ' ', AutoCaptureTheshold);
+			 	}
+			}
+		}
+	}
+
+
 	for(var id in F.x)
 	{
 		var FD = GetFrameData(id);
@@ -2002,6 +2030,7 @@ function ProcessFrame(F)
 		FD.TimeExclMax[UpdatePos] = FD.AggregateExclMax;
 		FD.TimeExclMin[UpdatePos] = FD.AggregateExclMin;
 	}
+
 	for(var id in FrameData.TimerMap)
 	{
 		FD = FrameData.TimerMap[id];
@@ -2016,6 +2045,13 @@ function ProcessFrame(F)
 
 	}
 	FramePending++;
+
+
+	if(TriggerAutoCapture)
+	{
+		Capture();
+		AutoCaptureEnabled = 0;
+	}
 }
 
 function WSMessage()
