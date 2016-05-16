@@ -69,6 +69,9 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 // preset menu
 // less cpu when idle
 // multiple views.
+// socket crash on chrome shutdown
+// old view
+//fix graph
 
 
 
@@ -81,6 +84,7 @@ var CanvasDetailedView = document.getElementById('DetailedView');
 var CanvasDetailedOffscreen = document.createElement('canvas');
 var FilterInput = document.getElementById('FilterInput');
 var FilterInputDiv = document.getElementById('FilterInputDiv');
+var FilterInputDivPos = {"x":-1,"y":-1,"w":-1,"h":-1};
 
 var CanvasArray0 = [];
 var CanvasArray1 = [];
@@ -109,6 +113,20 @@ var ReferencePresets = [5.0, 10.0, 15.0, 20,33.33,66.66,100.0,250.0,500,1000.0];
 var AggregateFrames = 60;
 var AggregatePresets = [-1, 10,20,30,60,90,120];
 var AggregateHistorySize = 5;
+
+var AutoCaptureEnabled = 0;
+var AutoCaptureDefaultThreshold = 66;
+var AutoCaptureTheshold = AutoCaptureDefaultThreshold;
+var AutoCaptureThesholdPresets = [1,3,5,10,15,30,50,66,90,100,250,500,1000];
+var AutoCaptureTweak = -1;
+var AutoCaptureSourceTweak = -1;
+var AutoCaptureSourceIndex = -1;
+
+var CaptureFramesDefault = 30;
+var CaptureFrames = CaptureFramesDefault;
+var CaptureFramesPresets = [5,10,15,30,50,66,90,100];
+var CaptureTweak = -1;
+
 
 var ProfileData = {};
 var ProfileStackTime = {};
@@ -140,6 +158,10 @@ var WSHost = location.hostname ? location.hostname : "localhost";
 var WSPort = location.port?location.port : 1338;
 var WSPath;
 
+var CaptureButtonX = 0;
+var CaptureButtonY = 0;
+
+
 var MSG_TIMER_TREE = 1; //MSG_TIMER_TREE
 var MSG_ENABLED = 2; // MSG_ENABLED
 var MSG_FRAME = 3; // MSG_FRAME
@@ -163,11 +185,14 @@ var WidthArray = [];
 var WidthTree = 0;
 var ViewActive = 0;
 var ViewNames = ["Graph", "Bar Time[all]", "Multi Bar[all]", "Multi Bar[single]"];
+
 var SingleTimerBars = 0;
 var History;
 var MainView;
 var X5Views;
 
+
+var KeyShiftDown = 0;
 
 TimerArray.push(Empty); // 0 is root of tree
 
@@ -704,7 +729,58 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 	ProfileLeave();
 
 }
+function MouseInRect(Rect)
+{
+	return MouseInside(Rect.x, Rect.y, Rect.w, Rect.h);
+}
+function MouseInside(X, Y, W, H)
+{
+	return MouseX >= X && MouseX <= X + W && MouseY >= Y && MouseY <= Y + H;
+}
+function DrawCaptureButton(context)
+{
 
+	var CaptureText = "Capture[" + CaptureFrames + "]";
+	var w = 10 + context.measureText(CaptureText).width;
+	var X = nWidth / 2 - w / 2;
+	var XCenter = nWidth / 2;
+	var Y = nHeight - 30;
+	var bMouseInCapture = MouseInside(X, Y, w, 4 + FontHeight);
+	context.textAlign = 'center';
+	context.fillStyle = bMouseInCapture ? nBackColors[1] : 'black';
+	context.fillRect(X, Y, w, 4 + FontHeight);
+	context.fillStyle = '#ffffff';
+	context.fillText(CaptureText, XCenter, Y + FontHeight);
+
+
+	X += w + 2;
+	var MenuText = "^";
+	var w2 = 10 + context.measureText(MenuText).width;
+	var bMouseInCaptureMenu = MouseInside(X, Y, w2, 4 + FontHeight);
+	context.fillStyle = bMouseInCaptureMenu ? nBackColors[1] : 'black';
+	context.fillRect(X, Y, w2, 4 + FontHeight);
+
+	context.fillStyle = '#ffffff';
+	context.fillText(MenuText, X + w2*0.5, Y + FontHeight);
+	context.textAlign = 'left';
+	if(MouseReleased)
+	{
+		if(bMouseInCapture)
+		{
+			Capture();
+		}
+	}
+	else
+	{
+		if(bMouseInCaptureMenu)
+		{
+			CaptureButtonX = X + w2;
+			CaptureButtonY = Y;
+			EnableMenu(SubMenuCapture);
+		}	
+	}
+
+}
 function DrawViews()
 {
 	Plotf("DrawViews");
@@ -734,6 +810,10 @@ function DrawViews()
 			context.drawImage(View.Canvas[View.BackBuffer], View.x, View.y, View.w, View.h);
 		}
 	}
+
+	DrawCaptureButton(context);
+
+
 	ProfileLeave();
 
 }
@@ -741,7 +821,10 @@ var SubMenuGroup = 0;
 var SubMenuTimers = 1;
 var SubMenuSettings = 2;
 var SubMenuViews = 3;
+var SubMenuCapture = 4;
 var SubMenuActive = -1;
+var SubMenuTimeoutBase = 5;
+var SubMenuTimeout = SubMenuTimeoutBase;
 var MenuItems = [];
 
 function MakeMenuItem(name, f)
@@ -750,47 +833,78 @@ function MakeMenuItem(name, f)
 	Item.name = name
 	Item.f = f;
 	Item.w = name.length;
+	Item.x = 0;
+	Item.y = 0;
 	return Item;
 }
-function ToggleSubMenu(m)
+function EnableMenu(m)
 {
 	if(m != SubMenuActive)
 	{
 		SubMenuActive = m;
+		SubMenuTimeout = SubMenuTimeoutBase;
 	}
-	else
+	if(m == -1)
 	{
-		SubMenuActive = -1;
+		SubMenuTimeout = 0;
 	}
+
 	if(SubMenuActive == 1)
 	{
-
-		var s = TimerMenuSize();
 		FilterInputDiv.style['display'] = 'inline';
-		var y = s.y - 40;
-		FilterInputDiv.style['left'] = s.x + 'px';
-		FilterInputDiv.style['top'] = y + 'px';
-		FilterInputDiv.style['right'] = (s.x+s.w) + 'px';
-		FilterInput.style['width'] = s.w + 'px';
 		FilterInput.focus();
-
-
 	}
 	else
 	{
 		FilterInputDiv.style['display'] = 'none';
 	}
-	console.log("submenuactive " + SubMenuActive);
+
+	console.log("submenuactive " + SubMenuActive + ' timeout ' + SubMenuTimeout);
+
+
+}
+// function ToggleSubMenu(m)
+// {
+// 	if(m != SubMenuActive)
+// 	{
+// 		SubMenuActive = m;
+// 	}
+// 	else
+// 	{
+// 		SubMenuActive = -1;
+// 	}
+// 	if(SubMenuActive == 1)
+// 	{
+
+// 		var s = TimerMenuSize();
+// 		FilterInputDiv.style['display'] = 'inline';
+// 		var y = s.y - 40;
+// 		FilterInputDiv.style['left'] = s.x + 'px';
+// 		FilterInputDiv.style['top'] = y + 'px';
+// 		FilterInputDiv.style['right'] = (s.x+s.w) + 'px';
+// 		FilterInput.style['width'] = s.w + 'px';
+// 		FilterInput.focus();
+
+
+// 	}
+// 	else
+// 	{
+// 		FilterInputDiv.style['display'] = 'none';
+// 	}
+// 	console.log("submenuactive " + SubMenuActive);
+// }
+function Capture()
+{
+	var url = 'http://' + WSHost + ':' + WSPort + '/' + CaptureFrames;
+	window.open(url);
 }
 function InitMenu()
 {
 	MenuItems = [];
-	MenuItems.push(MakeMenuItem("Control", function(){ToggleSubMenu(SubMenuGroup); } ));
-	MenuItems.push(MakeMenuItem("Timers", function(){ToggleSubMenu(SubMenuTimers); } ));
-	MenuItems.push(MakeMenuItem("Settings", function(){ ToggleSubMenu(SubMenuSettings); } ));
-	// MenuItems.push(MakeMenuItem("Capture", function(){ ToggleSubMenu(SubMenuSettings); } ));
-	// MenuItems.push(MakeMenuItem("Presets", function(){ ToggleSubMenu(SubMenuSettings); } ));
-	MenuItems.push(MakeMenuItem("Views", function(){ ToggleSubMenu(SubMenuViews); } ));
+	MenuItems.push(MakeMenuItem("Control", function(){EnableMenu(SubMenuGroup); } ));
+	MenuItems.push(MakeMenuItem("Timers", function(){EnableMenu(SubMenuTimers); } ));
+	MenuItems.push(MakeMenuItem("Settings", function(){ EnableMenu(SubMenuSettings); } ));
+	MenuItems.push(MakeMenuItem("Views", function(){ EnableMenu(SubMenuViews); } ));
 }
 function DrawTopMenu()
 {
@@ -804,10 +918,14 @@ function DrawTopMenu()
 		var w = context.measureText(Item.name).width + 4;
 		var MouseIn = MouseInY && MouseX >= X && MouseX < X + w;
 		var color = MouseIn ? nBackColors[1] : "black";
-		if(i == SubMenuActive)
+		Item.x = X;
+		Item.y = Y + BoxHeight;
+		if(MouseIn)
 		{
 			context.fillStyle = 'white';
 			context.fillRect(X-2, Y, w+4, BoxHeight);
+			// Enable
+			EnableMenu(i);
 		}
 		context.fillStyle = color;
 		context.fillRect(X, Y, w, BoxHeight);
@@ -823,11 +941,12 @@ function DrawTopMenu()
 
 function AggregateMenuSize()
 {
-	var Obj = {};
-	Obj.w = 250 + 5 + FontWidth;
-	Obj.x = nWidth / 2 - Obj.w / 2;
-	Obj.y = HistoryHeight + 50;
-	return Obj;
+	// var Obj = {};
+	var w = 250 + 5 + FontWidth;
+	// Obj.w = ;
+	// Obj.x = ;
+	// Obj.y = ;
+	return WindowRect(nWidth / 2 - w / 2,HistoryHeight + 50, w, nHeight);
 }
 
 function TimerMenuSize()
@@ -841,11 +960,7 @@ function GroupMenuSize()
 
 function MenuSize(w)
 {
-	var Obj = {};
-	Obj.w = w;
-	Obj.x = nWidth / 2 - w / 2;
-	Obj.y = HistoryHeight + 50;
-	return Obj;
+	return WindowRect(nWidth / 2 - w / 2, HistoryHeight + 50,w, nHeight);
 }
 
 function CreateFilter(Filter)
@@ -876,6 +991,7 @@ function FilterMatch(FilterArray, value)
 }
 function DrawMenuViews()
 {
+
 	var ViewClick = function(idx, name)
 	{
 		for(var i = 1; i < Views.length; ++i)
@@ -902,7 +1018,336 @@ function DrawMenuViews()
 		}
 		ViewActive = idx;
 	};
-	DrawMenuGeneric(ViewNames, ViewActive, ViewClick);
+	var x = MenuItems[SubMenuViews].x;
+	var y = MenuItems[SubMenuViews].y;
+	return DrawMenuGeneric(ViewNames, ViewActive, ViewClick, x, y);
+}
+
+function TweakValue(Value, Tweak, amount, Min, Max)
+{
+	var V = 0.98;
+	if(Tweak<0)
+	{
+		for(var x = 0; x < Math.abs(Tweak); ++x)
+		{
+			var newValue = Math.floor(Value*V);
+			if(newValue == Value)
+			{
+				Value--;
+			}
+			else
+			{
+				Value = newValue;
+			}
+		}
+	}
+	else
+	{
+		var RcpV = 1.0 / V;
+
+		for(var x = 0; x < Tweak; ++x)
+		{
+			var newValue = Math.ceil(Value*RcpV);
+			if(newValue == Value)
+			{
+				Value++;
+			}
+			else
+			{
+				Value = newValue;
+			}
+		}
+	}
+	if(Min && Value < Min)
+		Value = Min;
+	if(Max && Value > Max)
+		Value = Max;
+	return Value;
+
+}
+
+function NextValue(Presets, Value, Dir)
+{
+	var idx = 0;	
+	if(Dir > 0)
+	{
+		for(idx = 0;idx < Presets.length; ++idx)
+		{
+			if(Presets[idx] > Value)
+			{
+				break;
+			}
+		}
+	}
+	else
+	{
+		for(idx = Presets.length; idx >= 0; idx -= 1)
+		{
+			if(Presets[idx] < Value)
+			{
+				break;
+			}
+		}
+	}
+	idx = (idx + Presets.length) % Presets.length;
+	return Presets[idx];
+}
+function AutoCaptureRoll(Direction, Tweak, SetDirect)
+{
+	if(SetDirect)
+	{
+		AutoCaptureTheshold = SetDirect;
+	}
+	else if(Tweak)
+	{
+		AutoCaptureTheshold = TweakValue(AutoCaptureTheshold, Tweak, 0.98, 1, 500);
+	}
+	else if(Direction)
+	{
+		AutoCaptureTheshold = NextValue(AutoCaptureThesholdPresets, AutoCaptureTheshold, Direction);
+	}
+}
+
+function CaptureRoll(Direction, Tweak, SetDirect)
+{
+	if(SetDirect)
+	{
+		CaptureFrames = SetDirect;
+	}
+	else if(Tweak)
+	{
+		CaptureFrames = TweakValue(CaptureFrames, Tweak, 0.98, 5, 300);
+
+	}
+	else if(Direction)
+	{
+		CaptureFrames = NextValue(CaptureFramesPresets, CaptureFrames, Direction);
+	}
+}
+function GetAutoCaptureString()
+{
+	if(AutoCaptureSourceIndex >= 0)
+	{
+		if(AutoCaptureSourceIndex >= EnabledArray.length)
+		{
+			AutoCaptureSourceIndex = -1;
+			AutoCaptureSourceIndex = -1;
+		}
+		else
+		{
+			var idx = EnabledArray[AutoCaptureSourceIndex];
+			return TimerArray[idx].name;
+		}
+	}
+	return "Frame Time";
+}
+
+function AutoCaptureSourceRoll(Direction, Tweak, SetDirect)
+{
+	if(SetDirect)
+	{
+
+	}else if(Tweak||Direction)
+	{
+		if(!Direction)
+			Direction = Tweak;
+		if(Direction<0)
+		{
+			AutoCaptureSourceIndex--;
+			if(AutoCaptureSourceIndex<-1)
+			{
+				AutoCaptureSourceIndex = EnabledArray.length-1;
+			}
+		}
+		else
+		{
+			AutoCaptureSourceIndex++;
+			if(AutoCaptureSourceIndex >= EnabledArray.length)
+			{
+				AutoCaptureSourceIndex = -1;
+			}
+		}
+
+	}
+}
+
+function ShowPrompt(Title, Value)
+{
+	var newValue = prompt('' + Title, '' + Value);
+	var v = parseInt(newValue);
+	if(isNaN(v))
+	{
+		return Value;
+	}
+	else
+	{
+		return v;
+	}
+
+}
+function MeasureArray(v, A, f)
+{
+	var context = CanvasDetailedView.getContext('2d');	
+	for(var i = 0; i < A.length; ++i)
+	{
+		var s = A[i];
+		if(f)
+			s=f(s);
+		var l = context.measureText(s).width;
+		v = v < l ? l : v;
+	}
+	return v;
+}
+function DrawMenuCapture()
+{
+	var context = CanvasDetailedView.getContext('2d');
+	var nColorIndex = 0;
+	var Selection = null;
+	var SizeInfo = {};
+	SizeInfo.h = 4 * BoxHeight;
+	var Strings = ["AutoCapture Enabled", "AutoCapture Threshold", "AutoCapture Source", "Capture Length"];
+	var wLeft = MeasureArray(0, Strings);
+	var wRight = 50;
+	wRight = MeasureArray(wRight, ["Frame Time"]);
+	wRight = MeasureArray(wRight, EnabledArray, function(a){return TimerArray[a].name; } );
+	var Width = wLeft + 35 + wRight;
+	SizeInfo.w = Width;
+	SizeInfo.x = CaptureButtonX - SizeInfo.w;
+	SizeInfo.y = CaptureButtonY - SizeInfo.h;
+	var Y = SizeInfo.y;
+	var X = SizeInfo.x;
+	var YText = Y + BoxHeight - FontAscent;
+	var SizeMinus = context.measureText('-').width;
+	var SizePlus = context.measureText('+').width;
+
+	function DrawMenuElement(Selected, Name, Value, color)
+	{
+		var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+		var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+		if(Selected)
+		{
+			context.fillStyle = 'white';
+			context.fillRect(X-2, Y, Width+4, BoxHeight);
+		}
+		context.fillStyle = bgcolor;
+		context.fillRect(X, Y, Width, BoxHeight);
+		context.fillStyle = color;
+		context.fillText(Name, X, YText);
+		context.textAlign = 'right';
+		context.fillText('' + Value, X + Width-2, YText);
+		context.textAlign = 'left';
+		nColorIndex = 1-nColorIndex;
+		Y += BoxHeight;
+		YText += BoxHeight;
+		return bMouseIn && MouseReleased;
+	}
+	function DrawMenuRoll(Name, RollValue, RollExt, RollFunction, Tweak)
+	{
+		var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+		var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+		context.fillStyle = bgcolor;
+		context.fillRect(X, Y, Width, BoxHeight);
+		context.fillStyle = 'white';
+		context.fillText(Name, X, YText);
+		context.textAlign = 'right';
+		var XTemp = X + Width - 3;
+
+		if(KeyShiftDown && bMouseIn)
+		{
+			if(Tweak>=0)
+			{
+				RollFunction(0, MouseX-Tweak);
+			}
+			Tweak = MouseX;
+			bMouseIn = false;
+		}
+		else
+		{
+			Tweak = -1;
+		}
+
+		var MouseReleasedUsed = false;
+
+
+		if(bMouseIn && MouseX >= XTemp - SizePlus && MouseX <= XTemp)
+		{
+			context.fillStyle = 'red';
+			if(MouseReleased)
+			{
+				RollFunction(1);
+				MouseReleasedUsed = true;
+			}
+		}
+		else
+		{
+			context.fillStyle = 'white';
+		}
+		context.fillText('+', XTemp, YText);
+		XTemp -= SizePlus + 3;
+
+
+
+		if(bMouseIn && MouseX >= XTemp - SizeMinus && MouseX <= XTemp)
+		{
+			context.fillStyle = 'red';
+			if(MouseReleased)
+			{
+				RollFunction(-1);
+				MouseReleasedUsed = true;				
+			}
+		}
+		else
+		{
+			context.fillStyle = 'white';
+		}
+
+		context.fillText('-', XTemp, YText);
+		XTemp -= SizeMinus + 3;
+
+
+		var RollText = ''+RollValue + RollExt;
+		var RollWidth = context.measureText(RollText).width;
+		context.fillStyle = 'white';
+
+		context.fillText(RollText, XTemp, YText);
+		XTemp -= RollWidth;
+		
+		context.textAlign = 'left';
+
+		nColorIndex = 1-nColorIndex;
+
+		Y += BoxHeight;
+		YText += BoxHeight;
+
+		if(MouseReleased && bMouseIn && !MouseReleasedUsed)
+		{
+			var V = ShowPrompt(Name, RollValue);
+			RollFunction(0,0,V);
+		}
+		return Tweak;
+	
+	}
+	context.fillRect(X, Y, Width, SizeInfo.h);
+	if(DrawMenuElement(0, "AutoCapture Enabled", AutoCaptureEnabled ? "on" : "off", 'white', 0))
+	{
+		AutoCaptureEnabled = !AutoCaptureEnabled;
+	}
+	AutoCaptureSourceTweak = DrawMenuRoll("AutoCapture Source", GetAutoCaptureString(), '', AutoCaptureSourceRoll, AutoCaptureSourceTweak);
+	AutoCaptureTweak = DrawMenuRoll("AutoCapture Threshold", AutoCaptureTheshold, 'ms', AutoCaptureRoll, AutoCaptureTweak );
+	CaptureTweak = DrawMenuRoll("Capture Length",  CaptureFrames, '', CaptureRoll, CaptureTweak);
+
+	SizeInfo.h = Y - SizeInfo.y;
+	return SizeInfo;
+
+}
+function WindowRect(x,y,w,h)
+{
+	var s = {};
+	s.x = x;
+	s.y = y;
+	s.w = w;
+	s.h = h;
+	return s;
 }
 
 function DrawMenuSettings()
@@ -910,6 +1355,8 @@ function DrawMenuSettings()
 	var context = CanvasDetailedView.getContext('2d');
 	var nColorIndex = 0;
 	var SizeInfo = AggregateMenuSize();
+	SizeInfo.x = MenuItems[SubMenuSettings].x;
+	SizeInfo.y = MenuItems[SubMenuSettings].y;
 	var Y = SizeInfo.y;
 	var Width = SizeInfo.w;
 	var Selection = null;
@@ -970,9 +1417,24 @@ function DrawMenuSettings()
 		nColorIndex = 1-nColorIndex;
 	}
 
+	SizeInfo.h = Y - SizeInfo.y;
+	return SizeInfo;
 
 }
 
+
+function MoveFilterInputDiv(x, y, w)
+{
+	if(FilterInputDivPos.x != x || FilterInputDivPos.y != y || FilterInputDivPos.w != w)
+	{
+		FilterInputDivPos.x = x;
+		FilterInputDivPos.y = y;
+		FilterInputDivPos.w = w;
+		FilterInputDiv.style['left'] = x + 'px';
+		FilterInputDiv.style['top'] = y + 'px';
+		FilterInput.style['width'] = w + 'px';
+	}
+}
 
 function DrawMenuTimer()
 {
@@ -980,10 +1442,15 @@ function DrawMenuTimer()
 	var context = CanvasDetailedView.getContext('2d');
 	var nColorIndex = 0;
 	var SizeInfo = TimerMenuSize();
+	SizeInfo.x = MenuItems[SubMenuTimers].x;
+	SizeInfo.y = MenuItems[SubMenuTimers].y;
 	var Y = SizeInfo.y;
 	var Width = SizeInfo.w;
 	var Selection = null;
 	var X = SizeInfo.x;
+	MoveFilterInputDiv(SizeInfo.x, SizeInfo.y, SizeInfo.w);
+	Y += 35;//todo: measure somehow?
+
 	for(var i = 0; i < TimerArray.length; ++i)
 	{
 		var v = TimerArray[i];
@@ -1025,8 +1492,10 @@ function DrawMenuTimer()
 		console.log('pressed on ' + Selection);
 		WSSendMessage("c" + Selection);
 	}
+	SizeInfo.h = Y-SizeInfo.y;
+	return SizeInfo;
 }
-function DrawMenuGeneric(Elements, Active, OnClick)
+function DrawMenuGeneric(Elements, Active, OnClick, x, y)
 {
 	var context = CanvasDetailedView.getContext('2d');
 	var nColorIndex = 0;
@@ -1040,8 +1509,10 @@ function DrawMenuGeneric(Elements, Active, OnClick)
 	}
 	w += 10;
 	var SizeInfo = MenuSize(w);
-	var Y = SizeInfo.y;
-	var X = SizeInfo.x;
+	SizeInfo.x = x;
+	SizeInfo.y = y;
+	var X = x;
+	var Y = y;
 
 
 	for(var i = 0; i < Elements.length; ++i)
@@ -1067,6 +1538,8 @@ function DrawMenuGeneric(Elements, Active, OnClick)
 		Y += BoxHeight;
 		nColorIndex = 1-nColorIndex;
 	}
+	SizeInfo.h = Y - SizeInfo.y;
+	return SizeInfo;
 }
 
 function DrawMenuGroup()
@@ -1075,6 +1548,8 @@ function DrawMenuGroup()
 	var nColorIndex = 0;
 	var Selection = null;
 	var SizeInfo = GroupMenuSize();
+	SizeInfo.x = MenuItems[SubMenuGroup].x;
+	SizeInfo.y = MenuItems[SubMenuGroup].y;
 	var Y = SizeInfo.y;
 	var X = SizeInfo.x;
 	var Width = SizeInfo.w;
@@ -1131,6 +1606,8 @@ function DrawMenuGroup()
 		console.log('pressed on ' + Selection);
 		WSSendMessage("c" + Selection);
 	}
+	SizeInfo.h = Y - SizeInfo.y;
+	return SizeInfo;
 }
 
 
@@ -1145,22 +1622,58 @@ function DrawMenu()
 		var Selection = null;
 		ProfileEnter("DrawMenu");
 		DrawTopMenu();
+		var MenuRect = WindowRect(0,0,nWidth,nHeight);
+
 
 		if(SubMenuActive == SubMenuGroup)
 		{
-			DrawMenuGroup();
+			MenuRect = DrawMenuGroup();
 		}
 		else if(SubMenuActive == SubMenuTimers)
 		{
-			DrawMenuTimer();
+			MenuRect = DrawMenuTimer();
 		}
 		else if(SubMenuActive == SubMenuSettings)
 		{
-			DrawMenuSettings();
+			MenuRect = DrawMenuSettings();
 		}
 		else if(SubMenuActive == SubMenuViews)
 		{
-			DrawMenuViews();
+			MenuRect = DrawMenuViews();
+		}
+		else if(SubMenuActive == SubMenuCapture)
+		{
+			MenuRect = DrawMenuCapture();
+		}
+
+		var Grow = 10;
+		MenuRect.x -= Grow;
+		MenuRect.y -= Grow;
+		MenuRect.h += 2*Grow;
+		MenuRect.w += 2*Grow;
+		if(MouseInRect(MenuRect))
+		{
+			SubMenuTimeout = SubMenuTimeoutBase;
+		}
+		else
+		{
+			SubMenuTimeout -= 1;
+			console.log('submenutimeout ' + SubMenuTimeout);
+			if(SubMenuTimeout <= 0)
+			{
+				EnableMenu(-1);
+			}
+		}
+		if(1)//debugging of menu extents. dont delete
+		{
+			context.strokeStyle = 'red';
+			context.beginPath();
+			context.moveTo(MenuRect.x,MenuRect.y);
+			context.lineTo(MenuRect.x + MenuRect.w,MenuRect.y);
+			context.lineTo(MenuRect.x + MenuRect.w,MenuRect.y+MenuRect.h);
+			context.lineTo(MenuRect.x,MenuRect.y+MenuRect.h);
+			context.lineTo(MenuRect.x,MenuRect.y);
+			context.stroke();
 		}
 		ProfileLeave();
 	}
@@ -1663,7 +2176,7 @@ function MouseOut(evt)
 {
 	// MouseDrag(MouseDragOff, evt);
 	// KeyCtrlDown = 0;
-	// KeyShiftDown = 0;
+	KeyShiftDown = 0;
 	// MouseDragButton = 0;
 	// nHoverToken = -1;
 	// RangeCpu = RangeInit();
@@ -1693,7 +2206,7 @@ function KeyUp(evt)
 		}
 		else
 		{
-			ToggleSubMenu(-1);
+			EnableMenu(-1);
 		}
 	}
 	if(k == 191)
@@ -1713,10 +2226,19 @@ function KeyUp(evt)
 	{
 		WSSendMessage("f");
 	}
+	if(evt.keyCode == 16)
+	{
+		KeyShiftDown = 0;
+	}
+
 }
 
 function KeyDown(evt)
 {
+	if(evt.keyCode == 16)
+	{
+		KeyShiftDown = 1;
+	}
 }
 
 

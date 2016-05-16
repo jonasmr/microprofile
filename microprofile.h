@@ -4144,7 +4144,7 @@ MicroProfileGetCommand MicroProfileParseGet(const char* pGet, int* pNumFrames)
 	{
 		*pNumFrames = MICROPROFILE_WEBSERVER_MAXFRAMES;
 	}
-	return EMICROPROFILE_GET_COMMAND_LIVE;
+	return EMICROPROFILE_GET_COMMAND_DUMP;
 }
 
 
@@ -5159,9 +5159,10 @@ bool MicroProfileWebServerUpdate()
 			Req[nReceived] = '\0';
 			printf("req received\n%s", Req);
 #if MICROPROFILE_MINIZ
-#define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nContent-Encoding: deflate\r\nExpires: Tue, 01 Jan 2199 16:00:00 GMT\r\n\r\n"
+			//Expires: Tue, 01 Jan 2199 16:00:00 GMT\r\n
+#define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nContent-Encoding: deflate\r\n\r\n"
 #else
-#define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nExpires: Tue, 01 Jan 2199 16:00:00 GMT\r\n\r\n"
+#define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n"
 #endif
 			char* pHttp = strstr(Req, "HTTP/");
 			char* pGet = strstr(Req, "GET /");
