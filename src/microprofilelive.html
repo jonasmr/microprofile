@@ -73,6 +73,9 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 // old view
 //fix graph
 //resend added timers
+//
+//aller sidste ting: presets
+//
 
 
 
@@ -107,13 +110,18 @@ var MouseReleased = false;
 var DPR = 0;
 var C_HUGE = 1e10;
 
-var ReferenceTime = 33.0;
-var ReferencePresets = [5.0, 10.0, 15.0, 20,33.33,66.66,100.0,250.0,500,1000.0];
+var ReferenceTime = 50.0;
+var ReferencePresets = [5.0, 10.0, 15.0, 20, 30, 33.33, 50, 66.66,100.0,250.0,500,1000.0];
+var ReferenceTimeTweak = -1;
+
+var TargetTime = 30;
+var TargetTimeTweak = -1;
 
 
 var AggregateFrames = 60;
-var AggregatePresets = [-1, 10,20,30,60,90,120];
+var AggregatePresets = [-1, 10,20,30,60,90,120,500];
 var AggregateHistorySize = 5;
+var AggregateTweak = -1;
 
 var AutoCaptureEnabled = 0;
 var AutoCaptureDefaultThreshold = 66;
@@ -666,7 +674,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex)
 	var w = View.w;
 	var fHeightScale = h / ReferenceTime;
 	var MouseDragging = 0;
-	var fWidth = w / FrameCount;
+	var fWidth = w / (FrameCount);
 
 	var Keys = [];
 	for(var key in TimerMap)
@@ -688,13 +696,51 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex)
 			context.lineTo(X, Y);
 			X += fWidth;
 		}
-		context.lineTo(X,h);
+		//context.lineTo(X,h);
 		context.stroke();
 	}
 
 	ProfileLeave();
 }
 
+function LerpColor(v)
+{
+	//0 green
+	//0.5 orange
+	//1.0 red
+	var R_0 = 0;
+	var G_0 = 1;
+	var B_0 = 0;
+
+	var R_1 = 1;
+	var G_1 = 0.5;
+	var B_1 = 0;
+
+	var R_2 = 1;
+	var G_2 = 0;
+	var B_3 = 0;
+	var R;
+	var G;
+	if(v < 0.5)
+	{
+		v *= 2;
+		var v0 = (1-v)
+		R = R_0 * v0 + R_1 * v;
+		G = G_0 * v0 + G_1 * v;
+
+	}
+	else
+	{
+		v = (v-0.5) * 2;
+		var v0 = (1-v)
+		R = R_1 * v0 + R_2 * v;
+		G = G_1 * v0 + G_2 * v;
+	}
+	R *= 255;
+	G *= 255;
+	return "rgb(" + R.toFixed(0) + "," + G.toFixed(0) + ",0)";
+
+}
 
 function DrawHistory(View, LocalMouseX, LocalMouseY)
 {
@@ -710,9 +756,19 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 	var fX = 0;
 	var FrameIndex = -1;
 	var MouseDragging = 0;
+	var GreenTime = (TargetTime * 0.9);
+	var RedBegin = (TargetTime * 1.1);
+	var LerpDist = 1.0 / (RedBegin - GreenTime);
 	for(var i = 0; i < FrameCount; i++)
 	{
 		var fMs = FrameData.Time[i];
+		var fPrc = (fMs - GreenTime) * LerpDist;
+		if(fPrc > 1)
+			fPrc = 1;
+		if(fPrc < 0)
+			fPrc = 0;
+		var color = LerpColor(fPrc);
+
 
 		var fH = fHeightScale * fMs;
 		var bMouse = LocalMouseX > fX && LocalMouseX < fX + fWidth;
@@ -722,11 +778,17 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 		}
 		else
 		{
-			context.fillStyle = FRAME_HISTORY_COLOR_CPU;
+			context.fillStyle = color;
 		}
 		context.fillRect(fX, fHeight - fH, fWidth-1, fH);
 		fX += fWidth;
 	}
+	var fH = fHeight - fHeightScale * TargetTime;
+	context.strokeStyle = 'wheat';
+	context.beginPath();
+	context.moveTo(0, fH);
+	context.lineTo(nWidth, fH);
+	context.stroke();
 	ProfileLeave();
 
 }
@@ -1175,12 +1237,12 @@ function AutoCaptureSourceRoll(Direction, Tweak, SetDirect)
 function ShowPrompt(Title, Value, Type)
 {
 	var v;
-	if(type == 'int')
+	if(Type == 'int')
 	{
 		var newValue = prompt('' + Title, '' + Value);
 		v = parseInt(newValue);
 	}
-	else if(type == 'float')
+	else if(Type == 'float')
 	{
 		var newValue = prompt('' + Title, '' + Value);
 		v = parseFloat(newValue);
@@ -1343,7 +1405,6 @@ function DrawMenuRoll(M, Name, RollValue, RollExt, RollFunction, Tweak, Type)
 
 function DrawMenuCapture()
 {
-	//var nColorIndex = 0;
 	var Selection = null;
 	var SizeInfo = {};
 	SizeInfo.h = 4 * BoxHeight;
@@ -1356,12 +1417,9 @@ function DrawMenuCapture()
 	SizeInfo.w = Width;
 	SizeInfo.x = CaptureButtonX - SizeInfo.w;
 	SizeInfo.y = CaptureButtonY - SizeInfo.h;
-	// var Y = SizeInfo.y;
-	// var X = SizeInfo.x;
+	
 	var M = CreateMenuState(SizeInfo);
-
 	var context = CanvasDetailedView.getContext('2d');
-
 	context.fillRect(M.x, M.y, Width, SizeInfo.h);
 	if(DrawMenuElement(M, 0, "AutoCapture Enabled", AutoCaptureEnabled ? "on" : "off", 'white', 0))
 	{
@@ -1384,6 +1442,62 @@ function WindowRect(x,y,w,h)
 	s.h = h;
 	return s;
 }
+function GetAggregateString()
+{
+	if(0 == AggregateFrames)
+		return 'infinite';
+	else
+		return AggregateFrames + '';
+}
+
+function AggregateRoll(Direction, Tweak, SetDirect)
+{
+	if(SetDirect)
+	{
+		AggregateFrames = SetDirect;
+	}
+	else if(Tweak)
+	{
+		AggregateFrames = TweakValue(AggregateFrames, Tweak, 0.98, 0, 500);
+
+	}
+	else if(Direction)
+	{
+		AggregateFrames = NextValue(AggregatePresets, AggregateFrames, Direction);
+	}
+}
+function ReferenceRoll(Direction, Tweak, SetDirect)
+{
+	if(SetDirect)
+	{
+		ReferenceTime = SetDirect;
+	}
+	else if(Tweak)
+	{
+		ReferenceTime = TweakValue(ReferenceTime, Tweak, 0.98, 5, 1000);
+
+	}
+	else if(Direction)
+	{
+		ReferenceTime = NextValue(ReferencePresets, ReferenceTime, Direction);
+	}
+}
+function TargetRoll(Direction, Tweak, SetDirect)
+{
+	if(SetDirect)
+	{
+		TargetTime = SetDirect;
+	}
+	else if(Tweak)
+	{
+		TargetTime = TweakValue(TargetTime, Tweak, 0.98, 5, 1000);
+
+	}
+	else if(Direction)
+	{
+		TargetTime = NextValue(ReferencePresets, TargetTime, Direction);
+	}
+}
 
 function DrawMenuSettings()
 {
@@ -1392,67 +1506,78 @@ function DrawMenuSettings()
 	var SizeInfo = AggregateMenuSize();
 	SizeInfo.x = MenuItems[SubMenuSettings].x;
 	SizeInfo.y = MenuItems[SubMenuSettings].y;
-	var Y = SizeInfo.y;
-	var Width = SizeInfo.w;
-	var Selection = null;
-	var X = SizeInfo.x;
-	for(var i = 0; i < AggregatePresets.length; ++i)
-	{
-		var Preset = AggregatePresets[i];
-		var Selected = AggregateFrames == Preset;
-		var Name = Preset < 0 ? "inifnite" : (Preset + '');
-		var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
-		var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-		var TextY = Y+BoxHeight-FontAscent;
-		if(Selected)
-		{
-			context.fillStyle = 'white';
-			context.fillRect(X-2, Y, Width+4, BoxHeight);
-		}
-		context.fillStyle = bgcolor;
-		context.fillRect(X, Y, Width, BoxHeight);
-		context.fillStyle = 'white';
-		context.fillText("Aggregate", X + 2, TextY);
-		context.textAlign = 'right';
-		context.fillText(Name, X + Width - 2, TextY);
-		context.textAlign = 'left';
-		if(bMouseIn && MouseReleased)
-		{
-			AggregateFrames = Preset;
-		}
-		Y += BoxHeight;
-		nColorIndex = 1-nColorIndex;
-	}
 
-	for(var i = 0; i < ReferencePresets.length; ++i)
-	{
-		var Preset = ReferencePresets[i];
-		var Selected = ReferenceTime == Preset;
-		var Name = Preset + '';
-		var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
-		var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-		var TextY = Y+BoxHeight-FontAscent;
-		if(Selected)
-		{
-			context.fillStyle = 'white';
-			context.fillRect(X-2, Y, Width+4, BoxHeight);
-		}
-		context.fillStyle = bgcolor;
-		context.fillRect(X, Y, Width, BoxHeight);
-		context.fillStyle = 'white';
-		context.fillText("Reference", X + 2, TextY);
-		context.textAlign = 'right';
-		context.fillText(Name, X + Width - 2, TextY);
-		context.textAlign = 'left';
-		if(bMouseIn && MouseReleased)
-		{
-			ReferenceTime = Preset;
-		}
-		Y += BoxHeight;
-		nColorIndex = 1-nColorIndex;
-	}
+	SizeInfo.w = 200;
+	var M = CreateMenuState(SizeInfo);
 
-	SizeInfo.h = Y - SizeInfo.y;
+	AggregateTweak = DrawMenuRoll(M, "Aggregate Frames", GetAggregateString(), '', AggregateRoll, AggregateTweak, 'int');
+	ReferenceTimeTweak = DrawMenuRoll(M, "Reference Time", ReferenceTime, '', ReferenceRoll, ReferenceTimeTweak, 'int');
+	TargetTimeTweak = DrawMenuRoll(M, "Target Time", TargetTime, '', TargetRoll, TargetTimeTweak, 'int');
+	// var Y = SizeInfo.y;
+	// var Width = SizeInfo.w;
+	// var Selection = null;
+	// var X = SizeInfo.x;
+
+
+
+	// for(var i = 0; i < AggregatePresets.length; ++i)
+	// {
+	// 	var Preset = AggregatePresets[i];
+	// 	var Selected = AggregateFrames == Preset;
+	// 	var Name = Preset < 0 ? "inifnite" : (Preset + '');
+	// 	var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+	// 	var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+	// 	var TextY = Y+BoxHeight-FontAscent;
+	// 	if(Selected)
+	// 	{
+	// 		context.fillStyle = 'white';
+	// 		context.fillRect(X-2, Y, Width+4, BoxHeight);
+	// 	}
+	// 	context.fillStyle = bgcolor;
+	// 	context.fillRect(X, Y, Width, BoxHeight);
+	// 	context.fillStyle = 'white';
+	// 	context.fillText("Aggregate", X + 2, TextY);
+	// 	context.textAlign = 'right';
+	// 	context.fillText(Name, X + Width - 2, TextY);
+	// 	context.textAlign = 'left';
+	// 	if(bMouseIn && MouseReleased)
+	// 	{
+	// 		AggregateFrames = Preset;
+	// 	}
+	// 	Y += BoxHeight;
+	// 	nColorIndex = 1-nColorIndex;
+	// }
+
+	// for(var i = 0; i < ReferencePresets.length; ++i)
+	// {
+	// 	var Preset = ReferencePresets[i];
+	// 	var Selected = ReferenceTime == Preset;
+	// 	var Name = Preset + '';
+	// 	var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+	// 	var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+	// 	var TextY = Y+BoxHeight-FontAscent;
+	// 	if(Selected)
+	// 	{
+	// 		context.fillStyle = 'white';
+	// 		context.fillRect(X-2, Y, Width+4, BoxHeight);
+	// 	}
+	// 	context.fillStyle = bgcolor;
+	// 	context.fillRect(X, Y, Width, BoxHeight);
+	// 	context.fillStyle = 'white';
+	// 	context.fillText("Reference", X + 2, TextY);
+	// 	context.textAlign = 'right';
+	// 	context.fillText(Name, X + Width - 2, TextY);
+	// 	context.textAlign = 'left';
+	// 	if(bMouseIn && MouseReleased)
+	// 	{
+	// 		ReferenceTime = Preset;
+	// 	}
+	// 	Y += BoxHeight;
+	// 	nColorIndex = 1-nColorIndex;
+	// }
+	SizeInfo.h = M.y - SizeInfo.y;
+
+	// SizeInfo.h = Y - SizeInfo.y;
 	return SizeInfo;
 
 }
@@ -1873,7 +1998,10 @@ function AddTimer(T)
 	{
 		idx = existing;
 	}
-	TimerArray[idx] = T;
+	else
+	{
+		TimerArray[idx] = T;
+	}
 	var w = MeasureWidth(T.name);
 	var idtype = SplitIdTop(T.id);
 	TimerArray[idx].idtype = idtype;
@@ -1889,12 +2017,19 @@ function AddTimer(T)
 	UpdateEnabledTimer(idx);
 
 	var pidx = GetTimer(T.pid);
-	if(pidx >= 0)
+	if(pidx >= 0 && !existing)
 	{
 		TimerArray[idx].pidx = pidx;
 		var Parent = TimerArray[pidx];
 		var Sibling = Parent.firstchild;
 		Parent.firstchild = idx;
+		if(Sibling)
+		{
+			if(TimerArray[Sibling].sibling == idx)
+			{
+				debugger;
+			}
+		}
 		TimerArray[idx].sibling = Sibling;
 		TimerArray[idx].wtree += Parent.depth * FontWidth;
 		TimerArray[idx].depth = Parent.depth + 1;
@@ -1902,10 +2037,6 @@ function AddTimer(T)
 		{
 			WidthTree = TimerArray[idx].wtree;
 		}
-	}
-	else
-	{
-		debugger;//fail
 	}
 	console.log('add timer ' + idx + ' parent ' + pidx);
 	RequestDraw();
@@ -2096,7 +2227,6 @@ function ProcessFrame(F)
 
 function WSMessage()
 {
-//	console.log(event.data);
 	var Obj = JSON.parse(event.data);
 	WSReceive++;
 	WSReceiveBytes += event.data.length;
@@ -2107,12 +2237,10 @@ function WSMessage()
 	}
 	else if(k == MSG_ENABLED)
 	{
-		console.log('got enable message ' + event.data);
 		EnableTimer(Obj.v);
 	}
 	else if(k == MSG_FRAME)
 	{
-		//console.log('frame message');
 		ProcessFrame(Obj.v);
 	}
 }

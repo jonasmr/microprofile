@@ -105,6 +105,7 @@ int main(int argc, char* argv[])
 		static int xx = 1;
 		if(0 == (++xx % 1000))
 		{
+			MICROPROFILE_SCOPEI("geddehest", "fiszzk", 0xff00ff);
 			printf("sleep 1000\n");
 
 			usleep(201 * 1000);
@@ -135,7 +136,7 @@ int main(int argc, char* argv[])
 			}
 		}
 		#endif
-		if(0 == (xx % 300) && 0 != (xx % 1000))
+		if(0 == (xx % 3000) && 0 != (xx % 1000))
 		{
 			MICROPROFILE_SCOPEI("hest", "fisk", 0xff00ff);
 			printf("sleep 500\n");
