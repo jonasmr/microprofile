@@ -3322,7 +3322,7 @@ void MicroProfileDumpHtmlLive(MicroProfileWriteCallback CB, void* Handle)
 	}
 
 }
-void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFrames, const char* pHost)
+void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t nMaxFrames, const char* pHost, uint64_t nStartFrameId = (uint64_t)-1)
 {
 	//stall pushing of timers
 	uint64_t nActiveGroup = S.nActiveGroup;
@@ -3639,22 +3639,42 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	}
 	MicroProfilePrintf(CB, Handle, "];\n\n");
 
+	uint32_t nNumFrames = 0;
+	uint32_t nFirstFrame = -1;
+	if(nStartFrameId != (uint64_t)-1)
+	{
+		//search for the frane
+		for(uint32_t i = 0; i < MICROPROFILE_MAX_FRAME_HISTORY; ++i)
+		{
+			if(S.Frames[i].nFrameId == nStartFrameId)
+			{
+				nFirstFrame = i;
+				break;
+			}
+		}
+		if(nFirstFrame != (uint32_t)-1)
+		{
+			uint32_t nLastFrame = S.nFrameCurrent;
+			uint32_t nDistance = (MICROPROFILE_MAX_FRAME_HISTORY + nFirstFrame - nLastFrame) % MICROPROFILE_MAX_FRAME_HISTORY;
+			nNumFrames = MicroProfileMin(nDistance, (uint32_t)nMaxFrames);
+		}
+	}
 
+	if(nNumFrames == 0)
+	{
+		nNumFrames = (MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY - 3); //leave a few to not overwrite
+		nNumFrames = MicroProfileMin(nNumFrames, (uint32_t)nMaxFrames);
+		nFirstFrame = (S.nFrameCurrent + MICROPROFILE_MAX_FRAME_HISTORY - nNumFrames) % MICROPROFILE_MAX_FRAME_HISTORY;
+	}
 
-
-	uint32_t nNumFrames = (MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY - 3); //leave a few to not overwrite
-	nNumFrames = MicroProfileMin(nNumFrames, (uint32_t)nMaxFrames);
-
-
-	uint32_t nFirstFrame = (S.nFrameCurrent + MICROPROFILE_MAX_FRAME_HISTORY - nNumFrames) % MICROPROFILE_MAX_FRAME_HISTORY;
 	uint32_t nLastFrame = (nFirstFrame + nNumFrames) % MICROPROFILE_MAX_FRAME_HISTORY;
-	MP_ASSERT(nLastFrame == (S.nFrameCurrent % MICROPROFILE_MAX_FRAME_HISTORY));
 	MP_ASSERT(nFirstFrame < MICROPROFILE_MAX_FRAME_HISTORY);
 	MP_ASSERT(nLastFrame  < MICROPROFILE_MAX_FRAME_HISTORY);
 	const int64_t nTickStart = S.Frames[nFirstFrame].nFrameStartCpu;
 	const int64_t nTickEnd = S.Frames[nLastFrame].nFrameStartCpu;
 	int64_t nTickStartGpu = S.Frames[nFirstFrame].nFrameStartGpu;
-\
+
+
 	int64_t nTickReferenceCpu, nTickReferenceGpu;
 	int64_t nTicksPerSecondCpu = MicroProfileTicksPerSecondCpu();
 	int64_t nTicksPerSecondGpu = MicroProfileTicksPerSecondGpu();
@@ -3666,7 +3686,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, int nMaxFr
 	}
 
 
-#if MICROPROFILE_DEBUG
+#if 1
 	printf("dumping %d frames\n", nNumFrames);
 	printf("dumping frame %d to %d\n", nFirstFrame, nLastFrame);
 #endif
@@ -4124,10 +4144,16 @@ void MicroProfileWebServerStop()
 enum MicroProfileGetCommand
 {
 	EMICROPROFILE_GET_COMMAND_DUMP,
+	EMICROPROFILE_GET_COMMAND_DUMP_RANGE,
 	EMICROPROFILE_GET_COMMAND_LIVE,
 	EMICROPROFILE_GET_COMMAND_UNKNOWN,
 };
-MicroProfileGetCommand MicroProfileParseGet(const char* pGet, int* pNumFrames)
+struct MicroProfileParseGetResult
+{
+	uint64_t nFrames;
+	uint64_t nFrameStart;
+};
+MicroProfileGetCommand MicroProfileParseGet(const char* pGet, MicroProfileParseGetResult* pResult)
 {
 	printf("get is '%s' %zu\n", pGet, strlen(pGet));
 	if(0 == strlen(pGet))
@@ -4135,6 +4161,31 @@ MicroProfileGetCommand MicroProfileParseGet(const char* pGet, int* pNumFrames)
 		return EMICROPROFILE_GET_COMMAND_LIVE;
 	}
 	const char* pStart = pGet;
+	if(*pStart == 'r') // range
+	{
+		//very very manual parsing
+		if('/' != *++pStart)
+			return EMICROPROFILE_GET_COMMAND_UNKNOWN;
+		++pStart;
+		
+		char* pEnd = nullptr;
+		uint64_t nFrameStart = strtoll(pStart, &pEnd, 10);
+		if(pEnd == pStart || *pEnd != '/' || *pEnd == '\0')
+		{
+			return EMICROPROFILE_GET_COMMAND_UNKNOWN;
+		}
+		pStart = pEnd + 1;
+		
+		uint64_t nFrameEnd = strtoll(pStart, &pEnd, 10);
+
+		if(pEnd == pStart || nFrameEnd <= nFrameStart)
+		{
+			return EMICROPROFILE_GET_COMMAND_UNKNOWN;
+		}
+		pResult->nFrames = nFrameEnd - nFrameStart;
+		pResult->nFrameStart = nFrameStart;
+		return EMICROPROFILE_GET_COMMAND_DUMP_RANGE;
+	}
 	while(*pGet != '\0')
 	{
 		if(*pGet < '0' || *pGet > '9')
@@ -4142,13 +4193,14 @@ MicroProfileGetCommand MicroProfileParseGet(const char* pGet, int* pNumFrames)
 		pGet++;
 	}
 	int nFrames = atoi(pStart);
+	pResult->nFrameStart = (uint64_t)-1;
 	if(nFrames)
 	{
-		*pNumFrames = nFrames;
+		pResult->nFrames = nFrames;
 	}
 	else
 	{
-		*pNumFrames = MICROPROFILE_WEBSERVER_MAXFRAMES;
+		pResult->nFrames = MICROPROFILE_WEBSERVER_MAXFRAMES;
 	}
 	return EMICROPROFILE_GET_COMMAND_DUMP;
 }
@@ -5209,8 +5261,9 @@ bool MicroProfileWebServerUpdate()
 				*pHttp = '\0';
 				pGet += sizeof("GET /")-1;
 				Terminate(pGet);
-				int nFrames = 0;
-				switch(MicroProfileParseGet(pGet, &nFrames))
+				MicroProfileParseGetResult R;
+				auto P = MicroProfileParseGet(pGet, &R);
+				switch(P)
 				{
 					case EMICROPROFILE_GET_COMMAND_LIVE:
 					{
@@ -5250,9 +5303,11 @@ bool MicroProfileWebServerUpdate()
 			#endif
 					}
 					break;
+					case EMICROPROFILE_GET_COMMAND_DUMP_RANGE:
 					case EMICROPROFILE_GET_COMMAND_DUMP:
 					{
-						if(nFrames)
+
+						//if(nFrames || )
 						{
 							MicroProfileSetNonBlocking(Connection, 0);
 							uint64_t nTickStart = MP_TICK();
@@ -5260,7 +5315,7 @@ bool MicroProfileWebServerUpdate()
 							uint64_t nDataStart = S.nWebServerDataSent;
 							S.WebServerPut = 0;
 			#if 0 == MICROPROFILE_MINIZ
-							MicroProfileDumpHtml(MicroProfileWriteSocket, &Connection, nFrames, pHost);
+							MicroProfileDumpHtml(MicroProfileWriteSocket, &Connection, R.nFrames, pHost, R.nFrameStart);
 							uint64_t nDataEnd = S.nWebServerDataSent;
 							uint64_t nTickEnd = MP_TICK();
 							uint64_t nDiff = (nTickEnd - nTickStart);
@@ -5272,7 +5327,12 @@ bool MicroProfileWebServerUpdate()
 			#else
 							MicroProfileCompressedSocketState CompressState;
 							MicroProfileCompressedSocketStart(&CompressState, Connection);
-							MicroProfileDumpHtml(MicroProfileCompressedWriteSocket, &CompressState, nFrames, pHost);
+
+
+							MicroProfileDumpHtml(MicroProfileCompressedWriteSocket, &CompressState, R.nFrames, pHost, R.nFrameStart);
+
+
+
 							S.nWebServerDataSent += CompressState.nSize;
 							uint64_t nDataEnd = S.nWebServerDataSent;
 							uint64_t nTickEnd = MP_TICK();
