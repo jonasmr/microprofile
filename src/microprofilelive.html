@@ -77,11 +77,15 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 //aller sidste ting: presets
 //
 //frozen/disconnected text.
+//fix leaking on load/save
+//print stack depths
 
 
 
 var FRAME_HISTORY_COLOR_CPU = '#ff7f27';
 var FRAME_HISTORY_COLOR_GPU = '#ffffff';
+
+var Settings = {};
 
 
 var HistoryHeight = 100;
@@ -131,29 +135,33 @@ var MouseDragActiveXEnd = -1;
 var DPR = 0;
 var C_HUGE = 1e10;
 
-var ReferenceTime = 50.0;
+var ActivePreset = "Default";
+var Presets = [];
+
+Settings.ReferenceTime = 50.0;
 var ReferencePresets = [5.0, 10.0, 15.0, 20, 30, 33.33, 50, 66.66,100.0,250.0,500,1000.0];
 var ReferenceTimeTweak = -1;
 
-var TargetTime = 30;
+Settings.TargetTime = 30;
 var TargetTimeTweak = -1;
 
 
 var AggregateFrames = 60;
+Settings.AggregateFrames = 60;
 var AggregatePresets = [-1, 10,20,30,60,90,120,500];
 var AggregateHistorySize = 5;
 var AggregateTweak = -1;
 
 var AutoCaptureEnabled = 0;
 var AutoCaptureDefaultThreshold = 66;
-var AutoCaptureTheshold = AutoCaptureDefaultThreshold;
+Settings.AutoCaptureTheshold = AutoCaptureDefaultThreshold;
 var AutoCaptureThesholdPresets = [1,3,5,10,15,30,50,66,90,100,250,500,1000];
 var AutoCaptureTweak = -1;
 var AutoCaptureSourceTweak = -1;
 var AutoCaptureSourceIndex = -1;
 
 var CaptureFramesDefault = 30;
-var CaptureFrames = CaptureFramesDefault;
+Settings.CaptureFrames = CaptureFramesDefault;
 var CaptureFramesPresets = [5,10,15,30,50,66,90,100];
 var CaptureTweak = -1;
 
@@ -192,9 +200,11 @@ var CaptureButtonX = 0;
 var CaptureButtonY = 0;
 
 
-var MSG_TIMER_TREE = 1; //MSG_TIMER_TREE
-var MSG_ENABLED = 2; // MSG_ENABLED
-var MSG_FRAME = 3; // MSG_FRAME
+var MSG_TIMER_TREE = 1;
+var MSG_ENABLED = 2;
+var MSG_FRAME = 3;
+var MSG_LOADSETTINGS = 4; 
+var MSG_PRESETS = 5;
 
 var TYPE_NONE = 0;
 var TYPE_TIMER = 1;
@@ -213,7 +223,7 @@ var TimerArray = [];
 var Empty = {"id":0, "w":0, "depth":0};
 var WidthArray = [];
 var WidthTree = 0;
-var ViewActive = 0;
+Settings.ViewActive = 0;
 var ViewNames = ["Graph", "Bar Time[all]", "Multi Bar[all]", "Multi Bar[single]"];
 
 var SingleTimerBars = 0;
@@ -509,7 +519,7 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 	var BarNames = [];
 	var BarTimes = [];
 	var BarColors = [];
-	var AggregateIndex = ReferenceTime < 0 ? AggregateHistorySize-1 : AggregateHistorySize-2; //fix med 
+	var AggregateIndex = Settings.ReferenceTime < 0 ? AggregateHistorySize-1 : AggregateHistorySize-2; //fix med 
 	var GetTime = null;
 
 	if(SingleTimerBars == 0)
@@ -638,7 +648,7 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 		BarWidth = 50;
 	var BarHeight = DrawHeight - 10;
 
-	var fHeightScale = h / ReferenceTime;
+	var fHeightScale = h / Settings.ReferenceTime;
 	var MouseDragging = 0;
 	var fWidth = w / FrameCount;
 	var Keys = [];
@@ -657,7 +667,7 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 	{
 		var Time = BarTimes[i];
 		var Color = BarColors[i];
-		var fPrc = Time / ReferenceTime;
+		var fPrc = Time / Settings.ReferenceTime;
 		if(fPrc > 1.0)
 			fPrc = 1.0
 		var BarH = fPrc * BarHeight;
@@ -694,7 +704,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex)
 
 	var h = View.h;
 	var w = View.w;
-	var fHeightScale = h / ReferenceTime;
+	var fHeightScale = h / Settings.ReferenceTime;
 	var MouseDragging = 0;
 	var fWidth = w / (FrameCount);
 
@@ -791,12 +801,12 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 		return;
 	var fHeight = View.h;
 	var fWidth = nWidth / FrameCount;
-	var fHeightScale = fHeight / ReferenceTime;
+	var fHeightScale = fHeight / Settings.ReferenceTime;
 	var fX = 0;
 	var FrameIndex = -1;
 	var MouseDragging = 0;
-	var GreenTime = (TargetTime * 0.9);
-	var RedBegin = (TargetTime * 1.1);
+	var GreenTime = (Settings.TargetTime * 0.9);
+	var RedBegin = (Settings.TargetTime * 1.1);
 	var LerpDist = 1.0 / (RedBegin - GreenTime);
 	var id0 = -1;
 	var id1 = -1;
@@ -843,7 +853,7 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 	DrawRange(context, MouseDragActiveXStart, MouseDragActiveXEnd, 0, HistoryHeight, '#59d0ff', '#00ddff');
 
 
-	var fH = fHeight - fHeightScale * TargetTime;
+	var fH = fHeight - fHeightScale * Settings.TargetTime;
 	context.fillStyle = 'wheat';
 	context.strokeStyle = 'wheat';
 	context.beginPath();
@@ -860,7 +870,7 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 		YText = fH + FontHeight;
 	}
 
-	context.fillText(TargetTime + 'ms', 3, YText);
+	context.fillText(Settings.TargetTime + 'ms', 3, YText);
 	ProfileLeave();
 
 }
@@ -875,7 +885,7 @@ function MouseInside(X, Y, W, H)
 function DrawCaptureButton(context)
 {
 
-	var CaptureText = "Capture[" + CaptureFrames + "]";
+	var CaptureText = "Capture[" + Settings.CaptureFrames + "]";
 	var w = 10 + context.measureText(CaptureText).width;
 	var X = nWidth / 2 - w / 2;
 	var XCenter = nWidth / 2;
@@ -956,7 +966,8 @@ var SubMenuGroup = 0;
 var SubMenuTimers = 1;
 var SubMenuSettings = 2;
 var SubMenuViews = 3;
-var SubMenuCapture = 4;
+var SubMenuPresets = 4;
+var SubMenuCapture = 5;
 var SubMenuActive = -1;
 var SubMenuTimeoutBase = 5;
 var SubMenuTimeout = SubMenuTimeoutBase;
@@ -1034,7 +1045,7 @@ function Clamp(v, low, high)
 }
 function Capture()
 {
-	var ext = '' + CaptureFrames;
+	var ext = '' + Settings.CaptureFrames;
 	if(MouseDragActiveXEnd > MouseDragActiveXStart)
 	{
 		var idx0 = Math.ceil(FrameCount * MouseDragActiveXStart / nWidth);
@@ -1056,6 +1067,7 @@ function InitMenu()
 	MenuItems.push(MakeMenuItem("Timers", function(){EnableMenu(SubMenuTimers); } ));
 	MenuItems.push(MakeMenuItem("Settings", function(){ EnableMenu(SubMenuSettings); } ));
 	MenuItems.push(MakeMenuItem("Views", function(){ EnableMenu(SubMenuViews); } ));
+	MenuItems.push(MakeMenuItem("Presets", function(){ EnableMenu(SubMenuPresets); } ));
 }
 function DrawTopMenu()
 {
@@ -1140,38 +1152,193 @@ function FilterMatch(FilterArray, value)
 	}
 	return true;
 }
+
+
+function AddPresets(Names)
+{
+	for(var i = 0; i < Names.length; ++i)
+	{
+		if(Presets.indexOf(Names[i]) == -1)
+		{
+			Presets.push(Names[i]);
+		}
+	}
+}
+function EnableByName(name, type)
+{
+	for(var i = 0;i < TimerArray.length; ++i)
+	{
+		var t = TimerArray[i];
+		if(t.idtype == type && t.name == name)
+		{
+			WSSendMessage("c" + t.id);
+		}
+	}
+}
+
+
+function OnLoadPreset(NewSettings)
+{
+	WSSendMessage("d");
+	ActivePreset = NewSettings.PresetName;
+	for(var idx in NewSettings)
+	{
+		console.log(' setting ' + idx + ' to ' + NewSettings[idx]);
+		if(idx == 'Timers')
+		{
+			var Timers = NewSettings[idx];
+			for(var i = 0; i < Timers.length; ++i)
+			{
+				var name = Timers[i];
+				EnableByName(name, TYPE_TIMER);
+			}
+		}
+		else if(idx == 'Groups')
+		{
+			var Groups = NewSettings[idx];
+			for(var i = 0; i < Groups.length; ++i)
+			{
+				var name = Groups[i];
+				EnableByName(name, TYPE_GROUP);
+			}
+		}
+		else
+		{
+			Settings[idx] = NewSettings[idx];
+		}
+	}
+	if(Settings.ViewActive >= 0)
+	{
+		ActivateView(Settings.ViewActive);
+	}
+}
+
+function LoadPreset(Name)
+{
+	Name = Name.replace(",","_");
+	WSSendMessage("l"+Name);
+}
+
+function SavePreset(Name)
+{
+	Name = Name.replace(",","_");
+	AddPresets([Name]);
+	var Timers = [];
+	var Groups = [];
+	for(var i = 0; i < TimerArray.length; ++i)
+	{
+		var t = TimerArray[i];
+		var idtype = TimerArray[i].idtype;
+		if(t.e)
+		{
+			if(idtype == TYPE_TIMER)
+			{
+				console.log('adding timer ' + t.name);
+				Timers.push(t.name);
+			}
+			else if(idtype == TYPE_GROUP)
+			{
+				console.log('adding group ' + t.name);
+				Groups.push(t.name);
+			}
+		}
+	}
+
+	Settings.Timers = Timers;
+	Settings.Groups = Groups;
+	Settings.PresetName = Name;
+	var JsonSettings = JSON.stringify(Settings);
+	console.log('settings stored ' + JsonSettings);
+	WSSendMessage("s"+Name+","+JsonSettings);
+	ActivePreset = Name;
+}
+function DrawMenuPresets()
+{
+	var Selection = null;
+	var SizeInfo = {};
+	SizeInfo.h = BoxHeight * (Presets.length * 2 + 1);
+	var x = MenuItems[SubMenuPresets].x;
+	var y = MenuItems[SubMenuPresets].y;
+
+	var Width = 50;
+	var WLeft = MeasureArray(0, ["Save ", "Load ", "Save As .." ]);
+	Width = MeasureArray(Width, Presets);
+	var Width = 35 + Width + WLeft;
+	SizeInfo.w = Width;
+	SizeInfo.x = x;
+	SizeInfo.y = y;
+	
+	var M = CreateMenuState(SizeInfo);
+	var context = CanvasDetailedView.getContext('2d');
+	context.fillRect(M.x, M.y, Width, SizeInfo.h);
+
+
+	for(var i = 0; i < Presets.length; ++i)
+	{
+		var Active = ActivePreset == Presets[i] ? 1 : 0;
+		if(DrawMenuElement(M, Active, "Load", Presets[i], 'white', 0))
+		{
+			LoadPreset(Presets[i]);
+		}
+	}
+	DrawMenuElement(M, 0, "---", "", 'white', 0);
+	if(DrawMenuElement(M, 0, "Save As..", "", 'white', 0))
+	{
+		var str = ShowPrompt('Enter Preset Name', '');
+		if(str.length>1)
+		{
+			SavePreset(str);
+		}
+
+	}
+
+	for(var i = 0; i < Presets.length; ++i)
+	{
+		var Active = ActivePreset == Presets[i] ? 1 : 0;
+		if(DrawMenuElement(M, Active, "Save", Presets[i], 'white', 0))
+		{
+			SavePreset(Presets[i]);
+		}
+	}
+	SizeInfo.h = M.y - SizeInfo.y;
+	return SizeInfo;
+
+}
+function ActivateView(idx)
+{
+	for(var i = 1; i < Views.length; ++i)
+	{
+		Views[i].visible = false;
+	}
+	if(idx == 0)
+	{
+		MainView.DisplayFunc = DrawGraph;
+		MainView.visible = true;
+	}
+	else if(idx == 1)
+	{
+		MainView.DisplayFunc = DrawBars;
+		MainView.visible = true;
+	}
+	else if(idx == 2 || idx == 3)
+	{
+		for(var i = 0; i < X5Views.length; ++i)
+		{
+			X5Views[i].visible = true;
+		}
+		SingleTimerBars = idx == 2 ? 0 : 1;
+	}
+	Settings.ViewActive = idx;
+}
 function DrawMenuViews()
 {
-
 	var ViewClick = function(idx, name)
 	{
-		for(var i = 1; i < Views.length; ++i)
-		{
-			Views[i].visible = false;
-		}
-		if(idx == 0)
-		{
-			MainView.DisplayFunc = DrawGraph;
-			MainView.visible = true;
-		}
-		else if(idx == 1)
-		{
-			MainView.DisplayFunc = DrawBars;
-			MainView.visible = true;
-		}
-		else if(idx == 2 || idx == 3)
-		{
-			for(var i = 0; i < X5Views.length; ++i)
-			{
-				X5Views[i].visible = true;
-			}
-			SingleTimerBars = idx == 2 ? 0 : 1;
-		}
-		ViewActive = idx;
+		ActivateView(idx);
 	};
 	var x = MenuItems[SubMenuViews].x;
 	var y = MenuItems[SubMenuViews].y;
-	return DrawMenuGeneric(ViewNames, ViewActive, ViewClick, x, y);
+	return DrawMenuGeneric(ViewNames, Settings.ViewActive, ViewClick, x, y);
 }
 
 function TweakValue(Value, Tweak, amount, Min, Max)
@@ -1247,15 +1414,15 @@ function AutoCaptureRoll(Direction, Tweak, SetDirect)
 {
 	if(SetDirect)
 	{
-		AutoCaptureTheshold = SetDirect;
+		Settings.AutoCaptureTheshold = SetDirect;
 	}
 	else if(Tweak)
 	{
-		AutoCaptureTheshold = TweakValue(AutoCaptureTheshold, Tweak, 0.98, 1, 500);
+		Settings.AutoCaptureTheshold = TweakValue(Settings.AutoCaptureTheshold, Tweak, 0.98, 1, 500);
 	}
 	else if(Direction)
 	{
-		AutoCaptureTheshold = NextValue(AutoCaptureThesholdPresets, AutoCaptureTheshold, Direction);
+		Settings.AutoCaptureTheshold = NextValue(AutoCaptureThesholdPresets, Settings.AutoCaptureTheshold, Direction);
 	}
 }
 
@@ -1263,16 +1430,16 @@ function CaptureRoll(Direction, Tweak, SetDirect)
 {
 	if(SetDirect)
 	{
-		CaptureFrames = SetDirect;
+		Settings.CaptureFrames = SetDirect;
 	}
 	else if(Tweak)
 	{
-		CaptureFrames = TweakValue(CaptureFrames, Tweak, 0.98, 5, 300);
+		Settings.CaptureFrames = TweakValue(Settings.CaptureFrames, Tweak, 0.98, 5, 300);
 
 	}
 	else if(Direction)
 	{
-		CaptureFrames = NextValue(CaptureFramesPresets, CaptureFrames, Direction);
+		Settings.CaptureFrames = NextValue(CaptureFramesPresets, Settings.CaptureFrames, Direction);
 	}
 }
 function GetAutoCaptureString()
@@ -1334,6 +1501,12 @@ function ShowPrompt(Title, Value, Type)
 	{
 		var newValue = prompt('' + Title, '' + Value);
 		v = parseFloat(newValue);
+	}
+	else
+	{
+		var v = prompt('' + Title, '' + Value);
+		alert('prompt got ' + v);
+		return v;
 	}
 	if(isNaN(v))
 	{
@@ -1514,8 +1687,8 @@ function DrawMenuCapture()
 		AutoCaptureEnabled = !AutoCaptureEnabled;
 	}
 	AutoCaptureSourceTweak = DrawMenuRoll(M, "AutoCapture Source", GetAutoCaptureString(), '', AutoCaptureSourceRoll, AutoCaptureSourceTweak);
-	AutoCaptureTweak = DrawMenuRoll(M, "AutoCapture Threshold", AutoCaptureTheshold, 'ms', AutoCaptureRoll, AutoCaptureTweak, 'int');
-	CaptureTweak = DrawMenuRoll(M, "Capture Length",  CaptureFrames, '', CaptureRoll, CaptureTweak, 'int');
+	AutoCaptureTweak = DrawMenuRoll(M, "AutoCapture Threshold", Settings.AutoCaptureTheshold, 'ms', AutoCaptureRoll, AutoCaptureTweak, 'int');
+	CaptureTweak = DrawMenuRoll(M, "Capture Length",  Settings.CaptureFrames, '', CaptureRoll, CaptureTweak, 'int');
 
 	SizeInfo.h = M.y - SizeInfo.y;
 	return SizeInfo;
@@ -1532,58 +1705,58 @@ function WindowRect(x,y,w,h)
 }
 function GetAggregateString()
 {
-	if(0 == AggregateFrames)
+	if(0 == Settings.AggregateFrames)
 		return 'infinite';
 	else
-		return AggregateFrames + '';
+		return Settings.AggregateFrames + '';
 }
 
 function AggregateRoll(Direction, Tweak, SetDirect)
 {
 	if(SetDirect)
 	{
-		AggregateFrames = SetDirect;
+		Settings.AggregateFrames = SetDirect;
 	}
 	else if(Tweak)
 	{
-		AggregateFrames = TweakValue(AggregateFrames, Tweak, 0.98, 0, 500);
+		Settings.AggregateFrames = TweakValue(Settings.AggregateFrames, Tweak, 0.98, 0, 500);
 
 	}
 	else if(Direction)
 	{
-		AggregateFrames = NextValue(AggregatePresets, AggregateFrames, Direction);
+		Settings.AggregateFrames = NextValue(AggregatePresets, Settings.AggregateFrames, Direction);
 	}
 }
 function ReferenceRoll(Direction, Tweak, SetDirect)
 {
 	if(SetDirect)
 	{
-		ReferenceTime = SetDirect;
+		Settings.ReferenceTime = SetDirect;
 	}
 	else if(Tweak)
 	{
-		ReferenceTime = TweakValue(ReferenceTime, Tweak, 0.98, 5, 1000);
+		Settings.ReferenceTime = TweakValue(Settings.ReferenceTime, Tweak, 0.98, 5, 1000);
 
 	}
 	else if(Direction)
 	{
-		ReferenceTime = NextValue(ReferencePresets, ReferenceTime, Direction);
+		Settings.ReferenceTime = NextValue(ReferencePresets, Settings.ReferenceTime, Direction);
 	}
 }
 function TargetRoll(Direction, Tweak, SetDirect)
 {
 	if(SetDirect)
 	{
-		TargetTime = SetDirect;
+		Settings.TargetTime = SetDirect;
 	}
 	else if(Tweak)
 	{
-		TargetTime = TweakValue(TargetTime, Tweak, 0.98, 5, 1000);
+		Settings.TargetTime = TweakValue(Settings.TargetTime, Tweak, 0.98, 5, 1000);
 
 	}
 	else if(Direction)
 	{
-		TargetTime = NextValue(ReferencePresets, TargetTime, Direction);
+		Settings.TargetTime = NextValue(ReferencePresets, Settings.TargetTime, Direction);
 	}
 }
 
@@ -1599,8 +1772,8 @@ function DrawMenuSettings()
 	var M = CreateMenuState(SizeInfo);
 
 	AggregateTweak = DrawMenuRoll(M, "Aggregate Frames", GetAggregateString(), '', AggregateRoll, AggregateTweak, 'int');
-	ReferenceTimeTweak = DrawMenuRoll(M, "Reference Time", ReferenceTime, '', ReferenceRoll, ReferenceTimeTweak, 'int');
-	TargetTimeTweak = DrawMenuRoll(M, "Target Time", TargetTime, '', TargetRoll, TargetTimeTweak, 'int');
+	ReferenceTimeTweak = DrawMenuRoll(M, "Reference Time", Settings.ReferenceTime, '', ReferenceRoll, ReferenceTimeTweak, 'int');
+	TargetTimeTweak = DrawMenuRoll(M, "Target Time", Settings.TargetTime, '', TargetRoll, TargetTimeTweak, 'int');
 	// var Y = SizeInfo.y;
 	// var Width = SizeInfo.w;
 	// var Selection = null;
@@ -1889,6 +2062,10 @@ function DrawMenu()
 		{
 			MenuRect = DrawMenuViews();
 		}
+		else if(SubMenuActive == SubMenuPresets)
+		{
+			MenuRect = DrawMenuPresets();
+		}
 		else if(SubMenuActive == SubMenuCapture)
 		{
 			MenuRect = DrawMenuCapture();
@@ -2059,6 +2236,8 @@ function UpdateEnabledTimer(idx)
 	var NewIndex = AutoCaptureSourceValue != null ? EnabledArray.indexOf(AutoCaptureSourceValue) : -1;
 	AutoCaptureSourceIndex = NewIndex;
 }
+
+
 function EnableTimer(T)
 {
 	var idx = GetTimer(T.id);
@@ -2201,10 +2380,10 @@ function ProcessFrame(F)
 
 	if(AutoCapture)
 	{
-		if(AutoCaptureSourceIndex == -1 && F.t > AutoCaptureTheshold)
+		if(AutoCaptureSourceIndex == -1 && F.t > Settings.AutoCaptureTheshold)
 		{
 			TriggerAutoCapture = 1;
-			console.log('trigger capture! ', F.t, ' ', AutoCaptureTheshold);
+			console.log('trigger capture! ', F.t, ' ', Settings.AutoCaptureTheshold);
 		}
 		else if(AutoCaptureSourceIndex >= 0 && AutoCaptureSourceIndex < EnabledArray.length)
 		{
@@ -2212,10 +2391,10 @@ function ProcessFrame(F)
 			var Data = F.x[id];
 			if(Data && Data[0])
 			{
-			 	if(Data[0] > AutoCaptureTheshold)
+			 	if(Data[0] > Settings.AutoCaptureTheshold)
 			 	{
 			 		TriggerAutoCapture = 1;
-					console.log('trigger capture! ', Data[0], ' ', AutoCaptureTheshold);
+					console.log('trigger capture! ', Data[0], ' ', Settings.AutoCaptureTheshold);
 			 	}
 			}
 		}
@@ -2233,7 +2412,7 @@ function ProcessFrame(F)
 		PushIntoArray(FD.TimeExcl, TimeExcl);
 		PushIntoArray(FD.Count, Count);
 
-		if(FD.Aggregate > AggregateFrames)
+		if(FD.Aggregate > Settings.AggregateFrames)
 		{
 			FD.Aggregate = 0;
 			FD.AggregateSum = 0;
@@ -2330,6 +2509,14 @@ function WSMessage()
 	else if(k == MSG_FRAME)
 	{
 		ProcessFrame(Obj.v);
+	}
+	else if(k == MSG_LOADSETTINGS)
+	{
+		OnLoadPreset(Obj.v);
+	}
+	else if(k == MSG_PRESETS)
+	{
+		AddPresets(Obj.v);
 	}
 }
 function WSError()

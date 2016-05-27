@@ -1127,6 +1127,10 @@ struct MicroProfile
 	uint32_t 					WSGroupsSent;
 	uint32_t 					WSTimersSent;
 	MicroProfileWebSocketBuffer WSBuf;
+	char* 						pJsonSettings;
+	uint32_t 					nJsonSettingsPending;
+	uint32_t 					nJsonSettingsBufferSize;
+	uint32_t 					nWSWasConnected;
 
 
 	char 						CounterNames[MICROPROFILE_MAX_COUNTER_NAME_CHARS];
@@ -1464,6 +1468,12 @@ void MicroProfileInit()
 		S.pGpuGlobal = MicroProfileThreadLogGpuAllocInternal();
 		MicroProfileGpuBegin(0, S.pGpuGlobal);
 
+		S.pJsonSettings = 0;
+		S.nJsonSettingsPending = 0;
+		S.nJsonSettingsBufferSize = 0;
+		S.nWSWasConnected = 0;
+
+
 	}
 	if(bUseLock)
 		mutex.unlock();
@@ -1472,6 +1482,12 @@ void MicroProfileInit()
 void MicroProfileShutdown()
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+	if(S.pJsonSettings)
+	{
+		free(S.pJsonSettings);
+		S.pJsonSettings = 0;
+		S.nJsonSettingsBufferSize = 0;
+	}
 	MicroProfileWebServerStop();
 	MicroProfileStopContextSwitchTrace();
 	MicroProfileGpuShutdown();
@@ -4429,6 +4445,8 @@ enum
 	MSG_TIMER_TREE=1,
 	MSG_ENABLED = 2,
 	MSG_FRAME = 3,
+	MSG_LOADSETTINGS = 4, 
+	MSG_PRESETS = 5, 
 };
 
 void MicroProfileSocketDumpState()
@@ -4649,7 +4667,44 @@ bool MicroProfileWebSocketSend(MpSocket Connection, const char* pMessage, uint64
 	return true;
 
 }
+void DUMPDEBUG()
+{
+	int nWSCount = 0;
+	int nWS = S.WebSocketTimers;
+	printf("WS ");
+	while(nWS != -1)
+	{
+		printf("%s ", S.TimerInfo[nWS].pName);
+		MP_ASSERT(S.TimerInfo[nWS].bWSEnabled);
+		nWSCount++;
+		nWS = S.TimerInfo[nWS].nWSNext;
+	}
+	int nCount2 = S.WebSocketTimers != -1;
+	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
+	{
+		if(S.TimerInfo[i].nWSNext != -1)
+		{
+			nCount2++;
+		}
+		else
+		{
+		}
+	}
+	MP_ASSERT(nWSCount == nCount2);
+}
+void MicroProfileWebSocketClearTimers()
+{
+	while(S.WebSocketTimers != -1)
+	{
+		int nNext = S.TimerInfo[S.WebSocketTimers].nWSNext;
+		S.TimerInfo[S.WebSocketTimers].bWSEnabled = false;
+		S.TimerInfo[S.WebSocketTimers].nWSNext = -1;
+		S.WebSocketTimers = nNext;
+	}
+	DUMPDEBUG();
 
+	S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
+}
 void MicroProfileToggleWebSocketToggleTimer(uint32_t nTimer)
 {
 	if(nTimer < S.nTotalTimers)
@@ -4666,7 +4721,7 @@ void MicroProfileToggleWebSocketToggleTimer(uint32_t nTimer)
 		{
 			MP_ASSERT(*pPrev == (int)nTimer);
 			*pPrev = TI.nWSNext;
-			TI.nWSNext = 1;
+			TI.nWSNext = -1;
 			TI.bWSEnabled = false;
 		}
 		else
@@ -4677,6 +4732,7 @@ void MicroProfileToggleWebSocketToggleTimer(uint32_t nTimer)
 			TI.bWSEnabled = true;
 		}
 		printf("new state is %d\n", TI.bWSEnabled);
+		DUMPDEBUG();
 		S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
 	}
 
@@ -4781,6 +4837,268 @@ void MicroProfileWebSocketCommand(uint32_t nCommand)
 
 	}
 }
+#define MICROPROFILE_PRESET_HEADER_MAGIC2 0x28586813
+#define MICROPROFILE_PRESET_HEADER_VERSION2 0x00000200
+
+struct MicroProfileSettingsFileHeader
+{
+	uint32_t nMagic;
+	uint32_t nVersion;
+	uint32_t nNumHeaders;
+	uint32_t nHeadersOffset;
+	uint32_t nMaxJsonSize;
+	uint32_t nMaxNameSize;
+};
+struct MicroProfileSettingsHeader
+{
+	uint32_t nJsonOffset;
+	uint32_t nJsonSize;
+	uint32_t nNameOffset;
+	uint32_t nNameSize;
+};
+
+typedef bool (*MicroProfileOnSettings)(const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJson);
+
+
+
+#define MICROPROFILE_SETTINGS_FILE "xxmppresets"
+#define MICROPROFILE_SETTINGS_FILE_TEMP "xxmppresets" ".tmp"
+
+
+#define WRITE(s, l, f) do{int r = fwrite(s, l, 1, f); nWritten += l; if(r != 1){ Fail(r, __LINE__); MP_BREAK(); return false;} }while(0)
+#define CHECK_EQ(v, st) do{int r = (st); if(r != v){Fail(r, __LINE__);return;} }while(0)
+#define CHECK_NEQ(v, st) do{int r = (st); if(r != v){Fail(r, __LINE__);return;} }while(0)
+
+template<typename T>
+void MicroProfileParseSettings(T CB)
+{
+	std::lock_guard<std::recursive_mutex> Lock(MicroProfileGetMutex());
+
+
+	FILE* F = fopen(MICROPROFILE_SETTINGS_FILE, "rb");
+	if(!F)
+	{
+		printf("load failed\n");
+		return;
+	}
+	long filesize = 0;
+	fseek(F, 0, SEEK_END);
+	filesize = ftell(F);
+	auto Fail = [=](int r, uint32_t nLine)
+	{
+
+		printf("failing reading file error %d, line %d,filesize %ld \n", r, nLine, filesize);
+		__builtin_trap();
+		fclose(F);
+		MP_BREAK();
+	};
+
+	CHECK_EQ(0, fseek(F, -sizeof(MicroProfileSettingsFileHeader), SEEK_END));
+	MicroProfileSettingsFileHeader FileHeader;
+	CHECK_EQ(1, fread(&FileHeader, sizeof(FileHeader), 1, F));
+	if(!FileHeader.nNumHeaders || FileHeader.nMagic != MICROPROFILE_PRESET_HEADER_MAGIC2 || FileHeader.nVersion != MICROPROFILE_PRESET_HEADER_VERSION2)
+	{
+		Fail(-1, __LINE__);
+		return;
+	}
+	MicroProfileSettingsHeader* pHeaders = (MicroProfileSettingsHeader*)alloca(sizeof(MicroProfileSettingsHeader) * FileHeader.nNumHeaders);
+	CHECK_EQ(0, fseek(F, FileHeader.nHeadersOffset, SEEK_SET));
+	char* pName = (char*)alloca(FileHeader.nMaxNameSize);
+	char* pJsonSettings = (char*)alloca(FileHeader.nMaxJsonSize);
+	fread(pHeaders, sizeof(MicroProfileSettingsHeader) * FileHeader.nNumHeaders, 1, F);
+	for(uint32_t i = 0; i < FileHeader.nNumHeaders;++i)
+	{
+		CHECK_EQ(0, fseek(F, pHeaders[i].nNameOffset, SEEK_SET));
+		CHECK_EQ(1, fread(pName, pHeaders[i].nNameSize, 1, F));
+		CHECK_EQ(0, fseek(F, pHeaders[i].nJsonOffset, SEEK_SET));
+		CHECK_EQ(1, fread(pJsonSettings, pHeaders[i].nJsonSize, 1, F));
+		if(!CB(pName, pHeaders[i].nNameSize, pJsonSettings, pHeaders[i].nJsonSize))
+			break;
+	}
+	fclose(F);
+
+}
+
+bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSettings)
+{
+	std::lock_guard<std::recursive_mutex> Lock(MicroProfileGetMutex());
+
+	printf("saving settings %s.. json %s\n", pSettingsName, pJsonSettings);
+	FILE* F = fopen(MICROPROFILE_SETTINGS_FILE_TEMP, "wb");
+	if(!F)
+	{
+		printf("save failed\n");
+	}
+
+	auto Fail = [=](int r, uint32_t nLine)
+	{
+
+		printf("failing reading file error %d, line %d \n", r, nLine);
+		__builtin_trap();
+		fclose(F);
+		MP_BREAK();
+	};
+
+
+	const uint32_t MAX_HEADERS = 256;
+	MicroProfileSettingsHeader*	pHeaders = (MicroProfileSettingsHeader*)alloca(sizeof(MicroProfileSettingsHeader) * MAX_HEADERS);
+	MicroProfileSettingsHeader& H = pHeaders[0];
+	uint32_t nWritten = 0;
+
+
+
+	H.nNameOffset = ftell(F);
+	H.nNameSize = strlen(pSettingsName)+1;
+	WRITE(pSettingsName, H.nNameSize, F);
+	H.nJsonOffset = ftell(F);
+	H.nJsonSize = strlen(pJsonSettings)+1;
+	WRITE(pJsonSettings, H.nJsonSize, F);
+	
+	uint32_t nNumHeaders = 1;
+
+	uint32_t nMaxJsonSize = H.nJsonSize;
+	uint32_t nMaxNameSize = H.nNameSize;
+	uint32_t nOldHeaders = 0;
+
+
+	MicroProfileParseSettings(
+		[&](const char* pName, uint32_t nNameSize, const char* pJson, uint32_t nJsonSize) -> bool
+		{
+			nMaxJsonSize = MicroProfileMax(nJsonSize, nMaxJsonSize);
+			nMaxNameSize = MicroProfileMax(nNameSize, nMaxNameSize);
+			if(0 != MP_STRCASECMP(pSettingsName, pName))
+			{
+				MicroProfileSettingsHeader* pSettings = pHeaders + nNumHeaders++;
+				pSettings->nNameOffset = ftell(F);
+				pSettings->nNameSize = nNameSize;
+				WRITE(pName, nNameSize, F);
+				pSettings->nJsonOffset = ftell(F);
+				pSettings->nJsonSize = nJsonSize;
+				WRITE(pJson, nJsonSize, F);
+			}
+			return true;
+		}
+	);
+
+
+
+
+	MicroProfileSettingsFileHeader FileHeader;
+	FileHeader.nMagic = MICROPROFILE_PRESET_HEADER_MAGIC2;
+	FileHeader.nVersion = MICROPROFILE_PRESET_HEADER_VERSION2;
+	FileHeader.nNumHeaders = nNumHeaders;
+	FileHeader.nHeadersOffset = ftell(F);
+	FileHeader.nMaxJsonSize = nMaxJsonSize;
+	FileHeader.nMaxNameSize = nMaxNameSize;
+	WRITE(pHeaders, sizeof(pHeaders[0]) * nNumHeaders, F);
+	WRITE(&FileHeader, sizeof(FileHeader), F); 
+
+	printf("wrote %d headers was %d offset is %ld, BYTES is %d\n", nNumHeaders, nOldHeaders, ftell(F), nWritten);
+
+	fflush(F);
+	fclose(F);
+	rename(MICROPROFILE_SETTINGS_FILE_TEMP, MICROPROFILE_SETTINGS_FILE);
+	return false;
+}
+
+#undef WRITE
+#undef CHECK_EQ
+#undef CHECK_NEQ
+
+
+void MicroProfileWebSocketSendPresets(MpSocket Connection)
+{
+	std::lock_guard<std::recursive_mutex> Lock(MicroProfileGetMutex());
+
+	printf("sending presets\n");
+	WSPrintStart(Connection);
+	WSPrintf("{\"k\":\"%d\",\"v\":[", MSG_PRESETS);
+	WSPrintf("\"Default\"");
+	MicroProfileParseSettings(
+		[](const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJsonLen)
+		{
+			WSPrintf(",\"%s\"", pName);
+			printf("preset %s\n", pName);
+			return true;
+		}
+	);
+	WSPrintf("]}");
+	WSFlush();
+	WSPrintEnd();
+}
+
+void MicroProfileLoadPresets(const char* pSettingsName)
+{
+	std::lock_guard<std::recursive_mutex> Lock(MicroProfileGetMutex());	
+	printf("loading settings %s..\n", pSettingsName);
+	MicroProfileParseSettings(
+		[=](const char* pName, uint32_t l0, const char* pJson, uint32_t l1)
+		{
+			if(0 == MP_STRCASECMP(pName, pSettingsName))
+			{
+				printf("found match!\n");
+				printf("json is\n%s\n", pJson);
+				uint32_t nLen = strlen(pJson)+1;
+				if(nLen > S.nJsonSettingsBufferSize)
+				{
+					S.pJsonSettings = (char*)realloc(S.pJsonSettings, nLen);
+					S.nJsonSettingsBufferSize = nLen;
+				}
+				memcpy(S.pJsonSettings, pJson, nLen);
+				S.nJsonSettingsPending = 1;
+				return false;
+			}
+			return true;
+		}
+	);
+
+	// FILE* F = fopen(MICROPROFILE_SETTINGS_FILE_TEMP, "rb");
+	// if(!F)
+	// {
+	// 	printf("load failed\n");
+	// 	return;
+	// }
+	// fseek(F, -sizeof(MicroProfileSettingsFileHeader), SEEK_END);
+	// MicroProfileSettingsFileHeader FileHeader;
+	// fread(&FileHeader, sizeof(FileHeader), 1, F);
+	// if(!FileHeader.nNumHeaders)
+	// {
+	// 	printf("fail\n");
+	// 	return;
+	// }
+	// MicroProfileSettingsHeader* pHeaders = (MicroProfileSettingsHeader*)alloca(sizeof(MicroProfileSettingsHeader) * FileHeader.nNumHeaders);
+	// fseek(F, FileHeader.nHeadersOffset, SEEK_SET);
+	// char* pName = (char*)alloca(FileHeader.nMaxNameSize);
+
+	// if(FileHeader.nMaxJsonSize > S.nJsonSettingsBufferSize)
+	// {
+	// 	S.pJsonSettings = (char*)realloc(S.pJsonSettings, FileHeader.nMaxJsonSize);
+	// 	S.nJsonSettingsBufferSize = FileHeader.nMaxJsonSize;
+	// }
+
+	// fread(pHeaders, sizeof(MicroProfileSettingsHeader) * FileHeader.nNumHeaders, 1, F);
+	// for(uint32_t i = 0; i < FileHeader.nNumHeaders;++i)
+	// {
+	// 	fseek(F, pHeaders[i].nNameOffset, SEEK_SET);
+	// 	fread(pName, pHeaders[i].nNameSize, 1, F);
+	// 	if(0 == MP_STRCASECMP(pName, pSettingsName))
+	// 	{
+	// 		printf("found match!\n");
+
+	// 		fseek(F, pHeaders[i].nJsonOffset, SEEK_SET);
+	// 		fread(S.pJsonSettings, pHeaders[i].nJsonSize, 1, F);
+	// 		printf("json is\n%s\n", S.pJsonSettings);
+	// 		S.nJsonSettingsPending = 1;
+	// 		break;
+	// 	}
+	// }
+	// fclose(F);
+}
+
+
+
+
+
 
 bool MicroProfileWebSocketReceive(MpSocket Connection)
 {
@@ -4865,7 +5183,7 @@ foo= 3;
 		recv(Connection, &Mask[0], 4, 0);
 	}
 
-foo= 4;
+	foo = 4;
 
 
 	if(nSize+1 > BytesAllocated)
@@ -4882,6 +5200,28 @@ foo= 4;
 	Bytes[nSize] = '\0';
 	switch(Bytes[0])
 	{
+		case 's':
+			{
+				char* pJson = strchr((char*)Bytes, ',');
+				if(pJson && *pJson != '\0')
+				{
+					*pJson = '\0';
+					MicroProfileSavePresets((const char*)Bytes+1, (const char*)pJson+1);
+				}
+				break;
+			}
+
+		case 'l':
+			{
+				MicroProfileLoadPresets((const char*)Bytes+1);
+				break;
+			}
+		case 'd':
+			{
+				MicroProfileWebSocketClearTimers();
+				S.nActiveGroupWanted = 0;
+				S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
+			}
 		case 'c':
 			{
 				char* pStr = (char*)Bytes + 1;
@@ -4903,6 +5243,8 @@ fail:
 	return false;
 
 }
+void MicroProfileWebSocketSendPresets(MpSocket Connection);
+
 
 void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 {
@@ -4936,9 +5278,18 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 	S.WSCategoriesSent = 0;
 	S.WSGroupsSent = 0;
 	S.WSTimersSent = 0;
+	S.nJsonSettingsPending = 0;
 
 	MicroProfileWebSocketSendState(Connection);
+	MicroProfileWebSocketSendPresets(Connection);
+	if(!S.nWSWasConnected)
+	{
+		S.nWSWasConnected = 1;
+		MicroProfileLoadPresets("Default");
+	}
+
 }
+
 
 
 void MicroProfileWebSocketSendFrame(MpSocket Connection)
@@ -5029,6 +5380,15 @@ void MicroProfileWebSocketFrame()
 		}
 		if(FD_ISSET(s, &Write))
 		{
+			if(S.nJsonSettingsPending)
+			{
+				printf("{\"k\":\"%d\",\"v\":%s}", MSG_LOADSETTINGS, S.pJsonSettings);
+				WSPrintStart(s);
+				WSPrintf("{\"k\":\"%d\",\"v\":%s}", MSG_LOADSETTINGS, S.pJsonSettings);
+				WSFlush();
+				WSPrintEnd();
+				S.nJsonSettingsPending = 0;
+			}
 			if(!S.nFrozen)
 			{
 				MicroProfileWebSocketSendFrame(s);
