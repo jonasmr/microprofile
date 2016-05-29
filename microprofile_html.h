@@ -5002,6 +5002,8 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "//frozen/disconnected text.\n"
 "//fix leaking on load/save\n"
 "//print stack depths\n"
+"//tooltips\n"
+"//mountain graphs\n"
 "\n"
 "\n"
 "\n"
@@ -5157,6 +5159,8 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "\n"
 "var KeyShiftDown = 0;\n"
 "var KeyCtrlDown = 0;\n"
+"\n"
+"var IsFrozen = 0;\n"
 "\n"
 "TimerArray.push(Empty); // 0 is root of tree\n"
 "\n"
@@ -5805,6 +5809,57 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "{\n"
 "	return MouseX >= X && MouseX <= X + W && MouseY >= Y && MouseY <= Y + H;\n"
 "}\n"
+"\n"
+"var MessageText = \"\";\n"
+"var MessageTimeout = -1;\n"
+"var MessageTimeoutLast = new Date();\n"
+"function SetMessage(text, TimeOut)\n"
+"{\n"
+"	if(TimeOut)\n"
+"	{\n"
+"		MessageTimeout = TimeOut;\n"
+"	}\n"
+"	else\n"
+"	{\n"
+"		MessageTimeout = -1;\n"
+"	}\n"
+"	MessageText = text;\n"
+"}\n"
+"function ClearMessage(Message)\n"
+"{\n"
+"	if(Message == MessageText)\n"
+"	{\n"
+"		MessageText = \"\";\n"
+"		MessageTimeOut = -1;\n"
+"	}\n"
+"}\n"
+"\n"
+"function DrawMessage(context)\n"
+"{\n"
+"	var Now = new Date();\n"
+"	var Delta = Now - MessageTimeoutLast;\n"
+"	if(MessageTimeout>0)\n"
+"	{\n"
+"		MessageTimeout -= Delta;\n"
+"		if(MessageTimeout<= 0)\n"
+"		{\n"
+"			MessageText = \"\";\n"
+"			MessageTimeout = -1;\n"
+"		}\n"
+"\n"
+"	}\n"
+"	MessageTimeoutLast = Now;\n"
+"\n"
+"	var Text = MessageText;\n"
+"	var X = nWidth / 2;\n"
+"	var Y = nHeight / 2;\n"
+"	context.font = FontFlash;\n"
+"	context.textAlign = \'center\';\n"
+"	context.fillStyle = \'red\';\n"
+"	context.fillText(Text, X, Y);\n"
+"	context.textAlign = \'left\';\n"
+"	context.font = Font;\n"
+"}\n"
 "function DrawCaptureButton(context)\n"
 "{\n"
 "\n"
@@ -5880,7 +5935,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "	}\n"
 "\n"
 "	DrawCaptureButton(context);\n"
-"\n"
+"	DrawMessage(context);\n"
 "\n"
 "	ProfileLeave();\n"
 "\n"
@@ -6417,7 +6472,11 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "	var v;\n"
 "	if(Type == \'int\')\n"
 "	{\n"
-"		var newValue = prompt(\'\' + Title, \'\' + Value);\n"
+"		var newValue = prom";
+
+const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
+const char g_MicroProfileHtmlLive_begin_1[] =
+"pt(\'\' + Title, \'\' + Value);\n"
 "		v = parseInt(newValue);\n"
 "	}\n"
 "	else if(Type == \'float\')\n"
@@ -6471,11 +6530,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "	var context = CanvasDetailedView.getContext(\'2d\');\n"
 "\n"
 "	var bMouseIn = MouseY >= M.y && MouseY < M.y + BoxHeight;\n"
-"	var YText ";
-
-const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
-const char g_MicroProfileHtmlLive_begin_1[] =
-"= M.y + BoxHeight - FontAscent;\n"
+"	var YText = M.y + BoxHeight - FontAscent;\n"
 "\n"
 "	var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[M.cidx];\n"
 "	if(Selected)\n"
@@ -7097,6 +7152,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "\n"
 "function WSOpen()\n"
 "{\n"
+"	SetMessage(\"Connected!\", 1000);\n"
 "	WSSend = 0;\n"
 "	WSReceive = 0;\n"
 "	WSSendBytes = 0;\n"
@@ -7296,6 +7352,23 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "		return FD;\n"
 "	}\n"
 "}\n"
+"function SetFrozen()\n"
+"{\n"
+"	IsFrozen = 10;\n"
+"	SetMessage(\"FROZEN\");\n"
+"}\n"
+"function ClearFrozen()\n"
+"{\n"
+"	if(IsFrozen)\n"
+"	{\n"
+"		if(--IsFrozen == 0)\n"
+"		{\n"
+"			ClearMessage(\"FROZEN\");\n"
+"		}\n"
+"\n"
+"	}\n"
+"\n"
+"}\n"
 "\n"
 "function ProcessFrame(F)\n"
 "{\n"
@@ -7304,7 +7377,14 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	PushIntoArray(FrameData.Ids, F.f);\n"
 "	var CaptureId = null;\n"
 "	var AutoCapture = AutoCaptureEnabled && !F.wasfrozen;\n"
-"\n"
+"	if(!F.wasFrozen)\n"
+"	{\n"
+"		ClearFrozen();\n"
+"	}\n"
+"	else\n"
+"	{\n"
+"		SetFrozen();\n"
+"	}\n"
 "	if(AutoCapture)\n"
 "	{\n"
 "		if(AutoCaptureSourceIndex == -1 && F.t > Settings.AutoCaptureTheshold)\n"
@@ -7487,7 +7567,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "			}\n"
 "			WSOpenTime = new Date();\n"
 "			WSPath = \"ws://\" + WSHost + \":\" + WSPort + \"/ws\";\n"
-"			console.log(\'connecting to \' + WSPath);\n"
+"			SetMessage(\'Connecting to \' + WSPath,5 * 1000);\n"
 "			WS = new WebSocket(WSPath);\n"
 "			WS.onopen = WSOpen;\n"
 "			WS.onmessage = WSMessage;\n"
@@ -7791,6 +7871,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	}\n"
 "	if(k == 32)\n"
 "	{\n"
+"		SetFrozen();\n"
 "		WSSendMessage(\"f\");\n"
 "	}\n"
 "	if(k == 13)\n"
@@ -7929,7 +8010,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "SetupEvents();\n"
 "InitMenu();\n"
 "\n"
-"setInterval(Connect, 10);\n"
+"setInterval(Conn";
+
+const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
+const char g_MicroProfileHtmlLive_begin_2[] =
+"ect, 10);\n"
 "// window.alert(\' host is \' + location.hostname + \' port \' + location.port);\n"
 "\n"
 "\n"
@@ -7949,16 +8034,18 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "\n"
 "";
 
-const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char* g_MicroProfileHtmlLive_begin[] = {
 &g_MicroProfileHtmlLive_begin_0[0],
 &g_MicroProfileHtmlLive_begin_1[0],
+&g_MicroProfileHtmlLive_begin_2[0],
 };
 size_t g_MicroProfileHtmlLive_begin_sizes[] = {
 sizeof(g_MicroProfileHtmlLive_begin_0),
 sizeof(g_MicroProfileHtmlLive_begin_1),
+sizeof(g_MicroProfileHtmlLive_begin_2),
 };
-size_t g_MicroProfileHtmlLive_begin_count = 2;
+size_t g_MicroProfileHtmlLive_begin_count = 3;
 const char* g_MicroProfileHtmlLive_end[] = {
 };
 size_t g_MicroProfileHtmlLive_end_sizes[] = {

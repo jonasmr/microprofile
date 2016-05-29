@@ -79,6 +79,8 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 //frozen/disconnected text.
 //fix leaking on load/save
 //print stack depths
+//tooltips
+//mountain graphs
 
 
 
@@ -234,6 +236,8 @@ var X5Views;
 
 var KeyShiftDown = 0;
 var KeyCtrlDown = 0;
+
+var IsFrozen = 0;
 
 TimerArray.push(Empty); // 0 is root of tree
 
@@ -882,6 +886,57 @@ function MouseInside(X, Y, W, H)
 {
 	return MouseX >= X && MouseX <= X + W && MouseY >= Y && MouseY <= Y + H;
 }
+
+var MessageText = "";
+var MessageTimeout = -1;
+var MessageTimeoutLast = new Date();
+function SetMessage(text, TimeOut)
+{
+	if(TimeOut)
+	{
+		MessageTimeout = TimeOut;
+	}
+	else
+	{
+		MessageTimeout = -1;
+	}
+	MessageText = text;
+}
+function ClearMessage(Message)
+{
+	if(Message == MessageText)
+	{
+		MessageText = "";
+		MessageTimeOut = -1;
+	}
+}
+
+function DrawMessage(context)
+{
+	var Now = new Date();
+	var Delta = Now - MessageTimeoutLast;
+	if(MessageTimeout>0)
+	{
+		MessageTimeout -= Delta;
+		if(MessageTimeout<= 0)
+		{
+			MessageText = "";
+			MessageTimeout = -1;
+		}
+
+	}
+	MessageTimeoutLast = Now;
+
+	var Text = MessageText;
+	var X = nWidth / 2;
+	var Y = nHeight / 2;
+	context.font = FontFlash;
+	context.textAlign = 'center';
+	context.fillStyle = 'red';
+	context.fillText(Text, X, Y);
+	context.textAlign = 'left';
+	context.font = Font;
+}
 function DrawCaptureButton(context)
 {
 
@@ -957,7 +1012,7 @@ function DrawViews()
 	}
 
 	DrawCaptureButton(context);
-
+	DrawMessage(context);
 
 	ProfileLeave();
 
@@ -2170,6 +2225,7 @@ function AutoRedraw(Timestamp)
 
 function WSOpen()
 {
+	SetMessage("Connected!", 1000);
 	WSSend = 0;
 	WSReceive = 0;
 	WSSendBytes = 0;
@@ -2369,6 +2425,23 @@ function GetFrameData(id)
 		return FD;
 	}
 }
+function SetFrozen()
+{
+	IsFrozen = 10;
+	SetMessage("FROZEN");
+}
+function ClearFrozen()
+{
+	if(IsFrozen)
+	{
+		if(--IsFrozen == 0)
+		{
+			ClearMessage("FROZEN");
+		}
+
+	}
+
+}
 
 function ProcessFrame(F)
 {
@@ -2377,7 +2450,14 @@ function ProcessFrame(F)
 	PushIntoArray(FrameData.Ids, F.f);
 	var CaptureId = null;
 	var AutoCapture = AutoCaptureEnabled && !F.wasfrozen;
-
+	if(!F.wasFrozen)
+	{
+		ClearFrozen();
+	}
+	else
+	{
+		SetFrozen();
+	}
 	if(AutoCapture)
 	{
 		if(AutoCaptureSourceIndex == -1 && F.t > Settings.AutoCaptureTheshold)
@@ -2560,7 +2640,7 @@ function Connect()
 			}
 			WSOpenTime = new Date();
 			WSPath = "ws://" + WSHost + ":" + WSPort + "/ws";
-			console.log('connecting to ' + WSPath);
+			SetMessage('Connecting to ' + WSPath,5 * 1000);
 			WS = new WebSocket(WSPath);
 			WS.onopen = WSOpen;
 			WS.onmessage = WSMessage;
@@ -2864,6 +2944,7 @@ function KeyUp(evt)
 	}
 	if(k == 32)
 	{
+		SetFrozen();
 		WSSendMessage("f");
 	}
 	if(k == 13)
