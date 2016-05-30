@@ -52,20 +52,23 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 
 //todo
 //Features missing:
-//tooltips
 //mountain graphs
-//bars
+//mountain sums
+//bar view 
 
 
 //fixes:
 // socket crash on chrome shutdown
 //fix leaking on load/save
 //print stack depths
+//settings are not updated when frozen
+//automatic reference times
 
 //improvements:
 // on demand redraw
 // less cpu when idle
 // send frozen state to fix frozen text
+// send some state on reconnect to restore view
 
 
 
@@ -216,6 +219,16 @@ var WidthArray = [];
 var WidthTree = 0;
 Settings.ViewActive = 0;
 var ViewNames = ["Graph", "Bar Time[all]", "Multi Bar[all]", "Multi Bar[single]"];
+
+
+Settings.FancyGraph = 1;
+Settings.AutomaticReference = 1;
+
+
+var ReferenceHistory = 0;
+var ReferenceGraph = 0;
+var ReferenceHistoryAutomatic = 0;
+var ReferenceGraphAutomatic = 0;
 
 var SingleTimerBars = 0;
 var History;
@@ -697,14 +710,30 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex)
 
 	var h = View.h;
 	var w = View.w;
-	var fHeightScale = h / Settings.ReferenceTime;
+	var fHeightScale = h / ReferenceGraph;
 	var MouseDragging = 0;
 	var fWidth = w / (FrameCount);
 	var HighlightFrame = -1;
+	var GraphKey = null;
+	var GraphBest = 0;
+	var MouseTime = ReferenceGraph * (1-(LocalMouseY / h));
 
-	if(LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h)
+	if(LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1)
 	{
 		var index = Math.floor(FrameCount * LocalMouseX / w);
+		HighlightFrame = index;
+		for(var key in TimerMap)
+		{
+			var idx = GetTimer(key);
+			var T = TimerArray[idx];
+			var TimerState = TimerMap[key];
+			var Time = TimerState.Time;
+			if(Time[index] >= MouseTime && (GraphBest == 0 || Time[index] <= GraphBest))
+			{
+				GraphKey = key;
+				GraphBest = Time[index];
+			}
+		}
 		ToolTipCallback = function()
 		{
 			var StringArray = [];
@@ -720,7 +749,34 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex)
 			}
 			return StringArray;
 		}
-		HighlightFrame = index;
+
+	}
+	if(GraphKey&&0)
+	{
+		//solid graph
+		var idx = GetTimer(GraphKey);
+		var T = TimerArray[idx];
+		var TimerState = TimerMap[GraphKey];
+		var Time = TimerState.Time;
+		var color = TimerArray[idx].color;
+		var X = w - Time.length*fWidth;
+		var Y = h;
+		context.globalAlpha = 0.1;
+		context.strokeStyle = color;
+		context.fillStyle = color;
+		context.beginPath();
+		context.moveTo(X,Y);
+		for(var i = 0; i < Time.length; ++i)
+		{
+			Y = h - Time[i] * fHeightScale;
+			context.lineTo(X, Y);
+			X += fWidth;
+		}
+		context.lineTo(X, h);
+		context.closePath();
+		context.fill();
+		context.globalAlpha = 1;
+		context.stroke();
 	}
 
 
@@ -744,6 +800,13 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex)
 			context.lineTo(X, Y);
 			X += fWidth;
 		}
+		if(Settings.FancyGraph)
+		{
+			context.lineTo(X, h);
+			context.globalAlpha = 0.05;
+			context.fill();
+			context.globalAlpha = 1;
+		}
 		context.stroke();
 	}
 	if(HighlightFrame >= 0)
@@ -764,9 +827,16 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex)
 			context.lineTo(CrossX+2, CrossY+2);
 			context.moveTo(CrossX+2, CrossY-2);
 			context.lineTo(CrossX-2, CrossY+2);
+			//context.closePath();
 			context.stroke();
 		}
 	}
+	context.fillStyle = 'wheat';
+	context.textAlign='right';
+	context.fillText(FormatTime(ReferenceGraph) + 'ms', nWidth, FontHeight);
+	context.textAlign='left';
+
+
 	ProfileLeave();
 }
 
@@ -822,6 +892,7 @@ function DrawRange(context, X, XEnd, Y, YEnd, ColorBack, ColorFront)
 		context.lineTo(X, H);
 		context.moveTo(X+W, 0);
 		context.lineTo(X+W, H);
+		// context.closePath();
 		context.stroke();
 	}
 }
@@ -836,7 +907,7 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 		return;
 	var fHeight = View.h;
 	var fWidth = nWidth / FrameCount;
-	var fHeightScale = fHeight / Settings.ReferenceTime;
+	var fHeightScale = fHeight / ReferenceHistory;
 	var fX = 0;
 	var FrameIndex = -1;
 	var MouseDragging = 0;
@@ -895,6 +966,7 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 	context.beginPath();
 	context.moveTo(0, fH);
 	context.lineTo(nWidth, fH);
+	// context.closePath();
 	context.stroke();
 	var YText;
 	if(fH > HistoryHeight * 0.25)
@@ -907,7 +979,9 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 	}
 
 	context.fillText(Settings.TargetTime + 'ms', 3, YText);
-
+	context.textAlign='right';
+	context.fillText(FormatTime(ReferenceHistory) + 'ms', nWidth, FontHeight);
+	context.textAlign='left';
 
 
 
@@ -1880,7 +1954,14 @@ function DrawMenuSettings()
 	AggregateTweak = DrawMenuRoll(M, "Aggregate Frames", GetAggregateString(), '', AggregateRoll, AggregateTweak, 'int');
 	ReferenceTimeTweak = DrawMenuRoll(M, "Reference Time", Settings.ReferenceTime, '', ReferenceRoll, ReferenceTimeTweak, 'int');
 	TargetTimeTweak = DrawMenuRoll(M, "Target Time", Settings.TargetTime, '', TargetRoll, TargetTimeTweak, 'int');
-
+	if(DrawMenuElement(M, Settings.FancyGraph, "Fancy Graph", Settings.FancyGraph, 'white'))
+	{
+		Settings.FancyGraph = 1-Settings.FancyGraph;
+	}
+	if(DrawMenuElement(M, Settings.AutomaticReference, "Automatic Reference Time", Settings.AutomaticReference, 'white'))
+	{
+		Settings.AutomaticReference = 1-Settings.AutomaticReference;
+	}
 	SizeInfo.h = M.y - SizeInfo.y;
 	return SizeInfo;
 
@@ -2132,7 +2213,7 @@ function DrawMenu()
 				EnableMenu(-1);
 			}
 		}
-		if(1)//debugging of menu extents. dont delete
+		if(0)//debugging of menu extents. dont delete
 		{
 			context.strokeStyle = 'red';
 			context.beginPath();
@@ -2141,6 +2222,7 @@ function DrawMenu()
 			context.lineTo(MenuRect.x + MenuRect.w,MenuRect.y+MenuRect.h);
 			context.lineTo(MenuRect.x,MenuRect.y+MenuRect.h);
 			context.lineTo(MenuRect.x,MenuRect.y);
+			// context.closePath();
 			context.stroke();
 		}
 		ProfileLeave();
@@ -2183,7 +2265,7 @@ function DrawConnectionStatus()
 }
 function DrawActiveToolTip()
 {
-	if(ToolTipCallback)
+	if(ToolTipCallback && SubMenuActive == -1)
 	{
 		var Strings = ToolTipCallback();
 		DrawToolTip(Strings, CanvasDetailedView, MouseX, MouseY);
@@ -2194,6 +2276,19 @@ function Draw()
 {
 	ProfileModeClear();
 	ProfileEnter("Total");
+	if(Settings.AutomaticReference)
+	{
+		ReferenceGraph = 0.9 * ReferenceGraph + 0.1 * ReferenceGraphAutomatic;
+		ReferenceHistory = 0.9 * ReferenceHistory + 0.1 * ReferenceHistoryAutomatic;
+	}
+	else
+	{
+		ReferenceGraph = Settings.ReferenceTime;
+		ReferenceHistory = Settings.ReferenceTime;
+	}
+
+
+
 	DrawViews();
 	
 	DrawMenu();
@@ -2478,7 +2573,21 @@ function ProcessFrame(F)
 		}
 	}
 
+	var GraphTimeMax = 0;
+	var HistoryTimeMax = 0;
 
+	for(var i = 0; i < FrameData.Time.length; ++i)
+	{
+		HistoryTimeMax = HistoryTimeMax > FrameData.Time[i] ? HistoryTimeMax : FrameData.Time[i];
+	}
+	var FindMaxTime = function(A)
+	{
+		for(var i = 0; i < A.length; ++i)
+		{
+			GraphTimeMax = GraphTimeMax > A[i] ? GraphTimeMax : A[i];
+		}
+
+	}
 	for(var id in F.x)
 	{
 		var FD = GetFrameData(id);
@@ -2489,6 +2598,7 @@ function ProcessFrame(F)
 		PushIntoArray(FD.Time, Time);
 		PushIntoArray(FD.TimeExcl, TimeExcl);
 		PushIntoArray(FD.Count, Count);
+		FindMaxTime(FD.Time);
 
 		if(FD.Aggregate > Settings.AggregateFrames)
 		{
@@ -2555,6 +2665,7 @@ function ProcessFrame(F)
 			PushIntoArray(FD.Time,0.0);
 			PushIntoArray(FD.TimeExcl, 0.0);
 			PushIntoArray(FD.Count, 0);
+			FindMaxTime(FD.Time);
 		}
 		FD.FrameTime = FD.Time[FD.Time.length-1];
 		FD.AggregateTime = FD.Time[FD.Time.length-1];
@@ -2568,6 +2679,10 @@ function ProcessFrame(F)
 		Capture();
 		AutoCaptureEnabled = 0;
 	}
+
+	ReferenceGraphAutomatic = 1.05 * GraphTimeMax;
+	ReferenceHistoryAutomatic = 1.05 * HistoryTimeMax;
+
 }
 
 function WSMessage()
