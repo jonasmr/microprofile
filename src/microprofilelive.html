@@ -51,36 +51,24 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 
 
 //todo
-// on demand redraw
-// selection
-// base graph
-//connection status window
-// log window 
-// menu item
-//scrolling in menu
-//sub menus
-// TimerMap view
-// graph view
-
-
-//settings to implement
-// aggregate
-// reference time
-// preset menu
-// less cpu when idle
-// multiple views.
-// socket crash on chrome shutdown
-// old view
-//fix graph
-//resend added timers
-//
-//aller sidste ting: presets
-//
-//frozen/disconnected text.
-//fix leaking on load/save
-//print stack depths
+//Features missing:
 //tooltips
 //mountain graphs
+//bars
+
+
+//fixes:
+// socket crash on chrome shutdown
+//fix leaking on load/save
+//print stack depths
+
+//improvements:
+// on demand redraw
+// less cpu when idle
+// send frozen state to fix frozen text
+
+
+
 
 
 
@@ -88,7 +76,6 @@ var FRAME_HISTORY_COLOR_CPU = '#ff7f27';
 var FRAME_HISTORY_COLOR_GPU = '#ffffff';
 
 var Settings = {};
-
 
 var HistoryHeight = 100;
 var CanvasDetailedView = document.getElementById('DetailedView');
@@ -133,6 +120,8 @@ var MouseDragYStart = 0;
 
 var MouseDragActiveXStart = 0;
 var MouseDragActiveXEnd = -1;
+
+var ToolTipCallback = null;
 
 var DPR = 0;
 var C_HUGE = 1e10;
@@ -643,7 +632,7 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 	var h = View.h;
 	var w = View.w;
 	var DrawX = 25;
-	var DrawY = 25;
+	var DrawY = 35;
 	var DrawWidth = w -  2 * DrawX;
 	var DrawHeight = h - 2 * DrawY;
 	var SpaceWidth = 5;
@@ -711,6 +700,29 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex)
 	var fHeightScale = h / Settings.ReferenceTime;
 	var MouseDragging = 0;
 	var fWidth = w / (FrameCount);
+	var HighlightFrame = -1;
+
+	if(LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h)
+	{
+		var index = Math.floor(FrameCount * LocalMouseX / w);
+		ToolTipCallback = function()
+		{
+			var StringArray = [];
+			var TimerMap = FrameData.TimerMap;
+			for(var key in TimerMap)
+			{
+				var idx = GetTimer(key);
+				var T = TimerArray[idx];
+				var TimerState = TimerMap[key];
+				var Time = TimerState.Time;
+				StringArray.push('' + T.name);
+				StringArray.push('' + FormatTime(Time[index]) + 'ms') ;
+			}
+			return StringArray;
+		}
+		HighlightFrame = index;
+	}
+
 
 	var Keys = [];
 	for(var key in TimerMap)
@@ -732,10 +744,29 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex)
 			context.lineTo(X, Y);
 			X += fWidth;
 		}
-		//context.lineTo(X,h);
 		context.stroke();
 	}
-
+	if(HighlightFrame >= 0)
+	{
+		for(var key in TimerMap)
+		{
+			var idx = GetTimer(key);
+			var TimerState = TimerMap[key];
+			var Time = TimerState.Time;
+			var color = TimerArray[idx].color;
+			var X = w - Time.length*fWidth + fWidth * HighlightFrame;
+			var Y = h - Time[HighlightFrame] * fHeightScale;
+			context.strokeStyle = color;
+			context.beginPath();
+			var CrossX = X;
+			var CrossY = Y;
+			context.moveTo(CrossX-2, CrossY-2);
+			context.lineTo(CrossX+2, CrossY+2);
+			context.moveTo(CrossX+2, CrossY-2);
+			context.lineTo(CrossX-2, CrossY+2);
+			context.stroke();
+		}
+	}
 	ProfileLeave();
 }
 
@@ -826,7 +857,7 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 	}
 
 
-
+	var ToolTipFrame = -1;
 	for(var i = 0; i < FrameCount; i++)
 	{
 		var fMs = FrameData.Time[i];
@@ -840,10 +871,11 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 		}
 
 		var fH = fHeightScale * fMs;
-		var bMouse = LocalMouseX > fX && LocalMouseX < fX + fWidth;
+		var bMouse = LocalMouseX > fX && LocalMouseX < fX + fWidth+1 && MouseY <= HistoryHeight;
 		if(bMouse && !MouseDragging)
 		{
 			context.fillStyle = FRAME_HISTORY_COLOR_GPU;
+			ToolTipFrame = i;
 		}
 		else
 		{
@@ -875,6 +907,25 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 	}
 
 	context.fillText(Settings.TargetTime + 'ms', 3, YText);
+
+
+
+
+	if(ToolTipFrame >= 0)
+	{
+		var fMs = FrameData.Time[ToolTipFrame];
+		ToolTipCallback = function()
+		{
+			var StringArray = [];
+			StringArray.push("Frame");
+			StringArray.push("" + ToolTipFrame);
+			StringArray.push("Time");
+			StringArray.push("" + fMs.toFixed(3));
+			return StringArray;
+		}
+	}
+
+
 	ProfileLeave();
 
 }
@@ -907,7 +958,7 @@ function ClearMessage(Message)
 	if(Message == MessageText)
 	{
 		MessageText = "";
-		MessageTimeOut = -1;
+		MessageTimeout = -1;
 	}
 }
 
@@ -1829,71 +1880,8 @@ function DrawMenuSettings()
 	AggregateTweak = DrawMenuRoll(M, "Aggregate Frames", GetAggregateString(), '', AggregateRoll, AggregateTweak, 'int');
 	ReferenceTimeTweak = DrawMenuRoll(M, "Reference Time", Settings.ReferenceTime, '', ReferenceRoll, ReferenceTimeTweak, 'int');
 	TargetTimeTweak = DrawMenuRoll(M, "Target Time", Settings.TargetTime, '', TargetRoll, TargetTimeTweak, 'int');
-	// var Y = SizeInfo.y;
-	// var Width = SizeInfo.w;
-	// var Selection = null;
-	// var X = SizeInfo.x;
 
-
-
-	// for(var i = 0; i < AggregatePresets.length; ++i)
-	// {
-	// 	var Preset = AggregatePresets[i];
-	// 	var Selected = AggregateFrames == Preset;
-	// 	var Name = Preset < 0 ? "inifnite" : (Preset + '');
-	// 	var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
-	// 	var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-	// 	var TextY = Y+BoxHeight-FontAscent;
-	// 	if(Selected)
-	// 	{
-	// 		context.fillStyle = 'white';
-	// 		context.fillRect(X-2, Y, Width+4, BoxHeight);
-	// 	}
-	// 	context.fillStyle = bgcolor;
-	// 	context.fillRect(X, Y, Width, BoxHeight);
-	// 	context.fillStyle = 'white';
-	// 	context.fillText("Aggregate", X + 2, TextY);
-	// 	context.textAlign = 'right';
-	// 	context.fillText(Name, X + Width - 2, TextY);
-	// 	context.textAlign = 'left';
-	// 	if(bMouseIn && MouseReleased)
-	// 	{
-	// 		AggregateFrames = Preset;
-	// 	}
-	// 	Y += BoxHeight;
-	// 	nColorIndex = 1-nColorIndex;
-	// }
-
-	// for(var i = 0; i < ReferencePresets.length; ++i)
-	// {
-	// 	var Preset = ReferencePresets[i];
-	// 	var Selected = ReferenceTime == Preset;
-	// 	var Name = Preset + '';
-	// 	var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
-	// 	var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-	// 	var TextY = Y+BoxHeight-FontAscent;
-	// 	if(Selected)
-	// 	{
-	// 		context.fillStyle = 'white';
-	// 		context.fillRect(X-2, Y, Width+4, BoxHeight);
-	// 	}
-	// 	context.fillStyle = bgcolor;
-	// 	context.fillRect(X, Y, Width, BoxHeight);
-	// 	context.fillStyle = 'white';
-	// 	context.fillText("Reference", X + 2, TextY);
-	// 	context.textAlign = 'right';
-	// 	context.fillText(Name, X + Width - 2, TextY);
-	// 	context.textAlign = 'left';
-	// 	if(bMouseIn && MouseReleased)
-	// 	{
-	// 		ReferenceTime = Preset;
-	// 	}
-	// 	Y += BoxHeight;
-	// 	nColorIndex = 1-nColorIndex;
-	// }
 	SizeInfo.h = M.y - SizeInfo.y;
-
-	// SizeInfo.h = Y - SizeInfo.y;
 	return SizeInfo;
 
 }
@@ -2191,19 +2179,29 @@ function DrawConnectionStatus()
 	Strings.push("" + WSReceiveBytes);
 	Strings.push("Seconds");
 	Strings.push("" + WSSeconds);
-
-
 	DrawToolTip(Strings, CanvasDetailedView, 50000, 0);
-
+}
+function DrawActiveToolTip()
+{
+	if(ToolTipCallback)
+	{
+		var Strings = ToolTipCallback();
+		DrawToolTip(Strings, CanvasDetailedView, MouseX, MouseY);
+	}
+	ToolTipCallback = null;
 }
 function Draw()
 {
 	ProfileModeClear();
 	ProfileEnter("Total");
 	DrawViews();
+	
 	DrawMenu();
 	DrawConnectionStatus();
 	DrawPlotf(CanvasDetailedView);
+	DrawActiveToolTip();
+
+
 	ProfileLeave();
 	ProfileModeDraw(CanvasDetailedView);
 
@@ -2928,6 +2926,8 @@ function KeyUp(evt)
 		{
 			EnableMenu(-1);
 		}
+
+		MouseDragActiveXStart = MouseDragActiveXEnd = -1;
 	}
 	if(k == 191)
 	{
@@ -3078,6 +3078,9 @@ function DrawPlotf(Canvas)
 		YPos += BoxHeight;
 	}
 }
+
+
+
 
 ResizeCanvas();
 SetupEvents();
