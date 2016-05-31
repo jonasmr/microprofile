@@ -52,10 +52,11 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 
 //todo
 //Features missing:
-//mountain graphs
-//mountain sums
 //bar view 
-
+//copy aggregate frames over
+//test win32
+//only 1 connection
+//already connected message
 
 //fixes:
 // socket crash on chrome shutdown
@@ -142,7 +143,7 @@ var TargetTimeTweak = -1;
 
 var AggregateFrames = 60;
 Settings.AggregateFrames = 60;
-var AggregatePresets = [-1, 10,20,30,60,90,120,500];
+var AggregatePresets = [0, 10,20,30,60,90,120,500];
 var AggregateHistorySize = 5;
 var AggregateTweak = -1;
 
@@ -199,6 +200,7 @@ var MSG_ENABLED = 2;
 var MSG_FRAME = 3;
 var MSG_LOADSETTINGS = 4; 
 var MSG_PRESETS = 5;
+var MSG_CURRENTSETTINGS = 6; 
 
 var TYPE_NONE = 0;
 var TYPE_TIMER = 1;
@@ -1357,7 +1359,7 @@ function EnableByName(name, type)
 }
 
 
-function OnLoadPreset(NewSettings)
+function OnLoadPreset(NewSettings, Apply)
 {
 	WSSendMessage("d");
 	ActivePreset = NewSettings.PresetName;
@@ -1366,20 +1368,26 @@ function OnLoadPreset(NewSettings)
 		console.log(' setting ' + idx + ' to ' + NewSettings[idx]);
 		if(idx == 'Timers')
 		{
-			var Timers = NewSettings[idx];
-			for(var i = 0; i < Timers.length; ++i)
+			if(Apply)
 			{
-				var name = Timers[i];
-				EnableByName(name, TYPE_TIMER);
+				var Timers = NewSettings[idx];
+				for(var i = 0; i < Timers.length; ++i)
+				{
+					var name = Timers[i];
+					EnableByName(name, TYPE_TIMER);
+				}
 			}
 		}
 		else if(idx == 'Groups')
 		{
-			var Groups = NewSettings[idx];
-			for(var i = 0; i < Groups.length; ++i)
+			if(Apply)
 			{
-				var name = Groups[i];
-				EnableByName(name, TYPE_GROUP);
+				var Groups = NewSettings[idx];
+				for(var i = 0; i < Groups.length; ++i)
+				{
+					var name = Groups[i];
+					EnableByName(name, TYPE_GROUP);
+				}
 			}
 		}
 		else
@@ -1556,9 +1564,9 @@ function TweakValue(Value, Tweak, amount, Min, Max)
 			}
 		}
 	}
-	if(Min && Value < Min)
+	if(Min!=null && Value < Min)
 		Value = Min;
-	if(Max && Value > Max)
+	if(Max!=null && Value > Max)
 		Value = Max;
 	return Value;
 
@@ -2272,10 +2280,8 @@ function DrawActiveToolTip()
 	}
 	ToolTipCallback = null;
 }
-function Draw()
+function UpdateSettings()
 {
-	ProfileModeClear();
-	ProfileEnter("Total");
 	if(Settings.AutomaticReference)
 	{
 		ReferenceGraph = 0.9 * ReferenceGraph + 0.1 * ReferenceGraphAutomatic;
@@ -2286,8 +2292,18 @@ function Draw()
 		ReferenceGraph = Settings.ReferenceTime;
 		ReferenceHistory = Settings.ReferenceTime;
 	}
+	if(Settings.AggregateFrames != AggregateFrames)
+	{
+		WSSendMessage("a" + Settings.AggregateFrames);
+		AggregateFrames = Settings.AggregateFrames;
+	}
+}
+function Draw()
+{
+	ProfileModeClear();
+	ProfileEnter("Total");
 
-
+	UpdateSettings();
 
 	DrawViews();
 	
@@ -2705,7 +2721,11 @@ function WSMessage()
 	}
 	else if(k == MSG_LOADSETTINGS)
 	{
-		OnLoadPreset(Obj.v);
+		OnLoadPreset(Obj.v, 1);
+	}
+	else if(k == MSG_CURRENTSETTINGS)
+	{
+		OnLoadPreset(Obj.v, 0);
 	}
 	else if(k == MSG_PRESETS)
 	{
@@ -2781,7 +2801,7 @@ function MouseHandleDrag()
 {
 	if(MouseDragTarget == CanvasDetailedView)
 	{
-		if(MouseDragSelectRange())
+		if(MouseDragSelectRange() && SubMenuActive == -1)
 		{
 			var xStart = MouseDragXStart;
 			var xEnd = MouseDragX;

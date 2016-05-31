@@ -4447,6 +4447,7 @@ enum
 	MSG_FRAME = 3,
 	MSG_LOADSETTINGS = 4, 
 	MSG_PRESETS = 5, 
+	MSG_CURRENTSETTINGS = 6, 
 };
 
 void MicroProfileSocketDumpState()
@@ -5036,8 +5037,6 @@ void MicroProfileLoadPresets(const char* pSettingsName)
 		{
 			if(0 == MP_STRCASECMP(pName, pSettingsName))
 			{
-				printf("found match!\n");
-				printf("json is\n%s\n", pJson);
 				uint32_t nLen = strlen(pJson)+1;
 				if(nLen > S.nJsonSettingsBufferSize)
 				{
@@ -5200,6 +5199,11 @@ foo= 3;
 	Bytes[nSize] = '\0';
 	switch(Bytes[0])
 	{
+		case 'a':
+			{
+				S.nAggregateFlip = strtoll((const char*)&Bytes[1], nullptr, 10);
+			}
+			break;
 		case 's':
 			{
 				char* pJson = strchr((char*)Bytes, ',');
@@ -5287,6 +5291,17 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 		S.nWSWasConnected = 1;
 		MicroProfileLoadPresets("Default");
 	}
+	else
+	{
+		if(S.pJsonSettings)
+		{
+			printf("{\"k\":\"%d\",\"v\":%s}", MSG_CURRENTSETTINGS, S.pJsonSettings);
+			WSPrintStart(Connection);
+			WSPrintf("{\"k\":\"%d\",\"v\":%s}", MSG_CURRENTSETTINGS, S.pJsonSettings);
+			WSFlush();
+			WSPrintEnd();
+		}
+	}
 
 }
 
@@ -5294,12 +5309,6 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 
 void MicroProfileWebSocketSendFrame(MpSocket Connection)
 {
-	if(S.nWebSocketDirty)
-	{
-		MicroProfileFlipEnabled();
-		MicroProfileWebSocketSendEnabled(Connection);
-		S.nWebSocketDirty = 0;
-	}
 	MicroProfileWebSocketSendState(Connection);
 	MICROPROFILE_SCOPEI("MPWS", "MicroProfileWebSocketSendFrame", 0xff0000);
 	WSPrintStart(Connection);
@@ -5389,6 +5398,12 @@ void MicroProfileWebSocketFrame()
 				WSPrintEnd();
 				S.nJsonSettingsPending = 0;
 			}
+			if(S.nWebSocketDirty)
+			{
+				MicroProfileFlipEnabled();
+				MicroProfileWebSocketSendEnabled(s);
+				S.nWebSocketDirty = 0;
+			}		
 			if(!S.nFrozen)
 			{
 				MicroProfileWebSocketSendFrame(s);
