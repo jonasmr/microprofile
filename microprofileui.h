@@ -1099,7 +1099,6 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 			bool bGpu = pLog->nGpu != 0;
 			float fToMs = bGpu ? fToMsGpu : fToMsCpu;
 			int64_t nBaseTicks = bGpu ? nBaseTicksGpu : nBaseTicksCpu;
-			uint64_t nThreadId = pLog->nThreadId;
 
 			MicroProfileThreadInfo ThreadInfo = MicroProfileGetThreadInfo(pLog->nThreadId);
 			if (pProcessModule != ThreadInfo.pProcessModule)
@@ -1334,7 +1333,7 @@ void MicroProfileDrawDetailedBars(uint32_t nWidth, uint32_t nHeight, int nBaseY,
 
 	UI.pDisplayMouseOver = pMouseOverNext;
 
-	if(!S.nRunning)
+	if(S.nActiveGroup != 0)
 	{
 		if(nHoverToken != MICROPROFILE_INVALID_TOKEN && nHoverTime)
 		{
@@ -1516,7 +1515,7 @@ void MicroProfileLoopActiveGroupsDraw(int32_t nX, int32_t nY, const char* pName,
 {
 	MicroProfile& S = *MicroProfileGet();
 	nY += MICROPROFILE_TEXT_HEIGHT + 2;
-	uint64_t nGroup = S.nAllGroupsWanted ? S.nGroupMask : S.nActiveGroupWanted;
+	uint64_t nGroup = S.nActiveGroup;
 	uint32_t nCount = 0;
 	for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
 	{
@@ -2139,7 +2138,7 @@ void MicroProfileDrawBarView(uint32_t nScreenWidth, uint32_t nScreenHeight)
 {
 	MicroProfile& S = *MicroProfileGet();
 
-	uint64_t nActiveGroup = S.nAllGroupsWanted ? S.nGroupMask : S.nActiveGroupWanted;
+	uint64_t nActiveGroup = S.nActiveGroup;
 	if(!nActiveGroup)
 		return;
 	MICROPROFILE_SCOPE(g_MicroProfileDrawBarView);
@@ -2321,7 +2320,7 @@ const char* MicroProfileUIMenuGroups(int nIndex, bool* bSelected)
 	*bSelected = false;
 	if(nIndex == 0)
 	{
-		*bSelected = S.nAllGroupsWanted != 0;
+		*bSelected = S.nActiveGroup == S.nGroupMask;
 		return "[ALL]";
 	}
 	else
@@ -2524,7 +2523,16 @@ void MicroProfileUIClickGroups(int nIndex)
 {
 	MicroProfile& S = *MicroProfileGet();			
 	if(nIndex == 0)
-		S.nAllGroupsWanted = 1-S.nAllGroupsWanted;
+	{
+		if(S.nActiveGroupWanted != S.nGroupMask)
+		{
+			S.nActiveGroupWanted = S.nGroupMask;
+		}
+		else
+		{
+			S.nActiveGroupWanted = 0;
+		}
+	}
 	else
 	{
 		nIndex -= 1;
@@ -2679,7 +2687,7 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 	pMenuText[nNumMenuItems++] = "Preset";
 	pMenuText[nNumMenuItems++] = "Custom";
 	const int nPauseIndex = nNumMenuItems;
-	pMenuText[nNumMenuItems++] = S.nRunning ? "Pause" : "Unpause";
+	pMenuText[nNumMenuItems++] = MicroProfileIsFrozen() ? "Frozen" : "Unfrozen";
 	pMenuText[nNumMenuItems++] = "Help";
 
 	if(S.nOverflow)
@@ -2767,7 +2775,7 @@ void MicroProfileDrawMenu(uint32_t nWidth, uint32_t nHeight)
 			nSelectMenu = i;
 			if((UI.nMouseLeft || UI.nMouseRight) && (int)i == nPauseIndex)
 			{
-				S.nToggleRunning = 1;
+				MicroProfileToggleFrozen();
 			}
 		}
 		MicroProfileDrawText(nX, nY, (uint32_t)-1, pMenuText[i], (uint32_t)strlen(pMenuText[i]));
@@ -3417,7 +3425,7 @@ void MicroProfileSavePreset(const char* pPresetName)
 	Header.nAggregateFlip = S.nAggregateFlip;
 	Header.nBars = S.nBars;
 	Header.fReferenceTime = S.fReferenceTime;
-	Header.nAllGroupsWanted = S.nAllGroupsWanted;
+	Header.nAllGroupsWanted = 0;
 	Header.nAllThreadsWanted = S.nAllThreadsWanted;
 	Header.nMagic = MICROPROFILE_PRESET_HEADER_MAGIC;
 	Header.nVersion = MICROPROFILE_PRESET_HEADER_VERSION;
@@ -3512,7 +3520,6 @@ void MicroProfileLoadPreset(const char* pSuffix)
 	S.nBars = Header.nBars;
 	S.fReferenceTime = Header.fReferenceTime;
 	S.fRcpReferenceTime = 1.f / Header.fReferenceTime;
-	S.nAllGroupsWanted = Header.nAllGroupsWanted;
 	S.nAllThreadsWanted = Header.nAllThreadsWanted;
 	S.nDisplay = Header.nDisplay;
 	S.nActiveGroupWanted = 0;

@@ -75,7 +75,7 @@ void HammerThread()
 	while (!g_nQuit)
 	{
 		MICROPROFILE_SCOPEI("Hammer", "Thread", 0xff00ff);
-		usleep(10);
+		//usleep(10);
 
 	}
 	MicroProfileOnThreadExit();
@@ -99,12 +99,6 @@ void HandleEvent(SDL_Event* pEvt)
 		{
 			MicroProfileToggleDisplayMode();
 		}
-		if(pEvt->key.keysym.sym == 'x')
-		{
-			bool bForceEnable = MicroProfileGetForceEnable();
-			MicroProfileSetForceEnable(!bForceEnable);
-			printf("force enable is %d\n", !bForceEnable);
-		}
 		if(pEvt->key.keysym.sym == 'c')
 		{
 			bool bEnable = MicroProfileGetEnableAllGroups();
@@ -113,7 +107,7 @@ void HandleEvent(SDL_Event* pEvt)
 		}
 		if(pEvt->key.keysym.scancode == SDL_SCANCODE_RSHIFT)
 		{
-			MicroProfileTogglePause();
+			MicroProfileToggleFrozen();
 		}
 		if(pEvt->key.keysym.scancode == SDL_SCANCODE_LCTRL)
 		{

@@ -462,7 +462,8 @@ inline uint16_t MicroProfileGetTimerIndex(MicroProfileToken t){ return (t&0xffff
 inline uint64_t MicroProfileGetGroupMask(MicroProfileToken t){ return ((t>>16)&MICROPROFILE_GROUP_MASK_ALL);}
 inline MicroProfileToken MicroProfileMakeToken(uint64_t nGroupMask, uint16_t nTimer){ return (nGroupMask<<16) | nTimer;}
 MICROPROFILE_API void MicroProfileFlip(void* pGpuContext); //! call once per frame.
-MICROPROFILE_API void MicroProfileToggleFreeze();
+MICROPROFILE_API void MicroProfileToggleFrozen();
+MICROPROFILE_API bool MicroProfileIsFrozen();
 MICROPROFILE_API void MicroProfileForceEnableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API float MicroProfileGetTime(const char* pGroup, const char* pName);
@@ -851,7 +852,7 @@ struct MicroProfileThreadLog
 	ThreadIdType			nThreadId;
 	uint32_t 				nLogIndex;
 
-	uint32_t				nStack[MICROPROFILE_STACK_MAX];
+	MicroProfileLogEntry 	nStackLogEntry[MICROPROFILE_STACK_MAX];
 	int64_t					nChildTickStack[MICROPROFILE_STACK_MAX];
 	uint32_t				nStackPos;
 
@@ -1999,7 +2000,7 @@ inline uint64_t MicroProfileLogPutEnter(MicroProfileToken nToken_, uint64_t nTic
 	uint64_t LE = MicroProfileMakeLogIndex(MP_LOG_ENTER, nToken_, nTick);
 	uint32_t nPut = pLog->nPut.load(std::memory_order_relaxed);
 	uint32_t nNextPos = (nPut + 1) % MICROPROFILE_BUFFER_SIZE;
-	uint32_t nGet = pLog->nGet.load(std::memory_order_relaxed);
+	uint32_t nGet = pLog->nGet.load(std::memory_order_acquire);
 	uint32_t nDistance = (nGet - nNextPos) % MICROPROFILE_BUFFER_SIZE;
 	uint32_t nStackPut = ++(pLog->nStackPut);
 	if (nDistance < nStackPut+1)
@@ -2023,8 +2024,9 @@ inline void MicroProfileLogPutLeave(MicroProfileToken nToken_, uint64_t nTick, M
 	uint32_t nPos = pLog->nPut.load(std::memory_order_relaxed);
 	uint32_t nNextPos = (nPos + 1) % MICROPROFILE_BUFFER_SIZE;
 	uint32_t nStackPut = --(pLog->nStackPut);
+	uint32_t nGet = pLog->nGet.load(std::memory_order_acquire);
 	MP_ASSERT(nStackPut < MICROPROFILE_STACK_MAX);
-	MP_ASSERT(nNextPos != nPos); //should never happen
+	MP_ASSERT(nNextPos != nGet); //should never happen
 	pLog->Log[nPos] = LE;
 	pLog->nPut.store(nNextPos, std::memory_order_release);
 }
@@ -2321,11 +2323,16 @@ void MicroProfileGetRange(uint32_t nPut, uint32_t nGet, uint32_t nRange[2][2])
 	}
 }
 
-static void MicroProfileToggleFrozen()
+void MicroProfileToggleFrozen()
 {
 	S.nFrozen = !S.nFrozen;
-	printf("microprofile frozen %d\n", S.nFrozen);	
 }
+
+bool MicroProfileIsFrozen()
+{
+	return S.nFrozen != 0;
+}
+
 static void MicroProfileFlipEnabled()
 {
 	uint64_t nNewActiveGroup = 0;
@@ -2595,8 +2602,7 @@ void MicroProfileFlip(void* pContext)
 						}
 					}
 					
-					
-					uint32_t* pStack = &pLog->nStack[0];
+					uint64_t* pStackLog = &pLog->nStackLogEntry[0];
 					int64_t* pChildTickStack = &pLog->nChildTickStack[0];
 					uint32_t nStackPos = pLog->nStackPos;
 
@@ -2616,7 +2622,8 @@ void MicroProfileFlip(void* pContext)
 								MP_ASSERT(nStackPos < MICROPROFILE_STACK_MAX);
 								MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
 								pGroupStackPos[nGroup]++;
-								pStack[nStackPos++] = k;
+								pStackLog[nStackPos] = LE;
+								nStackPos++;
 								pChildTickStack[nStackPos] = 0;
 
 							}
@@ -2627,7 +2634,8 @@ void MicroProfileFlip(void* pContext)
 									int64_t nMetaIndex = MicroProfileLogTimerIndex(LE);
 									int64_t nMetaCount = MicroProfileLogGetTick(LE);
 									MP_ASSERT(nMetaIndex < MICROPROFILE_META_MAX);
-									int64_t nCounter = MicroProfileLogTimerIndex(pLog->Log[pStack[nStackPos-1]]);
+									MicroProfileLogEntry LEPrev = pStackLog[nStackPos-1];
+									int64_t nCounter = MicroProfileLogTimerIndex(LEPrev);
 									S.MetaCounters[nMetaIndex].nCounters[nCounter] += nMetaCount;
 								}
 							}
@@ -2638,7 +2646,7 @@ void MicroProfileFlip(void* pContext)
 								MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
 								if(nStackPos)
 								{									
-									int64_t nTickStart = pLog->Log[pStack[nStackPos-1]];
+									int64_t nTickStart = pStackLog[nStackPos-1];
 									int64_t nTicks = MicroProfileLogTickDifference(nTickStart, LE);
 									int64_t nChildTicks = pChildTickStack[nStackPos];
 									nStackPos--;
@@ -2733,9 +2741,11 @@ void MicroProfileFlip(void* pContext)
 		for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
 		{
 			MicroProfileThreadLog* pLog = S.Pool[i];
-			if(pLog && nPutStart[i] != (uint32_t)-1)
+			uint32_t nNewGet = pFrameNext->nLogStart[i];
+
+			if(pLog && nNewGet != (uint32_t)-1)
 			{
-				pLog->nGet.store(nPutStart[i], std::memory_order_relaxed);
+				pLog->nGet.store(nNewGet);
 			}
 		}
 
