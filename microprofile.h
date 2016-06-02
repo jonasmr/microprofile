@@ -1124,8 +1124,9 @@ struct MicroProfile
 
 	int 						WebSocketTimers;
 	uint32_t 					nWebSocketDirty;
-	MpSocket 					WebSockets[4];
+	MpSocket 					WebSockets[1];
 	uint32_t					nNumWebSockets;
+	uint32_t 					nSocketFail; // for error propagation.
 
 	uint32_t 					WSCategoriesSent;
 	uint32_t 					WSGroupsSent;
@@ -1457,6 +1458,7 @@ void MicroProfileInit()
 		}
 		S.nWebServerDataSent = (uint64_t)-1;
 		S.WebSocketTimers = -1;
+		S.nSocketFail = 0;
 
 
 #if MICROPROFILE_COUNTER_HISTORY
@@ -1475,8 +1477,6 @@ void MicroProfileInit()
 		S.nJsonSettingsPending = 0;
 		S.nJsonSettingsBufferSize = 0;
 		S.nWSWasConnected = 0;
-
-
 	}
 	if(bUseLock)
 		mutex.unlock();
@@ -4537,6 +4537,10 @@ void MicroProfileSocketDumpState()
 
 void MicroProfileSocketSend(MpSocket Connection, const void* pMessage, int nLen)
 {
+	if(S.nSocketFail)
+	{
+		return;
+	}
 //	MicroProfileSocketDumpState();
 
 	fd_set Read, Write, Error;
@@ -4571,10 +4575,12 @@ void MicroProfileSocketSend(MpSocket Connection, const void* pMessage, int nLen)
 	int error_code;
 	socklen_t error_code_size = sizeof(error_code);
 	getsockopt(Connection, SOL_SOCKET, SO_ERROR, &error_code, &error_code_size);
-if (error_code != 0) {
-    /* socket has a non zero error status */
-    fprintf(stderr, "socket error xxx: %d %s\n", Connection, strerror(error_code));
-}
+	if (error_code != 0) {
+    	/* socket has a non zero error status */
+    	fprintf(stderr, "socket error xxx: %d %s\n", Connection, strerror(error_code));
+    	S.nSocketFail = 1;
+    	return;
+	}
 
 
 
@@ -5425,6 +5431,11 @@ void MicroProfileWebSocketFrame()
 				S.nWasFrozen = 3;
 			}
 		}
+		if(S.nSocketFail)
+		{
+			bConnected = false;
+		}
+		S.nSocketFail = 0;
 
 		if(!bConnected)
 		{
@@ -5628,11 +5639,12 @@ bool MicroProfileWebServerUpdate()
 
 			if(pWebSocketKey)
 			{
-				printf("got new connection %d\n", Connection);
+				if(S.nNumWebSockets) // only allow 1
+				{
+					return false;
+				}
 				pWebSocketKey += sizeof("Sec-WebSocket-Key: ")-1;
 				Terminate(pWebSocketKey);
-				printf("websocketkey is ---%s---\n", pWebSocketKey);
-
 				MicroProfileWebSocketHandshake(Connection, pWebSocketKey);
 				return false;
 			}
