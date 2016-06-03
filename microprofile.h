@@ -5428,7 +5428,7 @@ void MicroProfileWebSocketFrame()
 			}
 			else
 			{
-				S.nWasFrozen = 3;
+				S.nWasFrozen = MICROPROFILE_GPU_FRAME_DELAY+3;
 			}
 		}
 		if(S.nSocketFail)

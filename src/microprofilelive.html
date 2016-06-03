@@ -53,23 +53,12 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 //todo
 //Features missing:
 //bar view 
-//copy aggregate frames over
 //test win32
-//only 1 connection
-//already connected message
-
-//fixes:
-// socket crash on chrome shutdown
-//fix leaking on load/save
-//print stack depths
-//settings are not updated when frozen
-//automatic reference times
+//x & p
 
 //improvements:
 // on demand redraw
 // less cpu when idle
-// send frozen state to fix frozen text
-// send some state on reconnect to restore view
 
 
 
@@ -941,7 +930,11 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 		if(fid >= id0 && fid <= id1)
 		{
 			color = 'cyan';
+		}else if(FrameData.Frozen[i])
+		{
+			color = 'purple';
 		}
+
 
 		var fH = fHeightScale * fMs;
 		var bMouse = LocalMouseX > fX && LocalMouseX < fX + fWidth+1 && MouseY <= HistoryHeight;
@@ -990,6 +983,7 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 	if(ToolTipFrame >= 0)
 	{
 		var fMs = FrameData.Time[ToolTipFrame];
+		var Frozen = FrameData.Frozen[ToolTipFrame];
 		ToolTipCallback = function()
 		{
 			var StringArray = [];
@@ -997,6 +991,11 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 			StringArray.push("" + ToolTipFrame);
 			StringArray.push("Time");
 			StringArray.push("" + fMs.toFixed(3));
+			if(Frozen)
+			{
+				StringArray.push("Frozen & Unreliable");
+				StringArray.push("");
+			}
 			return StringArray;
 		}
 	}
@@ -2495,6 +2494,7 @@ function ResetFrameData()
 	FrameData.TimerMap = {};
 	FrameData.Time = AllocClearedArray(FrameCount);
 	FrameData.Ids = AllocClearedArray(FrameCount);
+	FrameData.Frozen = AllocClearedArray(FrameCount);
 }
 function GetFrameData(id)
 {
@@ -2557,14 +2557,16 @@ function ProcessFrame(F)
 	var TriggerAutoCapture = 0;
 	PushIntoArray(FrameData.Time, F.t);
 	PushIntoArray(FrameData.Ids, F.f);
+	PushIntoArray(FrameData.Frozen, F.wasfrozen ? 1 : 0);
 	var CaptureId = null;
 	var AutoCapture = AutoCaptureEnabled && !F.wasfrozen;
-	if(!F.wasFrozen)
+	if(!F.wasfrozen)
 	{
 		ClearFrozen();
 	}
 	else
 	{
+		console.log('wasfrozen!!');
 		SetFrozen();
 	}
 	if(AutoCapture)
@@ -2594,13 +2596,19 @@ function ProcessFrame(F)
 
 	for(var i = 0; i < FrameData.Time.length; ++i)
 	{
-		HistoryTimeMax = HistoryTimeMax > FrameData.Time[i] ? HistoryTimeMax : FrameData.Time[i];
+		if(0 == FrameData.Frozen[i])
+		{
+			HistoryTimeMax = HistoryTimeMax > FrameData.Time[i] ? HistoryTimeMax : FrameData.Time[i];
+		}
 	}
 	var FindMaxTime = function(A)
 	{
 		for(var i = 0; i < A.length; ++i)
 		{
-			GraphTimeMax = GraphTimeMax > A[i] ? GraphTimeMax : A[i];
+			if(0 == FrameData.Frozen[i])
+			{
+				GraphTimeMax = GraphTimeMax > A[i] ? GraphTimeMax : A[i];
+			}
 		}
 
 	}
