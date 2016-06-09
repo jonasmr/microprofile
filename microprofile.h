@@ -4238,19 +4238,30 @@ struct MicroProfileWin32ThreadInfo
 	struct Process
 	{
 		uint32_t pid;
+		uint32_t nNumModules;
+		uint32_t nModuleStart;
 		const char* pProcessModule;
+	};
+	struct Module
+	{
+		int64_t nBase;
+		int64_t nEnd;
+		const char* pName;
 	};
 	enum {
 		MAX_PROCESSES = 5 * 1024,
 		MAX_THREADS = 20 * 1024,
-		MAX_STRINGS = 16 * 1024,
+		MAX_MODULES = 20 * 1024,
+		MAX_STRINGS = 16 * 1024,		
 		MAX_CHARS = 128 * 1024,
 	};
 	uint32_t nNumProcesses;
 	uint32_t nNumThreads;
 	uint32_t nStringOffset;
 	uint32_t nNumStrings;
+	uint32_t nNumModules;
 	Process P[MAX_PROCESSES];
+	Module M[MAX_MODULES];
 	MicroProfileThreadInfo T[MAX_THREADS];
 	const char* pStrings[MAX_STRINGS];	
 	char StringData[MAX_CHARS];
@@ -4284,26 +4295,74 @@ const char* MicroProfileWin32ThreadInfoAddString(const char* pString)
 	}
 	return "internal hash table fail: should never happen";
 }
+void MicroProfileWin32ExtractModules(MicroProfileWin32ThreadInfo::Process& P)
+{
+	HANDLE hModuleSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, P.pid);
+	MODULEENTRY32 me;
+	if (Module32First(hModuleSnapshot, &me))
+	{
+		do
+		{
+			if (g_ThreadInfo.nNumModules < MicroProfileWin32ThreadInfo::MAX_MODULES)
+			{
+				auto& M = g_ThreadInfo.M[g_ThreadInfo.nNumModules++];
+				P.nNumModules++;
+				intptr_t nBase = (intptr_t)me.modBaseAddr;
+				intptr_t nEnd = nBase + me.modBaseSize;
+				M.nBase = nBase;
+				M.nEnd = nEnd;
+				M.pName = MicroProfileWin32ThreadInfoAddString(&me.szModule[0]);
+			}
+		} while (Module32Next(hModuleSnapshot, &me));
+	}
+	if (hModuleSnapshot)
+		CloseHandle(hModuleSnapshot);
 
 
-void MicroProfileWin32InitThreadInfo()
+}
+void MicroProfileWin32InitThreadInfo2()
 {
 	memset(&g_ThreadInfo, 0, sizeof(g_ThreadInfo));
+	float fToMsCpu = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
 
 	HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPALL, 0);
 	PROCESSENTRY32 pe32;
 	THREADENTRY32 te32;
 	te32.dwSize = sizeof(THREADENTRY32);
 	pe32.dwSize = sizeof(PROCESSENTRY32);
-	if (Process32First(hSnap, &pe32))
 	{
-		do 
+		int64_t nTickStart = MP_TICK();
+		if (Process32First(hSnap, &pe32))
 		{
-			MicroProfileWin32ThreadInfo::Process P;
-			P.pid = pe32.th32ProcessID;
-			P.pProcessModule = MicroProfileWin32ThreadInfoAddString(pe32.szExeFile);
-			g_ThreadInfo.P[g_ThreadInfo.nNumProcesses++] = P;
-		} while (Process32Next(hSnap, &pe32) && g_ThreadInfo.nNumProcesses < MicroProfileWin32ThreadInfo::MAX_PROCESSES);
+			do
+			{
+
+				MicroProfileWin32ThreadInfo::Process P;
+				P.pid = pe32.th32ProcessID;
+				P.pProcessModule = MicroProfileWin32ThreadInfoAddString(pe32.szExeFile);
+				g_ThreadInfo.P[g_ThreadInfo.nNumProcesses++] = P;
+			} while (Process32Next(hSnap, &pe32) && g_ThreadInfo.nNumProcesses < MicroProfileWin32ThreadInfo::MAX_PROCESSES);
+		}
+#if MICROPROFILE_DEBUG
+		int64_t nTicksEnd = MP_TICK();
+		float fMs = fToMsCpu * (nTicksEnd - nTickStart);
+		printf("Process iteration %6.2fms processes %d\n", fMs, g_ThreadInfo.nNumProcesses);
+#endif
+	}
+	{
+		int64_t nTickStart = MP_TICK();
+		for (uint32_t i = 0; i < g_ThreadInfo.nNumProcesses; ++i)
+		{
+			uint32_t pid = g_ThreadInfo.P[i].pid;
+			g_ThreadInfo.P[i].nModuleStart = g_ThreadInfo.nNumModules;
+			g_ThreadInfo.P[i].nNumModules = 0;
+			MicroProfileWin32ExtractModules(g_ThreadInfo.P[i]);
+		}
+#if MICROPROFILE_DEBUG
+		int64_t nTicksEnd = MP_TICK();
+		float fMs = fToMsCpu * (nTicksEnd - nTickStart);
+		printf("Module iteration %6.2fms NumModules %d\n", fMs, g_ThreadInfo.nNumModules);
+#endif
 	}
 
 
@@ -4316,6 +4375,7 @@ void MicroProfileWin32InitThreadInfo()
 
 	if (Thread32First(hSnap, &te32))
 	{
+		int64_t nTickStart = MP_TICK();
 		do
 		{
 			nThreadsTested++;
@@ -4328,30 +4388,32 @@ void MicroProfileWin32InitThreadInfo()
 				if (0 == ntStatus)
 				{
 					bool bFound = false;
-					HANDLE hModuleSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, te32.th32OwnerProcessID);
-					MODULEENTRY32 me;
-					if (Module32First(hModuleSnapshot, &me))
+					uint32_t nProcessIndex = (uint32_t)-1;					
+					for (uint32_t i = 0; i < g_ThreadInfo.nNumProcesses; ++i)
 					{
-						do
+						if (g_ThreadInfo.P[i].pid == te32.th32OwnerProcessID)
 						{
-							intptr_t nBase = (intptr_t)me.modBaseAddr;
-							intptr_t nEnd = nBase + me.modBaseSize;
-							if (nBase <= dwStartAddress && nEnd >= dwStartAddress)
-							{
-								pModule = &me.szModule[0];
-								bFound = true;
-								nThreadsSucceeded2++;
-								break;
-							}
-						} while (Module32Next(hModuleSnapshot, &me));
+							nProcessIndex = i;
+							break;
+						}
 					}
-					if (hModuleSnapshot) CloseHandle(hModuleSnapshot);
+					if (nProcessIndex != (uint32_t)-1)
+					{
+						uint32_t nModuleStart = g_ThreadInfo.P[nProcessIndex].nModuleStart;
+						uint32_t nNumModules = g_ThreadInfo.P[nProcessIndex].nNumModules;
+						for (uint32_t i = 0; i < nNumModules; ++i)
+						{
+							auto& M = g_ThreadInfo.M[nModuleStart + i];
+							if (M.nBase <= dwStartAddress && M.nEnd >= dwStartAddress)
+							{
+								pModule = M.pName;
+							}
+						}
+					}
 				}
 			}
 			if (hThread)
 				CloseHandle(hThread);
-
-
 			{
 				MicroProfileThreadInfo T;
 				T.pid = te32.th32OwnerProcessID;
@@ -4375,18 +4437,16 @@ void MicroProfileWin32InitThreadInfo()
 
 
 		} while (Thread32Next(hSnap, &te32) && g_ThreadInfo.nNumThreads < MicroProfileWin32ThreadInfo::MAX_THREADS);
-	}
 
-	//for (uint32_t i = 0; i < g_ThreadInfo.nNumProcesses; ++i)
-	//{
-	//	printf("process pid %d exe %s\n", g_ThreadInfo.P[i].pid, g_ThreadInfo.P[i].pProcessModule);
-	//}
-	//for (uint32_t i = 0; i < g_ThreadInfo.nNumThreads; ++i)
-	//{
-	//	printf("thread tid %d pid %d, entry %s, process %s\n", g_ThreadInfo.T[i].tid, g_ThreadInfo.T[i].pid, g_ThreadInfo.T[i].pThreadModule, g_ThreadInfo.T[i].pProcessModule);
-	//}
-	printf("Tested %d Succeeded %d syc2 %d\n", nThreadsTested, nThreadsSucceeded, nThreadsSucceeded2);
+#if MICROPROFILE_DEBUG
+		int64_t nTickEnd = MP_TICK();
+		float fMs = fToMsCpu * (nTickEnd - nTickStart);
+		printf("Thread iteration %6.2fms Threads %d\n", fMs, g_ThreadInfo.nNumThreads);
+#endif
+
+	}
 }
+
 void MicroProfileWin32UpdateThreadInfo()
 {
 	static int nWasRunning = 1;
@@ -4396,7 +4456,7 @@ void MicroProfileWin32UpdateThreadInfo()
 	if ((0 == nRunning && 1 == nWasRunning) || nOnce == 0)
 	{
 		nOnce = 1;
-		MicroProfileWin32InitThreadInfo();
+		MicroProfileWin32InitThreadInfo2();
 	}
 	nWasRunning = nRunning;
 
@@ -4579,7 +4639,7 @@ MicroProfileThreadInfo MicroProfileGetThreadInfo(ThreadIdType nThreadId)
 }
 uint32_t MicroProfileGetThreadInfoArray(MicroProfileThreadInfo** pThreadArray)
 {
-	MicroProfileWin32InitThreadInfo();
+	MicroProfileWin32InitThreadInfo2();
 	*pThreadArray = &g_ThreadInfo.T[0];
 	return g_ThreadInfo.nNumThreads;
 }
