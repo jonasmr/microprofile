@@ -65,16 +65,30 @@ void DumpFile(FILE* pOut, const char* pEmbedData, const char* pPrefix, const cha
 		nNumBlocks++;
 	}
 	fprintf(pOut, "const char* %s%s[] = {\n", pPrefix, pSuffix);
-	for(int i = 0; i < nNumBlocks; ++i)
+	if(nNumBlocks)
 	{
-		fprintf(pOut, "&%s%s_%d[0],\n", pPrefix, pSuffix, i);
+		for (int i = 0; i < nNumBlocks; ++i)
+		{
+			fprintf(pOut, "&%s%s_%d[0],\n", pPrefix, pSuffix, i);
+		}
+	}
+	else
+	{
+		fprintf(pOut, "\"\"");
 	}
 	fprintf(pOut, "};\n");
 
 	fprintf(pOut, "size_t %s%s_sizes[] = {\n", pPrefix, pSuffix);
-	for(int i = 0; i < nNumBlocks; ++i)
+	if(nNumBlocks)
 	{
-		fprintf(pOut, "sizeof(%s%s_%d),\n", pPrefix, pSuffix, i);
+		for (int i = 0; i < nNumBlocks; ++i)
+		{
+			fprintf(pOut, "sizeof(%s%s_%d),\n", pPrefix, pSuffix, i);
+		}
+	}
+	else
+	{
+		fprintf(pOut, "0");
 	}
 	fprintf(pOut, "};\n");
 	fprintf(pOut, "size_t %s%s_count = %d;\n", pPrefix, pSuffix, nNumBlocks);

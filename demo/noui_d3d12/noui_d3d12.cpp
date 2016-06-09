@@ -211,7 +211,7 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 	OnInit();
 
 	MicroProfileOnThreadCreate("Main");
-	MicroProfileSetForceEnable(true);
+//	MicroProfileSetForceEnable(true);
 	MicroProfileSetEnableAllGroups(true);
 	MicroProfileSetForceMetaCounters(true);
 	MICROPROFILE_CONDITIONAL(g_QueueGraphics = MICROPROFILE_GPU_INIT_QUEUE("GPU-Graphics-Queue"));

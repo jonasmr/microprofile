@@ -1983,8 +1983,9 @@ inline void MicroProfileLogPut(MicroProfileLogEntry LE, MicroProfileThreadLog* p
 	uint32_t nNextPos = (nPut+1) % MICROPROFILE_BUFFER_SIZE;
 	uint32_t nGet = pLog->nGet.load(std::memory_order_relaxed);
 	uint32_t nDistance = (nGet - nNextPos) % MICROPROFILE_BUFFER_SIZE;
+	MP_ASSERT(nDistance < MICROPROFILE_BUFFER_SIZE);
 	uint32_t nStackPut = pLog->nStackPut;
-	if (nDistance < nStackPut)
+	if (nDistance < nStackPut + 2)
 	{
 		S.nOverflow = 100;
 	}
@@ -2004,15 +2005,16 @@ inline uint64_t MicroProfileLogPutEnter(MicroProfileToken nToken_, uint64_t nTic
 	uint32_t nNextPos = (nPut + 1) % MICROPROFILE_BUFFER_SIZE;
 	uint32_t nGet = pLog->nGet.load(std::memory_order_acquire);
 	uint32_t nDistance = (nGet - nNextPos) % MICROPROFILE_BUFFER_SIZE;
-	uint32_t nStackPut = ++(pLog->nStackPut);
-	if (nDistance < nStackPut+1)
+	MP_ASSERT(nDistance < MICROPROFILE_BUFFER_SIZE);
+	uint32_t nStackPut = (pLog->nStackPut);
+	if (nDistance < nStackPut+4) //2 for ring buffer, 2 for the actual entries
 	{
-		--pLog->nStackPut;
 		S.nOverflow = 100;
 		return MICROPROFILE_INVALID_TICK;
 	}
 	else
 	{
+		pLog->nStackPut = nStackPut + 1;
 		pLog->Log[nPut] = LE;
 		pLog->nPut.store(nNextPos, std::memory_order_release);
 		return nTick;
@@ -3048,10 +3050,17 @@ void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pC
 	nContextSwitchStart = nContextSwitchEnd = (nContextSwitchPut + MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE - 1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE;		
 	int64_t nSearchEnd = nBaseTicksEndCpu + MicroProfileMsToTick(30.f, MicroProfileTicksPerSecondCpu());
 	int64_t nSearchBegin = nBaseTicksCpu - MicroProfileMsToTick(30.f, MicroProfileTicksPerSecondCpu());
+	printf("searching for %lld -> %lld  :: %lld", nSearchBegin, nSearchEnd, S.nPauseTicks);
+	int64_t nMax = INT64_MIN;
+	int64_t nMin = INT64_MAX;
 	for(uint32_t i = 0; i < MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE; ++i)
 	{
 		uint32_t nIndex = (nContextSwitchPut + MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE - (i+1)) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE;
 		MicroProfileContextSwitch& CS = S.ContextSwitch[nIndex];
+		if (nMax < CS.nTicks)
+			nMax = CS.nTicks;
+		if (nMin > CS.nTicks && CS.nTicks != 0)
+			nMin = CS.nTicks;
 		if(CS.nTicks > nSearchEnd)
 		{
 			nContextSwitchEnd = nIndex;
@@ -3063,6 +3072,7 @@ void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pC
 	}
 	*pContextSwitchStart = nContextSwitchStart;
 	*pContextSwitchEnd = nContextSwitchEnd;
+	printf("end range %lld %lld\n", nMin, nMax);
 }
 
 int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_t nBufferSize)
@@ -3831,6 +3841,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 	uint32_t nContextSwitchStart = 0;
 	uint32_t nContextSwitchEnd = 0;
 	MicroProfileContextSwitchSearch(&nContextSwitchStart, &nContextSwitchEnd, nTickStart, nTickEnd);
+	printf("contextswitch search %d %d\n", nContextSwitchStart, nContextSwitchEnd);
 
 	uint32_t nWrittenBefore = S.nWebServerDataSent;
 	MicroProfilePrintf(CB, Handle, "var CSwitchThreadInOutCpu = [");
@@ -4286,9 +4297,11 @@ typedef struct {
 	unsigned char buffer[64];
 } MicroProfile_SHA1_CTX;
 #include <string.h>
+#ifndef _WIN32
 #include <netinet/in.h>
+#endif
 
-static void MicroProfile_SHA1_Transform(u_int32_t[5], const unsigned char[64]);
+static void MicroProfile_SHA1_Transform(uint32_t[5], const unsigned char[64]);
 
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
@@ -4305,12 +4318,12 @@ static void MicroProfile_SHA1_Transform(u_int32_t[5], const unsigned char[64]);
 
 // Hash a single 512-bit block. This is the core of the algorithm. 
 
-static void MicroProfile_SHA1_Transform(u_int32_t state[5], const unsigned char buffer[64])
+static void MicroProfile_SHA1_Transform(uint32_t state[5], const unsigned char buffer[64])
 {
-    u_int32_t a, b, c, d, e;
+    uint32_t a, b, c, d, e;
     typedef union {
 	unsigned char c[64];
-	u_int32_t l[16];
+	uint32_t l[16];
     } CHAR64LONG16;
     CHAR64LONG16 *block;
 
@@ -4392,7 +4405,7 @@ void MicroProfile_SHA1_Update(MicroProfile_SHA1_CTX *context, const unsigned cha
 
 void MicroProfile_SHA1_Final(unsigned char digest[20], MicroProfile_SHA1_CTX *context)
 {
-    u_int32_t i, j;
+    uint32_t i, j;
     unsigned char finalcount[8];
 
     for (i = 0; i < 8; i++) {
@@ -4468,7 +4481,7 @@ void MicroProfileSocketDumpState()
 	FD_ZERO(&Read);
 	FD_ZERO(&Write);
 	FD_ZERO(&Error);
-	int LastSocket = 1;
+	MpSocket LastSocket = 1;
 	for(uint32_t i = 0; i < S.nNumWebSockets; ++i)
 	{
 		LastSocket = MicroProfileMax(LastSocket, S.WebSockets[i]+1);
@@ -4487,7 +4500,7 @@ void MicroProfileSocketDumpState()
 	for(uint32_t i = 0; i < S.nNumWebSockets; i++)
 	{
 		MpSocket s = S.WebSockets[i];
-		printf("%d ", s);
+		printf("%lld ", (uint64_t)s);
 
 		if(FD_ISSET(s, &Error))
 		{
@@ -4518,18 +4531,18 @@ void MicroProfileSocketDumpState()
 	printf("\n");
 	for(uint32_t i = 1; i < S.nNumWebSockets; i++)
 	{
+#ifndef _WINDOWS ///windowssocket
 		MpSocket s = S.WebSockets[i];
 		int error_code;
-		socklen_t error_code_size = sizeof(error_code);
+		size_t error_code_size = sizeof(error_code);
 		int r = getsockopt(s, SOL_SOCKET, SO_ERROR, &error_code, &error_code_size);
 		MP_ASSERT(r >= 0);
-
-
 		if (error_code != 0) {
 		    /* socket has a non zero error status */
 		    fprintf(stderr, "socket error: %d %s\n", s, strerror(error_code));
 		    MP_ASSERT(0);
 		}
+#endif
 
 	}
 
@@ -4537,7 +4550,7 @@ void MicroProfileSocketDumpState()
 
 void MicroProfileSocketSend(MpSocket Connection, const void* pMessage, int nLen)
 {
-	if(S.nSocketFail)
+	if(S.nSocketFail || nLen <= 0)
 	{
 		return;
 	}
@@ -4559,8 +4572,8 @@ void MicroProfileSocketSend(MpSocket Connection, const void* pMessage, int nLen)
     {
     	MP_ASSERT(0);
     }
-    bool bWrite = FD_ISSET(Connection, &Write);
-    bool bError = FD_ISSET(Connection, &Error);
+    bool bWrite = FD_ISSET(Connection, &Write)?1:0;
+    bool bError = FD_ISSET(Connection, &Error)?1:0;
     if(!bWrite)
     {
     	printf("error cannot write\n");
@@ -4572,6 +4585,7 @@ void MicroProfileSocketSend(MpSocket Connection, const void* pMessage, int nLen)
     	MP_ASSERT(0);
     }
 
+#ifndef _WIN32 
 	int error_code;
 	socklen_t error_code_size = sizeof(error_code);
 	getsockopt(Connection, SOL_SOCKET, SO_ERROR, &error_code, &error_code_size);
@@ -4581,12 +4595,18 @@ void MicroProfileSocketSend(MpSocket Connection, const void* pMessage, int nLen)
     	S.nSocketFail = 1;
     	return;
 	}
+#endif
 
 
 
-	int s = send(Connection, pMessage, nLen, 0);
-
-
+	int s = send(Connection, (const char*)pMessage, nLen, 0);
+#ifdef _WIN32
+	if(s == SOCKET_ERROR)
+	{
+		S.nSocketFail = 1;
+		return;
+	}
+#endif
 
 	MP_ASSERT(s == nLen);
 }
@@ -4733,7 +4753,7 @@ void MicroProfileToggleWebSocketToggleTimer(uint32_t nTimer)
 		int* pPrev = &S.WebSocketTimers;
 		while(*pPrev != -1 && *pPrev != (int)nTimer)
 		{
-			MP_ASSERT(*pPrev < S.nTotalTimers && *pPrev >= 0);
+			MP_ASSERT(*pPrev < (int)S.nTotalTimers && *pPrev >= 0);
 			pPrev = &S.TimerInfo[*pPrev].nWSNext;
 		}
 		if(TI.bWSEnabled)
@@ -4884,9 +4904,9 @@ typedef bool (*MicroProfileOnSettings)(const char* pName, uint32_t nNameLen, con
 #define MICROPROFILE_SETTINGS_FILE_TEMP "xxmppresets" ".tmp"
 
 
-#define WRITE(s, l, f) do{int r = fwrite(s, l, 1, f); nWritten += l; if(r != 1){ Fail(r, __LINE__); MP_BREAK(); return false;} }while(0)
-#define CHECK_EQ(v, st) do{int r = (st); if(r != v){Fail(r, __LINE__);return;} }while(0)
-#define CHECK_NEQ(v, st) do{int r = (st); if(r != v){Fail(r, __LINE__);return;} }while(0)
+#define WRITE(s, l, f) do{int r = (int)fwrite(s, l, 1, f); nWritten += l; if(r != 1){ Fail(r, __LINE__); MP_BREAK(); return false;} }while(0)
+#define CHECK_EQ(v, st) do{int r = (int)(st); if(r != v){Fail(r, __LINE__);return;} }while(0)
+#define CHECK_NEQ(v, st) do{int r = (int)s(st); if(r != v){Fail(r, __LINE__);return;} }while(0)
 
 template<typename T>
 void MicroProfileParseSettings(T CB)
@@ -4907,12 +4927,11 @@ void MicroProfileParseSettings(T CB)
 	{
 
 		printf("failing reading file error %d, line %d,filesize %ld \n", r, nLine, filesize);
-		__builtin_trap();
 		fclose(F);
 		MP_BREAK();
 	};
 
-	CHECK_EQ(0, fseek(F, -sizeof(MicroProfileSettingsFileHeader), SEEK_END));
+	CHECK_EQ(0, fseek(F, -(int)sizeof(MicroProfileSettingsFileHeader), SEEK_END));
 	MicroProfileSettingsFileHeader FileHeader;
 	CHECK_EQ(1, fread(&FileHeader, sizeof(FileHeader), 1, F));
 	if(!FileHeader.nNumHeaders || FileHeader.nMagic != MICROPROFILE_PRESET_HEADER_MAGIC2 || FileHeader.nVersion != MICROPROFILE_PRESET_HEADER_VERSION2)
@@ -4953,7 +4972,6 @@ bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSetting
 	{
 
 		printf("failing reading file error %d, line %d \n", r, nLine);
-		__builtin_trap();
 		fclose(F);
 		MP_BREAK();
 	};
@@ -4967,10 +4985,10 @@ bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSetting
 
 
 	H.nNameOffset = ftell(F);
-	H.nNameSize = strlen(pSettingsName)+1;
+	H.nNameSize = (uint32_t)strlen(pSettingsName)+1;
 	WRITE(pSettingsName, H.nNameSize, F);
 	H.nJsonOffset = ftell(F);
-	H.nJsonSize = strlen(pJsonSettings)+1;
+	H.nJsonSize = (uint32_t)strlen(pJsonSettings)+1;
 	WRITE(pJsonSettings, H.nJsonSize, F);
 	
 	uint32_t nNumHeaders = 1;
@@ -5055,7 +5073,7 @@ void MicroProfileLoadPresets(const char* pSettingsName)
 		{
 			if(0 == MP_STRCASECMP(pName, pSettingsName))
 			{
-				uint32_t nLen = strlen(pJson)+1;
+				uint32_t nLen = (uint32_t)strlen(pJson)+1;
 				if(nLen > S.nJsonSettingsBufferSize)
 				{
 					S.pJsonSettings = (char*)realloc(S.pJsonSettings, nLen);
@@ -5141,10 +5159,10 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 	static_assert(sizeof(h0) == 1, "");
 	static_assert(sizeof(h1) == 1, "");
 	foo= 1;
-	r = recv(Connection, &h0, 1, 0);
+	r = recv(Connection, (char*)&h0, 1, 0);
 	if(1 != r)
 		goto fail;
-	r = recv(Connection, &h1, 1, 0);
+	r = recv(Connection, (char*)&h1, 1, 0);
 	if(1 != r)
 		goto fail;
 	foo= 2;
@@ -5180,7 +5198,7 @@ foo= 3;
         uint64_t MessageLength = 0;
 
 		uint8_t Bytes[8];
-		int r = recv(Connection, &Bytes[0], nSizeBytes, 0);
+		int r = recv(Connection, (char*)&Bytes[0], nSizeBytes, 0);
 		if(nSizeBytes != r)
 			goto fail;
 		for(uint32_t i = 0; i < nSizeBytes; i++)
@@ -5197,7 +5215,7 @@ foo= 3;
 
 	if(h1.MASK)
 	{
-		recv(Connection, &Mask[0], 4, 0);
+		recv(Connection, (char*)&Mask[0], 4, 0);
 	}
 
 	foo = 4;
@@ -5210,7 +5228,7 @@ foo= 3;
 		Bytes = new unsigned char[nSize+1];
 		BytesAllocated = nSize + 1;
 	}
-	recv(Connection, Bytes, nSize, 0);
+	recv(Connection, (char*)Bytes, nSize, 0);
 	for(uint32_t i = 0; i < nSize; ++i)
 		Bytes[i] ^= Mask[i&3];
 
@@ -5285,14 +5303,13 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
     MicroProfile_SHA1_Init(&ctx);
  	MicroProfile_SHA1_Update(&ctx, (unsigned char*)EncodeBuffer, nLen);
 	MicroProfile_SHA1_Final((unsigned char*)&sha[0], &ctx);
-	char HashOut[(1+sizeof(sha)/3)*4];
+	char HashOut[(2+sizeof(sha)/3)*4];
+	memset(&HashOut[0], 0, sizeof(HashOut));
 	MicroProfileBase64Encode(&HashOut[0], &sha[0], sizeof(sha));
 
-	char Reply[1024];
+	char Reply[11024];
 	nLen = snprintf(Reply, sizeof(Reply)-1, "%s%s\r\n\r\n", pHandShake, HashOut);;
-	MP_ASSERT(nLen < sizeof(Reply));
-	// printf("reply is \n%s\n", Reply);
-	// printf("RESRES is \n%s\n", response_buffer);
+	MP_ASSERT(nLen >= 0);
 	MicroProfileSocketSend(Connection, Reply, nLen);
 	S.WebSockets[S.nNumWebSockets++] = Connection;
 
@@ -5354,7 +5371,7 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 		float fTime = fTickToMs * S.Frame[nTimer].nTicks;
 		float fCount = (float)S.Frame[nTimer].nCount;
 		float fTimeExcl = fTickToMs * S.FrameExclusive[nTimer];
-		if(0 == (S.nActiveGroup & (1 << TI.nGroupIndex)))
+		if(0 == (S.nActiveGroup & (1llu << TI.nGroupIndex)))
 		{
 			fTime = fCount = fTimeExcl = 0.f;
 		}
@@ -5371,12 +5388,16 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 
 void MicroProfileWebSocketFrame()
 {
+	if (!S.nNumWebSockets)
+	{
+		return;
+	}
 	MICROPROFILE_SCOPEI("MicroProfile", "Websocket-update", -1);
 	fd_set Read, Write, Error;
 	FD_ZERO(&Read);
 	FD_ZERO(&Write);
 	FD_ZERO(&Error);
-	int LastSocket = 1;
+	MpSocket LastSocket = 1;
 	for(uint32_t i = 0; i < S.nNumWebSockets; ++i)
 	{
 		LastSocket = MicroProfileMax(LastSocket, S.WebSockets[i]+1);
@@ -5439,10 +5460,13 @@ void MicroProfileWebSocketFrame()
 
 		if(!bConnected)
 		{
-			printf("removing socket %d\n", s);
+			printf("removing socket %lld\n", s);
 
-
+#ifndef _WIN32
         	shutdown(S.WebSockets[i], SHUT_WR);
+#else
+			shutdown(S.WebSockets[i], 1);
+#endif
             char tmp[128];
             int r = 1;
             while(r > 0)
@@ -5612,7 +5636,7 @@ bool MicroProfileWebServerUpdate()
 		if(nReceived > 0)
 		{
 			Req[nReceived] = '\0';
-			printf("req received\n%s", Req);
+			//printf("req received\n%s", Req);
 #if MICROPROFILE_MINIZ
 			//Expires: Tue, 01 Jan 2199 16:00:00 GMT\r\n
 #define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nContent-Encoding: deflate\r\n\r\n"
@@ -5697,7 +5721,7 @@ bool MicroProfileWebServerUpdate()
 							MicroProfileFlushSocket(Connection);
 			#endif
 
-			#if MICROPROFILE_DEBUG
+			#if 1
 							printf("\n<!-- Sent %dkb(compressed %dkb) in %.2fms-->\n\n", nKb, nCompressedKb, fMs);
 			#endif
 					}
@@ -5744,7 +5768,7 @@ bool MicroProfileWebServerUpdate()
 							MicroProfileFlushSocket(Connection);
 			#endif
 
-			#if MICROPROFILE_DEBUG
+			#if 1
 							printf("\n<!-- Sent %dkb(compressed %dkb) in %.2fms-->\n\n", nKb, nCompressedKb, fMs);
 			#endif
 						}
