@@ -2299,7 +2299,7 @@ void MicroProfileGpuLeave(MicroProfileThreadLogGpu* pGpuLog, MicroProfileToken n
 
 void MicroProfileContextSwitchPut(MicroProfileContextSwitch* pContextSwitch)
 {
-	if(pContextSwitch->nTicks <= S.nPauseTicks)
+	if(S.nActiveGroup || pContextSwitch->nTicks <= S.nPauseTicks)
 	{
 		uint32_t nPut = S.nContextSwitchPut;
 		S.ContextSwitch[nPut] = *pContextSwitch;
