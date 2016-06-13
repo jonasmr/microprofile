@@ -4534,7 +4534,7 @@ void MicroProfileSocketDumpState()
 #ifndef _WINDOWS ///windowssocket
 		MpSocket s = S.WebSockets[i];
 		int error_code;
-		size_t error_code_size = sizeof(error_code);
+		socklen_t error_code_size = sizeof(error_code);
 		int r = getsockopt(s, SOL_SOCKET, SO_ERROR, &error_code, &error_code_size);
 		MP_ASSERT(r >= 0);
 		if (error_code != 0) {
@@ -4560,7 +4560,7 @@ void MicroProfileSocketSend(MpSocket Connection, const void* pMessage, int nLen)
 	FD_ZERO(&Read);
 	FD_ZERO(&Write);
 	FD_ZERO(&Error);
-	int LastSocket = Connection;
+	int LastSocket = Connection+1;
 	FD_SET(Connection, &Read);
 	FD_SET(Connection, &Write);
 	FD_SET(Connection, &Error);
@@ -5345,7 +5345,7 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 void MicroProfileWebSocketSendFrame(MpSocket Connection)
 {
 	MicroProfileWebSocketSendState(Connection);
-	MICROPROFILE_SCOPEI("MPWS", "MicroProfileWebSocketSendFrame", 0xff0000);
+	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileWebSocketSendFrame", 0xff0000);
 	WSPrintStart(Connection);
 
 	float fTickToMsCpu = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
@@ -5460,7 +5460,7 @@ void MicroProfileWebSocketFrame()
 
 		if(!bConnected)
 		{
-			printf("removing socket %lld\n", s);
+			printf("removing socket %lld\n", (uint64_t)s);
 
 #ifndef _WIN32
         	shutdown(S.WebSockets[i], SHUT_WR);
@@ -5541,6 +5541,8 @@ void MicroProfileWebSocketSendEnabledMessage(uint32_t id, bool bEnabled)
 }
 void MicroProfileWebSocketSendEnabled(MpSocket C)
 {
+	MICROPROFILE_SCOPEI("MicroProfile", "Websocket-SendEnabled", -1);
+
 	MICROPROFILE_SCOPEI("MPWSxxEnables", "MicroProfileWebSocketSendEnabled", 0xff0000);
 
 	WSPrintStart(C);
