@@ -361,7 +361,6 @@ function ProfileModeDraw(Canvas)
 function MeasureFont()
 {
 	var context = CanvasDetailedView.getContext('2d');
-	//context.font = Font;
 	FontWidth = context.measureText('W').width;
 
 }
@@ -1068,7 +1067,8 @@ function DrawMessage(context)
 function DrawCaptureButton(context)
 {
 
-	var CaptureText = "Capture[" + Settings.CaptureFrames + "]";
+	var CaptureRange = MouseDragActiveXStart < MouseDragActiveXEnd ? "Selection" : (""+Settings.CaptureFrames);
+	var CaptureText = "Capture[" + CaptureRange + "]";
 	var w = 10 + context.measureText(CaptureText).width;
 	var X = nWidth / 2 - w / 2;
 	var XCenter = nWidth / 2;
@@ -1492,6 +1492,13 @@ function DrawMenuPresets()
 	return SizeInfo;
 
 }
+
+function ToggleView()
+{
+	Settings.ViewActive = (Settings.ViewActive+1) % 4;
+	ActivateView(Settings.ViewActive);
+}
+
 function ActivateView(idx)
 {
 	for(var i = 1; i < Views.length; ++i)
@@ -1832,8 +1839,6 @@ function DrawMenuRoll(M, Name, RollValue, RollExt, RollFunction, Tweak, Type)
 	M.cidx = 1-M.cidx;
 
 	M.y += BoxHeight;
-	//YText += BoxHeight;
-
 	if(Type && MouseReleased && bMouseIn && !MouseReleasedUsed)
 	{
 		var V = ShowPrompt(Name, RollValue, Type);
@@ -1842,11 +1847,6 @@ function DrawMenuRoll(M, Name, RollValue, RollExt, RollFunction, Tweak, Type)
 	return Tweak;
 
 }
-
-
-
-
-
 
 
 
@@ -2813,35 +2813,45 @@ function MouseDragPan()
 }
 function MouseDragSelectRange()
 {
-	return MouseDragState == MouseDragMove && (MouseDragButton == 3 || (MouseDragKeyShift || MouseDragKeyCtrl));
+	return MouseDragState == MouseDragMove && (MouseDragButton == 3 || (MouseDragKeyShift&&MouseDragKeyCtrl));
 }
+
 function MouseHandleDrag()
 {
 	if(MouseDragTarget == CanvasDetailedView)
 	{
-		if(MouseDragSelectRange() && SubMenuActive == -1)
+		if(SubMenuActive == -1)
 		{
-			var xStart = MouseDragXStart;
-			var xEnd = MouseDragX;
-			if(xStart > xEnd)
+			if(MouseDragSelectRange() && SubMenuActive == -1)
 			{
-				var Temp = xStart;
-				xStart = xEnd;
-				xEnd = Temp;
+				var xStart = MouseDragXStart;
+				var xEnd = MouseDragX;
+				if(xStart > xEnd)
+				{
+					var Temp = xStart;
+					xStart = xEnd;
+					xEnd = Temp;
+				}
+				if(xEnd - xStart > 1)
+				{
+					MouseDragActiveXStart = xStart;
+					MouseDragActiveXEnd = xEnd;
+				}
 			}
-			if(xEnd - xStart > 1)
+			else if(MouseDragPan())
 			{
-				MouseDragActiveXStart = xStart;
-				MouseDragActiveXEnd = xEnd;
+				var X = MouseDragX - MouseDragXLast;
+				var Y = MouseDragY - MouseDragYLast;
+				if(X && MouseDragActiveXStart < MouseDragActiveXEnd)
+				{
+					MouseDragActiveXStart += X;
+					MouseDragActiveXEnd += X;
+				}
 			}
-		}
-		else if(MouseDragPan())
-		{
-		}
-		else if(MouseDragKeyCtrl)
-		{
 		}
 	}
+	MouseDragXLast = MouseDragX;
+	MouseDragYLast = MouseDragY;	
 }
 function MouseHandleDragEnd()
 {
@@ -2977,13 +2987,12 @@ function MouseButton(bPressed, evt)
     MouseReleased = !bPressed;
 	MouseDrag(bPressed ? MouseDragDown : MouseDragUp, evt);
     RequestDraw();
-
 }
 
 function MouseOut(evt)
 {
 	MouseDrag(MouseDragOff, evt);
-	// KeyCtrlDown = 0;
+	KeyCtrlDown = 0;
 	KeyShiftDown = 0;
 	// MouseDragButton = 0;
 	// nHoverToken = -1;
@@ -3051,7 +3060,10 @@ function KeyUp(evt)
 		KeyShiftDown = 0;
 		MouseDragKeyUp();
 	}
-
+	if(k == 88)
+	{
+		ToggleView();
+	}
 }
 
 function KeyDown(evt)

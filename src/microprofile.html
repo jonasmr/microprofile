@@ -67,6 +67,7 @@ Space: Zoom to Selection<br>
 Ctrl + Drag: Pan<br>
 Click + Drag: Pan<br>
 alt or z: Toggle ToolTip<br>
+x : Toggle View<br>
 <hr>
 Detailed View:<br>
 Tab: Go To Worst Instance<br>
@@ -909,6 +910,34 @@ function ShowHelp(Show, Forever)
 		WriteCookie();
 	}
 }
+function ToggleMode()
+{
+	if(Mode == ModeTimers)
+	{
+		if(TimersGroups == 0)
+		{
+			SetMode('timers', 1);
+		}
+		else if(TimersGroups == 1)
+		{
+			SetMode('timers', 2);
+		}
+		else if(TimersGroups == 2)
+		{
+			SetMode('detailed', 0);
+		}
+
+	}
+	else if(Mode == ModeCounters)
+	{
+		SetMode('timers', 0);
+	}
+	else if(Mode == ModeDetailed)
+	{
+		SetMode('counters', 0);
+	}
+}
+
 function SetMode(NewMode, Groups)
 {
 	var buttonTimers = document.getElementById('buttonTimers');
@@ -4233,8 +4262,10 @@ function KeyUp(evt)
 		}
 		ShowFlashMessage('ToolTip: ' + ToolTipStr, 100);
 	}
-
-
+	if(evt.keyCode == 88)
+	{
+		ToggleMode();
+	}
 	Invalidate = 0;
 }
 function CreateFilter(Filter)
