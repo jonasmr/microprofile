@@ -876,9 +876,15 @@ struct MicroProfileThreadLog
 
 struct MicroProfileWebSocketBuffer
 {
+	char Header[20];
 	char Buffer[MICROPROFILE_WEBSOCKET_BUFFER_SIZE];
 	uint32_t nPut;
 	MpSocket Socket;
+
+
+	char SendBuffer[MICROPROFILE_WEBSOCKET_BUFFER_SIZE];
+	std::atomic<uint32_t> nSendPut;
+	std::atomic<uint32_t> nSendGet;
 };
 
 //linear, per-frame per-thread gpu log
@@ -1128,6 +1134,10 @@ struct MicroProfile
 	uint32_t					nNumWebSockets;
 	uint32_t 					nSocketFail; // for error propagation.
 
+
+	MicroProfileThread 			WebSocketSendThread;
+	bool 	 					WebSocketThreadRunning;
+
 	uint32_t 					WSCategoriesSent;
 	uint32_t 					WSGroupsSent;
 	uint32_t 					WSTimersSent;
@@ -1136,7 +1146,7 @@ struct MicroProfile
 	uint32_t 					nJsonSettingsPending;
 	uint32_t 					nJsonSettingsBufferSize;
 	uint32_t 					nWSWasConnected;
-
+	uint32_t 					nMicroProfileShutdown;
 
 	char 						CounterNames[MICROPROFILE_MAX_COUNTER_NAME_CHARS];
 	MicroProfileCounterInfo 	CounterInfo[MICROPROFILE_MAX_COUNTERS];
@@ -1491,6 +1501,7 @@ void MicroProfileShutdown()
 		S.pJsonSettings = 0;
 		S.nJsonSettingsBufferSize = 0;
 	}
+	S.nMicroProfileShutdown = 1;
 	MicroProfileWebServerStop();
 	MicroProfileStopContextSwitchTrace();
 	MicroProfileGpuShutdown();
@@ -4548,42 +4559,146 @@ void MicroProfileSocketDumpState()
 
 }
 
+void MicroProfileSleep(uint32_t nMs)
+{
+	usleep(nMs * 1000);
+}
+
+bool MicroProfileSocketSend2(MpSocket Connection, const void* pMessage, int nLen);
+void* MicroProfileSocketSenderThread(void*)
+{
+	MicroProfileOnThreadCreate("ContextSwitchThread");
+	while(!S.nMicroProfileShutdown)
+	{
+		MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSocketSend", 0);
+		if(S.nSocketFail)
+		{
+			MicroProfileSleep(100);
+			continue;
+		}
+		uint32_t nEnd = MICROPROFILE_WEBSOCKET_BUFFER_SIZE;
+		uint32_t nGet = S.WSBuf.nSendGet.load();
+		uint32_t nPut = S.WSBuf.nSendPut.load();
+		uint32_t nSendStart = 0;
+		uint32_t nSendAmount = 0;
+		if(nGet > nPut)
+		{
+			nSendStart = nGet;
+			nSendAmount = nEnd - nGet;
+		}
+		else if(nGet < nPut)
+		{
+			nSendStart = nGet;
+			nSendAmount = nPut - nGet;
+		}
+
+
+		if(nSendAmount)
+		{
+			if(!MicroProfileSocketSend2(S.WebSockets[0], &S.WSBuf.SendBuffer[nSendStart], nSendAmount))
+			{
+				S.nSocketFail = 1;
+			}
+			else
+			{
+				S.WSBuf.nSendGet.store( (nGet + nSendAmount) % MICROPROFILE_WEBSOCKET_BUFFER_SIZE);
+			}
+		}
+		else
+		{
+			MicroProfileSleep(20);
+		}
+
+	}
+	return 0;
+}
+
 void MicroProfileSocketSend(MpSocket Connection, const void* pMessage, int nLen)
 {
 	if(S.nSocketFail || nLen <= 0)
 	{
 		return;
 	}
+	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSocketSend", 0);
+	while(nLen != 0)
+	{
+		MP_ASSERT(nLen > 0);
+		uint32_t nEnd = MICROPROFILE_WEBSOCKET_BUFFER_SIZE;
+		uint32_t nGet = S.WSBuf.nSendGet.load();
+		uint32_t nPut = S.WSBuf.nSendPut.load();
+		uint32_t nAmount = 0;
+		if(nPut < nGet)
+		{
+			nAmount = nGet - nPut - 1;
+		}
+		else
+		{
+			if(nGet == 0)
+			{
+				nAmount = nEnd - nPut - 1;
+			}
+			else
+			{
+				nAmount = nEnd - nPut;
+			}
+		}
+		MP_ASSERT((int)nAmount >= 0);
+		nAmount = MicroProfileMin(nLen, (int)nAmount);
+		if(nAmount)
+		{
+			memcpy(&S.WSBuf.SendBuffer[nPut], pMessage, nAmount);
+			pMessage = (void*) ((char*)pMessage + nAmount);
+			nLen -= nAmount;
+			S.WSBuf.nSendPut.store( (nPut+nAmount) % MICROPROFILE_WEBSOCKET_BUFFER_SIZE);
+		}
+		else
+		{
+			MicroProfileSleep(20);
+		}
+
+
+
+	}
+}
+
+bool MicroProfileSocketSend2(MpSocket Connection, const void* pMessage, int nLen)
+{
+	if(S.nSocketFail || nLen <= 0)
+	{
+		return false;
+	}
+		MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSocketSend2", 0);
+
 //	MicroProfileSocketDumpState();
 
-	fd_set Read, Write, Error;
-	FD_ZERO(&Read);
-	FD_ZERO(&Write);
-	FD_ZERO(&Error);
-	int LastSocket = Connection+1;
-	FD_SET(Connection, &Read);
-	FD_SET(Connection, &Write);
-	FD_SET(Connection, &Error);
-	timeval tv;
-	tv.tv_sec = 0;
-    tv.tv_usec = 0;
+	// fd_set Read, Write, Error;
+	// FD_ZERO(&Read);
+	// FD_ZERO(&Write);
+	// FD_ZERO(&Error);
+	// int LastSocket = Connection+1;
+	// FD_SET(Connection, &Read);
+	// FD_SET(Connection, &Write);
+	// FD_SET(Connection, &Error);
+	// timeval tv;
+	// tv.tv_sec = 0;
+ //    tv.tv_usec = 0;
 
-    if(-1 == select(LastSocket+1, &Read, &Write, &Error, &tv))
-    {
-    	MP_ASSERT(0);
-    }
-    bool bWrite = FD_ISSET(Connection, &Write)?1:0;
-    bool bError = FD_ISSET(Connection, &Error)?1:0;
-    if(!bWrite)
-    {
-    	printf("error cannot write\n");
-    	MP_ASSERT(0);
-    }
-    if(bError)
-    {
-    	printf("error write\n");
-    	MP_ASSERT(0);
-    }
+ //    if(-1 == select(LastSocket+1, &Read, &Write, &Error, &tv))
+ //    {
+ //    	MP_ASSERT(0);
+ //    }
+ //    bool bWrite = FD_ISSET(Connection, &Write)?1:0;
+ //    bool bError = FD_ISSET(Connection, &Error)?1:0;
+ //    if(!bWrite)
+ //    {
+ //    	printf("error cannot write\n");
+ //    	MP_ASSERT(0);
+ //    }
+ //    if(bError)
+ //    {
+ //    	printf("error write\n");
+ //    	MP_ASSERT(0);
+ //    }
 
 #ifndef _WIN32 
 	int error_code;
@@ -4592,23 +4707,31 @@ void MicroProfileSocketSend(MpSocket Connection, const void* pMessage, int nLen)
 	if (error_code != 0) {
     	/* socket has a non zero error status */
     	fprintf(stderr, "socket error xxx: %d %s\n", Connection, strerror(error_code));
-    	S.nSocketFail = 1;
-    	return;
+    	
+    	return false;
 	}
 #endif
 
-
-
-	int s = send(Connection, (const char*)pMessage, nLen, 0);
+	int s = 0;
+	{
+		MICROPROFILE_SCOPEI("microprofile", "websocket-send", 0);
+		int64_t nTick = MP_TICK();
+		s = send(Connection, (const char*)pMessage, nLen, 0);
+		int64_t nTickE = MP_TICK();
+		static int g_Enabled = 0;
+		if(g_Enabled && 1.f < 1000.f * (nTickE - nTick) / MicroProfileTicksPerSecondCpu())
+		{
+			MP_BREAK();
+		}
+	}
 #ifdef _WIN32
 	if(s == SOCKET_ERROR)
 	{
-		S.nSocketFail = 1;
-		return;
+		return false ;
 	}
 #endif
-
 	MP_ASSERT(s == nLen);
+	return true;
 }
 
 uint32_t MicroProfileWebSocketIdPack(uint32_t type, uint32_t element)
@@ -4695,7 +4818,14 @@ bool MicroProfileWebSocketSend(MpSocket Connection, const char* pMessage, uint64
 	{
 		h1.payload = nLen;
 	}
-
+	MP_ASSERT(pMessage == &S.WSBuf.Buffer[0]); //space for header is preallocated here
+	MP_ASSERT(nExtraSizeBytes < 18);
+	char* pTmp = (char*)(pMessage - nExtraSizeBytes - 2);
+	memcpy(pTmp+2, &nExtraSize[0], nExtraSizeBytes);
+	pTmp[1] = *(char*)&h1;
+	pTmp[0] = *(char*)&h0;
+	MicroProfileSocketSend(Connection, pTmp, nExtraSizeBytes + 2 + nLen);
+	#if 0
 	MicroProfileSocketSend(Connection, &h0, 1);
 	MicroProfileSocketSend(Connection, &h1, 1);
 	if(nExtraSizeBytes)
@@ -4703,6 +4833,7 @@ bool MicroProfileWebSocketSend(MpSocket Connection, const char* pMessage, uint64
 		MicroProfileSocketSend(Connection, &nExtraSize[0], nExtraSizeBytes);
 	}
 	MicroProfileSocketSend(Connection, pMessage, nLen);
+	#endif
 	return true;
 
 }
@@ -5288,6 +5419,16 @@ void MicroProfileWebSocketSendPresets(MpSocket Connection);
 
 void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 {
+	//reset web socket buffer
+	S.WSBuf.nSendPut.store(0);
+	S.WSBuf.nSendGet.store(0);
+	S.nSocketFail = 0;
+	if(!S.WebSocketThreadRunning)
+	{
+        MicroProfileThreadStart(&S.WebSocketSendThread, MicroProfileSocketSenderThread);
+		S.WebSocketThreadRunning = 1;
+	}
+
 	const char* pGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 	const char* pHandShake = "HTTP/1.1 101 Switching Protocols\r\n"
 	"Upgrade: websocket\r\n" 
