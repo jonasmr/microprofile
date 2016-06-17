@@ -1152,8 +1152,10 @@ var SubMenuViews = 3;
 var SubMenuPresets = 4;
 var SubMenuCapture = 5;
 var SubMenuActive = -1;
-var SubMenuTimeoutBase = 5;
-var SubMenuTimeout = SubMenuTimeoutBase;
+var SubMenuTimeoutBase = 0.7;
+var SubMenuMouseX = 0;
+var SubMenuMouseY = 0;
+var SubMenuTimeout = new Date();
 var MenuItems = [];
 
 function MakeMenuItem(name, f)
@@ -1171,7 +1173,7 @@ function EnableMenu(m)
 	if(m != SubMenuActive)
 	{
 		SubMenuActive = m;
-		SubMenuTimeout = SubMenuTimeoutBase;
+		SubMenuTimeout = new Date();
 	}
 	if(m == -1)
 	{
@@ -2207,15 +2209,19 @@ function DrawMenu()
 		MenuRect.y -= Grow;
 		MenuRect.h += 2*Grow;
 		MenuRect.w += 2*Grow;
-		if(MouseInRect(MenuRect))
+		var MouseMoved = MouseX != SubMenuMouseX || MouseY != SubMenuMouseY;
+	
+		if(MouseInRect(MenuRect) || !MouseMoved)
 		{
-			SubMenuTimeout = SubMenuTimeoutBase;
+			SubMenuTimeout = new Date();
+			SubMenuMouseX = MouseX;
+			SubMenuMouseY = MouseY;
 		}
 		else
 		{
-			SubMenuTimeout -= 1;
-			console.log('submenutimeout ' + SubMenuTimeout);
-			if(SubMenuTimeout <= 0)
+			var Time = new Date() - SubMenuTimeout;
+			var Dest = SubMenuTimeoutBase * 1000;
+			if(Time > Dest)
 			{
 				EnableMenu(-1);
 			}

@@ -2377,10 +2377,14 @@ static void MicroProfileFlipEnabled()
 		S.nActiveGroup = 0;
 	}
 
+#if MICROPROFILE_DEBUG
 	if(nActiveBefore != S.nActiveGroup)
 	{
 		printf("new active group is %08llx %08llx\n", S.nActiveGroup, S.nGroupMask);
 	}
+#else
+	(void)nActiveBefore;
+#endif
 
 }
 
@@ -2434,7 +2438,9 @@ void MicroProfileFlip(void* pContext)
 			#endif
 			if((nLoop % 10) == 0)
 			{
+				#if MICROPROFILE_DEBUG
 				printf("microprofile frozen %d\n", nLoop);
+				#endif
 			}
 		}
 	}while(S.nFrozen);
@@ -4205,7 +4211,6 @@ struct MicroProfileParseGetResult
 };
 MicroProfileGetCommand MicroProfileParseGet(const char* pGet, MicroProfileParseGetResult* pResult)
 {
-	printf("get is '%s' %zu\n", pGet, strlen(pGet));
 	if(0 == strlen(pGet))
 	{
 		return EMICROPROFILE_GET_COMMAND_LIVE;
@@ -4567,10 +4572,10 @@ void MicroProfileSleep(uint32_t nMs)
 bool MicroProfileSocketSend2(MpSocket Connection, const void* pMessage, int nLen);
 void* MicroProfileSocketSenderThread(void*)
 {
-	MicroProfileOnThreadCreate("ContextSwitchThread");
+	MicroProfileOnThreadCreate("MicroProfileSocketSenderThread");
 	while(!S.nMicroProfileShutdown)
 	{
-		MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSocketSend", 0);
+		MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSocketSendLoop", 0xff00ff00);
 		if(S.nSocketFail)
 		{
 			MicroProfileSleep(100);
@@ -4619,7 +4624,7 @@ void MicroProfileSocketSend(MpSocket Connection, const void* pMessage, int nLen)
 	{
 		return;
 	}
-	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSocketSend", 0);
+	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSocketSend", 0xffff0000);
 	while(nLen != 0)
 	{
 		MP_ASSERT(nLen > 0);
@@ -4667,67 +4672,23 @@ bool MicroProfileSocketSend2(MpSocket Connection, const void* pMessage, int nLen
 	{
 		return false;
 	}
-		MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSocketSend2", 0);
-
-//	MicroProfileSocketDumpState();
-
-	// fd_set Read, Write, Error;
-	// FD_ZERO(&Read);
-	// FD_ZERO(&Write);
-	// FD_ZERO(&Error);
-	// int LastSocket = Connection+1;
-	// FD_SET(Connection, &Read);
-	// FD_SET(Connection, &Write);
-	// FD_SET(Connection, &Error);
-	// timeval tv;
-	// tv.tv_sec = 0;
- //    tv.tv_usec = 0;
-
- //    if(-1 == select(LastSocket+1, &Read, &Write, &Error, &tv))
- //    {
- //    	MP_ASSERT(0);
- //    }
- //    bool bWrite = FD_ISSET(Connection, &Write)?1:0;
- //    bool bError = FD_ISSET(Connection, &Error)?1:0;
- //    if(!bWrite)
- //    {
- //    	printf("error cannot write\n");
- //    	MP_ASSERT(0);
- //    }
- //    if(bError)
- //    {
- //    	printf("error write\n");
- //    	MP_ASSERT(0);
- //    }
-
+	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSocketSend2", 0);
 #ifndef _WIN32 
 	int error_code;
 	socklen_t error_code_size = sizeof(error_code);
 	getsockopt(Connection, SOL_SOCKET, SO_ERROR, &error_code, &error_code_size);
-	if (error_code != 0) {
-    	/* socket has a non zero error status */
-    	fprintf(stderr, "socket error xxx: %d %s\n", Connection, strerror(error_code));
-    	
+	if(error_code != 0)
+	{
     	return false;
 	}
 #endif
 
 	int s = 0;
-	{
-		MICROPROFILE_SCOPEI("microprofile", "websocket-send", 0);
-		int64_t nTick = MP_TICK();
-		s = send(Connection, (const char*)pMessage, nLen, 0);
-		int64_t nTickE = MP_TICK();
-		static int g_Enabled = 0;
-		if(g_Enabled && 1.f < 1000.f * (nTickE - nTick) / MicroProfileTicksPerSecondCpu())
-		{
-			MP_BREAK();
-		}
-	}
+	s = send(Connection, (const char*)pMessage, nLen, 0);
 #ifdef _WIN32
 	if(s == SOCKET_ERROR)
 	{
-		return false ;
+		return false;
 	}
 #endif
 	MP_ASSERT(s == nLen);
@@ -4880,7 +4841,6 @@ void MicroProfileToggleWebSocketToggleTimer(uint32_t nTimer)
 	if(nTimer < S.nTotalTimers)
 	{
 		auto& TI = S.TimerInfo[nTimer];
-		printf("toggle timer %s\n", TI.pName);
 		int* pPrev = &S.WebSocketTimers;
 		while(*pPrev != -1 && *pPrev != (int)nTimer)
 		{
@@ -4901,7 +4861,6 @@ void MicroProfileToggleWebSocketToggleTimer(uint32_t nTimer)
 			*pPrev = (int)nTimer;
 			TI.bWSEnabled = true;
 		}
-		printf("new state is %d\n", TI.bWSEnabled);
 		DUMPDEBUG();
 		S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
 	}
@@ -4964,11 +4923,9 @@ void MicroProfileWebSocketCommand(uint32_t nCommand)
 {
 	uint32_t nType, nElement;
 	MicroProfileWebSocketIdUnpack(nCommand, nType, nElement);
-	printf("got c message %d :: %d %d\n", nCommand, nType, nElement);
 	switch(nType)
 	{
 	case TYPE_NONE:
-		printf("None %d\n", nType);
 		break;
 	case TYPE_SETTING:
 		switch(nElement)
@@ -4977,7 +4934,6 @@ void MicroProfileWebSocketCommand(uint32_t nCommand)
 			MicroProfileSetEnableAllGroups(!MicroProfileGetEnableAllGroups());
 			break;
 		case SETTING_CONTEXT_SWITCH_TRACE:
-			printf("Settings context switch\n");
 		    if(!S.bContextSwitchRunning)
 		    {
 		    	MicroProfileStartContextSwitchTrace();
@@ -4991,15 +4947,12 @@ void MicroProfileWebSocketCommand(uint32_t nCommand)
 		S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
 		break;
 	case TYPE_TIMER:
-		printf("Timer %d\n", nType);
 		MicroProfileToggleWebSocketToggleTimer(nElement);
 		break;
 	case TYPE_GROUP:
-		printf("Group %d\n", nType);
 		MicroProfileToggleGroup(nElement);
 		break;
 	case TYPE_CATEGORY:
-		printf("Category %d\n", nType);
 		MicroProfileToggleCategory(nElement);
 		break;
 	default:
@@ -5092,17 +5045,18 @@ bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSetting
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileGetMutex());
 
-	printf("saving settings %s.. json %s\n", pSettingsName, pJsonSettings);
 	FILE* F = fopen(MICROPROFILE_SETTINGS_FILE_TEMP, "wb");
 	if(!F)
 	{
-		printf("save failed\n");
+		return false;
 	}
 
 	auto Fail = [=](int r, uint32_t nLine)
 	{
 
+#if MICROPROFILE_DEBUG
 		printf("failing reading file error %d, line %d \n", r, nLine);
+#endif
 		fclose(F);
 		MP_BREAK();
 	};
@@ -5126,7 +5080,6 @@ bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSetting
 
 	uint32_t nMaxJsonSize = H.nJsonSize;
 	uint32_t nMaxNameSize = H.nNameSize;
-	uint32_t nOldHeaders = 0;
 
 
 	MicroProfileParseSettings(
@@ -5161,7 +5114,9 @@ bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSetting
 	WRITE(pHeaders, sizeof(pHeaders[0]) * nNumHeaders, F);
 	WRITE(&FileHeader, sizeof(FileHeader), F); 
 
-	printf("wrote %d headers was %d offset is %ld, BYTES is %d\n", nNumHeaders, nOldHeaders, ftell(F), nWritten);
+#if MICROPROFILE_DEBUG
+	printf("wrote %d offset is %ld, BYTES is %d\n", nNumHeaders, ftell(F), nWritten);
+#endif
 
 	fflush(F);
 	fclose(F);
@@ -5177,8 +5132,6 @@ bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSetting
 void MicroProfileWebSocketSendPresets(MpSocket Connection)
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileGetMutex());
-
-	printf("sending presets\n");
 	WSPrintStart(Connection);
 	WSPrintf("{\"k\":\"%d\",\"v\":[", MSG_PRESETS);
 	WSPrintf("\"Default\"");
@@ -5186,7 +5139,6 @@ void MicroProfileWebSocketSendPresets(MpSocket Connection)
 		[](const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJsonLen)
 		{
 			WSPrintf(",\"%s\"", pName);
-			printf("preset %s\n", pName);
 			return true;
 		}
 	);
@@ -5198,7 +5150,6 @@ void MicroProfileWebSocketSendPresets(MpSocket Connection)
 void MicroProfileLoadPresets(const char* pSettingsName)
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileGetMutex());	
-	printf("loading settings %s..\n", pSettingsName);
 	MicroProfileParseSettings(
 		[=](const char* pName, uint32_t l0, const char* pJson, uint32_t l1)
 		{
@@ -5279,7 +5230,6 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
      // +-+-+-+-+-------+-+-------------+ - - - - - - - - - - - - - - - +
 	int r;
 	int foo = 0;
-	//char* bytes = 0;
 	uint64_t nSize;
 	uint64_t nSizeBytes = 0;
 	uint8_t Mask[4];
@@ -5297,12 +5247,9 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 	if(1 != r)
 		goto fail;
 	foo= 2;
-	printf("received %d opcode %d .. mask %d %02x\n", h1.payload, h0.opcode, h1.MASK, h0.v);
 
 	if(h0.v == 0x88)
 	{
-
-		printf("got disconnect");
 		goto fail;
 	}
 
@@ -5410,7 +5357,6 @@ foo= 3;
 	return true;
 
 fail:
-	printf("sock fail %d\n", foo );
 	return false;
 
 }
@@ -5437,7 +5383,7 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 
 	char EncodeBuffer[512];
 	int nLen = snprintf(EncodeBuffer, sizeof(EncodeBuffer)-1, "%s%s", pWebSocketKey, pGUID);
-	printf("encode buffer is '%s' %d, %d\n", EncodeBuffer, nLen, (int)strlen(EncodeBuffer));
+	//printf("encode buffer is '%s' %d, %d\n", EncodeBuffer, nLen, (int)strlen(EncodeBuffer));
 
 	uint8_t sha[20];
 	MicroProfile_SHA1_CTX ctx;
@@ -5471,7 +5417,6 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 	{
 		if(S.pJsonSettings)
 		{
-			printf("{\"k\":\"%d\",\"v\":%s}", MSG_CURRENTSETTINGS, S.pJsonSettings);
 			WSPrintStart(Connection);
 			WSPrintf("{\"k\":\"%d\",\"v\":%s}", MSG_CURRENTSETTINGS, S.pJsonSettings);
 			WSFlush();
@@ -5561,7 +5506,7 @@ void MicroProfileWebSocketFrame()
 		if(FD_ISSET(s, &Error))
 		{
 			MP_ASSERT(0); // todo, remove & fix.
-			printf("error!!1\n");
+			//printf("error!!1\n");
 		}
 		if(FD_ISSET(s, &Read))
 		{
@@ -5571,7 +5516,7 @@ void MicroProfileWebSocketFrame()
 		{
 			if(S.nJsonSettingsPending)
 			{
-				printf("{\"k\":\"%d\",\"v\":%s}", MSG_LOADSETTINGS, S.pJsonSettings);
+				// printf("{\"k\":\"%d\",\"v\":%s}", MSG_LOADSETTINGS, S.pJsonSettings);
 				WSPrintStart(s);
 				WSPrintf("{\"k\":\"%d\",\"v\":%s}", MSG_LOADSETTINGS, S.pJsonSettings);
 				WSFlush();
@@ -5601,7 +5546,9 @@ void MicroProfileWebSocketFrame()
 
 		if(!bConnected)
 		{
+			#if MICROPROFILE_DEBUG
 			printf("removing socket %lld\n", (uint64_t)s);
+			#endif
 
 #ifndef _WIN32
         	shutdown(S.WebSockets[i], SHUT_WR);
@@ -5622,7 +5569,9 @@ void MicroProfileWebSocketFrame()
 
 			--S.nNumWebSockets;
 			S.WebSockets[i] = S.WebSockets[S.nNumWebSockets];
+			#if MICROPROFILE_DEBUG
 			printf("done removing\n");
+			#endif
 		}
 		else
 		{
@@ -5690,22 +5639,15 @@ void MicroProfileWebSocketSendEnabled(MpSocket C)
 	for(uint32_t i = 0; i < S.nCategoryCount; ++i)
 	{
 		MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_CATEGORY, i), MicroProfileCategoryEnabled(i));
-		// WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"e\":%d}}", MSG_ENABLED, id, MicroProfileCategoryEnabled(i));
-		// WSFlush();
 	}
 
 	for(uint32_t i = 0; i < S.nGroupCount; ++i)
 	{
 		MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_GROUP, i), MicroProfileGroupEnabled(i));
-		printf("group en %d %d\n", i, MicroProfileGroupEnabled(i));
-		// WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"e\":%d}}", MSG_ENABLED, id, MicroProfileGroupEnabled(i));
-		// WSFlush();
 	}
 	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
 	{
 		MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_TIMER, i), MicroProfileWebSocketTimerEnabled(i));
-		// WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"e\":%d}}", MSG_ENABLED, id, MicroProfileWebSocketTimerEnabled(i));
-		// WSFlush();
 	}
 	MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_FORCE_ENABLE), MicroProfileGetEnableAllGroups());
 	MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_CONTEXT_SWITCH_TRACE), S.bContextSwitchRunning);
@@ -5779,7 +5721,9 @@ bool MicroProfileWebServerUpdate()
 		if(nReceived > 0)
 		{
 			Req[nReceived] = '\0';
-			//printf("req received\n%s", Req);
+			#if MICROPROFILE_DEBUG
+			printf("req received\n%s", Req);
+			#endif
 #if MICROPROFILE_MINIZ
 			//Expires: Tue, 01 Jan 2199 16:00:00 GMT\r\n
 #define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nContent-Encoding: deflate\r\n\r\n"
@@ -6898,7 +6842,6 @@ void MicroProfileGpuWaitFence(uint64_t nFence)
 
 void MicroProfileGpuFetchResults(uint64_t nFrame)
 {
-//	MP_ASSERT(S.GPU.nFrame > nFrame);
 	uint64_t nPending = S.GPU.nPendingFrame;
 	//while(nPending <= nFrame)
 	//while(0 <= nFrame - nPending)
