@@ -200,95 +200,23 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileGpuInitGL() do{}while(0)
 #define MicroProfilePlatformMarkersGetEnabled() 0
 #define MicroProfilePlatformMarkersSetEnabled(bEnabled) do{}while(0)
+#define MicroProfileTickToMsMultiplierCpu() 1.f
+#define MicroProfileTickToMsMultiplierGpu() 0.f
+#define MicroProfileTicksPerSecondCpu() 1
+#define MicroProfileTick() 0
 
 #else
 
 #include <stdint.h>
-#include <string.h>
-#include <thread>
-#include <mutex>
 #include <atomic>
 
 #ifndef MICROPROFILE_API
 #define MICROPROFILE_API
 #endif
 
-MICROPROFILE_API int64_t MicroProfileTicksPerSecondCpu();
-
-
-#if defined(__APPLE__)
-#include <mach/mach.h>
-#include <mach/mach_time.h>
-#include <unistd.h>
-#include <libkern/OSAtomic.h>
-#include <TargetConditionals.h>
-#if TARGET_OS_IPHONE
-#define MICROPROFILE_IOS
-#endif
-
-#define MP_TICK() mach_absolute_time()
-inline int64_t MicroProfileTicksPerSecondCpu()
-{
-	static int64_t nTicksPerSecond = 0;	
-	if(nTicksPerSecond == 0) 
-	{
-		mach_timebase_info_data_t sTimebaseInfo;	
-		mach_timebase_info(&sTimebaseInfo);
-		nTicksPerSecond = 1000000000ll * sTimebaseInfo.denom / sTimebaseInfo.numer;
-	}
-	return nTicksPerSecond;
-}
-inline uint64_t MicroProfileGetCurrentThreadId()
-{	
-	uint64_t tid;
-	pthread_threadid_np(pthread_self(), &tid);
-	return tid;
-}
-
-#define MP_BREAK() __builtin_trap()
-#define MP_THREAD_LOCAL __thread
-#define MP_STRCASECMP strcasecmp
-#define MP_GETCURRENTTHREADID() MicroProfileGetCurrentThreadId()
 typedef uint64_t MicroProfileThreadIdType;
-#elif defined(_WIN32)
-int64_t MicroProfileGetTick();
-#define MP_TICK() MicroProfileGetTick()
-#define MP_BREAK() __debugbreak()
-#define MP_THREAD_LOCAL __declspec(thread)
-#define MP_STRCASECMP _stricmp
-#define MP_GETCURRENTTHREADID() GetCurrentThreadId()
-typedef uint32_t MicroProfileThreadIdType;
-
-#elif defined(__linux__)
-#include <unistd.h>
-#include <time.h>
-inline int64_t MicroProfileTicksPerSecondCpu()
-{
-	return 1000000000ll;
-}
-
-inline int64_t MicroProfileGetTick()
-{
-	timespec ts;
-	clock_gettime(CLOCK_REALTIME, &ts);
-	return 1000000000ll * ts.tv_sec + ts.tv_nsec;
-}
-#define MP_TICK() MicroProfileGetTick()
-#define MP_BREAK() __builtin_trap()
-#define MP_THREAD_LOCAL __thread
-#define MP_STRCASECMP strcasecmp
-#define MP_GETCURRENTTHREADID() (uint64_t)pthread_self()
-typedef uint64_t MicroProfileThreadIdType;
-#endif
 
 
-#ifndef MP_GETCURRENTTHREADID 
-#define MP_GETCURRENTTHREADID() 0
-typedef uint32_t MicroProfileThreadIdType;
-#endif
-
-
-#define MP_ASSERT(a) do{if(!(a)){MP_BREAK();} }while(0)
 #define MICROPROFILE_DECLARE(var) extern MicroProfileToken g_mp_##var
 #define MICROPROFILE_DEFINE(var, group, name, color) MicroProfileToken g_mp_##var = MicroProfileGetToken(group, name, color, MicroProfileTokenTypeCpu)
 #define MICROPROFILE_REGISTER_GROUP(group, category, color) MicroProfileRegisterGroup(group, category, color)
@@ -313,7 +241,6 @@ typedef uint32_t MicroProfileThreadIdType;
 #define MICROPROFILE_GPU_SUBMIT(Queue, Work) MicroProfileGpuSubmit(Queue, Work)
 #define MICROPROFILE_THREADLOGGPURESET(a) MicroProfileThreadLogGpuReset(a)
 #define MICROPROFILE_META_CPU(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__) = MicroProfileGetMetaToken(name); MicroProfileMetaUpdate(MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__), count, MicroProfileTokenTypeCpu)
-//#define MICROPROFILE_META_GPU(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__) = MicroProfileGetMetaToken(name); MicroProfileMetaUpdate(MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__), count, MicroProfileTokenTypeGpu)
 #define MICROPROFILE_COUNTER_ADD(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__) = MicroProfileGetCounterToken(name); MicroProfileCounterAdd(MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__), count)
 #define MICROPROFILE_COUNTER_SUB(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__) = MicroProfileGetCounterToken(name); MicroProfileCounterAdd(MICROPROFILE_TOKEN_PASTE(g_mp_counter,__LINE__), -(int64_t)count)
 #define MICROPROFILE_COUNTER_SET(name, count) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter_set,__LINE__) = MicroProfileGetCounterToken(name); MicroProfileCounterSet(MICROPROFILE_TOKEN_PASTE(g_mp_counter_set,__LINE__), count)
@@ -331,6 +258,10 @@ typedef uint32_t MicroProfileThreadIdType;
 #define MICROPROFILE_COUNTER_LOCAL_SET(var, count) MicroProfileLocalCounterSet(&g_mp_local_counter##var, count)
 #define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD(var) MicroProfileCounterAdd(g_mp_counter_token##var, MicroProfileLocalCounterSet(&g_mp_local_counter##var, 0))
 #define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET(var) MicroProfileCounterSet(g_mp_counter_token##var, MicroProfileLocalCounterSet(&g_mp_local_counter##var, 0))
+#define MICROPROFILE_FORCEENABLECPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeCpu)
+#define MICROPROFILE_FORCEDISABLECPUGROUP(s) MicroProfileForceDisableGroup(s, MicroProfileTokenTypeCpu)
+#define MICROPROFILE_FORCEENABLEGPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeGpu)
+#define MICROPROFILE_FORCEDISABLEGPUGROUP(s) MicroProfileForceDisableGroup(s, MicroProfileTokenTypeGpu)
 #define MICROPROFILE_CONDITIONAL(expr) expr
 
 #ifndef MICROPROFILE_PLATFORM_MARKERS
@@ -402,17 +333,57 @@ typedef uint32_t MicroProfileThreadIdType;
 #define MICROPROFILE_NAME_MAX_LEN 64
 #endif
 
+#ifndef MICROPROFILE_MAX_TIMERS
+#define MICROPROFILE_MAX_TIMERS 1024
+#endif
 
-#define MICROPROFILE_FORCEENABLECPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeCpu)
-#define MICROPROFILE_FORCEDISABLECPUGROUP(s) MicroProfileForceDisableGroup(s, MicroProfileTokenTypeCpu)
-#define MICROPROFILE_FORCEENABLEGPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeGpu)
-#define MICROPROFILE_FORCEDISABLEGPUGROUP(s) MicroProfileForceDisableGroup(s, MicroProfileTokenTypeGpu)
+#ifndef MICROPROFILE_MAX_THREADS
+#define MICROPROFILE_MAX_THREADS 32
+#endif 
 
-#define MICROPROFILE_INVALID_TICK ((uint64_t)-1)
-#define MICROPROFILE_GROUP_MASK_ALL 0xffffffffffff
+#ifndef MICROPROFILE_UNPACK_RED
+#define MICROPROFILE_UNPACK_RED(c) ((c)>>16)
+#endif
+
+#ifndef MICROPROFILE_UNPACK_GREEN
+#define MICROPROFILE_UNPACK_GREEN(c) ((c)>>8)
+#endif
+
+#ifndef MICROPROFILE_UNPACK_BLUE
+#define MICROPROFILE_UNPACK_BLUE(c) ((c))
+#endif
+
+#ifndef MICROPROFILE_DEFAULT_PRESET
+#define MICROPROFILE_DEFAULT_PRESET "Default"
+#endif
 
 
-#define MICROPROFILE_INVALID_TOKEN (uint64_t)-1
+#ifndef MICROPROFILE_CONTEXT_SWITCH_TRACE 
+#if defined(_WIN32) 
+#define MICROPROFILE_CONTEXT_SWITCH_TRACE 1
+#elif defined(__APPLE__)
+#define MICROPROFILE_CONTEXT_SWITCH_TRACE 0 //disabled until dtrace script is working.
+#else
+#define MICROPROFILE_CONTEXT_SWITCH_TRACE 0
+#endif
+#endif
+
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+#define MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE (128*1024) //2mb with 16 byte entry size
+#else
+#define MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE (1)
+#endif
+
+#ifndef MICROPROFILE_MINIZ
+#define MICROPROFILE_MINIZ 0
+#endif
+
+#ifndef MICROPROFILE_COUNTER_HISTORY
+#define MICROPROFILE_COUNTER_HISTORY 1
+#endif
+
+
+
 
 enum MicroProfileTokenType
 {
@@ -453,9 +424,6 @@ MICROPROFILE_API void MicroProfileThreadLogGpuReset(MicroProfileThreadLogGpu* pL
 MICROPROFILE_API void MicroProfileGpuSubmit(int nQueue, uint64_t nWork);
 MICROPROFILE_API int MicroProfileInitGpuQueue(const char* pQueueName);
 MICROPROFILE_API int MicroProfileGetGpuQueue(const char* pQueueName);
-inline uint16_t MicroProfileGetTimerIndex(MicroProfileToken t){ return (t&0xffff); }
-inline uint64_t MicroProfileGetGroupMask(MicroProfileToken t){ return ((t>>16)&MICROPROFILE_GROUP_MASK_ALL);}
-inline MicroProfileToken MicroProfileMakeToken(uint64_t nGroupMask, uint16_t nTimer){ return (nGroupMask<<16) | nTimer;}
 MICROPROFILE_API void MicroProfileFlip(void* pGpuContext); //! call once per frame.
 MICROPROFILE_API void MicroProfileToggleFrozen();
 MICROPROFILE_API bool MicroProfileIsFrozen();
@@ -496,6 +464,9 @@ MICROPROFILE_API void MicroProfilePlatformMarkerEnd();//not implemented by micro
 
 MICROPROFILE_API float MicroProfileTickToMsMultiplierCpu();
 MICROPROFILE_API float MicroProfileTickToMsMultiplierGpu();
+MICROPROFILE_API int64_t MicroProfileTicksPerSecondCpu();
+MICROPROFILE_API uint64_t MicroProfileTick();
+
 
 
 struct MicroProfileThreadInfo
@@ -617,6 +588,9 @@ struct MicroProfileInternalThread
 //////////////////////////////////////////////////////////////////////////
 #if defined(MICROPROFILE_IMPL) && MICROPROFILE_ENABLED
 
+#include <thread>
+#include <mutex>
+#include <atomic>
 
 
 #define MICROPROFILE_MAX_COUNTERS 512
@@ -630,56 +604,10 @@ struct MicroProfileInternalThread
 #define MICROPROFILE_MAX_CONTEXT_SWITCH_THREADS 256
 #define MICROPROFILE_STACK_MAX 32
 #define MICROPROFILE_WEBSOCKET_BUFFER_SIZE (10<<10)
+#define MICROPROFILE_INVALID_TICK ((uint64_t)-1)
+#define MICROPROFILE_GROUP_MASK_ALL 0xffffffffffff
+#define MICROPROFILE_INVALID_TOKEN (uint64_t)-1
 
-
-#ifndef MICROPROFILE_MAX_TIMERS
-#define MICROPROFILE_MAX_TIMERS 1024
-#endif
-
-#ifndef MICROPROFILE_MAX_THREADS
-#define MICROPROFILE_MAX_THREADS 32
-#endif 
-
-#ifndef MICROPROFILE_UNPACK_RED
-#define MICROPROFILE_UNPACK_RED(c) ((c)>>16)
-#endif
-
-#ifndef MICROPROFILE_UNPACK_GREEN
-#define MICROPROFILE_UNPACK_GREEN(c) ((c)>>8)
-#endif
-
-#ifndef MICROPROFILE_UNPACK_BLUE
-#define MICROPROFILE_UNPACK_BLUE(c) ((c))
-#endif
-
-#ifndef MICROPROFILE_DEFAULT_PRESET
-#define MICROPROFILE_DEFAULT_PRESET "Default"
-#endif
-
-
-#ifndef MICROPROFILE_CONTEXT_SWITCH_TRACE 
-#if defined(_WIN32) 
-#define MICROPROFILE_CONTEXT_SWITCH_TRACE 1
-#elif defined(__APPLE__)
-#define MICROPROFILE_CONTEXT_SWITCH_TRACE 0 //disabled until dtrace script is working.
-#else
-#define MICROPROFILE_CONTEXT_SWITCH_TRACE 0
-#endif
-#endif
-
-#if MICROPROFILE_CONTEXT_SWITCH_TRACE
-#define MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE (128*1024) //2mb with 16 byte entry size
-#else
-#define MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE (1)
-#endif
-
-#ifndef MICROPROFILE_MINIZ
-#define MICROPROFILE_MINIZ 0
-#endif
-
-#ifndef MICROPROFILE_COUNTER_HISTORY
-#define MICROPROFILE_COUNTER_HISTORY 1
-#endif
 
 #define MP_LOG_TICK_MASK  0x0000ffffffffffff
 #define MP_LOG_INDEX_MASK 0x3fff000000000000
@@ -762,8 +690,87 @@ uint64_t MicroProfileLogTimerIndex(MicroProfileLogEntry Index);
 MicroProfileLogEntry MicroProfileMakeLogIndex(uint64_t nBegin, MicroProfileToken nToken, int64_t nTick);
 int64_t MicroProfileLogTickDifference(MicroProfileLogEntry Start, MicroProfileLogEntry End);
 int64_t MicroProfileLogSetTick(MicroProfileLogEntry e, int64_t nTick);
+uint16_t MicroProfileGetTimerIndex(MicroProfileToken t);// { return (t & 0xffff); }
+uint64_t MicroProfileGetGroupMask(MicroProfileToken t);// { return ((t >> 16)&MICROPROFILE_GROUP_MASK_ALL); }
+MicroProfileToken MicroProfileMakeToken(uint64_t nGroupMask, uint16_t nTimer);// { return (nGroupMask << 16) | nTimer; }
 
 
+
+//////////////////////////////////////////////////////////////////////////
+// platform IMPL
+
+#if defined(__APPLE__)
+#include <mach/mach.h>
+#include <mach/mach_time.h>
+#include <unistd.h>
+#include <libkern/OSAtomic.h>
+#include <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+#define MICROPROFILE_IOS
+#endif
+
+#define MP_TICK() mach_absolute_time()
+inline int64_t MicroProfileTicksPerSecondCpu()
+{
+	static int64_t nTicksPerSecond = 0;
+	if (nTicksPerSecond == 0)
+	{
+		mach_timebase_info_data_t sTimebaseInfo;
+		mach_timebase_info(&sTimebaseInfo);
+		nTicksPerSecond = 1000000000ll * sTimebaseInfo.denom / sTimebaseInfo.numer;
+	}
+	return nTicksPerSecond;
+}
+inline uint64_t MicroProfileGetCurrentThreadId()
+{
+	uint64_t tid;
+	pthread_threadid_np(pthread_self(), &tid);
+	return tid;
+}
+
+#define MP_BREAK() __builtin_trap()
+#define MP_THREAD_LOCAL __thread
+#define MP_STRCASECMP strcasecmp
+#define MP_GETCURRENTTHREADID() MicroProfileGetCurrentThreadId()
+typedef uint64_t MicroProfileThreadIdType;
+#elif defined(_WIN32)
+int64_t MicroProfileGetTick();
+#define MP_TICK() MicroProfileGetTick()
+#define MP_BREAK() __debugbreak()
+#define MP_THREAD_LOCAL __declspec(thread)
+#define MP_STRCASECMP _stricmp
+#define MP_GETCURRENTTHREADID() GetCurrentThreadId()
+
+#elif defined(__linux__)
+#include <unistd.h>
+#include <time.h>
+inline int64_t MicroProfileTicksPerSecondCpu()
+{
+	return 1000000000ll;
+}
+
+inline int64_t MicroProfileGetTick()
+{
+	timespec ts;
+	clock_gettime(CLOCK_REALTIME, &ts);
+	return 1000000000ll * ts.tv_sec + ts.tv_nsec;
+}
+#define MP_TICK() MicroProfileGetTick()
+#define MP_BREAK() __builtin_trap()
+#define MP_THREAD_LOCAL __thread
+#define MP_STRCASECMP strcasecmp
+#define MP_GETCURRENTTHREADID() (uint64_t)pthread_self()
+typedef uint64_t MicroProfileThreadIdType;
+#endif
+
+
+#ifndef MP_GETCURRENTTHREADID 
+#define MP_GETCURRENTTHREADID() 0
+typedef uint32_t MicroProfileThreadIdType;
+#endif
+
+
+#define MP_ASSERT(a) do{if(!(a)){MP_BREAK();} }while(0)
 
 
 #ifdef _WIN32
@@ -1254,6 +1261,18 @@ inline int64_t MicroProfileLogSetTick(MicroProfileLogEntry e, int64_t nTick)
 	return (MP_LOG_TICK_MASK & nTick) | (e & ~MP_LOG_TICK_MASK);
 }
 
+inline uint16_t MicroProfileGetTimerIndex(MicroProfileToken t)
+{ 
+	return (t & 0xffff); 
+}
+inline uint64_t MicroProfileGetGroupMask(MicroProfileToken t)
+{
+	return ((t >> 16)&MICROPROFILE_GROUP_MASK_ALL); 
+}
+inline MicroProfileToken MicroProfileMakeToken(uint64_t nGroupMask, uint16_t nTimer)
+{
+	return (nGroupMask << 16) | nTimer;
+}
 
 
 
@@ -1300,6 +1319,10 @@ uint16_t MicroProfileGetGroupIndex(MicroProfileToken t)
 	return (uint16_t)MicroProfileGet()->TimerToGroup[MicroProfileGetTimerIndex(t)];
 }
 
+uint64_t MicroProfileTick()
+{
+	return MP_TICK();
+}
 
 
 

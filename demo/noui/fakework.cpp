@@ -63,12 +63,12 @@ void spinsleep(int64_t nUs)
 	MICROPROFILE_SCOPEI("spin","sleep", 0xffff);
 #if MICROPROFILE_ENABLED
 	float fToMs = MicroProfileTickToMsMultiplierCpu();
-	int64_t nTickStart = MP_TICK();
+	int64_t nTickStart = MicroProfileTick();
 	float fElapsed = 0;
 	float fTarget = nUs / 1000000.f;
 	do
 	{
-		int64_t nTickEnd = MP_TICK();
+		int64_t nTickEnd = MicroProfileTick();
 		fElapsed = (nTickEnd - nTickStart) * fToMs;
 
 	}while(fElapsed < fTarget);
