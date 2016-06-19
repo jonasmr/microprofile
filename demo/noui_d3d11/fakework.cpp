@@ -81,7 +81,7 @@ void WorkerThreadLong(int threadId)
 	MicroProfileOnThreadCreate(&name[0]);
 	while(!g_nQuit)
 	{
-		MICROPROFILE_SCOPEI("long", "outer 150ms", c0); 
+		MICROPROFILE_ENTERI("long", "outer 150ms", c0);
 		MICROPROFILE_META_CPU("Sleep",100);
 		usleep(100*1000);
 		for(int i = 0; i < 10; ++i)
@@ -90,6 +90,8 @@ void WorkerThreadLong(int threadId)
 			MICROPROFILE_META_CPU("Sleep",5);
 			usleep(5000);
 		}
+
+		MICROPROFILE_LEAVE();
 	}
 }
 
@@ -195,7 +197,7 @@ void WorkerThread(int threadId)
 			break;
 		default:
 			
-			MICROPROFILE_SCOPE(ThreadSafeMain);
+			MICROPROFILE_ENTER(ThreadSafeMain);
 			usleep(1000);;
 			for(uint32_t i = 0; i < 5; ++i)
 			{
@@ -214,6 +216,7 @@ void WorkerThread(int threadId)
 					usleep(150);
 				}
 			}
+			MICROPROFILE_LEAVE();
 			break;
 		}
 	}

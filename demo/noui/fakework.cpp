@@ -90,9 +90,10 @@ void WorkerThreadLong(int threadId)
 		usleep(100*1000);
 		for(int i = 0; i < 10; ++i)
 		{
-			MICROPROFILE_SCOPEI("long", "inner 5ms", c1); 
+			MICROPROFILE_ENTERI("long", "inner 5ms", c1); 
 			MICROPROFILE_META_CPU("Sleep",5);
 			usleep(5000);
+			MICROPROFILE_LEAVE();
 		}
 	}
 }
@@ -210,7 +211,7 @@ void WorkerThread(int threadId)
 			usleep(1000);;
 			for(uint32_t i = 0; i < 5; ++i)
 			{
-				MICROPROFILE_SCOPE(ThreadSafeInner0);
+				MICROPROFILE_ENTER(ThreadSafeInner0);
 				usleep(1000);
 				for(uint32_t j = 0; j < 4; ++j)
 				{
@@ -224,6 +225,7 @@ void WorkerThread(int threadId)
 					MICROPROFILE_SCOPE(ThreadSafeInner4);
 					usleep(150);
 				}
+				MICROPROFILE_LEAVE();
 			}
 			break;
 		}
