@@ -62,7 +62,7 @@ void spinsleep(int64_t nUs)
 	MICROPROFILE_COUNTER_LOCAL_ADD(ThreadSpinSleep, 1);
 	MICROPROFILE_SCOPEI("spin","sleep", 0xffff);
 #if MICROPROFILE_ENABLED
-	float fToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+	float fToMs = MicroProfileTickToMsMultiplierCpu();
 	int64_t nTickStart = MP_TICK();
 	float fElapsed = 0;
 	float fTarget = nUs / 1000000.f;

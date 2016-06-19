@@ -420,14 +420,6 @@ enum MicroProfileTokenType
 	MicroProfileTokenTypeGpu,
 };
 
-enum MicroProfileBoxType
-{
-	MicroProfileBoxTypeBar,
-	MicroProfileBoxTypeFlat,
-};
-
-
-
 struct MicroProfile;
 struct MicroProfileThreadLogGpu;
 
@@ -490,7 +482,6 @@ MICROPROFILE_API int MicroProfileGetAggregateFrames();
 MICROPROFILE_API int MicroProfileGetCurrentAggregateFrames();
 MICROPROFILE_API MicroProfile* MicroProfileGet();
 MICROPROFILE_API void MicroProfileGetRange(uint32_t nPut, uint32_t nGet, uint32_t nRange[2][2]);
-MICROPROFILE_API std::recursive_mutex& MicroProfileGetMutex();
 MICROPROFILE_API void MicroProfileStartContextSwitchTrace();
 MICROPROFILE_API void MicroProfileStopContextSwitchTrace();
 MICROPROFILE_API bool MicroProfileIsLocalThread(uint32_t nThreadId);
@@ -502,6 +493,10 @@ MICROPROFILE_API void MicroProfileRegisterGroup(const char* pGroup, const char* 
 MICROPROFILE_API void MicroProfilePlatformMarkerBegin(uint32_t nColor, const char * pMarker); //not implemented by microprofile.
 MICROPROFILE_API void MicroProfilePlatformMarkerEnd();//not implemented by microprofile.
 #endif
+
+MICROPROFILE_API float MicroProfileTickToMsMultiplierCpu();
+MICROPROFILE_API float MicroProfileTickToMsMultiplierGpu();
+
 
 struct MicroProfileThreadInfo
 {
@@ -540,16 +535,8 @@ MICROPROFILE_API void MicroProfileGpuInitD3D12(void* pDevice, void* pCommandQueu
 MICROPROFILE_API void MicroProfileGpuShutdown();
 #endif
 
-#if MICROPROFILE_WEBSERVER
 MICROPROFILE_API void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, float fGpuSpike);
 MICROPROFILE_API uint32_t MicroProfileWebServerPort();
-#else
-#define MicroProfileDumpFile(html,csv,cpu, gpu) do{} while(0)
-#define MicroProfileWebServerPort() ((uint32_t)-1)
-#endif
-
-
-
 
 #if MICROPROFILE_GPU_TIMERS
 MICROPROFILE_API uint32_t MicroProfileGpuInsertTimeStamp(void* pContext);
@@ -619,9 +606,21 @@ struct MicroProfileInternalThread
 
 
 
+
+
+
+#endif //enabled
+#endif //once
+
+//////////////////////////////////////////////////////////////////////////
+// IMPL WALL
+//////////////////////////////////////////////////////////////////////////
+#if defined(MICROPROFILE_IMPL) && MICROPROFILE_ENABLED
+
+
+
 #define MICROPROFILE_MAX_COUNTERS 512
 #define MICROPROFILE_MAX_COUNTER_NAME_CHARS (MICROPROFILE_MAX_COUNTERS*16)
-
 #define MICROPROFILE_MAX_GROUPS 48 //dont bump! no. of bits used it bitmask
 #define MICROPROFILE_MAX_CATEGORIES 16
 #define MICROPROFILE_MAX_GRAPHS 5
@@ -630,9 +629,7 @@ struct MicroProfileInternalThread
 #define MICROPROFILE_GPU_BUFFER_SIZE ((MICROPROFILE_PER_THREAD_GPU_BUFFER_SIZE)/sizeof(MicroProfileLogEntry))
 #define MICROPROFILE_MAX_CONTEXT_SWITCH_THREADS 256
 #define MICROPROFILE_STACK_MAX 32
-//#define MICROPROFILE_MAX_PRESETS 5
-#define MICROPROFILE_ANIM_DELAY_PRC 0.5f
-#define MICROPROFILE_GAP_TIME 50 //extra ms to fetch to close timers from earlier frames
+#define MICROPROFILE_WEBSOCKET_BUFFER_SIZE (10<<10)
 
 
 #ifndef MICROPROFILE_MAX_TIMERS
@@ -684,6 +681,91 @@ struct MicroProfileInternalThread
 #define MICROPROFILE_COUNTER_HISTORY 1
 #endif
 
+#define MP_LOG_TICK_MASK  0x0000ffffffffffff
+#define MP_LOG_INDEX_MASK 0x3fff000000000000
+#define MP_LOG_BEGIN_MASK 0xc000000000000000
+#define MP_LOG_GPU_EXTRA 0x3
+#define MP_LOG_META 0x2
+#define MP_LOG_ENTER 0x1
+#define MP_LOG_LEAVE 0x0
+
+enum
+{
+	MICROPROFILE_WEBSOCKET_DIRTY_MENU,
+	MICROPROFILE_WEBSOCKET_DIRTY_ENABLED,
+};
+
+
+
+
+enum MicroProfileDrawMask
+{
+	MP_DRAW_OFF = 0x0,
+	MP_DRAW_BARS = 0x1,
+	MP_DRAW_DETAILED = 0x2,
+	MP_DRAW_COUNTERS = 0x3,
+	MP_DRAW_HIDDEN = 0x4,
+	MP_DRAW_SIZE = 0x5,
+};
+
+enum MicroProfileDrawBarsMask
+{
+	MP_DRAW_TIMERS = 0x1,
+	MP_DRAW_AVERAGE = 0x2,
+	MP_DRAW_MAX = 0x4,
+	MP_DRAW_MIN = 0x8,
+	MP_DRAW_CALL_COUNT = 0x10,
+	MP_DRAW_TIMERS_EXCLUSIVE = 0x20,
+	MP_DRAW_AVERAGE_EXCLUSIVE = 0x40,
+	MP_DRAW_MAX_EXCLUSIVE = 0x80,
+	MP_DRAW_META_FIRST = 0x100,
+	MP_DRAW_ALL = 0xffffffff,
+
+};
+
+enum MicroProfileCounterFormat
+{
+	MICROPROFILE_COUNTER_FORMAT_DEFAULT,
+	MICROPROFILE_COUNTER_FORMAT_BYTES,
+};
+
+enum MicroProfileCounterFlags
+{
+	MICROPROFILE_COUNTER_FLAG_NONE = 0,
+	MICROPROFILE_COUNTER_FLAG_DETAILED = 0x1,
+	MICROPROFILE_COUNTER_FLAG_DETAILED_GRAPH = 0x2,
+	//internal:
+	MICROPROFILE_COUNTER_FLAG_INTERNAL_MASK = ~0x3,
+	MICROPROFILE_COUNTER_FLAG_HAS_LIMIT = 0x4,
+	MICROPROFILE_COUNTER_FLAG_CLOSED = 0x8,
+	MICROPROFILE_COUNTER_FLAG_MANUAL_SWAP = 0x10,
+	MICROPROFILE_COUNTER_FLAG_LEAF = 0x20,
+};
+
+
+
+
+typedef uint64_t MicroProfileLogEntry;
+
+
+void MicroProfileSleep(uint32_t nMs);
+template<typename T>
+T MicroProfileMin(T a, T b);
+template<typename T>
+T MicroProfileMax(T a, T b);
+template<typename T>
+T MicroProfileClamp(T a, T min_, T max_);
+int64_t MicroProfileMsToTick(float fMs, int64_t nTicksPerSecond);
+float MicroProfileTickToMsMultiplier(int64_t nTicksPerSecond);
+uint64_t MicroProfileLogType(MicroProfileLogEntry Index);
+uint64_t MicroProfileLogTimerIndex(MicroProfileLogEntry Index);
+MicroProfileLogEntry MicroProfileMakeLogIndex(uint64_t nBegin, MicroProfileToken nToken, int64_t nTick);
+int64_t MicroProfileLogTickDifference(MicroProfileLogEntry Start, MicroProfileLogEntry End);
+int64_t MicroProfileLogSetTick(MicroProfileLogEntry e, int64_t nTick);
+
+
+
+
 #ifdef _WIN32
 #include <basetsd.h>
 typedef UINT_PTR MpSocket;
@@ -706,51 +788,6 @@ typedef std::thread* MicroProfileThread;
 
 
 
-enum MicroProfileDrawMask
-{
-	MP_DRAW_OFF			= 0x0,
-	MP_DRAW_BARS		= 0x1,
-	MP_DRAW_DETAILED	= 0x2,
-	MP_DRAW_COUNTERS	= 0x3,
-	MP_DRAW_HIDDEN		= 0x4,
-	MP_DRAW_SIZE		= 0x5,
-};
-
-enum MicroProfileDrawBarsMask
-{
-	MP_DRAW_TIMERS 				= 0x1,	
-	MP_DRAW_AVERAGE				= 0x2,	
-	MP_DRAW_MAX					= 0x4,	
-	MP_DRAW_MIN					= 0x8,
-	MP_DRAW_CALL_COUNT			= 0x10,
-	MP_DRAW_TIMERS_EXCLUSIVE 	= 0x20,
-	MP_DRAW_AVERAGE_EXCLUSIVE 	= 0x40,	
-	MP_DRAW_MAX_EXCLUSIVE		= 0x80,
-	MP_DRAW_META_FIRST			= 0x100,
-	MP_DRAW_ALL 				= 0xffffffff,
-
-};
-
-enum MicroProfileCounterFormat
-{
-	MICROPROFILE_COUNTER_FORMAT_DEFAULT,
-	MICROPROFILE_COUNTER_FORMAT_BYTES,
-};
-
-enum MicroProfileCounterFlags
-{
-	MICROPROFILE_COUNTER_FLAG_NONE 			= 0,
-	MICROPROFILE_COUNTER_FLAG_DETAILED		= 0x1,
-	MICROPROFILE_COUNTER_FLAG_DETAILED_GRAPH= 0x2,
-	//internal:
-	MICROPROFILE_COUNTER_FLAG_INTERNAL_MASK = ~0x3,
-	MICROPROFILE_COUNTER_FLAG_HAS_LIMIT 	= 0x4,
-	MICROPROFILE_COUNTER_FLAG_CLOSED		= 0x8,
-	MICROPROFILE_COUNTER_FLAG_MANUAL_SWAP	= 0x10,
-	MICROPROFILE_COUNTER_FLAG_LEAF			= 0x20,
-};
-
-typedef uint64_t MicroProfileLogEntry;
 
 struct MicroProfileTimer
 {
@@ -872,8 +909,6 @@ struct MicroProfileThreadLog
 };
 
 
-#define MICROPROFILE_WEBSOCKET_BUFFER_SIZE (10<<10)
-
 struct MicroProfileWebSocketBuffer
 {
 	char Header[20];
@@ -886,6 +921,9 @@ struct MicroProfileWebSocketBuffer
 	std::atomic<uint32_t> nSendPut;
 	std::atomic<uint32_t> nSendGet;
 };
+
+
+
 
 //linear, per-frame per-thread gpu log
 struct MicroProfileThreadLogGpu
@@ -968,15 +1006,16 @@ struct MicroProfileGpuTimerState
 	uint32_t GLTimerPos;
 };
 #else
-struct MicroProfileGpuTimerState{};
+struct MicroProfileGpuTimerState {};
 #endif
 
 
-enum
-{
-	MICROPROFILE_WEBSOCKET_DIRTY_MENU,
-	MICROPROFILE_WEBSOCKET_DIRTY_ENABLED,
-};
+
+
+
+
+
+
 
 struct MicroProfile
 {
@@ -989,7 +1028,7 @@ struct MicroProfile
 	uint32_t nAggregateFrames;
 
 	uint64_t nAggregateFlipTick;
-	
+
 	uint32_t nDisplay;
 	uint32_t nBars;
 	uint64_t nActiveGroup;
@@ -1031,7 +1070,7 @@ struct MicroProfile
 	MicroProfileGroupInfo 	GroupInfo[MICROPROFILE_MAX_GROUPS];
 	MicroProfileTimerInfo 	TimerInfo[MICROPROFILE_MAX_TIMERS];
 	uint8_t					TimerToGroup[MICROPROFILE_MAX_TIMERS];
-	
+
 	MicroProfileTimer 		AccumTimers[MICROPROFILE_MAX_TIMERS];
 	uint64_t				AccumMaxTimers[MICROPROFILE_MAX_TIMERS];
 	uint64_t				AccumMinTimers[MICROPROFILE_MAX_TIMERS];
@@ -1042,7 +1081,7 @@ struct MicroProfile
 	uint64_t				FrameExclusive[MICROPROFILE_MAX_TIMERS];
 
 	MicroProfileTimer 		Aggregate[MICROPROFILE_MAX_TIMERS];
-	uint64_t				AggregateMax[MICROPROFILE_MAX_TIMERS];	
+	uint64_t				AggregateMax[MICROPROFILE_MAX_TIMERS];
 	uint64_t				AggregateMin[MICROPROFILE_MAX_TIMERS];
 	uint64_t				AggregateExclusive[MICROPROFILE_MAX_TIMERS];
 	uint64_t				AggregateMaxExclusive[MICROPROFILE_MAX_TIMERS];
@@ -1051,12 +1090,12 @@ struct MicroProfile
 	uint64_t 				FrameGroup[MICROPROFILE_MAX_GROUPS];
 	uint64_t 				AccumGroup[MICROPROFILE_MAX_GROUPS];
 	uint64_t 				AccumGroupMax[MICROPROFILE_MAX_GROUPS];
-	
+
 	uint64_t 				AggregateGroup[MICROPROFILE_MAX_GROUPS];
 	uint64_t 				AggregateGroupMax[MICROPROFILE_MAX_GROUPS];
 
 
-	struct 
+	struct
 	{
 		uint64_t nCounters[MICROPROFILE_MAX_TIMERS];
 
@@ -1116,7 +1155,7 @@ struct MicroProfile
 	uint8_t						nContextSwitchHoverCpu;
 	uint8_t						nContextSwitchHoverCpuNext;
 
-	uint32_t					nContextSwitchPut;	
+	uint32_t					nContextSwitchPut;
 	MicroProfileContextSwitch 	ContextSwitch[MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE];
 
 
@@ -1158,51 +1197,50 @@ struct MicroProfile
 	uint32_t					nCounterHistoryPut;
 	int64_t 					nCounterHistory[MICROPROFILE_GRAPH_HISTORY][MICROPROFILE_MAX_COUNTERS]; //flipped to make swapping cheap, drawing more expensive.
 	int64_t 					nCounterMax[MICROPROFILE_MAX_COUNTERS];
-	int64_t 					nCounterMin[MICROPROFILE_MAX_COUNTERS];	
+	int64_t 					nCounterMin[MICROPROFILE_MAX_COUNTERS];
 #endif
-	
-	int							GpuQueue; 
+
+	int							GpuQueue;
 	MicroProfileThreadLogGpu* 	pGpuGlobal;
 
 	MicroProfileGpuTimerState 	GPU;
 
 };
 
-#define MP_LOG_TICK_MASK  0x0000ffffffffffff
-#define MP_LOG_INDEX_MASK 0x3fff000000000000
-#define MP_LOG_BEGIN_MASK 0xc000000000000000
-#define MP_LOG_GPU_EXTRA 0x3
-#define MP_LOG_META 0x2
-#define MP_LOG_ENTER 0x1
-#define MP_LOG_LEAVE 0x0
+
+
+
+
+
+
 
 
 inline uint64_t MicroProfileLogType(MicroProfileLogEntry Index)
 {
-	return ((MP_LOG_BEGIN_MASK & Index)>>62) & 0x3;
+	return ((MP_LOG_BEGIN_MASK & Index) >> 62) & 0x3;
 }
 
 inline uint64_t MicroProfileLogTimerIndex(MicroProfileLogEntry Index)
 {
-	return (0x3fff&(Index>>48));
+	return (0x3fff & (Index >> 48));
 }
 
 inline MicroProfileLogEntry MicroProfileMakeLogIndex(uint64_t nBegin, MicroProfileToken nToken, int64_t nTick)
 {
-	MicroProfileLogEntry Entry =  (nBegin<<62) | ((0x3fff&nToken)<<48) | (MP_LOG_TICK_MASK&nTick);
+	MicroProfileLogEntry Entry = (nBegin << 62) | ((0x3fff & nToken) << 48) | (MP_LOG_TICK_MASK&nTick);
 	uint64_t t = MicroProfileLogType(Entry);
 	uint64_t nTimerIndex = MicroProfileLogTimerIndex(Entry);
 	MP_ASSERT(t == nBegin);
-	MP_ASSERT(nTimerIndex == (nToken&0x3fff));
+	MP_ASSERT(nTimerIndex == (nToken & 0x3fff));
 	return Entry;
 
-} 
+}
 
 inline int64_t MicroProfileLogTickDifference(MicroProfileLogEntry Start, MicroProfileLogEntry End)
 {
 	uint64_t nStart = Start;
 	uint64_t nEnd = End;
-	int64_t nDifference = ((nEnd<<16) - (nStart<<16)); 
+	int64_t nDifference = ((nEnd << 16) - (nStart << 16));
 	return nDifference >> 16;
 }
 
@@ -1216,16 +1254,28 @@ inline int64_t MicroProfileLogSetTick(MicroProfileLogEntry e, int64_t nTick)
 	return (MP_LOG_TICK_MASK & nTick) | (e & ~MP_LOG_TICK_MASK);
 }
 
+
+
+
+
+
+
 template<typename T>
 T MicroProfileMin(T a, T b)
-{ return a < b ? a : b; }
+{
+	return a < b ? a : b;
+}
 
 template<typename T>
 T MicroProfileMax(T a, T b)
-{ return a > b ? a : b; }
+{
+	return a > b ? a : b;
+}
 template<typename T>
 T MicroProfileClamp(T a, T min_, T max_)
-{ return MicroProfileMin(max_, MicroProfileMax(min_, a));  }
+{
+	return MicroProfileMin(max_, MicroProfileMax(min_, a));
+}
 
 inline int64_t MicroProfileMsToTick(float fMs, int64_t nTicksPerSecond)
 {
@@ -1236,16 +1286,69 @@ inline float MicroProfileTickToMsMultiplier(int64_t nTicksPerSecond)
 {
 	return 1000.f / nTicksPerSecond;
 }
+float MicroProfileTickToMsMultiplierCpu()
+{
+	return MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+}
 
-inline uint16_t MicroProfileGetGroupIndex(MicroProfileToken t)
+float MicroProfileTickToMsMultiplierGpu()
+{
+	return MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondGpu());
+}
+uint16_t MicroProfileGetGroupIndex(MicroProfileToken t)
 {
 	return (uint16_t)MicroProfileGet()->TimerToGroup[MicroProfileGetTimerIndex(t)];
 }
-#endif //enabled
-#endif //once
-#if defined(MICROPROFILE_IMPL) && MICROPROFILE_ENABLED
 
-void MicroProfileSleep(uint32_t nMs);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #ifdef _WIN32
@@ -1272,8 +1375,7 @@ int64_t MicroProfileGetTick()
 
 #endif
 
-#if defined(MICROPROFILE_WEBSERVER) || defined(MICROPROFILE_CONTEXT_SWITCH_TRACE)
-
+#if 1
 
 typedef void* (*MicroProfileThreadFunc)(void*);
 
