@@ -106,8 +106,6 @@ int main(int argc, char* argv[])
 		if(0 == (++xx % 1000))
 		{
 			MICROPROFILE_SCOPEI("geddehest", "fiszzk", 0xff00ff);
-			printf("sleep 1000\n");
-
 			usleep(201 * 1000);
 		} 
 		MICROPROFILE_COUNTER_LOCAL_ADD(LocalCounter, 3);

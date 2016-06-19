@@ -1245,6 +1245,9 @@ inline uint16_t MicroProfileGetGroupIndex(MicroProfileToken t)
 #endif //once
 #if defined(MICROPROFILE_IMPL) && MICROPROFILE_ENABLED
 
+void MicroProfileSleep(uint32_t nMs);
+
+
 #ifdef _WIN32
 #include <windows.h>
 #define snprintf _snprintf
@@ -2431,11 +2434,7 @@ void MicroProfileFlip(void* pContext)
 		}
 		if(nLoop++)
 		{
-			#ifdef _WIN32
-			Sleep(100);
-			#else
-			usleep(100 * 1000);
-			#endif
+			MicroProfileSleep(100);
 			if((nLoop % 10) == 0)
 			{
 				#if MICROPROFILE_DEBUG
@@ -3067,7 +3066,6 @@ void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pC
 	nContextSwitchStart = nContextSwitchEnd = (nContextSwitchPut + MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE - 1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE;		
 	int64_t nSearchEnd = nBaseTicksEndCpu + MicroProfileMsToTick(30.f, MicroProfileTicksPerSecondCpu());
 	int64_t nSearchBegin = nBaseTicksCpu - MicroProfileMsToTick(30.f, MicroProfileTicksPerSecondCpu());
-	printf("searching for %lld -> %lld  :: %lld", nSearchBegin, nSearchEnd, S.nPauseTicks);
 	int64_t nMax = INT64_MIN;
 	int64_t nMin = INT64_MAX;
 	for(uint32_t i = 0; i < MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE; ++i)
@@ -3089,7 +3087,6 @@ void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pC
 	}
 	*pContextSwitchStart = nContextSwitchStart;
 	*pContextSwitchEnd = nContextSwitchEnd;
-	printf("end range %lld %lld\n", nMin, nMax);
 }
 
 int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_t nBufferSize)
@@ -3741,7 +3738,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 	}
 
 
-#if 1
+#if MICROPROFILE_DEBUG
 	printf("dumping %d frames\n", nNumFrames);
 	printf("dumping frame %d to %d\n", nFirstFrame, nLastFrame);
 #endif
@@ -3858,7 +3855,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 	uint32_t nContextSwitchStart = 0;
 	uint32_t nContextSwitchEnd = 0;
 	MicroProfileContextSwitchSearch(&nContextSwitchStart, &nContextSwitchEnd, nTickStart, nTickEnd);
-	printf("contextswitch search %d %d\n", nContextSwitchStart, nContextSwitchEnd);
 
 	uint32_t nWrittenBefore = S.nWebServerDataSent;
 	MicroProfilePrintf(CB, Handle, "var CSwitchThreadInOutCpu = [");
@@ -4566,7 +4562,11 @@ void MicroProfileSocketDumpState()
 
 void MicroProfileSleep(uint32_t nMs)
 {
+#ifdef _WIN32
+	Sleep(nMs);
+#else
 	usleep(nMs * 1000);
+#endif
 }
 
 bool MicroProfileSocketSend2(MpSocket Connection, const void* pMessage, int nLen);
@@ -4798,31 +4798,7 @@ bool MicroProfileWebSocketSend(MpSocket Connection, const char* pMessage, uint64
 	return true;
 
 }
-void DUMPDEBUG()
-{
-	int nWSCount = 0;
-	int nWS = S.WebSocketTimers;
-	printf("WS ");
-	while(nWS != -1)
-	{
-		printf("%s ", S.TimerInfo[nWS].pName);
-		MP_ASSERT(S.TimerInfo[nWS].bWSEnabled);
-		nWSCount++;
-		nWS = S.TimerInfo[nWS].nWSNext;
-	}
-	int nCount2 = S.WebSocketTimers != -1;
-	for(uint32_t i = 0; i < S.nTotalTimers; ++i)
-	{
-		if(S.TimerInfo[i].nWSNext != -1)
-		{
-			nCount2++;
-		}
-		else
-		{
-		}
-	}
-	MP_ASSERT(nWSCount == nCount2);
-}
+
 void MicroProfileWebSocketClearTimers()
 {
 	while(S.WebSocketTimers != -1)
@@ -4832,7 +4808,6 @@ void MicroProfileWebSocketClearTimers()
 		S.TimerInfo[S.WebSocketTimers].nWSNext = -1;
 		S.WebSocketTimers = nNext;
 	}
-	DUMPDEBUG();
 
 	S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
 }
@@ -4861,7 +4836,6 @@ void MicroProfileToggleWebSocketToggleTimer(uint32_t nTimer)
 			*pPrev = (int)nTimer;
 			TI.bWSEnabled = true;
 		}
-		DUMPDEBUG();
 		S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
 	}
 
@@ -5168,48 +5142,6 @@ void MicroProfileLoadPresets(const char* pSettingsName)
 			return true;
 		}
 	);
-
-	// FILE* F = fopen(MICROPROFILE_SETTINGS_FILE_TEMP, "rb");
-	// if(!F)
-	// {
-	// 	printf("load failed\n");
-	// 	return;
-	// }
-	// fseek(F, -sizeof(MicroProfileSettingsFileHeader), SEEK_END);
-	// MicroProfileSettingsFileHeader FileHeader;
-	// fread(&FileHeader, sizeof(FileHeader), 1, F);
-	// if(!FileHeader.nNumHeaders)
-	// {
-	// 	printf("fail\n");
-	// 	return;
-	// }
-	// MicroProfileSettingsHeader* pHeaders = (MicroProfileSettingsHeader*)alloca(sizeof(MicroProfileSettingsHeader) * FileHeader.nNumHeaders);
-	// fseek(F, FileHeader.nHeadersOffset, SEEK_SET);
-	// char* pName = (char*)alloca(FileHeader.nMaxNameSize);
-
-	// if(FileHeader.nMaxJsonSize > S.nJsonSettingsBufferSize)
-	// {
-	// 	S.pJsonSettings = (char*)realloc(S.pJsonSettings, FileHeader.nMaxJsonSize);
-	// 	S.nJsonSettingsBufferSize = FileHeader.nMaxJsonSize;
-	// }
-
-	// fread(pHeaders, sizeof(MicroProfileSettingsHeader) * FileHeader.nNumHeaders, 1, F);
-	// for(uint32_t i = 0; i < FileHeader.nNumHeaders;++i)
-	// {
-	// 	fseek(F, pHeaders[i].nNameOffset, SEEK_SET);
-	// 	fread(pName, pHeaders[i].nNameSize, 1, F);
-	// 	if(0 == MP_STRCASECMP(pName, pSettingsName))
-	// 	{
-	// 		printf("found match!\n");
-
-	// 		fseek(F, pHeaders[i].nJsonOffset, SEEK_SET);
-	// 		fread(S.pJsonSettings, pHeaders[i].nJsonSize, 1, F);
-	// 		printf("json is\n%s\n", S.pJsonSettings);
-	// 		S.nJsonSettingsPending = 1;
-	// 		break;
-	// 	}
-	// }
-	// fclose(F);
 }
 
 
@@ -5632,9 +5564,6 @@ void MicroProfileWebSocketSendEnabledMessage(uint32_t id, bool bEnabled)
 void MicroProfileWebSocketSendEnabled(MpSocket C)
 {
 	MICROPROFILE_SCOPEI("MicroProfile", "Websocket-SendEnabled", -1);
-
-	MICROPROFILE_SCOPEI("MPWSxxEnables", "MicroProfileWebSocketSendEnabled", 0xff0000);
-
 	WSPrintStart(C);
 	for(uint32_t i = 0; i < S.nCategoryCount; ++i)
 	{
@@ -5808,7 +5737,7 @@ bool MicroProfileWebServerUpdate()
 							MicroProfileFlushSocket(Connection);
 			#endif
 
-			#if 1
+			#if MICROPROFILE_DEBUG
 							printf("\n<!-- Sent %dkb(compressed %dkb) in %.2fms-->\n\n", nKb, nCompressedKb, fMs);
 			#endif
 					}
@@ -5816,8 +5745,6 @@ bool MicroProfileWebServerUpdate()
 					case EMICROPROFILE_GET_COMMAND_DUMP_RANGE:
 					case EMICROPROFILE_GET_COMMAND_DUMP:
 					{
-
-						//if(nFrames || )
 						{
 							MicroProfileSetNonBlocking(Connection, 0);
 							uint64_t nTickStart = MP_TICK();
@@ -5855,7 +5782,7 @@ bool MicroProfileWebServerUpdate()
 							MicroProfileFlushSocket(Connection);
 			#endif
 
-			#if 1
+			#if MICROPROFILE_DEBUG
 							printf("\n<!-- Sent %dkb(compressed %dkb) in %.2fms-->\n\n", nKb, nCompressedKb, fMs);
 			#endif
 						}
@@ -5863,7 +5790,9 @@ bool MicroProfileWebServerUpdate()
 					break;
 					case EMICROPROFILE_GET_COMMAND_UNKNOWN:
 					{
+						#if MICROPROFILE_DEBUG
 						printf("unknown get command %s\n", pGet);
+						#endif
 					}
 					break;
 
