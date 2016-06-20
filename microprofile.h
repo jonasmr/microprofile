@@ -1697,7 +1697,7 @@ MicroProfileThreadLog* MicroProfileGetThreadLog2()
 	if (!pLog)
 	{
 		MicroProfileInitThreadLog();
-		MicroProfileThreadLog* pLog = MicroProfileGetThreadLog();
+		pLog = MicroProfileGetThreadLog();
 	}
 	return pLog;
 }
