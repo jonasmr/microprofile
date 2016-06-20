@@ -17,7 +17,7 @@ CPPFLAGS+=-stdlib=libc++ -std=c++11
 
 
 CPP_SOURCES = fakework.cpp demo_noui.cpp
-C_SOURCES =
+C_SOURCES = test.c
 
 TARGET=demo_noui
 CC=clang

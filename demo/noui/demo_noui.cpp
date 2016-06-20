@@ -51,6 +51,8 @@ uint32_t g_nQuit = 0;
 void StartFakeWork();
 void StopFakeWork();
 
+extern "C" void C_Test();
+
 #define DUMP_SPIKE_TEST 0
 
 MICROPROFILE_DECLARE_LOCAL_ATOMIC_COUNTER(ThreadsStarted);
@@ -108,6 +110,8 @@ int main(int argc, char* argv[])
 			MICROPROFILE_SCOPEI("geddehest", "fiszzk", 0xff00ff);
 			usleep(201 * 1000);
 		} 
+		C_Test();
+
 		MICROPROFILE_COUNTER_LOCAL_ADD(LocalCounter, 3);
 		MICROPROFILE_COUNTER_LOCAL_SUB(LocalCounter, 1);
 		MicroProfileFlip(0);
@@ -141,8 +145,8 @@ int main(int argc, char* argv[])
 			usleep(75 * 1000);
 		}
 
-		MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD(ThreadsStarted);
-		MICROPROFILE_COUNTER_LOCAL_UPDATE_SET(ThreadSpinSleep);
+		MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD_ATOMIC(ThreadsStarted);
+		MICROPROFILE_COUNTER_LOCAL_UPDATE_SET_ATOMIC(ThreadSpinSleep);
 		MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD(LocalCounter);
 
 	}

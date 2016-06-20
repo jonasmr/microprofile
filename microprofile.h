@@ -220,7 +220,6 @@ typedef uint16_t MicroProfileGroupId;
 #else
 
 #include <stdint.h>
-#include <atomic>
 
 #ifndef MICROPROFILE_API
 #define MICROPROFILE_API
@@ -247,15 +246,15 @@ typedef uint64_t MicroProfileThreadIdType;
 #define MICROPROFILE_SCOPEGPUI_L(Log, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MicroProfileGetToken("GPU", name, color,  MicroProfileTokenTypeGpu); MicroProfileScopeGpuHandler MICROPROFILE_TOKEN_PASTE(foo,__LINE__)( MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), Log)
 #define MICROPROFILE_ENTER(var) MicroProfileEnter(g_mp_##var)
 #define MICROPROFILE_ENTER_TOKEN(var) MicroProfileEnter(token)
-#define MICROPROFILE_ENTERI(group, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MicroProfileGetToken(group, name, color, MicroProfileTokenTypeCpu); MicroProfileEnter(MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__))
+#define MICROPROFILE_ENTERI(group, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MICROPROFILE_INVALID_TOKEN; if(MICROPROFILE_INVALID_TOKEN == MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__)){MicroProfileGetTokenC(&MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), group, name, color, MicroProfileTokenTypeCpu);} MicroProfileEnter(MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__))
 #define MICROPROFILE_LEAVE() MicroProfileLeave()
 #define MICROPROFILE_GPU_ENTER(var) MicroProfileEnterGpu(g_mp_##var, MicroProfileGetGlobaGpuThreadLog())
 #define MICROPROFILE_GPU_ENTER_TOKEN(token) MicroProfileEnterGpu(token, MicroProfileGetGlobaGpuThreadLog())
-#define MICROPROFILE_GPU_ENTERI(group, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MicroProfileGetToken(group, name, color, MicroProfileTokenTypeGpu); MicroProfileEnterGpu(MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), MicroProfileGetGlobaGpuThreadLog())
+#define MICROPROFILE_GPU_ENTERI(group, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MICROPROFILE_INVALID_TOKEN; if(MICROPROFILE_INVALID_TOKEN == MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__)){MicroProfileGetTokenC(&MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), group, name, color, MicroProfileTokenTypeGpu);} MicroProfileEnterGpu(MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), MicroProfileGetGlobaGpuThreadLog())
 #define MICROPROFILE_GPU_LEAVE() MicroProfileLeaveGpu(MicroProfileGetGlobaGpuThreadLog())
 #define MICROPROFILE_GPU_ENTER_L(Log, var) MicroProfileEnterGpu(g_mp_##var, Log)
 #define MICROPROFILE_GPU_ENTER_TOKEN_L(Log, token) MicroProfileEnterGpu(token, Log)
-#define MICROPROFILE_GPU_ENTERI_L(Log, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MicroProfileGetToken(group, name, color, MicroProfileTokenTypeGpu); MicroProfileEnterGpu(MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), Log)
+#define MICROPROFILE_GPU_ENTERI_L(Log, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MICROPROFILE_INVALID_TOKEN; if(MICROPROFILE_INVALID_TOKEN == MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__)){MicroProfileGetTokenC(&MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), group, name, color, MicroProfileTokenTypeGpu);} MicroProfileEnterGpu(MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), Log)
 #define MICROPROFILE_GPU_LEAVE_L(Log) MicroProfileLeaveGpu(Log)
 #define MICROPROFILE_GPU_INIT_QUEUE(QueueName) MicroProfileInitGpuQueue(QueueName)
 #define MICROPROFILE_GPU_GET_QUEUE(QueueName) MicroProfileGetGpuQueue(QueueName)
@@ -282,6 +281,11 @@ typedef uint64_t MicroProfileThreadIdType;
 #define MICROPROFILE_COUNTER_LOCAL_SET(var, count) MicroProfileLocalCounterSet(&g_mp_local_counter##var, count)
 #define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD(var) MicroProfileCounterAdd(g_mp_counter_token##var, MicroProfileLocalCounterSet(&g_mp_local_counter##var, 0))
 #define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET(var) MicroProfileCounterSet(g_mp_counter_token##var, MicroProfileLocalCounterSet(&g_mp_local_counter##var, 0))
+#define MICROPROFILE_COUNTER_LOCAL_ADD_ATOMIC(var, count) MicroProfileLocalCounterAddAtomic(&g_mp_local_counter##var, (count))
+#define MICROPROFILE_COUNTER_LOCAL_SUB_ATOMIC(var, count) MicroProfileLocalCounterAddAtomic(&g_mp_local_counter##var, -(int64_t)(count))
+#define MICROPROFILE_COUNTER_LOCAL_SET_ATOMIC(var, count) MicroProfileLocalCounterSetAtomic(&g_mp_local_counter##var, count)
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD_ATOMIC(var) MicroProfileCounterAdd(g_mp_counter_token##var, MicroProfileLocalCounterSetAtomic(&g_mp_local_counter##var, 0))
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET_ATOMIC(var) MicroProfileCounterSet(g_mp_counter_token##var, MicroProfileLocalCounterSetAtomic(&g_mp_local_counter##var, 0))
 #define MICROPROFILE_FORCEENABLECPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeCpu)
 #define MICROPROFILE_FORCEDISABLECPUGROUP(s) MicroProfileForceDisableGroup(s, MicroProfileTokenTypeCpu)
 #define MICROPROFILE_FORCEENABLEGPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeGpu)
@@ -409,21 +413,28 @@ typedef uint64_t MicroProfileThreadIdType;
 
 
 
-enum MicroProfileTokenType
+typedef enum MicroProfileTokenType_t
 {
 	MicroProfileTokenTypeCpu,
 	MicroProfileTokenTypeGpu,
-};
+} MicroProfileTokenType;
 
 struct MicroProfile;
 struct MicroProfileThreadLogGpu;
 struct MicroProfileScopeStateC;
 
+#ifdef __cplusplus
+#include <atomic>
+extern "C" {
+#endif
+
+#define MICROPROFILE_INVALID_TOKEN (uint64_t)-1
 
 MICROPROFILE_API void MicroProfileInit();
 MICROPROFILE_API void MicroProfileShutdown();
 MICROPROFILE_API MicroProfileToken MicroProfileFindToken(const char* sGroup, const char* sName);
-MICROPROFILE_API MicroProfileToken MicroProfileGetToken(const char* sGroup, const char* sName, uint32_t nColor, MicroProfileTokenType Token = MicroProfileTokenTypeCpu);
+MICROPROFILE_API MicroProfileToken MicroProfileGetToken(const char* sGroup, const char* sName, uint32_t nColor, MicroProfileTokenType Token);
+MICROPROFILE_API void MicroProfileGetTokenC(MicroProfileToken* pToken, const char* sGroup, const char* sName, uint32_t nColor, MicroProfileTokenType Token);
 MICROPROFILE_API MicroProfileToken MicroProfileGetMetaToken(const char* pName);
 MICROPROFILE_API MicroProfileToken MicroProfileGetCounterToken(const char* pName);
 MICROPROFILE_API void MicroProfileMetaUpdate(MicroProfileToken, int nCount, MicroProfileTokenType eTokenType);
@@ -435,56 +446,54 @@ MICROPROFILE_API void MicroProfileCounterSetPtr(const char* pCounterName, void* 
 MICROPROFILE_API void MicroProfileCounterFetchCounters();
 MICROPROFILE_API void MicroProfileLocalCounterAdd(int64_t* pCounter, int64_t nCount);
 MICROPROFILE_API int64_t MicroProfileLocalCounterSet(int64_t* pCounter, int64_t nCount);
-MICROPROFILE_API void MicroProfileLocalCounterAdd(std::atomic<int64_t>* pCounter, int64_t nCount);
-MICROPROFILE_API int64_t MicroProfileLocalCounterSet(std::atomic<int64_t>* pCounter, int64_t nCount);
 MICROPROFILE_API uint64_t MicroProfileEnterInternal(MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileLeaveInternal(MicroProfileToken nToken, uint64_t nTick);
 MICROPROFILE_API void MicroProfileEnter(MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileLeave();
-MICROPROFILE_API void MicroProfileEnterGpu(MicroProfileToken nToken, MicroProfileThreadLogGpu* pLog);
+MICROPROFILE_API void MicroProfileEnterGpu(MicroProfileToken nToken, struct MicroProfileThreadLogGpu* pLog);
 MICROPROFILE_API void MicroProfileLeaveGpu();
-MICROPROFILE_API uint64_t MicroProfileGpuEnterInternal(MicroProfileThreadLogGpu* pLog, MicroProfileToken nToken);
-MICROPROFILE_API void MicroProfileGpuLeaveInternal(MicroProfileThreadLogGpu* pLog, MicroProfileToken nToken, uint64_t nTick);
-MICROPROFILE_API void MicroProfileGpuBegin(void* pContext, MicroProfileThreadLogGpu* pLog);
-MICROPROFILE_API void MicroProfileGpuSetContext(void* pContext, MicroProfileThreadLogGpu* pLog);
-MICROPROFILE_API uint64_t MicroProfileGpuEnd(MicroProfileThreadLogGpu* pLog);
-MICROPROFILE_API MicroProfileThreadLogGpu* MicroProfileThreadLogGpuAlloc();
-MICROPROFILE_API void MicroProfileThreadLogGpuFree(MicroProfileThreadLogGpu* pLog);
-MICROPROFILE_API void MicroProfileThreadLogGpuReset(MicroProfileThreadLogGpu* pLog);
+MICROPROFILE_API uint64_t MicroProfileGpuEnterInternal(struct MicroProfileThreadLogGpu* pLog, MicroProfileToken nToken);
+MICROPROFILE_API void MicroProfileGpuLeaveInternal(struct MicroProfileThreadLogGpu* pLog, MicroProfileToken nToken, uint64_t nTick);
+MICROPROFILE_API void MicroProfileGpuBegin(void* pContext, struct MicroProfileThreadLogGpu* pLog);
+MICROPROFILE_API void MicroProfileGpuSetContext(void* pContext, struct MicroProfileThreadLogGpu* pLog);
+MICROPROFILE_API uint64_t MicroProfileGpuEnd(struct MicroProfileThreadLogGpu* pLog);
+MICROPROFILE_API struct MicroProfileThreadLogGpu* MicroProfileThreadLogGpuAlloc();
+MICROPROFILE_API void MicroProfileThreadLogGpuFree(struct MicroProfileThreadLogGpu* pLog);
+MICROPROFILE_API void MicroProfileThreadLogGpuReset(struct MicroProfileThreadLogGpu* pLog);
 MICROPROFILE_API void MicroProfileGpuSubmit(int nQueue, uint64_t nWork);
 MICROPROFILE_API int MicroProfileInitGpuQueue(const char* pQueueName);
 MICROPROFILE_API int MicroProfileGetGpuQueue(const char* pQueueName);
 MICROPROFILE_API void MicroProfileFlip(void* pGpuContext); //! call once per frame.
 MICROPROFILE_API void MicroProfileToggleFrozen();
-MICROPROFILE_API bool MicroProfileIsFrozen();
+MICROPROFILE_API int MicroProfileIsFrozen();
 MICROPROFILE_API void MicroProfileForceEnableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API float MicroProfileGetTime(const char* pGroup, const char* pName);
-MICROPROFILE_API bool MicroProfilePlatformMarkersGetEnabled(); //enable platform markers. disables microprofile markers
-MICROPROFILE_API void MicroProfilePlatformMarkersSetEnabled(bool bEnabled); //enable platform markers. disables microprofile markers
+MICROPROFILE_API int MicroProfilePlatformMarkersGetEnabled(); //enable platform markers. disables microprofile markers
+MICROPROFILE_API void MicroProfilePlatformMarkersSetEnabled(int bEnabled); //enable platform markers. disables microprofile markers
 MICROPROFILE_API void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pContextSwitchEnd, uint64_t nBaseTicksCpu, uint64_t nBaseTicksEndCpu);
 MICROPROFILE_API void MicroProfileOnThreadCreate(const char* pThreadName); //should be called from newly created threads
 MICROPROFILE_API void MicroProfileOnThreadExit(); //call on exit to reuse log
 MICROPROFILE_API void MicroProfileInitThreadLog();
-MICROPROFILE_API void MicroProfileSetEnableAllGroups(bool bEnable); 
-MICROPROFILE_API void MicroProfileSetGroupsStartEnabled(bool bEnable); 
+MICROPROFILE_API void MicroProfileSetEnableAllGroups(int bEnable); 
+MICROPROFILE_API void MicroProfileSetGroupsStartEnabled(int bEnable); 
 MICROPROFILE_API void MicroProfileEnableCategory(const char* pCategory); 
 MICROPROFILE_API void MicroProfileDisableCategory(const char* pCategory); 
-MICROPROFILE_API bool MicroProfileGetEnableAllGroups();
-MICROPROFILE_API void MicroProfileSetForceMetaCounters(bool bEnable); 
-MICROPROFILE_API bool MicroProfileGetForceMetaCounters();
+MICROPROFILE_API int MicroProfileGetEnableAllGroups();
+MICROPROFILE_API void MicroProfileSetForceMetaCounters(int bEnable); 
+MICROPROFILE_API int MicroProfileGetForceMetaCounters();
 MICROPROFILE_API void MicroProfileEnableMetaCounter(const char* pMet);
 MICROPROFILE_API void MicroProfileDisableMetaCounter(const char* pMet);
 MICROPROFILE_API void MicroProfileSetAggregateFrames(int frames);
 MICROPROFILE_API int MicroProfileGetAggregateFrames();
 MICROPROFILE_API int MicroProfileGetCurrentAggregateFrames();
-MICROPROFILE_API MicroProfile* MicroProfileGet();
+MICROPROFILE_API struct MicroProfile* MicroProfileGet();
 MICROPROFILE_API void MicroProfileGetRange(uint32_t nPut, uint32_t nGet, uint32_t nRange[2][2]);
 MICROPROFILE_API void MicroProfileStartContextSwitchTrace();
 MICROPROFILE_API void MicroProfileStopContextSwitchTrace();
-MICROPROFILE_API bool MicroProfileIsLocalThread(uint32_t nThreadId);
+MICROPROFILE_API int MicroProfileIsLocalThread(uint32_t nThreadId);
 MICROPROFILE_API int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_t nBufferSize);
-MICROPROFILE_API MicroProfileThreadLogGpu* MicroProfileGetGlobaGpuThreadLog();
+MICROPROFILE_API struct MicroProfileThreadLogGpu* MicroProfileGetGlobaGpuThreadLog();
 MICROPROFILE_API int MicroProfileGetGlobaGpuQueue();
 MICROPROFILE_API void MicroProfileRegisterGroup(const char* pGroup, const char* pCategory, uint32_t nColor);
 #if MICROPROFILE_PLATFORM_MARKERS
@@ -497,8 +506,14 @@ MICROPROFILE_API float MicroProfileTickToMsMultiplierGpu();
 MICROPROFILE_API int64_t MicroProfileTicksPerSecondCpu();
 MICROPROFILE_API uint64_t MicroProfileTick();
 
+#ifdef __cplusplus
+MICROPROFILE_API void MicroProfileLocalCounterAddAtomic(std::atomic<int64_t>* pCounter, int64_t nCount);
+MICROPROFILE_API int64_t MicroProfileLocalCounterSetAtomic(std::atomic<int64_t>* pCounter, int64_t nCount);
 
+}
+#endif
 
+#ifdef __cplusplus
 struct MicroProfileThreadInfo
 {
 	//3 first members are used to sort. dont reorder
@@ -529,7 +544,7 @@ struct MicroProfileThreadInfo
 };
 MICROPROFILE_API MicroProfileThreadInfo MicroProfileGetThreadInfo(MicroProfileThreadIdType nThreadId);
 MICROPROFILE_API uint32_t MicroProfileGetThreadInfoArray(MicroProfileThreadInfo** pThreadArray);
-
+#endif
 
 #if defined(MICROPROFILE_GPU_TIMERS_D3D12)
 MICROPROFILE_API void MicroProfileGpuInitD3D12(void* pDevice, void* pCommandQueue);
@@ -576,7 +591,7 @@ struct MicroProfileScopeStateC
 	int64_t nTick;
 };
 
-
+#ifdef __cplusplus
 struct MicroProfileScopeHandler
 {
 	MicroProfileToken nToken;
@@ -605,7 +620,7 @@ struct MicroProfileScopeGpuHandler
 		MicroProfileGpuLeaveInternal(pLog, nToken, nTick);
 	}
 };
-
+#endif //__cplusplus
 #endif //enabled
 #endif //once
 
@@ -632,7 +647,6 @@ struct MicroProfileScopeGpuHandler
 #define MICROPROFILE_WEBSOCKET_BUFFER_SIZE (10<<10)
 #define MICROPROFILE_INVALID_TICK ((uint64_t)-1)
 #define MICROPROFILE_GROUP_MASK_ALL 0xffffffffffff
-#define MICROPROFILE_INVALID_TOKEN (uint64_t)-1
 
 
 #define MP_LOG_TICK_MASK  0x0000ffffffffffff
@@ -2015,6 +2029,18 @@ MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, ui
 	S.TimerToGroup[nTimerIndex] = nGroupIndex;
 	return nToken;
 }
+void MicroProfileGetTokenC(MicroProfileToken* pToken, const char* pGroup, const char* pName, uint32_t nColor, MicroProfileTokenType Type)
+{
+	if(*pToken == MICROPROFILE_INVALID_TOKEN)
+	{
+		MicroProfileInit();
+		MicroProfileScopeLock L(MicroProfileMutex());
+		if(*pToken == MICROPROFILE_INVALID_TOKEN)
+		{
+			*pToken = MicroProfileGetToken(pGroup, pName, nColor, Type);
+		}	
+	}
+}
 
 MicroProfileToken MicroProfileGetMetaToken(const char* pName)
 {
@@ -2298,11 +2324,11 @@ int64_t MicroProfileLocalCounterSet(int64_t* pCounter, int64_t nCount)
 	return r;
 }
 
-void MicroProfileLocalCounterAdd(std::atomic<int64_t>* pCounter, int64_t nCount)
+void MicroProfileLocalCounterAddAtomic(std::atomic<int64_t>* pCounter, int64_t nCount)
 {
 	pCounter->fetch_add(nCount);
 }
-int64_t MicroProfileLocalCounterSet(std::atomic<int64_t>* pCounter, int64_t nCount)
+int64_t MicroProfileLocalCounterSetAtomic(std::atomic<int64_t>* pCounter, int64_t nCount)
 {
 	return pCounter->exchange(nCount);
 }
@@ -2539,9 +2565,9 @@ void MicroProfileToggleFrozen()
 	S.nFrozen = !S.nFrozen;
 }
 
-bool MicroProfileIsFrozen()
+int MicroProfileIsFrozen()
 {
-	return S.nFrozen != 0;
+	return S.nFrozen != 0?1:0;
 }
 
 static void MicroProfileFlipEnabled()
@@ -3102,19 +3128,19 @@ void MicroProfileDisableCategory(const char* pCategory)
 	MicroProfileEnableCategory(pCategory, false);
 }
 
-bool MicroProfileGetEnableAllGroups()
+int MicroProfileGetEnableAllGroups()
 {
-	return S.nGroupMask == S.nActiveGroupWanted;
+	return S.nGroupMask == S.nActiveGroupWanted?1:0;
 }
 
-void MicroProfileSetForceMetaCounters(bool bForce)
+void MicroProfileSetForceMetaCounters(int bForce)
 {
 	S.nForceMetaCounters = bForce ? 1 : 0;
 }
 
-bool MicroProfileGetForceMetaCounters()
+int MicroProfileGetForceMetaCounters()
 {
-	return 0 != S.nForceMetaCounters;
+	return 0 != S.nForceMetaCounters?1:0;
 }
 
 void MicroProfileEnableMetaCounter(const char* pMeta)
@@ -3240,11 +3266,11 @@ float MicroProfileGetTime(const char* pGroup, const char* pName)
 	return S.Frame[nTimerIndex].nTicks * fToMs;
 }
 
-bool MicroProfilePlatformMarkersGetEnabled()
+int MicroProfilePlatformMarkersGetEnabled()
 {
-	return S.nPlatformMarkersEnabled != 0;
+	return S.nPlatformMarkersEnabled != 0 ? 1 : 0;
 }
-void MicroProfilePlatformMarkersSetEnabled(bool bEnabled)
+void MicroProfilePlatformMarkersSetEnabled(int bEnabled)
 {
 	S.nPlatformMarkersEnabled = bEnabled ? 1 : 0;
 }

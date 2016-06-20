@@ -59,7 +59,7 @@ MICROPROFILE_DEFINE(ThreadSafeMain,"ThreadSafe", "Main", 0xffdd3355);
 
 void spinsleep(int64_t nUs)
 {
-	MICROPROFILE_COUNTER_LOCAL_ADD(ThreadSpinSleep, 1);
+	MICROPROFILE_COUNTER_LOCAL_ADD_ATOMIC(ThreadSpinSleep, 1);
 	MICROPROFILE_SCOPEI("spin","sleep", 0xffff);
 #if MICROPROFILE_ENABLED
 	float fToMs = MicroProfileTickToMsMultiplierCpu();
@@ -77,7 +77,7 @@ void spinsleep(int64_t nUs)
 
 void WorkerThreadLong(int threadId)
 {
-	MICROPROFILE_COUNTER_LOCAL_ADD(ThreadsStarted, 1);
+	MICROPROFILE_COUNTER_LOCAL_ADD_ATOMIC(ThreadsStarted, 1);
 	uint32_t c0 = 0xff3399ff;
 	uint32_t c1 = 0xffff99ff;
 	char name[100];
@@ -100,7 +100,7 @@ void WorkerThreadLong(int threadId)
 
 void WorkerThread(int threadId)
 {
-	MICROPROFILE_COUNTER_LOCAL_ADD(ThreadsStarted, 1);
+	MICROPROFILE_COUNTER_LOCAL_ADD_ATOMIC(ThreadsStarted, 1);
 
 	char name[100];
 	snprintf(name, 99, "Worker%d", threadId);
