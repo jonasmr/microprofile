@@ -546,6 +546,11 @@ MICROPROFILE_API MicroProfileThreadInfo MicroProfileGetThreadInfo(MicroProfileTh
 MICROPROFILE_API uint32_t MicroProfileGetThreadInfoArray(MicroProfileThreadInfo** pThreadArray);
 #endif
 
+#ifdef __cplusplus
+extern "C" 
+{
+#endif
+
 #if defined(MICROPROFILE_GPU_TIMERS_D3D12)
 MICROPROFILE_API void MicroProfileGpuInitD3D12(void* pDevice, void* pCommandQueue);
 MICROPROFILE_API void MicroProfileGpuShutdown();
@@ -584,6 +589,14 @@ MICROPROFILE_API const char* MicroProfileGetThreadName(char* pzName);
 #else
 #define MicroProfileGetThreadName(a) "<implement MicroProfileGetThreadName to get threadnames>"
 #endif
+
+
+
+#ifdef __cplusplus
+}
+#endif
+
+
 
 struct MicroProfileScopeStateC
 {
@@ -3079,7 +3092,7 @@ void MicroProfileFlip(void* pContext)
 	MicroProfileFlipEnabled();
 }
 
-void MicroProfileSetEnableAllGroups(bool bEnable)
+void MicroProfileSetEnableAllGroups(int bEnable)
 {
 	if(bEnable)
 	{
@@ -3090,11 +3103,11 @@ void MicroProfileSetEnableAllGroups(bool bEnable)
 		S.nActiveGroupWanted = 0;
 	}
 }
-void MicroProfileSetGroupsStartEnabled(bool bEnable)
+void MicroProfileSetGroupsStartEnabled(int bEnable)
 {
 	S.nStartEnabled = bEnable ? 1 : 0;
 }
-void MicroProfileEnableCategory(const char* pCategory, bool bEnabled)
+void MicroProfileEnableCategory(const char* pCategory, int bEnabled)
 {
 	int nCategoryIndex = -1;
 	for(uint32_t i = 0; i < S.nCategoryCount; ++i)
