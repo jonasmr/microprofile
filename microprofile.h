@@ -225,7 +225,11 @@ typedef uint16_t MicroProfileGroupId;
 #define MICROPROFILE_API
 #endif
 
+#ifdef _WIN32
+typedef uint32_t MicroProfileThreadIdType;
+#else
 typedef uint64_t MicroProfileThreadIdType;
+#endif
 
 
 #define MICROPROFILE_DECLARE(var) extern MicroProfileToken g_mp_##var
@@ -5017,8 +5021,8 @@ bool MicroProfileWebSocketSend(MpSocket Connection, const char* pMessage, uint64
 	memcpy(pTmp+2, &nExtraSize[0], nExtraSizeBytes);
 	pTmp[1] = *(char*)&h1;
 	pTmp[0] = *(char*)&h0;
-	MicroProfileSocketSend(Connection, pTmp, nExtraSizeBytes + 2 + nLen);
-	#if 0
+	//MicroProfileSocketSend(Connection, pTmp, nExtraSizeBytes + 2 + nLen);
+	#if 1
 	MicroProfileSocketSend(Connection, &h0, 1);
 	MicroProfileSocketSend(Connection, &h1, 1);
 	if(nExtraSizeBytes)
@@ -5787,7 +5791,7 @@ void WSFlush()
 	MicroProfileWebSocketSend(S.WSBuf.Socket, &S.WSBuf.Buffer[0], S.WSBuf.nPut);
 	S.WSBuf.nPut = 0;
 }
-void MicroProfileWebSocketSendEnabledMessage(uint32_t id, bool bEnabled)
+void MicroProfileWebSocketSendEnabledMessage(uint32_t id, int bEnabled)
 {
 	WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"e\":%d}}", MSG_ENABLED, id, bEnabled?1:0);
 	WSFlush();
@@ -6047,7 +6051,7 @@ bool MicroProfileWebServerUpdate()
 #if MICROPROFILE_CONTEXT_SWITCH_TRACE
 //functions that need to be implemented per platform.
 void* MicroProfileTraceThread(void* unused);
-bool MicroProfileIsLocalThread(uint32_t nThreadId);
+int MicroProfileIsLocalThread(uint32_t nThreadId);
 
 
 void MicroProfileStartContextSwitchTrace()

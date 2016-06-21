@@ -168,6 +168,7 @@
   <ItemGroup>
     <ClCompile Include="demo_noui.cpp" />
     <ClCompile Include="fakework.cpp" />
+    <ClCompile Include="test.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\microprofile.html" />
