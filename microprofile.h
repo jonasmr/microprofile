@@ -94,7 +94,24 @@
 //
 // Limitations:
 //  GPU timestamps can only be inserted from one thread.
-
+//
+//
+// Resource Usage:
+// 	MicroProfile uses a few large allocations.
+//	- One global instance of struct MicroProfile
+// 	- One Large Allocation per thread that its tracking (MICROPROFILE_PER_THREAD_BUFFER_SIZE, default 2mb)
+//  - One Large Allocation per gpu buffer used (MICROPROFILE_PER_THREAD_GPU_BUFFER_SIZE, default 128k)
+//	- one thread for sending
+//  - if context switch state is enabled, another thread plus a 128k buffer for storing cswitch data.
+//  - two small variable size buffers. should not be more than a few kb.
+//		- A state buffer for receiving websocket packets
+//		- A state buffer for loading/saving settings.
+//  - one small allocation for receiving packets from the sender
+//
+// To change how microprofile allocates memory, define these macros when compiling microprofile implementation
+// 	MICROPROFILE_ALLOC
+// 	MICROPROFILE_REALLOC
+// 	MICROPROFILE_FREE
 
 
 #ifndef MICROPROFILE_ENABLED
@@ -665,7 +682,6 @@ struct MicroProfileScopeGpuHandler
 #define MICROPROFILE_INVALID_TICK ((uint64_t)-1)
 #define MICROPROFILE_GROUP_MASK_ALL 0xffffffffffff
 
-
 #define MP_LOG_TICK_MASK  0x0000ffffffffffff
 #define MP_LOG_INDEX_MASK 0x3fff000000000000
 #define MP_LOG_BEGIN_MASK 0xc000000000000000
@@ -679,6 +695,15 @@ enum
 	MICROPROFILE_WEBSOCKET_DIRTY_MENU,
 	MICROPROFILE_WEBSOCKET_DIRTY_ENABLED,
 };
+
+
+#ifndef MICROPROFILE_ALLOC //redefine all if overriding
+#define MICROPROFILE_ALLOC(nSize, nAlign) MicroProfileAllocAligned(nSize, nAlign);
+#define MICROPROFILE_REALLOC(p, s) realloc(p, s)
+#define MICROPROFILE_FREE(p) free(p)
+#endif
+
+#define MICROPROFILE_ALLOC_OBJECT(T) (T*)MICROPROFILE_ALLOC(sizeof(T), alignof(T))
 
 
 
@@ -790,6 +815,14 @@ inline uint64_t MicroProfileGetCurrentThreadId()
 #define MP_STRCASECMP strcasecmp
 #define MP_GETCURRENTTHREADID() MicroProfileGetCurrentThreadId()
 typedef uint64_t MicroProfileThreadIdType;
+
+static void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
+{
+	void* p; 
+	posix_memalign(&p, nAlign, nSize); 
+	return p;
+}
+
 #elif defined(_WIN32)
 int64_t MicroProfileGetTick();
 #define MP_TICK() MicroProfileGetTick()
@@ -797,6 +830,10 @@ int64_t MicroProfileGetTick();
 #define MP_THREAD_LOCAL __declspec(thread)
 #define MP_STRCASECMP _stricmp
 #define MP_GETCURRENTTHREADID() GetCurrentThreadId()
+static void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
+{
+	return _aligned_malloc(nSize, nAlign);
+}
 
 #elif defined(__linux__)
 #include <unistd.h>
@@ -824,6 +861,13 @@ typedef uint64_t MicroProfileThreadIdType;
 #ifndef MP_GETCURRENTTHREADID 
 #define MP_GETCURRENTTHREADID() 0
 typedef uint32_t MicroProfileThreadIdType;
+static void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
+{
+	void* p; 
+	posix_memalign(&p, align, s); 
+	return p;
+}
+
 #endif
 
 
@@ -1502,12 +1546,15 @@ void MicroProfileThreadJoin(MicroProfileThread* pThread)
 typedef std::thread* MicroProfileThread;
 inline void MicroProfileThreadStart(MicroProfileThread* pThread, MicroProfileThreadFunc Func)
 {
-    *pThread = new std::thread(Func, nullptr);
+    *pThread = MICROPROFILE_ALLOC_OBJECT(std::thread);
+    new (*pThread) std::thread(Func, nullptr);
 }
 inline void MicroProfileThreadJoin(MicroProfileThread* pThread)
 {
     (*pThread)->join();
-    delete *pThread;
+    (*pThread)->~std::thread();
+    MICRPPROFILE_FREE(*pThread);
+    *pThread = 0;
 }
 #endif
 #endif
@@ -1689,7 +1736,7 @@ void MicroProfileShutdown()
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 	if(S.pJsonSettings)
 	{
-		free(S.pJsonSettings);
+		MICROPROFILE_FREE(S.pJsonSettings);
 		S.pJsonSettings = 0;
 		S.nJsonSettingsBufferSize = 0;
 	}
@@ -1762,7 +1809,7 @@ MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 	}
 	else
 	{
-		pLog = new MicroProfileThreadLog;
+		pLog = MICROPROFILE_ALLOC_OBJECT(MicroProfileThreadLog);
 		memset(pLog, 0, sizeof(*pLog));
 		S.nMemUsage += sizeof(MicroProfileThreadLog);
 		pLog->nLogIndex = S.nNumLogs;
@@ -1811,7 +1858,7 @@ MicroProfileThreadLogGpu* MicroProfileThreadLogGpuAllocInternal()
 	}
 	if (!pLog)
 	{
-		pLog = new MicroProfileThreadLogGpu;
+		pLog = MICROPROFILE_ALLOC_OBJECT(MicroProfileThreadLogGpu);
 		int nLogIndex = S.nNumLogsGpu++;
 		MP_ASSERT(nLogIndex < MICROPROFILE_MAX_THREADS);
 		pLog->nId = nLogIndex;
@@ -5368,7 +5415,7 @@ void MicroProfileLoadPresets(const char* pSettingsName)
 				uint32_t nLen = (uint32_t)strlen(pJson)+1;
 				if(nLen > S.nJsonSettingsBufferSize)
 				{
-					S.pJsonSettings = (char*)realloc(S.pJsonSettings, nLen);
+					S.pJsonSettings = (char*)MICROPROFILE_REALLOC(S.pJsonSettings, nLen);
 					S.nJsonSettingsBufferSize = nLen;
 				}
 				memcpy(S.pJsonSettings, pJson, nLen);
@@ -5455,7 +5502,6 @@ foo= 3;
 
         for(uint32_t i = 0; i < nSizeBytes; i++)
             MessageLength |= Bytes[i] << ((nSizeBytes - 1 - i) * 8);
-        printf("size xx %lld %lld\n", MessageLength, nSize);
         MP_ASSERT(MessageLength == nSize);
 	}
 
@@ -5469,9 +5515,7 @@ foo= 3;
 
 	if(nSize+1 > BytesAllocated)
 	{
-		if(Bytes)
-			free(Bytes);
-		Bytes = new unsigned char[nSize+1];
+		Bytes = (unsigned char*)MICROPROFILE_REALLOC(Bytes, nSize+1);
 		BytesAllocated = nSize + 1;
 	}
 	recv(Connection, (char*)Bytes, nSize, 0);
@@ -5674,7 +5718,6 @@ void MicroProfileWebSocketFrame()
 		if(FD_ISSET(s, &Error))
 		{
 			MP_ASSERT(0); // todo, remove & fix.
-			//printf("error!!1\n");
 		}
 		if(FD_ISSET(s, &Read))
 		{
@@ -5684,7 +5727,6 @@ void MicroProfileWebSocketFrame()
 		{
 			if(S.nJsonSettingsPending)
 			{
-				// printf("{\"k\":\"%d\",\"v\":%s}", MSG_LOADSETTINGS, S.pJsonSettings);
 				WSPrintStart(s);
 				WSPrintf("{\"k\":\"%d\",\"v\":%s}", MSG_LOADSETTINGS, S.pJsonSettings);
 				WSFlush();
