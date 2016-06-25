@@ -97,6 +97,10 @@ var MouseX = 0;
 var MouseY = 0;
 var MouseReleased = false;
 
+var nBarsWidth = 80;
+var NameWidth = 200;
+
+
 var MouseDragOff = 0;
 var MouseDragDown = 1;
 var MouseDragUp = 2;
@@ -229,6 +233,10 @@ var MainView;
 var X5Views;
 
 
+
+var SortColumnMouseOver = "";
+var SortColumnMouseOverNext = "";
+
 var KeyShiftDown = 0;
 var KeyCtrlDown = 0;
 
@@ -236,6 +244,18 @@ var IsFrozen = 0;
 
 TimerArray.push(Empty); // 0 is root of tree
 
+var StrGroup = "Group";
+var StrThread = "Thread";
+var StrTimer = "Timer";
+var StrAverage = "Average";
+var StrMax = "Max";
+var StrTotal = "Total";
+var StrMin = "Min";
+var StrSpike = "Spike%";
+var StrCallAverage = "Call Average";
+var StrCount = "Count";
+var StrExclAverage = "Excl Average";
+var StrExclMax = "Excl Max";
 
 
 function Plotf(str)
@@ -517,7 +537,7 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 	var BarNames = [];
 	var BarTimes = [];
 	var BarColors = [];
-	var AggregateIndex = Settings.ReferenceTime < 0 ? AggregateHistorySize-1 : AggregateHistorySize-2; //fix med 
+	var AggregateIndex = Settings.AggregateFrames <= 0 ? AggregateHistorySize-1 : AggregateHistorySize-2; //fix med 
 	var GetTime = null;
 
 	if(SingleTimerBars == 0)
@@ -688,6 +708,270 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 }
 
 
+function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
+{
+	ProfileEnter("DrawBarView");
+	var Canvas = View.Canvas[View.BackBuffer];
+	var context = Canvas.getContext('2d');
+
+	context.clearRect(0, 0, View.w, View.h);
+	context.fillStyle = 'white';
+	context.font = Font;
+	var Height = BoxHeight;
+	var Width = nWidth;
+	var Y = Height;
+	var XBase = 0;
+	var nColorIndex = 0;
+	var bMouseIn = 0;
+	var RcpReferenceTime = 1.0 / Settings.ReferenceTime;
+	var CountWidth = 12 * FontWidth;
+	var InnerBoxHeight = BoxHeight-2;
+	var TimerLen = 8;
+	var TimerWidth = TimerLen * FontWidth;
+	var nWidthBars = nBarsWidth+2;
+	var nWidthMs = TimerWidth+2+10;
+
+
+	function HeaderMouseHandle(XBegin, X, Header)
+	{
+		var bMouseIn = LocalMouseY >= 0 && LocalMouseY < BoxHeight && LocalMouseX < X && LocalMouseX > XBegin;
+		if(bMouseIn)
+		{
+			SortColumnMouseOverNext = Header;
+		}
+	}
+	function HeaderString(Header)
+	{
+		if(Header == SortColumnMouseOver)
+		{
+			return Header + (SortColumnOrderFlip ? '<' : '>');
+		}
+		else
+		{
+			return Header;
+		}
+
+	}
+	function DrawHeaderSplit(Header)
+	{
+		context.fillStyle = 'white';
+		context.fillText(HeaderString(Header), X, Height-FontAscent);
+		var XBegin = X;
+		X += nWidthBars;
+		context.fillStyle = nBackColorOffset;
+		X += nWidthMs;
+
+		if(X >= NameWidth)
+		{
+			context.fillRect(X-3, 0, 1, nHeight);
+		}
+
+		HeaderMouseHandle(XBegin, X, Header);
+	}
+	function DrawHeaderSplitSingle(Header, Width)
+	{
+		context.fillStyle = 'white';
+		context.fillText(HeaderString(Header), X, Height-FontAscent);
+		var XBegin = X;
+		X += Width;
+		context.fillStyle = nBackColorOffset;
+		if(X >= NameWidth)
+		{
+			context.fillRect(X-3, 0, 1, nHeight);
+		}
+		HeaderMouseHandle(XBegin, X, Header);
+	}
+	function DrawHeaderSplitLeftRight(HeaderLeft, HeaderRight, Width)
+	{
+		context.textAlign = 'left';
+		context.fillStyle = 'white';
+		context.fillText(HeaderLeft, X, Height-FontAscent);
+		var XBegin = X;
+		X += Width;
+		context.textAlign = 'right';
+		context.fillText(HeaderRight, X-5, Height-FontAscent);
+		context.textAlign = 'left';
+		context.fillStyle = nBackColorOffset;
+		if(X >= NameWidth)
+		{
+			context.fillRect(X-3, 0, 1, nHeight);
+		}
+		HeaderMouseHandle(XBegin, X, HeaderLeft);
+	}
+	function DrawTimer(Value, Color)
+	{
+		var Prc = Value * RcpReferenceTime;
+		var YText = Y+Height-FontAscent;
+		if(Prc > 1)
+		{
+			Prc = 1;
+		}
+		context.textAlign = 'left';
+		context.fillStyle = Color;
+		context.fillRect(X+1, Y+1, Prc * nBarsWidth, InnerBoxHeight);
+		X += nWidthBars;
+		context.fillStyle = 'white';
+		context.fillText(("      " + Value.toFixed(2)).slice(-TimerLen), X, YText);
+		X += nWidthMs;
+	}
+	function DrawMeta(Value, Width, Dec, YText)
+	{
+		Value = FormatMeta(Value, Dec);
+		X += (FontWidth*Width);
+		context.textAlign = 'right';
+		context.fillText(Value, X-FontWidth, YText);
+		context.textAlign = 'left';
+	}
+
+	function DrawTimerRow(idx, key, showgroup)
+	{
+		var Timer = TimerArray[idx];
+		if(key != Timer.id)
+		{
+			debugger;
+		}
+		key = Timer.id;
+		var FD = TimerMap[key];
+		var AggregateIndex = Settings.AggregateFrames <= 0 ? AggregateHistorySize-1 : AggregateHistorySize-2; //fix med 
+	
+
+		var Average = FD.TimeAvg[AggregateIndex];
+		var Max = FD.TimeMax[AggregateIndex];
+		var Min = FD.TimeMin[AggregateIndex];
+		var ExclusiveMax = FD.TimeExclMax[AggregateIndex];
+		var ExclusiveAverage = FD.TimeExclAvg[AggregateIndex];
+		var Total = FD.TimeTotal[AggregateIndex];
+		var CallCount = FD.CallCount[AggregateIndex];
+		var CallAverage = CallCount > 0 ? (Total / CallCount) : 0;	
+		var Spike = (Average == 0 || Max == 0) ? 0 : (100*Max/Average);	
+		var YText = Y+Height-FontAscent;
+		X = NameWidth + XBase;
+
+		nColorIndex = 1-nColorIndex;
+		bMouseIn = LocalMouseY >= Y && LocalMouseY < Y + BoxHeight;
+		context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+		context.fillRect(0, Y, Width, FontHeight+2);
+
+		DrawTimer(Average, Timer.color);
+		DrawTimer(Max,Timer.color);
+		DrawTimer(Total,Timer.color);
+		DrawTimer(Min,Timer.color);
+		X += CountWidth;
+		context.fillStyle = 'white';
+		context.textAlign = 'right';
+		context.fillText(Spike.toFixed(2) + '%', X-6, YText);
+		DrawTimer(CallAverage,Timer.color);
+		X += CountWidth;
+		context.fillStyle = 'white';
+		context.textAlign = 'right';
+		context.fillText(CallCount, X-6, YText);
+		DrawTimer(ExclusiveAverage,Timer.color);
+		DrawTimer(ExclusiveMax,Timer.color);
+
+
+
+
+		context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+		context.fillRect(0, Y, NameWidth, Height);
+		context.textAlign = 'right';
+		context.fillStyle = Timer.color;
+		context.fillText(Timer.name, NameWidth - 5, YText);
+		context.textAlign = 'left';
+		context.fillStyle = 'white';
+		var ParentName = TimerArray[Timer.pidx].name;
+		context.fillText(ParentName, 1, YText);
+	}
+	function FilterMatch(FilterArray, value)
+	{
+		if(!FilterArray)
+			return true;
+		for(var i = 0; i < FilterArray.length; ++i)
+		{
+			var res = value.search(FilterArray[i]);
+			if(res<0)
+				return false;
+		}
+		return true;
+	}
+	if(1) //fix
+	{
+
+		var TimerMap = FrameData.TimerMap;
+		if(!TimerMap)
+		{
+			return;
+		}
+
+
+		//var OrderArray = new Array(TimerInfo.length);
+		for(var key in TimerMap)
+		{
+			var idx = GetTimer(key);
+			var T = TimerArray[idx];
+			var FD = TimerMap[key];
+			if(T.e)
+			{
+				DrawTimerRow(idx, key, 1);
+				Y += Height;
+			}
+		}
+	}
+
+	var X = 0;
+	context.fillStyle = nBackColorOffset;
+	context.fillRect(0, 0, Width, Height);
+	context.fillStyle = 'white';
+	// SortColumnMouseOverNext = null;
+
+	// if(TimersGroups)
+	// {
+	// 	if(2 == TimersGroups)
+	// 	{
+	// 		DrawHeaderSplitLeftRight(StrThread, StrGroup, NameWidth);
+	// 		DrawHeaderSplit(StrAverage);
+	// 	}
+	// 	else
+	// 	{
+	// 		DrawHeaderSplitLeftRight(StrGroup, StrThread, NameWidth);
+	// 		DrawHeaderSplit(StrAverage);
+	// 		DrawHeaderSplit(StrMax);
+	// 		DrawHeaderSplit(StrTotal);
+	// 	}
+	// }
+	// else
+	// {
+
+
+		X = NameWidth + XBase;
+		DrawHeaderSplit(StrAverage);
+		DrawHeaderSplit(StrMax);
+		DrawHeaderSplit(StrTotal);
+		DrawHeaderSplit(StrMin);
+		DrawHeaderSplitSingle(StrSpike, CountWidth);
+		DrawHeaderSplit(StrCallAverage);
+		DrawHeaderSplitSingle(StrCount, CountWidth);
+		DrawHeaderSplit(StrExclAverage);
+		DrawHeaderSplit(StrExclMax);
+	// 	if(TimersMeta)
+	// 	{
+	// 		for(var i = 0; i < nMetaLen; ++i)
+	// 		{
+	// 			DrawHeaderSplitSingle(MetaNames[i], MetaLengths[i] * FontWidth);
+	// 			DrawHeaderSplitSingle(MetaNames[i] + " Avg", MetaLengthsAvg[i] * FontWidth);
+	// 			DrawHeaderSplitSingle(MetaNames[i] + " Max", MetaLengthsMax[i] * FontWidth);
+	// 		}
+	// 	}
+		X = 0;
+		context.fillStyle = nBackColorOffset;
+		context.fillRect(0, 0, NameWidth, Height);
+		context.fillStyle = 'white';
+	
+		DrawHeaderSplitLeftRight(StrGroup, StrTimer, NameWidth);
+	
+	// }
+
+	ProfileLeave();
+}
 
 function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex)
 {
@@ -1512,11 +1796,17 @@ function ActivateView(idx)
 		MainView.DisplayFunc = DrawGraph;
 		MainView.visible = true;
 	}
+	// else if(idx == 1)
+	// {
+	// 	MainView.DisplayFunc = DrawBars;
+	// 	MainView.visible = true;
+	// }
 	else if(idx == 1)
 	{
-		MainView.DisplayFunc = DrawBars;
+		MainView.DisplayFunc = DrawBarView;
 		MainView.visible = true;
 	}
+
 	else if(idx == 2 || idx == 3)
 	{
 		for(var i = 0; i < X5Views.length; ++i)
@@ -2531,6 +2821,10 @@ function GetFrameData(id)
 		FD.TimeExclMin = AllocClearedArray(AggregateHistorySize);
 		FD.TimeExclAvg = AllocClearedArray(AggregateHistorySize);
 		FD.TimeCallAvg = AllocClearedArray(AggregateHistorySize);
+		FD.TimeTotal = AllocClearedArray(AggregateHistorySize);
+		FD.CallCount = AllocClearedArray(AggregateHistorySize);
+		
+
 		FD.AggregateFrames = 0;
 		FD.FrameTime = 0.0;
 		FD.Aggregate = 0;
@@ -2639,7 +2933,7 @@ function ProcessFrame(F)
 		PushIntoArray(FD.Count, Count);
 		FindMaxTime(FD.Time);
 
-		if(FD.Aggregate > Settings.AggregateFrames)
+		if(FD.Aggregate > Settings.AggregateFrames && Settings.AggregateFrames > 0)
 		{
 			FD.Aggregate = 0;
 			FD.AggregateSum = 0;
@@ -2662,6 +2956,11 @@ function ProcessFrame(F)
 			FD.TimeCallAvg.shift();
 			FD.TimeCallAvg.push(0);
 
+			FD.CallCount.shift();
+			FD.CallCount.push(0);
+
+			FD.TimeTotal.shift();
+			FD.TimeTotal.push(0);
 
 			FD.TimeExclMax.shift();
 			FD.TimeExclMax.push(0);
@@ -2691,6 +2990,8 @@ function ProcessFrame(F)
 		FD.TimeMin[UpdatePos] = FD.AggregateMin;
 		FD.TimeAvg[UpdatePos] = FD.AggregateSum / FD.Aggregate;
 		FD.TimeCallAvg[UpdatePos] = FD.AggregateSum / FD.AggregateCount;
+		FD.TimeTotal[UpdatePos] = FD.AggregateSum;
+		FD.CallCount[UpdatePos] = FD.AggregateCount;
 		FD.TimeExclAvg[UpdatePos] = FD.AggregateExclSum / FD.AggregateCount;
 		FD.TimeExclMax[UpdatePos] = FD.AggregateExclMax;
 		FD.TimeExclMin[UpdatePos] = FD.AggregateExclMin;
