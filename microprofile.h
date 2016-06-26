@@ -5241,8 +5241,8 @@ typedef bool (*MicroProfileOnSettings)(const char* pName, uint32_t nNameLen, con
 
 
 
-#define MICROPROFILE_SETTINGS_FILE "xxmppresets"
-#define MICROPROFILE_SETTINGS_FILE_TEMP "xxmppresets" ".tmp"
+#define MICROPROFILE_SETTINGS_FILE "mppresets"
+#define MICROPROFILE_SETTINGS_FILE_TEMP "mppresets" ".tmp"
 
 
 #define WRITE(s, l, f) do{int r = (int)fwrite(s, l, 1, f); nWritten += l; if(r != 1){ Fail(r, __LINE__); MP_BREAK(); return false;} }while(0)
@@ -5377,7 +5377,11 @@ bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSetting
 
 	fflush(F);
 	fclose(F);
+#ifdef _WIN32
+	MoveFileEx(MICROPROFILE_SETTINGS_FILE_TEMP, MICROPROFILE_SETTINGS_FILE, MOVEFILE_REPLACE_EXISTING);
+#else
 	rename(MICROPROFILE_SETTINGS_FILE_TEMP, MICROPROFILE_SETTINGS_FILE);
+#endif
 	return false;
 }
 
