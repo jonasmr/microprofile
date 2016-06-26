@@ -4029,68 +4029,71 @@ function MouseMove(evt)
 	Draw(1);
 }
 
+function MouseSortClick()
+{
+	if(SortColumnMouseOverNext)
+	{
+		if(SortColumnMouseOverNext == SortColumnMouseOver)
+		{
+			SortColumnOrderFlip =  1 - SortColumnOrderFlip;
+		}
+		else
+		{
+			SortColumnOrderFlip = 0;
+		}
+
+		SortColumnMouseOver = SortColumnMouseOverNext;
+		SortColumnMouseOverNext = null;
+		if(SortColumnMouseOver == StrAverage)
+		{
+			SortColumn = 1;
+		}
+		else if(SortColumnMouseOver == StrMax)
+		{
+			SortColumn = 2;
+		}
+		else if(SortColumnMouseOver == StrTotal)
+		{
+			SortColumn = 3;
+		}			
+		else if(SortColumnMouseOver == StrMin)
+		{
+			SortColumn = 4;
+		}
+		else if(SortColumnMouseOver == StrSpike)
+		{
+			SortColumn = 5;
+		}
+		else if(SortColumnMouseOver == StrCallAverage)
+		{
+			SortColumn = 6;
+		}
+		else if(SortColumnMouseOver == StrCount)
+		{
+			SortColumn = 7;
+		}
+		else if(SortColumnMouseOver == StrExclAverage)
+		{
+			SortColumn = 8;
+		}
+		else if(SortColumnMouseOver == StrExclMax)
+		{
+			SortColumn = 9;
+		}
+		else if(SortColumnMouseOver == StrGroup)
+		{
+			SortColumn = 0;
+		}
+		RequestRedraw();
+	}
+}
+
 function MouseButton(bPressed, evt)
 {
     evt.preventDefault();
 	MouseDrag(bPressed ? MouseDragDown : MouseDragUp, evt);
 	if(!bPressed)
-	{
-		if(SortColumnMouseOverNext)
-		{
-			if(SortColumnMouseOverNext == SortColumnMouseOver)
-			{
-				SortColumnOrderFlip =  1 - SortColumnOrderFlip;
-			}
-			else
-			{
-				SortColumnOrderFlip = 0;
-			}
-
-			SortColumnMouseOver = SortColumnMouseOverNext;
-			SortColumnMouseOverNext = null;
-			if(SortColumnMouseOver == StrAverage)
-			{
-				SortColumn = 1;
-			}
-			else if(SortColumnMouseOver == StrMax)
-			{
-				SortColumn = 2;
-			}
-			else if(SortColumnMouseOver == StrTotal)
-			{
-				SortColumn = 3;
-			}			
-			else if(SortColumnMouseOver == StrMin)
-			{
-				SortColumn = 4;
-			}
-			else if(SortColumnMouseOver == StrSpike)
-			{
-				SortColumn = 5;
-			}
-			else if(SortColumnMouseOver == StrCallAverage)
-			{
-				SortColumn = 6;
-			}
-			else if(SortColumnMouseOver == StrCount)
-			{
-				SortColumn = 7;
-			}
-			else if(SortColumnMouseOver == StrExclAverage)
-			{
-				SortColumn = 8;
-			}
-			else if(SortColumnMouseOver == StrExclMax)
-			{
-				SortColumn = 9;
-			}
-			else if(SortColumnMouseOver == StrGroup)
-			{
-				SortColumn = 0;
-			}
-			RequestRedraw();
-		}
-	}
+		MouseSortClick();
 }
 
 function MouseOut(evt)

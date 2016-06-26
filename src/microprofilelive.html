@@ -51,19 +51,10 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 
 
 //todo
-//Features missing:
-//bar view 
-//test win32
-//check feature parity
-//x & p
-
-//improvements:
-//optimize websocket client perf
-
-
-
-
-
+//win32: fix settings load/save
+//settings default load doesn't enable timers
+//bar view: Timer overflow and digits get cut
+//remove/hide multibar[all]
 
 
 
@@ -98,7 +89,8 @@ var MouseY = 0;
 var MouseReleased = false;
 
 var nBarsWidth = 80;
-var NameWidth = 200;
+var nOffsetBarsX = 0;
+var nOffsetBarsY = 0;
 
 
 var MouseDragOff = 0;
@@ -232,10 +224,11 @@ var History;
 var MainView;
 var X5Views;
 
-
-
-var SortColumnMouseOver = "";
+Settings.SortColumn = 0;
+Settings.SortColumnOrderFlip = 0;
+Settings.SortColumnMouseOver = "";
 var SortColumnMouseOverNext = "";
+
 
 var KeyShiftDown = 0;
 var KeyCtrlDown = 0;
@@ -256,6 +249,14 @@ var StrCallAverage = "Call Average";
 var StrCount = "Count";
 var StrExclAverage = "Excl Average";
 var StrExclMax = "Excl Max";
+
+
+var BarColumnNames = [StrAverage, StrMax, StrTotal, StrMin, StrSpike, StrCallAverage, StrCount, StrExclAverage, StrExclMax];
+Settings.BarColumnsEnabled = new Array(BarColumnNames.length);
+for(var i = 0; i < Settings.BarColumnsEnabled.length; ++i)
+{
+	Settings.BarColumnsEnabled[i] = 1;
+}
 
 
 function Plotf(str)
@@ -381,6 +382,7 @@ function ProfileModeDraw(Canvas)
 function MeasureFont()
 {
 	var context = CanvasDetailedView.getContext('2d');
+	context.font = Font;
 	FontWidth = context.measureText('W').width;
 
 }
@@ -713,10 +715,6 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 	ProfileEnter("DrawBarView");
 	var Canvas = View.Canvas[View.BackBuffer];
 	var context = Canvas.getContext('2d');
-
-	context.clearRect(0, 0, View.w, View.h);
-	context.fillStyle = 'white';
-	context.font = Font;
 	var Height = BoxHeight;
 	var Width = nWidth;
 	var Y = Height;
@@ -730,6 +728,14 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 	var TimerWidth = TimerLen * FontWidth;
 	var nWidthBars = nBarsWidth+2;
 	var nWidthMs = TimerWidth+2+10;
+	var NameWidth = 200;
+	var R = 0;
+
+
+
+	context.clearRect(0, 0, View.w, View.h);
+	context.fillStyle = 'white';
+	context.font = Font;
 
 
 	function HeaderMouseHandle(XBegin, X, Header)
@@ -742,9 +748,9 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 	}
 	function HeaderString(Header)
 	{
-		if(Header == SortColumnMouseOver)
+		if(Header == Settings.SortColumnMouseOver)
 		{
-			return Header + (SortColumnOrderFlip ? '<' : '>');
+			return Header + (Settings.SortColumnOrderFlip ? '<' : '>');
 		}
 		else
 		{
@@ -754,65 +760,94 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 	}
 	function DrawHeaderSplit(Header)
 	{
-		context.fillStyle = 'white';
-		context.fillText(HeaderString(Header), X, Height-FontAscent);
-		var XBegin = X;
-		X += nWidthBars;
-		context.fillStyle = nBackColorOffset;
-		X += nWidthMs;
-
-		if(X >= NameWidth)
+		if(Settings.BarColumnsEnabled[R])
 		{
-			context.fillRect(X-3, 0, 1, nHeight);
-		}
+			context.fillStyle = 'white';
+			context.fillText(HeaderString(Header), X, Height-FontAscent);
+			var XBegin = X;
+			X += nWidthBars;
+			context.fillStyle = nBackColorOffset;
+			X += nWidthMs;
 
-		HeaderMouseHandle(XBegin, X, Header);
+			if(X >= NameWidth)
+			{
+				context.fillRect(X-3, 0, 1, nHeight);
+			}
+			HeaderMouseHandle(XBegin, X, Header);
+		}
+		R++;
 	}
 	function DrawHeaderSplitSingle(Header, Width)
 	{
-		context.fillStyle = 'white';
-		context.fillText(HeaderString(Header), X, Height-FontAscent);
-		var XBegin = X;
-		X += Width;
-		context.fillStyle = nBackColorOffset;
-		if(X >= NameWidth)
+		if(Settings.BarColumnsEnabled[R])
 		{
-			context.fillRect(X-3, 0, 1, nHeight);
+			context.fillStyle = 'white';
+			context.fillText(HeaderString(Header), X, Height-FontAscent);
+			var XBegin = X;
+			X += Width;
+			context.fillStyle = nBackColorOffset;
+			if(X >= NameWidth)
+			{
+				context.fillRect(X-3, 0, 1, nHeight);
+			}
+			HeaderMouseHandle(XBegin, X, Header);
 		}
-		HeaderMouseHandle(XBegin, X, Header);
+		R++;
 	}
 	function DrawHeaderSplitLeftRight(HeaderLeft, HeaderRight, Width)
 	{
+		var HeaderLeftS = HeaderString(HeaderLeft);
+		var HeaderRightS = HeaderString(HeaderRight);
 		context.textAlign = 'left';
 		context.fillStyle = 'white';
-		context.fillText(HeaderLeft, X, Height-FontAscent);
+		context.fillText(HeaderLeftS, X, Height-FontAscent);
+		var wLeft = context.measureText(HeaderLeftS).width;
 		var XBegin = X;
 		X += Width;
 		context.textAlign = 'right';
-		context.fillText(HeaderRight, X-5, Height-FontAscent);
+		context.fillText(HeaderRightS, X-5, Height-FontAscent);
 		context.textAlign = 'left';
 		context.fillStyle = nBackColorOffset;
 		if(X >= NameWidth)
 		{
 			context.fillRect(X-3, 0, 1, nHeight);
 		}
-		HeaderMouseHandle(XBegin, X, HeaderLeft);
+		HeaderMouseHandle(XBegin, XBegin + wLeft, HeaderLeft);
+		HeaderMouseHandle(XBegin + wLeft, X, HeaderRight);
+
 	}
 	function DrawTimer(Value, Color)
 	{
-		var Prc = Value * RcpReferenceTime;
-		var YText = Y+Height-FontAscent;
-		if(Prc > 1)
+		if(Settings.BarColumnsEnabled[R])
 		{
-			Prc = 1;
+			var Prc = Value * RcpReferenceTime;
+			var YText = Y+Height-FontAscent;
+			if(Prc > 1)
+			{
+				Prc = 1;
+			}
+			context.textAlign = 'left';
+			context.fillStyle = Color;
+			context.fillRect(X+1, Y+1, Prc * nBarsWidth, InnerBoxHeight);
+			X += nWidthBars;
+			context.fillStyle = 'white';
+			context.fillText(("      " + Value.toFixed(2)).slice(-TimerLen), X, YText);
+			X += nWidthMs;
 		}
-		context.textAlign = 'left';
-		context.fillStyle = Color;
-		context.fillRect(X+1, Y+1, Prc * nBarsWidth, InnerBoxHeight);
-		X += nWidthBars;
-		context.fillStyle = 'white';
-		context.fillText(("      " + Value.toFixed(2)).slice(-TimerLen), X, YText);
-		X += nWidthMs;
+		R++;
+	}
+	function DrawCount(Str)
+	{
+		if(Settings.BarColumnsEnabled[R])
+		{
+			X += CountWidth;
+			context.fillStyle = 'white';
+			context.textAlign = 'right';
+			var YText = Y+Height-FontAscent;
+			context.fillText(Str, X-6, YText);
+		}
+		R++;
+	
 	}
 	function DrawMeta(Value, Width, Dec, YText)
 	{
@@ -823,14 +858,11 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 		context.textAlign = 'left';
 	}
 
-	function DrawTimerRow(idx, key, showgroup)
+	function DrawTimerRow(idx, showgroup)
 	{
+		R = 0;
 		var Timer = TimerArray[idx];
-		if(key != Timer.id)
-		{
-			debugger;
-		}
-		key = Timer.id;
+		var key = Timer.id;
 		var FD = TimerMap[key];
 		var AggregateIndex = Settings.AggregateFrames <= 0 ? AggregateHistorySize-1 : AggregateHistorySize-2; //fix med 
 	
@@ -856,15 +888,19 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 		DrawTimer(Max,Timer.color);
 		DrawTimer(Total,Timer.color);
 		DrawTimer(Min,Timer.color);
-		X += CountWidth;
-		context.fillStyle = 'white';
-		context.textAlign = 'right';
-		context.fillText(Spike.toFixed(2) + '%', X-6, YText);
+		DrawCount(Spike.toFixed(2) + '%');
+		// X += CountWidth;
+		// context.fillStyle = 'white';
+		// context.textAlign = 'right';
+		// context.fillText(Spike.toFixed(2) + '%', X-6, YText);
 		DrawTimer(CallAverage,Timer.color);
-		X += CountWidth;
-		context.fillStyle = 'white';
-		context.textAlign = 'right';
-		context.fillText(CallCount, X-6, YText);
+		
+
+		DrawCount('' + CallCount);
+		// X += CountWidth;
+		// context.fillStyle = 'white';
+		// context.textAlign = 'right';
+		// context.fillText(CallCount, X-6, YText);
 		DrawTimer(ExclusiveAverage,Timer.color);
 		DrawTimer(ExclusiveMax,Timer.color);
 
@@ -893,83 +929,111 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 		}
 		return true;
 	}
-	if(1) //fix
+	var TimerMap = FrameData.TimerMap;
+	if(!TimerMap)
 	{
+		return;
+	}
 
-		var TimerMap = FrameData.TimerMap;
-		if(!TimerMap)
+	var wfirst = 100;
+	var OrderArray = new Array();
+	var nTotalRows = 0;
+	for(var key in TimerMap)
+	{
+		var idx = GetTimer(key);
+		var T = TimerArray[idx];
+		if(T.e)
 		{
-			return;
+			OrderArray.push(idx);
+			wfirst = wfirst < T.wtotal ? T.wtotal : wfirst;
+			nTotalRows++;
 		}
+	}
+	NameWidth = wfirst + 20;
 
 
-		//var OrderArray = new Array(TimerInfo.length);
-		for(var key in TimerMap)
+	var nTotalRowPixels = nTotalRows * Height;
+	var nFrameRows = nHeight - HistoryHeight - BoxHeight;
+	if(nTotalRowPixels > nFrameRows)
+	{
+		if(nOffsetBarsY + nFrameRows > nTotalRowPixels)
 		{
-			var idx = GetTimer(key);
-			var T = TimerArray[idx];
-			var FD = TimerMap[key];
-			if(T.e)
+			nOffsetBarsY = nTotalRowPixels - nFrameRows;
+		}
+	}
+	else
+	{
+		nOffsetBarsY = 0;
+	}
+	Y = Y - nOffsetBarsY;
+	XBase = XBase - nOffsetBarsX;
+
+	if(Settings.SortColumn)
+	{
+		if(Settings.SortColumn<0)
+		{
+			var KeyFunc = null;
+			switch(Settings.SortColumn)
 			{
-				DrawTimerRow(idx, key, 1);
-				Y += Height;
+				case -2: KeyFunc = function (a) { return TimerArray[a].name; }; break;
+				case -1: KeyFunc = function (a) { return TimerArray[TimerArray[a].pidx].name; }; break;
 			}
+			var Flip = Settings.SortColumnOrderFlip == 1 ? -1 : 1;
+			OrderArray.sort(function(a,b) { 
+				var s1 = KeyFunc(a);
+				var s2 = KeyFunc(b);
+				return Flip * s1.localeCompare(s2); 
+			});
+		}
+		else
+		{
+			var KeyFunc = null;
+			switch(Settings.SortColumn)
+			{
+				case 1: KeyFunc = function (a) { return TimerArray[a].average; }; break;
+				case 2: KeyFunc = function (a) { return TimerArray[a].max; }; break;
+				case 3: KeyFunc = function (a) { return TimerArray[a].total; }; break;
+				case 4: KeyFunc = function (a) { return TimerArray[a].min; }; break;
+				case 5: KeyFunc = function (a) { return TimerArray[a].spike; }; break;
+				case 6: KeyFunc = function (a) { return TimerArray[a].callaverage; }; break;
+				case 7: KeyFunc = function (a) { return TimerArray[a].callcount; }; break;
+				case 8: KeyFunc = function (a) { return TimerArray[a].exclaverage; }; break;
+				case 9: KeyFunc = function (a) { return TimerArray[a].exclmax; }; break;
+			}
+			var Flip = Settings.SortColumnOrderFlip == 1 ? -1 : 1;
+			OrderArray.sort(function(a,b) { return Flip * (KeyFunc(b) - KeyFunc(a)); } );
 		}
 	}
 
+	for(var i = 0; i < OrderArray.length; ++i)
+	{
+		var idx = OrderArray[i];
+		var T = TimerArray[idx];
+		DrawTimerRow(idx, 1);
+		Y += Height;
+	}
 	var X = 0;
 	context.fillStyle = nBackColorOffset;
 	context.fillRect(0, 0, Width, Height);
 	context.fillStyle = 'white';
-	// SortColumnMouseOverNext = null;
+	SortColumnMouseOverNext = null;
+	X = NameWidth + XBase;
+	R = 0;
+	DrawHeaderSplit(StrAverage);
+	DrawHeaderSplit(StrMax);
+	DrawHeaderSplit(StrTotal);
+	DrawHeaderSplit(StrMin);
+	DrawHeaderSplitSingle(StrSpike, CountWidth);
+	DrawHeaderSplit(StrCallAverage);
+	DrawHeaderSplitSingle(StrCount, CountWidth);
+	DrawHeaderSplit(StrExclAverage);
+	DrawHeaderSplit(StrExclMax);
+	X = 0;
+	context.fillStyle = nBackColorOffset;
+	context.fillRect(0, 0, NameWidth, Height);
+	context.fillStyle = 'white';
 
-	// if(TimersGroups)
-	// {
-	// 	if(2 == TimersGroups)
-	// 	{
-	// 		DrawHeaderSplitLeftRight(StrThread, StrGroup, NameWidth);
-	// 		DrawHeaderSplit(StrAverage);
-	// 	}
-	// 	else
-	// 	{
-	// 		DrawHeaderSplitLeftRight(StrGroup, StrThread, NameWidth);
-	// 		DrawHeaderSplit(StrAverage);
-	// 		DrawHeaderSplit(StrMax);
-	// 		DrawHeaderSplit(StrTotal);
-	// 	}
-	// }
-	// else
-	// {
-
-
-		X = NameWidth + XBase;
-		DrawHeaderSplit(StrAverage);
-		DrawHeaderSplit(StrMax);
-		DrawHeaderSplit(StrTotal);
-		DrawHeaderSplit(StrMin);
-		DrawHeaderSplitSingle(StrSpike, CountWidth);
-		DrawHeaderSplit(StrCallAverage);
-		DrawHeaderSplitSingle(StrCount, CountWidth);
-		DrawHeaderSplit(StrExclAverage);
-		DrawHeaderSplit(StrExclMax);
-	// 	if(TimersMeta)
-	// 	{
-	// 		for(var i = 0; i < nMetaLen; ++i)
-	// 		{
-	// 			DrawHeaderSplitSingle(MetaNames[i], MetaLengths[i] * FontWidth);
-	// 			DrawHeaderSplitSingle(MetaNames[i] + " Avg", MetaLengthsAvg[i] * FontWidth);
-	// 			DrawHeaderSplitSingle(MetaNames[i] + " Max", MetaLengthsMax[i] * FontWidth);
-	// 		}
-	// 	}
-		X = 0;
-		context.fillStyle = nBackColorOffset;
-		context.fillRect(0, 0, NameWidth, Height);
-		context.fillStyle = 'white';
-	
-		DrawHeaderSplitLeftRight(StrGroup, StrTimer, NameWidth);
-	
-	// }
-
+	DrawHeaderSplitLeftRight(StrGroup, StrTimer, NameWidth);
 	ProfileLeave();
 }
 
@@ -1434,7 +1498,8 @@ var SubMenuTimers = 1;
 var SubMenuSettings = 2;
 var SubMenuViews = 3;
 var SubMenuPresets = 4;
-var SubMenuCapture = 5;
+var SubMenuColumns = 5;
+var SubMenuCapture = 6;
 var SubMenuActive = -1;
 var SubMenuTimeoutBase = 0.7;
 var SubMenuMouseX = 0;
@@ -1478,36 +1543,7 @@ function EnableMenu(m)
 
 
 }
-// function ToggleSubMenu(m)
-// {
-// 	if(m != SubMenuActive)
-// 	{
-// 		SubMenuActive = m;
-// 	}
-// 	else
-// 	{
-// 		SubMenuActive = -1;
-// 	}
-// 	if(SubMenuActive == 1)
-// 	{
 
-// 		var s = TimerMenuSize();
-// 		FilterInputDiv.style['display'] = 'inline';
-// 		var y = s.y - 40;
-// 		FilterInputDiv.style['left'] = s.x + 'px';
-// 		FilterInputDiv.style['top'] = y + 'px';
-// 		FilterInputDiv.style['right'] = (s.x+s.w) + 'px';
-// 		FilterInput.style['width'] = s.w + 'px';
-// 		FilterInput.focus();
-
-
-// 	}
-// 	else
-// 	{
-// 		FilterInputDiv.style['display'] = 'none';
-// 	}
-// 	console.log("submenuactive " + SubMenuActive);
-// }
 function Clamp(v, low, high)
 {
 	return v < low ? low : (v > high ? high : v);
@@ -1536,6 +1572,7 @@ function InitMenu()
 	MenuItems.push(MakeMenuItem("Settings", function(){ EnableMenu(SubMenuSettings); } ));
 	MenuItems.push(MakeMenuItem("Views", function(){ EnableMenu(SubMenuViews); } ));
 	MenuItems.push(MakeMenuItem("Presets", function(){ EnableMenu(SubMenuPresets); } ));
+	MenuItems.push(MakeMenuItem("Columns", function(){ EnableMenu(SubMenuColumns); } ));
 }
 function DrawTopMenu()
 {
@@ -1707,12 +1744,10 @@ function SavePreset(Name)
 		{
 			if(idtype == TYPE_TIMER)
 			{
-				console.log('adding timer ' + t.name);
 				Timers.push(t.name);
 			}
 			else if(idtype == TYPE_GROUP)
 			{
-				console.log('adding group ' + t.name);
 				Groups.push(t.name);
 			}
 		}
@@ -1776,8 +1811,40 @@ function DrawMenuPresets()
 	}
 	SizeInfo.h = M.y - SizeInfo.y;
 	return SizeInfo;
+}
+
+function DrawMenuColumns()
+{
+	var Selection = null;
+	var SizeInfo = {};
+	SizeInfo.h = BoxHeight * (BarColumnNames.length);
+	var x = MenuItems[SubMenuColumns].x;
+	var y = MenuItems[SubMenuColumns].y;
+
+	var Width = MeasureArray(0, BarColumnNames);
+	SizeInfo.w = Width;
+	SizeInfo.x = x;
+	SizeInfo.y = y;
+	
+	var M = CreateMenuState(SizeInfo);
+	var context = CanvasDetailedView.getContext('2d');
+	context.fillRect(M.x, M.y, Width, SizeInfo.h);
+
+
+	for(var i = 0; i < BarColumnNames.length; ++i)
+	{
+		var Active = ActivePreset == Presets[i] ? 1 : 0;
+		if(DrawMenuElement(M, Settings.BarColumnsEnabled[i], BarColumnNames[i], "", 'white', 0))
+		{
+			Settings.BarColumnsEnabled[i] = !Settings.BarColumnsEnabled[i];
+		}
+	}
+
+	SizeInfo.h = M.y - SizeInfo.y;
+	return SizeInfo;
 
 }
+
 
 function ToggleView()
 {
@@ -2489,6 +2556,10 @@ function DrawMenu()
 		{
 			MenuRect = DrawMenuPresets();
 		}
+		else if(SubMenuActive == SubMenuColumns)
+		{
+			MenuRect = DrawMenuColumns();
+		}
 		else if(SubMenuActive == SubMenuCapture)
 		{
 			MenuRect = DrawMenuCapture();
@@ -2751,13 +2822,15 @@ function AddTimer(T)
 	
 	
 	UpdateEnabledTimer(idx);
-
+	var wparent = 0;
 	var pidx = GetTimer(T.pid);
 	if(pidx >= 0 && !existing)
 	{
+
 		TimerArray[idx].pidx = pidx;
 		var Parent = TimerArray[pidx];
 		var Sibling = Parent.firstchild;
+		wparent = MeasureWidth(Parent.name);
 		Parent.firstchild = idx;
 		if(Sibling)
 		{
@@ -2774,7 +2847,9 @@ function AddTimer(T)
 			WidthTree = TimerArray[idx].wtree;
 		}
 	}
-	console.log('add timer ' + idx + ' parent ' + pidx);
+	TimerArray[idx].wparent = wparent;
+	TimerArray[idx].wtotal = wparent + w;
+
 	RequestDraw();
 
 }
@@ -2919,7 +2994,22 @@ function ProcessFrame(F)
 				GraphTimeMax = GraphTimeMax > A[i] ? GraphTimeMax : A[i];
 			}
 		}
-
+	}
+	function SetTimersInArray(FD, id)
+	{
+		var idx = GetTimer(id);
+		var Pos = AggregateHistorySize-1;
+		var T = TimerArray[idx];
+		T.average = FD.TimeAvg[Pos];
+		T.max = FD.TimeMax[Pos];
+		T.total = FD.TimeTotal[Pos];
+		T.min = FD.TimeMin[Pos];
+		T.spike = (T.average == 0 || T.max == 0) ? 0 : (100*T.max/T.average);
+		T.callaverage = FD.TimeCallAvg[Pos];
+		T.callcount = FD.CallCount[Pos];
+		T.exclaverage = FD.TimeExclAvg[Pos];
+		T.exclmax = FD.TimeExclMax[Pos];
+		T.exclmin = FD.TimeExclMin[Pos];
 	}
 	for(var id in F.x)
 	{
@@ -2935,6 +3025,7 @@ function ProcessFrame(F)
 
 		if(FD.Aggregate > Settings.AggregateFrames && Settings.AggregateFrames > 0)
 		{
+			SetTimersInArray(FD, id);
 			FD.Aggregate = 0;
 			FD.AggregateSum = 0;
 			FD.AggregateMax = 0;
@@ -2989,12 +3080,17 @@ function ProcessFrame(F)
 		FD.TimeMax[UpdatePos] = FD.AggregateMax;
 		FD.TimeMin[UpdatePos] = FD.AggregateMin;
 		FD.TimeAvg[UpdatePos] = FD.AggregateSum / FD.Aggregate;
-		FD.TimeCallAvg[UpdatePos] = FD.AggregateSum / FD.AggregateCount;
+		FD.TimeCallAvg[UpdatePos] = FD.AggregateCount ? FD.AggregateSum / FD.AggregateCount : 0;
 		FD.TimeTotal[UpdatePos] = FD.AggregateSum;
 		FD.CallCount[UpdatePos] = FD.AggregateCount;
-		FD.TimeExclAvg[UpdatePos] = FD.AggregateExclSum / FD.AggregateCount;
+		FD.TimeExclAvg[UpdatePos] = FD.AggregateCount ? FD.AggregateExclSum / FD.AggregateCount : 0;
 		FD.TimeExclMax[UpdatePos] = FD.AggregateExclMax;
 		FD.TimeExclMin[UpdatePos] = FD.AggregateExclMin;
+
+		if(Settings.AggregateFrames <= 0)
+		{
+			SetTimersInArray(FD, id);
+		}
 	}
 
 	for(var id in FrameData.TimerMap)
@@ -3155,6 +3251,34 @@ function MouseHandleDrag()
 					MouseDragActiveXEnd += X;
 				}
 			}
+
+			if(MouseDragKeyShift || MouseDragButton == 1)
+			{
+				var X = MouseDragX - MouseDragXLast;
+				var Y = MouseDragY - MouseDragYLast;
+				nOffsetBarsY -= Y;
+				nOffsetBarsX -= X;
+				if(nOffsetBarsY < 0)
+				{
+					nOffsetBarsY = 0;
+				}
+				if(nOffsetBarsX < 0)
+				{
+					nOffsetBarsX = 0;
+				}
+			}
+
+
+
+
+
+
+
+
+
+
+
+
 		}
 	}
 	MouseDragXLast = MouseDragX;
@@ -3288,11 +3412,80 @@ function MouseMove(evt)
     RequestDraw();
 }
 
+
+function MouseSortClick()
+{
+	if(SubMenuActive == -1)
+	{
+		if(SortColumnMouseOverNext)
+		{
+			if(SortColumnMouseOverNext == Settings.SortColumnMouseOver)
+			{
+				Settings.SortColumnOrderFlip =  1 - Settings.SortColumnOrderFlip;
+			}
+			else
+			{
+				Settings.SortColumnOrderFlip = 0;
+			}
+
+			Settings.SortColumnMouseOver = SortColumnMouseOverNext;
+			SortColumnMouseOverNext = null;
+			if(Settings.SortColumnMouseOver == StrAverage)
+			{
+				Settings.SortColumn = 1;
+			}
+			else if(Settings.SortColumnMouseOver == StrMax)
+			{
+				Settings.SortColumn = 2;
+			}
+			else if(Settings.SortColumnMouseOver == StrTotal)
+			{
+				Settings.SortColumn = 3;
+			}			
+			else if(Settings.SortColumnMouseOver == StrMin)
+			{
+				Settings.SortColumn = 4;
+			}
+			else if(Settings.SortColumnMouseOver == StrSpike)
+			{
+				Settings.SortColumn = 5;
+			}
+			else if(Settings.SortColumnMouseOver == StrCallAverage)
+			{
+				Settings.SortColumn = 6;
+			}
+			else if(Settings.SortColumnMouseOver == StrCount)
+			{
+				Settings.SortColumn = 7;
+			}
+			else if(Settings.SortColumnMouseOver == StrExclAverage)
+			{
+				Settings.SortColumn = 8;
+			}
+			else if(Settings.SortColumnMouseOver == StrExclMax)
+			{
+				Settings.SortColumn = 9;
+			}
+			else if(Settings.SortColumnMouseOver == StrGroup)
+			{
+				Settings.SortColumn = -1;
+			}
+			else if(Settings.SortColumnMouseOver == StrTimer)
+			{
+				Settings.SortColumn = -2;
+			}
+		}
+	}
+}
+
+
 function MouseButton(bPressed, evt)
 {
     evt.preventDefault();
     MouseReleased = !bPressed;
 	MouseDrag(bPressed ? MouseDragDown : MouseDragUp, evt);
+	if(!bPressed)
+		MouseSortClick();
     RequestDraw();
 }
 
@@ -3334,6 +3527,8 @@ function KeyUp(evt)
 		}
 
 		MouseDragActiveXStart = MouseDragActiveXEnd = -1;
+		Settings.SortColumn = 0;
+		Settings.SortColumnMouseOver = "";
 	}
 	if(k == 191)
 	{
