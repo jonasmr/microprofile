@@ -1285,6 +1285,7 @@ struct MicroProfile
 	int 						WebSocketTimers;
 	uint32_t 					nWebSocketDirty;
 	MpSocket 					WebSockets[1];
+	int64_t 					WebSocketFrameLast[1];
 	uint32_t					nNumWebSockets;
 	uint32_t 					nSocketFail; // for error propagation.
 
@@ -2735,7 +2736,7 @@ void MicroProfileFlip(void* pContext)
 	}
 
 	bool nRunning = S.nActiveGroup != 0;
-
+	if(nRunning)
 	{
 		int64_t nGpuWork = MicroProfileGpuEnd(S.pGpuGlobal);
 		MicroProfileGpuSubmit(S.GpuQueue, nGpuWork);
@@ -2841,7 +2842,6 @@ void MicroProfileFlip(void* pContext)
 			}
 		}
 
-		if(nRunning)
 		{
 			uint64_t* pFrameGroup = &S.FrameGroup[0];
 			{
@@ -2947,7 +2947,7 @@ void MicroProfileFlip(void* pContext)
 								int nTimer = MicroProfileLogTimerIndex(LE);
 								uint8_t nGroup = pTimerToGroup[nTimer];
 								MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
-								if(nStackPos)
+								MP_ASSERT(nStackPos);
 								{									
 									int64_t nTickStart = pStackLog[nStackPos-1];
 									int64_t nTicks = MicroProfileLogTickDifference(nTickStart, LE);
@@ -2972,6 +2972,10 @@ void MicroProfileFlip(void* pContext)
 										pGroupStackPos[nGroup] = nGroupStackPos;
 									}
 								}
+							}
+							else
+							{
+								MP_BREAK();
 							}
 						}
 					}
@@ -5745,7 +5749,11 @@ void MicroProfileWebSocketFrame()
 			}		
 			if(!S.nFrozen)
 			{
-				MicroProfileWebSocketSendFrame(s);
+				if(S.nFrameCurrent != S.WebSocketFrameLast[i])
+				{
+					MicroProfileWebSocketSendFrame(s);
+					S.WebSocketFrameLast[i] = S.nFrameCurrent;
+				}
 			}
 			else
 			{
