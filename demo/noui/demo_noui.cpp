@@ -70,7 +70,7 @@ int main(int argc, char* argv[])
 
 	MicroProfileStartContextSwitchTrace();
 
-	MICROPROFILE_COUNTER_CONFIG("/runtime/localcounter", MICROPROFILE_COUNTER_FORMAT_BYTES, 500, 0);
+	MICROPROFILE_COUNTER_CONFIG("/runtime/localcounter", MICROPROFILE_COUNTER_FORMAT_BYTES, 10000, 0);
 
 	MICROPROFILE_COUNTER_ADD("memory/main", 1000);
 	MICROPROFILE_COUNTER_ADD("memory/gpu/vertexbuffers", 1000);
@@ -91,6 +91,13 @@ int main(int argc, char* argv[])
 	MICROPROFILE_COUNTER_ADD("//memory//main8/", 1000);
 	MICROPROFILE_COUNTER_ADD("//memory//main9/", 1000);
 	MICROPROFILE_COUNTER_ADD("//\\\\///lala////lelel", 1000);
+
+	MICROPROFILE_COUNTER_SET("fisk/geder/", 42);
+	MICROPROFILE_COUNTER_SET("fisk/aborre/", -2002);
+	MICROPROFILE_COUNTER_SET_LIMIT("fisk/aborre/", 120);
+
+	MICROPROFILE_COUNTER_CONFIG("/test/sinus", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
+	MICROPROFILE_COUNTER_CONFIG("/test/cosinus", MICROPROFILE_COUNTER_FORMAT_DEFAULT, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
 
 
 	#if DUMP_SPIKE_TEST
@@ -148,6 +155,15 @@ int main(int argc, char* argv[])
 		MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD_ATOMIC(ThreadsStarted);
 		MICROPROFILE_COUNTER_LOCAL_UPDATE_SET_ATOMIC(ThreadSpinSleep);
 		MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD(LocalCounter);
+
+		static float f = 0;
+		f += 0.1f;
+		int sinus = (int)(10000000 * (sinf(f)));
+		int cosinus = int(cosf(f*1.3f) * 100000 + 50000);
+		MICROPROFILE_COUNTER_SET("/test/sinus", sinus);
+		MICROPROFILE_COUNTER_SET("/test/cosinus", cosinus);
+
+		
 
 	}
 

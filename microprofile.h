@@ -735,8 +735,8 @@ enum MicroProfileDrawBarsMask
 
 enum MicroProfileCounterFormat
 {
-	MICROPROFILE_COUNTER_FORMAT_DEFAULT,
-	MICROPROFILE_COUNTER_FORMAT_BYTES,
+	MICROPROFILE_COUNTER_FORMAT_DEFAULT = 0,
+	MICROPROFILE_COUNTER_FORMAT_BYTES = 1,
 };
 
 enum MicroProfileCounterFlags
@@ -1296,6 +1296,7 @@ struct MicroProfile
 	uint32_t 					WSCategoriesSent;
 	uint32_t 					WSGroupsSent;
 	uint32_t 					WSTimersSent;
+	uint32_t 					WSCountersSent;
 	MicroProfileWebSocketBuffer WSBuf;
 	char* 						pJsonSettings;
 	uint32_t 					nJsonSettingsPending;
@@ -4756,6 +4757,7 @@ enum
 	TYPE_GROUP = 2,
 	TYPE_CATEGORY = 3,
 	TYPE_SETTING = 4, 
+	TYPE_COUNTER = 5, 
 };
 
 enum
@@ -4772,6 +4774,7 @@ enum
 	MSG_LOADSETTINGS = 4, 
 	MSG_PRESETS = 5, 
 	MSG_CURRENTSETTINGS = 6, 
+	MSG_COUNTERS = 7,
 };
 
 void MicroProfileSocketDumpState()
@@ -5624,6 +5627,7 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 	S.WSCategoriesSent = 0;
 	S.WSGroupsSent = 0;
 	S.WSTimersSent = 0;
+	S.WSCountersSent = 0;
 	S.nJsonSettingsPending = 0;
 
 	MicroProfileWebSocketSendState(Connection);
@@ -5646,7 +5650,18 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 
 }
 
-
+void MicroProfileWebSocketSendCounters()
+{
+	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileWebSocketSendCounters", 0xff0000);
+	WSPrintf("{\"k\":\"%d\",\"v\":[", MSG_COUNTERS);
+	for(uint32_t i = 0; i < S.nNumCounters; ++i)
+	{
+		uint64_t nCounter = S.Counters[i].load();
+		WSPrintf("%c%lld", i == 0 ? ' ' : ',', nCounter);
+	}
+	WSPrintf("]}");
+	WSFlush();
+}
 
 void MicroProfileWebSocketSendFrame(MpSocket Connection)
 {
@@ -5688,8 +5703,12 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 	}
 	WSPrintf("}}}");
 	WSFlush();
+	MicroProfileWebSocketSendCounters();
 	WSPrintEnd();
 }
+
+
+
 
 
 void MicroProfileWebSocketFrame()
@@ -5884,10 +5903,19 @@ void MicroProfileWebSocketSendEntry(uint32_t id, uint32_t parent, const char* pN
 	WSFlush();
 }
 
+void MicroProfileWebSocketSendCounterEntry(uint32_t id, uint32_t parent, const char* pName, int64_t nLimit, int nFormat)
+{
+	WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
+	WSPrintf("\"name\":\"%s\",", pName);
+	WSPrintf("\"limit\":%d,", nLimit);	
+	WSPrintf("\"format\":%d", nFormat);	
+	WSPrintf("}}");
+	WSFlush();
+}
 
 void MicroProfileWebSocketSendState(MpSocket C)
 {
-	if(S.WSCategoriesSent != S.nCategoryCount || S.WSGroupsSent != S.nGroupCount || S.WSTimersSent != S.nTotalTimers)
+	if(S.WSCategoriesSent != S.nCategoryCount || S.WSGroupsSent != S.nGroupCount || S.WSTimersSent != S.nTotalTimers || S.WSCountersSent != S.nNumCounters)
 	{
 		WSPrintStart(C);
 		uint32_t root = MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_FORCE_ENABLE);
@@ -5915,12 +5943,22 @@ void MicroProfileWebSocketSendState(MpSocket C)
 			uint32_t parent = MicroProfileWebSocketIdPack(TYPE_GROUP, TI.nGroupIndex);
 			MicroProfileWebSocketSendEntry(id, parent, TI.pName, MicroProfileWebSocketTimerEnabled(i), TI.nColor);
 		}
+
+		for(uint32_t i = S.WSCountersSent; i < S.nNumCounters; ++i)
+		{
+			MicroProfileCounterInfo& CI = S.CounterInfo[i];
+			uint32_t id = MicroProfileWebSocketIdPack(TYPE_COUNTER, i);			
+			uint32_t parent = CI.nParent == (uint32_t)-1 ? 0 : MicroProfileWebSocketIdPack(TYPE_COUNTER, CI.nParent);
+			MicroProfileWebSocketSendCounterEntry(id, parent, CI.pName, CI.nLimit, CI.eFormat);
+		}
+
 		MicroProfileWebSocketSendEntry(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_CONTEXT_SWITCH_TRACE), 0, "Context Switch Trace", S.bContextSwitchRunning, (uint32_t)-1);
 		WSPrintEnd();
 
 		S.WSCategoriesSent = S.nCategoryCount;
 		S.WSGroupsSent = S.nGroupCount;
 		S.WSTimersSent = S.nTotalTimers;
+		S.WSCountersSent = S.nNumCounters;
 	}
 }
 
