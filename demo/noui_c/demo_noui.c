@@ -35,7 +35,6 @@ int main(int argc, char* argv[])
 	printf("press ctrl-c to quit\n");
 
 	//turn on profiling
-	MicroProfileSetGroupsStartEnabled(1);
 	MicroProfileSetEnableAllGroups(1);
 	MicroProfileSetForceMetaCounters(1);
 	MicroProfileStartContextSwitchTrace();

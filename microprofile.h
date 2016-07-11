@@ -206,7 +206,6 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileSetForceEnable(a) do{} while(0)
 #define MicroProfileGetForceEnable() false
 #define MicroProfileSetEnableAllGroups(b) do{} while(0)
-#define MicroProfileSetGroupsStartEnabled(b) do{} while(0)
 #define MicroProfileEnableCategory(a) do{} while(0)
 #define MicroProfileDisableCategory(a) do{} while(0)
 #define MicroProfileGetEnableAllGroups() false
@@ -497,7 +496,6 @@ MICROPROFILE_API void MicroProfileOnThreadCreate(const char* pThreadName); //sho
 MICROPROFILE_API void MicroProfileOnThreadExit(); //call on exit to reuse log
 MICROPROFILE_API void MicroProfileInitThreadLog();
 MICROPROFILE_API void MicroProfileSetEnableAllGroups(int bEnable); 
-MICROPROFILE_API void MicroProfileSetGroupsStartEnabled(int bEnable); 
 MICROPROFILE_API void MicroProfileEnableCategory(const char* pCategory); 
 MICROPROFILE_API void MicroProfileDisableCategory(const char* pCategory); 
 MICROPROFILE_API int MicroProfileGetEnableAllGroups();
@@ -2019,12 +2017,12 @@ uint16_t MicroProfileGetGroup(const char* pGroup, MicroProfileTokenType Type)
 	S.GroupInfo[S.nGroupCount].nColor = 0x88888888;
 	S.GroupInfo[S.nGroupCount].nCategory = 0;
 	S.CategoryInfo[0].nGroupMask |= (1ll << (uint64_t)S.nGroupCount);
-	nGroupIndex = S.nGroupCount++;
-	S.nGroupMask = (S.nGroupMask<<1)|1;
 	if(S.nStartEnabled)
 	{
 		S.nActiveGroupWanted |= (1ll << (uint64_t)S.nGroupCount);
 	}
+	nGroupIndex = S.nGroupCount++;
+	S.nGroupMask = (S.nGroupMask<<1)|1;
 	MP_ASSERT(nGroupIndex < MICROPROFILE_MAX_GROUPS);
 	return nGroupIndex;
 }
@@ -3153,15 +3151,13 @@ void MicroProfileSetEnableAllGroups(int bEnable)
 	if(bEnable)
 	{
 		S.nActiveGroupWanted = S.nGroupMask;
+		S.nStartEnabled = 1;
 	}
 	else
 	{
 		S.nActiveGroupWanted = 0;
+		S.nStartEnabled = 0;
 	}
-}
-void MicroProfileSetGroupsStartEnabled(int bEnable)
-{
-	S.nStartEnabled = bEnable ? 1 : 0;
 }
 void MicroProfileEnableCategory(const char* pCategory, int bEnabled)
 {
@@ -5152,7 +5148,7 @@ bool MicroProfileGroupEnabled(uint32_t nGroup)
 {
 	if(nGroup < S.nGroupCount)
 	{
-		return 0 != (S.nActiveGroup & (1ll << nGroup));
+		return 0 != (S.nActiveGroupWanted & (1ll << nGroup));
 	}
 	return false;
 }
