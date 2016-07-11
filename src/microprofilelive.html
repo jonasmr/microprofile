@@ -55,6 +55,8 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 //settings default load doesn't enable timers
 //one group is disabled..
 //counter view.
+//click in menu plus counter view
+//
 
 
 
@@ -3353,17 +3355,20 @@ function MouseHandleDragEnd()
 
 function MouseHandleDragClick()
 {
-	if(nHoverCounter != -1)
-	{
-		if(TimerArray[nHoverCounter].firstchild != -1)
+	if(SubMenuActive == -1)
+	{	
+		if(nHoverCounter != -1)
 		{
-			TimerArray[nHoverCounter].closed = !TimerArray[nHoverCounter].closed;
+			if(TimerArray[nHoverCounter].firstchild != -1)
+			{
+				TimerArray[nHoverCounter].closed = !TimerArray[nHoverCounter].closed;
+			}
+			else
+			{
+				TimerArray[nHoverCounter].Expanded = !TimerArray[nHoverCounter].Expanded;
+			}
+			Draw(1);
 		}
-		else
-		{
-			TimerArray[nHoverCounter].Expanded = !TimerArray[nHoverCounter].Expanded;
-		}
-		Draw(1);
 	}
 }
 
