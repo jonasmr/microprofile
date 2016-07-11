@@ -51,12 +51,7 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 
 
 //todo
-//bar view: Timer overflow and digits get cut
-//settings default load doesn't enable timers
-//one group is disabled..
-//counter view.
-//click in menu plus counter view
-//
+//default load on start does not work.. settings default load doesn't enable timers..
 
 
 
@@ -269,10 +264,12 @@ var FormatCounterBytesExt = [ "b","kb","mb","gb","tb","pb", "eb","zb", "yb" ];
 
 var BarColumnNames = [StrAverage, StrMax, StrTotal, StrMin, StrSpike, StrCallAverage, StrCount, StrExclAverage, StrExclMax];
 Settings.BarColumnsEnabled = new Array(BarColumnNames.length);
+var ColumnsWidth = new Array(BarColumnNames.length);
 
 for(var i = 0; i < Settings.BarColumnsEnabled.length; ++i)
 {
 	Settings.BarColumnsEnabled[i] = 1;
+	ColumnsWidth[i] = 10;
 }
 
 
@@ -749,7 +746,6 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 	var R = 0;
 
 
-
 	context.clearRect(0, 0, View.w, View.h);
 	context.fillStyle = 'white';
 	context.font = Font;
@@ -784,7 +780,7 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 			var XBegin = X;
 			X += nWidthBars;
 			context.fillStyle = nBackColorOffset;
-			X += nWidthMs;
+			X += ColumnsWidth[R];
 
 			if(X >= NameWidth)
 			{
@@ -794,14 +790,14 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 		}
 		R++;
 	}
-	function DrawHeaderSplitSingle(Header, Width)
+	function DrawHeaderSplitSingle(Header)
 	{
 		if(Settings.BarColumnsEnabled[R])
 		{
 			context.fillStyle = 'white';
 			context.fillText(HeaderString(Header), X, Height-FontAscent);
 			var XBegin = X;
-			X += Width;
+			X += ColumnsWidth[R];
 			context.fillStyle = nBackColorOffset;
 			if(X >= NameWidth)
 			{
@@ -848,8 +844,13 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 			context.fillRect(X+1, Y+1, Prc * nBarsWidth, InnerBoxHeight);
 			X += nWidthBars;
 			context.fillStyle = 'white';
-			context.fillText(("      " + Value.toFixed(2)).slice(-TimerLen), X, YText);
-			X += nWidthMs;
+			var TimerText = Value.toFixed(2);
+			var W = context.measureText(TimerText).width + FontWidth;
+			ColumnsWidth[R] = Math.max(W, ColumnsWidth[R]);
+			X += ColumnsWidth[R];
+			context.textAlign = 'right';
+			context.fillText(TimerText, X - FontWidth, YText);
+			context.textAlign = 'left';
 		}
 		R++;
 	}
@@ -857,11 +858,14 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 	{
 		if(Settings.BarColumnsEnabled[R])
 		{
-			X += CountWidth;
+			X += ColumnsWidth[R];
 			context.fillStyle = 'white';
 			context.textAlign = 'right';
 			var YText = Y+Height-FontAscent;
 			context.fillText(Str, X-6, YText);
+			var W = Math.max(80, context.measureText(Str).width + FontWidth * 2);
+			ColumnsWidth[R] = Math.max(W, ColumnsWidth[R]);
+
 		}
 		R++;
 	
@@ -906,18 +910,8 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 		DrawTimer(Total,Timer.color);
 		DrawTimer(Min,Timer.color);
 		DrawCount(Spike.toFixed(2) + '%');
-		// X += CountWidth;
-		// context.fillStyle = 'white';
-		// context.textAlign = 'right';
-		// context.fillText(Spike.toFixed(2) + '%', X-6, YText);
 		DrawTimer(CallAverage,Timer.color);
-		
-
 		DrawCount('' + CallCount);
-		// X += CountWidth;
-		// context.fillStyle = 'white';
-		// context.textAlign = 'right';
-		// context.fillText(CallCount, X-6, YText);
 		DrawTimer(ExclusiveAverage,Timer.color);
 		DrawTimer(ExclusiveMax,Timer.color);
 
@@ -1040,9 +1034,9 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 	DrawHeaderSplit(StrMax);
 	DrawHeaderSplit(StrTotal);
 	DrawHeaderSplit(StrMin);
-	DrawHeaderSplitSingle(StrSpike, CountWidth);
+	DrawHeaderSplitSingle(StrSpike);
 	DrawHeaderSplit(StrCallAverage);
-	DrawHeaderSplitSingle(StrCount, CountWidth);
+	DrawHeaderSplitSingle(StrCount);
 	DrawHeaderSplit(StrExclAverage);
 	DrawHeaderSplit(StrExclMax);
 	X = 0;
@@ -1854,6 +1848,10 @@ function DrawMenuColumns()
 		if(DrawMenuElement(M, Settings.BarColumnsEnabled[i], BarColumnNames[i], "", 'white', 0))
 		{
 			Settings.BarColumnsEnabled[i] = !Settings.BarColumnsEnabled[i];
+			for(var i = 0; i < ColumnsWidth.length; ++i)
+			{
+				ColumnsWidth[i] = 20;
+			}
 		}
 	}
 
