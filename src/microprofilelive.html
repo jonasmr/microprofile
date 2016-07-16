@@ -178,6 +178,8 @@ var WSPath;
 
 var CaptureButtonX = 0;
 var CaptureButtonY = 0;
+var GroupsEnabled = 0;
+var TimersEnabled = 0;
 
 
 var MSG_TIMER_TREE = 1;
@@ -1248,6 +1250,7 @@ function DrawRange(context, X, XEnd, Y, YEnd, ColorBack, ColorFront)
 	}
 }
 
+
 function DrawHistory(View, LocalMouseX, LocalMouseY)
 {
 	ProfileEnter("DrawHistory");
@@ -1420,6 +1423,16 @@ function DrawMessage(context)
 	context.textAlign = 'center';
 	context.fillStyle = 'red';
 	context.fillText(Text, X, Y);
+	if(GroupsEnabled == 0)
+	{
+		Y -= 60;
+		context.fillText("Paused: Enable groups in 'Control' menu to unpause", X, Y);
+	}
+	if(TimersEnabled == 0)
+	{
+		Y -= 60;
+		context.fillText("Select Timers in 'Timers' menu", X, Y);
+	}
 	context.textAlign = 'left';
 	context.font = Font;
 }
@@ -2749,13 +2762,36 @@ function GetTimer(id)
 	return null;
 }
 
+function UpdateActive()
+{
+	GroupsEnabled = 0;
+	TimersEnabled = 0;
+	for(var i = 0; i < TimerArray.length; ++i)
+	{
+		var T = TimerArray[i];
+		if(T.e)
+		{
+			switch(T.idtype)
+			{
+				case TYPE_GROUP:
+					GroupsEnabled++;
+				break;
+				case TYPE_TIMER:
+					TimersEnabled++;
+				break;
+			}
+		}
+	}
+}
 function UpdateEnabledTimer(idx)
 {
+	UpdateActive();
+	var type = TimerArray[idx].idtype;
+	var enabled = TimerArray[idx].e;
 	if(TimerArray[idx].idtype != TYPE_TIMER)
 	{
 		return;
 	}
-	var enabled = TimerArray[idx].e;
 	var AutoCaptureSourceValue = null;
 	if(AutoCaptureSourceIndex >= 0 && AutoCaptureSourceIndex < EnabledArray.length)
 	{
@@ -3214,7 +3250,6 @@ function WSMessage()
 	}
 	else if(k == MSG_COUNTERS)
 	{
-		console.log('counter data ' + event.data);
 		ProcessCounters(Obj.v);
 	}
 	else
