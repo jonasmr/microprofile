@@ -226,7 +226,8 @@ var nOffsetBarsX = 0;
 var nOffsetBarsY = 0;
 var nOffsetCountersY = 0;
 var nBarsWidth = 80;
-var NameWidth = 200;
+var GroupNameWidth = 200;
+var TimerNameWidth = 200;
 var MouseButtonState = [0,0,0,0,0,0,0,0];
 var KeyShiftDown = 0;
 var MouseDragButton = 0;
@@ -285,6 +286,8 @@ var SortColumn = 0;
 var SortColumnOrderFlip = 0;
 var SortColumnMouseOver = null;
 var SortColumnMouseOverNext = null;
+var ColumnsWidth;
+// var Ready = 0;
 
 function RangeInit()
 {
@@ -940,6 +943,7 @@ function ToggleMode()
 
 function SetMode(NewMode, Groups)
 {
+	ResetColumnWidth();
 	var buttonTimers = document.getElementById('buttonTimers');
 	var buttonDetailed = document.getElementById('buttonDetailed');
 	var buttonGroups = document.getElementById('buttonGroups');
@@ -1907,6 +1911,7 @@ function DrawBarView()
 
 	var Height = BoxHeight;
 	var Width = nWidth;
+	var NameWidth = Math.max(TimerNameWidth, GroupNameWidth) + 20;
 
 	//clamp offset to prevent scrolling into the void
 	var nTotalRows = 0;
@@ -1923,7 +1928,11 @@ function DrawBarView()
 	{
 		nOffsetBarsY = nTotalRowPixels - nFrameRows;
 	}
-
+	var ColumnsWidthBefore = new Array(ColumnsWidth.length);
+	for(var i = 0; i < ColumnsWidth.length; ++i)
+	{
+		ColumnsWidthBefore[i] = ColumnsWidth[i];
+	}
 
 	var Y = -nOffsetBarsY + BoxHeight;
 	if(TimersGroups)
@@ -1945,6 +1954,7 @@ function DrawBarView()
 	var TimerWidth = TimerLen * FontWidth;
 	var nWidthBars = nBarsWidth+2;
 	var nWidthMs = TimerWidth+2+10;
+	var R = 0;
 
 
 
@@ -1981,27 +1991,27 @@ function DrawBarView()
 		var XBegin = X;
 		X += nWidthBars;
 		context.fillStyle = nBackColorOffset;
-		X += nWidthMs;
-
+		X += ColumnsWidth[R];
 		if(X >= NameWidth)
 		{
 			context.fillRect(X-3, 0, 1, nHeight);
 		}
-
 		HeaderMouseHandle(XBegin, X, Header);
+		R++;
 	}
-	function DrawHeaderSplitSingle(Header, Width)
+	function DrawHeaderSplitSingle(Header)
 	{
 		context.fillStyle = 'white';
 		context.fillText(HeaderString(Header), X, Height-FontAscent);
 		var XBegin = X;
-		X += Width;
+		X += ColumnsWidth[R];
 		context.fillStyle = nBackColorOffset;
 		if(X >= NameWidth)
 		{
 			context.fillRect(X-3, 0, 1, nHeight);
 		}
 		HeaderMouseHandle(XBegin, X, Header);
+		R++;
 	}
 	function DrawHeaderSplitLeftRight(HeaderLeft, HeaderRight, Width)
 	{
@@ -2031,24 +2041,50 @@ function DrawBarView()
 		context.textAlign = 'left';
 		context.fillStyle = Color;
 		context.fillRect(X+1, Y+1, Prc * nBarsWidth, InnerBoxHeight);
+		var TimerText = Value.toFixed(2);
+		var W = context.measureText(TimerText).width + FontWidth;
+		ColumnsWidth[R] = Math.max(W, ColumnsWidth[R]);
 		X += nWidthBars;
+		X += ColumnsWidth[R];
 		context.fillStyle = 'white';
-		context.fillText(("      " + Value.toFixed(2)).slice(-TimerLen), X, YText);
-		X += nWidthMs;
+		context.textAlign = 'right';
+		context.fillText(TimerText, X - FontWidth, YText);
+		context.textAlign = 'left';
+		R++;
 	}
+	function DrawCount(Str)
+	{
+		//if(Settings.BarColumnsEnabled[R])
+		{
+			X += ColumnsWidth[R];
+			context.fillStyle = 'white';
+			context.textAlign = 'right';
+			var YText = Y+Height-FontAscent;
+			context.fillText(Str, X-6, YText);
+			var W = Math.max(80, context.measureText(Str).width + FontWidth * 2);
+			ColumnsWidth[R] = Math.max(W, ColumnsWidth[R]);
+		}
+		R++;
+	
+	}
+
+
 	function DrawMeta(Value, Width, Dec, YText)
 	{
 		Value = FormatMeta(Value, Dec);
 		X += (FontWidth*Width);
+		ColumnsWidth[R] = FontWidth*Width;
 		context.textAlign = 'right';
 		context.fillText(Value, X-FontWidth, YText);
 		context.textAlign = 'left';
+		R++;
 	}
 
 
 
 	function DrawTimerRow(timerid, showgroup)
 	{
+		R = 0;
 		var Timer = TimerInfo[timerid];
 		var Average = Timer.average;
 		var Max = Timer.max;
@@ -2074,15 +2110,15 @@ function DrawBarView()
 		DrawTimer(Max,Timer.color);
 		DrawTimer(Timer.total,Timer.color);
 		DrawTimer(Min,Timer.color);
-		X += CountWidth;
-		context.fillStyle = 'white';
-		context.textAlign = 'right';
-		context.fillText(Spike.toFixed(2) + '%', X-6, YText);
+		// X += CountWidth;
+		// context.fillStyle = 'white';
+		// context.textAlign = 'right';
+		DrawCount(Spike.toFixed(2) + '%');
 		DrawTimer(CallAverage,Timer.color);
-		X += CountWidth;
-		context.fillStyle = 'white';
-		context.textAlign = 'right';
-		context.fillText(CallCount, X-6, YText);
+		// X += CountWidth;
+		// context.fillStyle = 'white';
+		// context.textAlign = 'right';
+		DrawCount(CallCount);
 		DrawTimer(ExclusiveAverage,Timer.color);
 		DrawTimer(ExclusiveMax,Timer.color);
 
@@ -2120,7 +2156,7 @@ function DrawBarView()
 		}
 		return true;
 	}
-	if(SortColumn)
+	if(SortColumn && TimersGroups == 0)
 	{
 		var OrderArray = new Array(TimerInfo.length);
 		var KeyArray = new Array(TimerInfo.length);
@@ -2136,6 +2172,7 @@ function DrawBarView()
 					if(FilterMatch(FilterTimer, TimerInfo[timerid].name))
 					{
 						OrderArray.push(timerid);
+						NameWidth = Math.max(TimerInfo[timerid].wtotal, NameWidth);
 					}
 				}
 			}
@@ -2183,6 +2220,7 @@ function DrawBarView()
 				Y += Height;
 				for(var idx in GroupOrder)
 				{
+					R = 0;
 					var groupid = GroupOrder[idx];
 					var Group = GroupInfo[groupid];
 					var PerThreadTimer = ThreadGroupTimeArray[i][groupid];
@@ -2201,9 +2239,7 @@ function DrawBarView()
 						context.textAlign = 'left';
 						X += NameWidth;
 						DrawTimer(PerThreadTimer, GColor);
-						X += nWidthBars + nWidthMs;	
 						DrawTimer(PerThreadTimerTotal, GColor);
-
 						Y += Height;
 					}
 				}
@@ -2219,6 +2255,7 @@ function DrawBarView()
 			var GColor = GroupColors ? GroupInfo[groupid].color : 'white';
 			if((GroupsAllActive || GroupsActive[Group.name]) && FilterMatch(FilterGroup, Group.name))
 			{
+				R = 0;
 				var TimerArray = Group.TimerArray;
 				var X = XBase;
 				nColorIndex = 1-nColorIndex;
@@ -2244,6 +2281,7 @@ function DrawBarView()
 				{
 					for(var i = 0; i < ThreadNames.length; ++i)
 					{
+						R = 0;
 						var PerThreadTimer = ThreadGroupTimeArray[i][groupid];
 						var PerThreadTimerTotal = ThreadGroupTimeTotalArray[i][groupid];
 						if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (ThreadsActive[ThreadNames[i]] || ThreadsAllActive) && FilterMatch(FilterTimer, ThreadNames[i]))
@@ -2260,7 +2298,7 @@ function DrawBarView()
 							context.textAlign = 'left';
 							X = NameWidth;
 							DrawTimer(PerThreadTimer, ThreadColor);
-							X += nWidthBars + nWidthMs;	
+							X += nWidthBars + ColumnsWidth[R++];	
 							DrawTimer(PerThreadTimerTotal, ThreadColor);
 							Y += Height;
 						}
@@ -2282,6 +2320,7 @@ function DrawBarView()
 		}
 	}
 	X = 0;
+	R = 0;
 	context.fillStyle = nBackColorOffset;
 	context.fillRect(0, 0, Width, Height);
 	context.fillStyle = 'white';
@@ -2293,6 +2332,7 @@ function DrawBarView()
 		{
 			DrawHeaderSplitLeftRight(StrThread, StrGroup, NameWidth);
 			DrawHeaderSplit(StrAverage);
+			DrawHeaderSplit(StrTotal);
 		}
 		else
 		{
@@ -2331,6 +2371,22 @@ function DrawBarView()
 		DrawHeaderSplitLeftRight(StrGroup, StrTimer, NameWidth);
 	
 	}
+
+	var ColumnsChanged = false;
+	for(var i = 0; i < ColumnsWidth.length; ++i)
+	{
+		if(ColumnsWidthBefore[i] != ColumnsWidth[i])
+		{
+			ColumnsChanged = true;
+		}
+	}
+	if(ColumnsChanged)
+	{
+		Invalidate = 0;
+	}
+
+
+
 
 	ProfileLeave();
 }
@@ -3572,6 +3628,10 @@ function RequestRedraw()
 }
 function Draw(RedrawMode)
 {
+	if(!Initialized)
+	{
+		return;
+	}
 	if(ProfileMode)
 	{
 		ProfileModeClear();
@@ -4874,6 +4934,28 @@ function PreprocessMeta()
 	}
 }
 
+function PreprocessWidths()
+{
+	var context = CanvasHistory.getContext('2d');
+	context.font = Font;
+	TimerNameWidth = 0;
+	GroupNameWidth = 0;
+	for(var i = 0; i < TimerInfo.length; ++i)
+	{
+		var str = GroupInfo[TimerInfo[i].group].name + "XXX" + TimerInfo[i].name;
+		var width = context.measureText(str).width;
+		var widthname = context.measureText(TimerInfo[i].name).width;
+		TimerInfo[i].wtotal = width;
+		TimerInfo[i].w = widthname;
+		TimerNameWidth = Math.max(TimerNameWidth, widthname);
+	}
+	for(var i = 0; i < GroupInfo.length; ++i)
+	{
+		var widthname = context.measureText(TimerInfo[i].name).width;
+		GroupNameWidth = Math.max(GroupNameWidth, widthname);
+	}
+
+}
 function Preprocess()
 {
 	var ProfileModeOld = ProfileMode;
@@ -4889,7 +4971,24 @@ function Preprocess()
 	ProfileLeave();
 	ProfileModeDump();
 	ProfileMode = ProfileModeOld;
+	PreprocessWidths();
+
+	var nMetaLen = TimerInfo[0].meta.length;
+	ColumnsWidth = new Array(nMetaLen + 10);
 	Initialized = 1;
+
+
+	ResetColumnWidth();
+}
+function ResetColumnWidth()
+{
+	if(ColumnsWidth)
+	{
+		for(var i = 0; i < ColumnsWidth.length; ++i)
+		{
+			ColumnsWidth[i] = 0;
+		}
+	}
 }
 
 InitGroups();
@@ -4902,6 +5001,7 @@ UpdateThreadMenu();
 ResizeCanvas();
 Preprocess();
 OnPageReady();
+Ready = 1;
 Draw(1);
 AutoRedraw();
 
