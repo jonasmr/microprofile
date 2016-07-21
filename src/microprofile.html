@@ -110,6 +110,19 @@ Esc: Exit &amp; Clear filter
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('1000ms');">1000ms</a></li>
     </ul>
 </li>
+<li id="ilColumns"><a>Columns</a>
+    <ul id='ColumnsSubMenu'>
+        <li><a href="javascript:void(0)" onclick="ToggleColumn(0);">Average</a></li>
+        <li><a href="javascript:void(0)" onclick="ToggleColumn(1);">Max</a></li>
+        <li><a href="javascript:void(0)" onclick="ToggleColumn(2);">Total</a></li>
+        <li><a href="javascript:void(0)" onclick="ToggleColumn(3);">Min</a></li>
+        <li><a href="javascript:void(0)" onclick="ToggleColumn(4);">Spike</a></li>
+        <li><a href="javascript:void(0)" onclick="ToggleColumn(5);">Call Average</a></li>
+        <li><a href="javascript:void(0)" onclick="ToggleColumn(6);">Call Count</a></li>
+        <li><a href="javascript:void(0)" onclick="ToggleColumn(7);">Excl Average</a></li>
+        <li><a href="javascript:void(0)" onclick="ToggleColumn(8);">Excl Max</a></li>
+    </ul>
+</li>
 <li id="ilThreads"><a>Threads</a>
     <ul id="ThreadSubMenu">
         <li><a href="javascript:void(0)" onclick="ToggleThread();">All</a></li>
@@ -128,7 +141,6 @@ Esc: Exit &amp; Clear filter
 		<li><a href="javascript:void(0)" onclick="ToggleDisableMerge();">MergeDisable</a></li>
 		<li><a href="javascript:void(0)" onclick="ToggleDisableLod();">LodDisable</a></li>
 		<li id='GroupColors'><a href="javascript:void(0)" onclick="ToggleGroupColors();">Group Colors</a></li>
-        <li id='TimersMeta'><a href="javascript:void(0)" onclick="ToggleTimersMeta();">Meta</a></li>
         <li id='ShowHelp'><a href="javascript:void(0)" onclick="ShowHelp(1,1);">Help</a></li>
 <!--      	<li><a href="javascript:void(0)" onclick="ToggleDebug();">DEBUG</a></li> -->
     </ul>
@@ -286,8 +298,9 @@ var SortColumn = 0;
 var SortColumnOrderFlip = 0;
 var SortColumnMouseOver = null;
 var SortColumnMouseOverNext = null;
-var ColumnsWidth;
-// var Ready = 0;
+var ColumnsWidth = [];
+var ColumnsEnabled = [];
+var NumColumns = 0;
 
 function RangeInit()
 {
@@ -370,7 +383,6 @@ var Invalidate = 0;
 var GroupOrder = Array();
 var ThreadOrder = Array();
 var TimersGroups = 0;
-var TimersMeta = 1;
 var MetaLengths = Array();
 var MetaLengthsAvg = Array();
 var MetaLengthsMax = Array();
@@ -672,6 +684,41 @@ function CreateOrderArray(Source, NameFunc)
 	return OrderArray;
 }
 
+function InitColumnMenu()
+{
+	var ulColumnMenu = document.getElementById('ColumnsSubMenu');
+	var MaxLen = 10;
+	var BaseIndex = ulColumnMenu.getElementsByTagName('li').length;
+	for(var i = 0; i < MetaNames.length; ++i)
+	{
+		var li = document.createElement('li');
+		var jsfunc = 'ToggleColumn';
+		var html = '<a href="javascript:void(0)" onclick="' + jsfunc + '(' + (i+BaseIndex) + ', 1);">' + MetaNames[i] + '</a>';
+		li.innerHTML = html;
+		ulColumnMenu.appendChild(li);
+		if(MetaNames[i].length > MaxLen)
+		{
+			MaxLen = MetaNames[i].length;
+		}
+	}
+	var Lis = ulColumnMenu.getElementsByTagName('li');
+	var LenStr = (5+(4+MaxLen) * FontWidth) + 'px';
+	for(var i = 0; i < Lis.length; ++i)
+	{
+		Lis[i].style['width'] = LenStr;
+	}
+	NumColumns = Lis.length;
+
+	while(ColumnsEnabled.length < NumColumns)
+	{
+		ColumnsEnabled.push(1);
+	}
+	while(ColumnsWidth.length < NumColumns)
+	{
+		ColumnsWidth.push(20);
+	}
+	UpdateColumnsMenu();
+}
 
 function InitGroupMenu()
 {
@@ -882,18 +929,8 @@ function ToggleGroupColors()
 
 function UpdateOptionsMenu()
 {
-	var ulTimersMeta = document.getElementById('TimersMeta');
-	ulTimersMeta.style['text-decoration'] = TimersMeta ? 'underline' : 'none';
 	var ulGroupColors = document.getElementById('GroupColors');
 	ulGroupColors.style['text-decoration'] = GroupColors ? 'underline' : 'none';
-}
-
-function ToggleTimersMeta()
-{
-	TimersMeta = TimersMeta ? 0 : 1;
-	WriteCookie();
-	UpdateOptionsMenu();
-	RequestRedraw();
 }
 
 function ShowHelp(Show, Forever)
@@ -951,13 +988,14 @@ function SetMode(NewMode, Groups)
 	var buttonCounters = document.getElementById('buttonCounters');
 	var ilThreads = document.getElementById('ilThreads');
 	var ilGroups = document.getElementById('ilGroups');
+	var ilColumns = document.getElementById('ilColumns');
 	var ModeElement = null;
 	buttonTimers.style['text-decoration'] = 'none';
 	buttonGroups.style['text-decoration'] = 'none';
 	buttonThreads.style['text-decoration'] = 'none';
 	buttonDetailed.style['text-decoration'] = 'none';
 	buttonCounters.style['text-decoration'] = 'none';
-
+	ilColumns.style['display'] = 'none';
 
 	if(NewMode == 'counters' || NewMode == ModeCounters)
 	{
@@ -978,6 +1016,7 @@ function SetMode(NewMode, Groups)
 		if(TimersGroups == 0)
 		{
 			ilThreads.style['display'] = 'none';
+			ilColumns.style['display'] = 'block';
 		}
 		else
 		{
@@ -1955,6 +1994,7 @@ function DrawBarView()
 	var nWidthBars = nBarsWidth+2;
 	var nWidthMs = TimerWidth+2+10;
 	var R = 0;
+	var AllColumns = TimersGroups != 0;
 
 
 
@@ -1986,31 +2026,37 @@ function DrawBarView()
 	}
 	function DrawHeaderSplit(Header)
 	{
-		context.fillStyle = 'white';
-		context.fillText(HeaderString(Header), X, Height-FontAscent);
-		var XBegin = X;
-		X += nWidthBars;
-		context.fillStyle = nBackColorOffset;
-		X += ColumnsWidth[R];
-		if(X >= NameWidth)
+		if(ColumnsEnabled[R]||AllColumns)
 		{
-			context.fillRect(X-3, 0, 1, nHeight);
+			context.fillStyle = 'white';
+			context.fillText(HeaderString(Header), X, Height-FontAscent);
+			var XBegin = X;
+			X += nWidthBars;
+			context.fillStyle = nBackColorOffset;
+			X += ColumnsWidth[R];
+			if(X >= NameWidth)
+			{
+				context.fillRect(X-3, 0, 1, nHeight);
+			}
+			HeaderMouseHandle(XBegin, X, Header);
 		}
-		HeaderMouseHandle(XBegin, X, Header);
 		R++;
 	}
-	function DrawHeaderSplitSingle(Header)
+	function DrawHeaderSplitSingle(Header, Col)
 	{
-		context.fillStyle = 'white';
-		context.fillText(HeaderString(Header), X, Height-FontAscent);
-		var XBegin = X;
-		X += ColumnsWidth[R];
-		context.fillStyle = nBackColorOffset;
-		if(X >= NameWidth)
+		if(ColumnsEnabled[Col]||AllColumns)
 		{
-			context.fillRect(X-3, 0, 1, nHeight);
+			context.fillStyle = 'white';
+			context.fillText(HeaderString(Header), X, Height-FontAscent);
+			var XBegin = X;
+			X += ColumnsWidth[R];
+			context.fillStyle = nBackColorOffset;
+			if(X >= NameWidth)
+			{
+				context.fillRect(X-3, 0, 1, nHeight);
+			}
+			HeaderMouseHandle(XBegin, X, Header);
 		}
-		HeaderMouseHandle(XBegin, X, Header);
 		R++;
 	}
 	function DrawHeaderSplitLeftRight(HeaderLeft, HeaderRight, Width)
@@ -2032,29 +2078,32 @@ function DrawBarView()
 	}
 	function DrawTimer(Value, Color)
 	{
-		var Prc = Value * RcpReferenceTime;
-		var YText = Y+Height-FontAscent;
-		if(Prc > 1)
+		if(ColumnsEnabled[R]||AllColumns)
 		{
-			Prc = 1;
+			var Prc = Value * RcpReferenceTime;
+			var YText = Y+Height-FontAscent;
+			if(Prc > 1)
+			{
+				Prc = 1;
+			}
+			context.textAlign = 'left';
+			context.fillStyle = Color;
+			context.fillRect(X+1, Y+1, Prc * nBarsWidth, InnerBoxHeight);
+			var TimerText = Value.toFixed(2);
+			var W = context.measureText(TimerText).width + FontWidth;
+			ColumnsWidth[R] = Math.max(W, ColumnsWidth[R]);
+			X += nWidthBars;
+			X += ColumnsWidth[R];
+			context.fillStyle = 'white';
+			context.textAlign = 'right';
+			context.fillText(TimerText, X - FontWidth, YText);
+			context.textAlign = 'left';
 		}
-		context.textAlign = 'left';
-		context.fillStyle = Color;
-		context.fillRect(X+1, Y+1, Prc * nBarsWidth, InnerBoxHeight);
-		var TimerText = Value.toFixed(2);
-		var W = context.measureText(TimerText).width + FontWidth;
-		ColumnsWidth[R] = Math.max(W, ColumnsWidth[R]);
-		X += nWidthBars;
-		X += ColumnsWidth[R];
-		context.fillStyle = 'white';
-		context.textAlign = 'right';
-		context.fillText(TimerText, X - FontWidth, YText);
-		context.textAlign = 'left';
 		R++;
 	}
 	function DrawCount(Str)
 	{
-		//if(Settings.BarColumnsEnabled[R])
+		if(ColumnsEnabled[R]||AllColumns)
 		{
 			X += ColumnsWidth[R];
 			context.fillStyle = 'white';
@@ -2069,14 +2118,17 @@ function DrawBarView()
 	}
 
 
-	function DrawMeta(Value, Width, Dec, YText)
+	function DrawMeta(Value, Width, Dec, YText, Col)
 	{
-		Value = FormatMeta(Value, Dec);
-		X += (FontWidth*Width);
-		ColumnsWidth[R] = FontWidth*Width;
-		context.textAlign = 'right';
-		context.fillText(Value, X-FontWidth, YText);
-		context.textAlign = 'left';
+		if(ColumnsEnabled[Col]||AllColumns)
+		{
+			Value = FormatMeta(Value, Dec);
+			X += (FontWidth*Width);
+			ColumnsWidth[R] = FontWidth*Width;
+			context.textAlign = 'right';
+			context.fillText(Value, X-FontWidth, YText);
+			context.textAlign = 'left';
+		}
 		R++;
 	}
 
@@ -2110,27 +2162,19 @@ function DrawBarView()
 		DrawTimer(Max,Timer.color);
 		DrawTimer(Timer.total,Timer.color);
 		DrawTimer(Min,Timer.color);
-		// X += CountWidth;
-		// context.fillStyle = 'white';
-		// context.textAlign = 'right';
 		DrawCount(Spike.toFixed(2) + '%');
 		DrawTimer(CallAverage,Timer.color);
-		// X += CountWidth;
-		// context.fillStyle = 'white';
-		// context.textAlign = 'right';
 		DrawCount(CallCount);
 		DrawTimer(ExclusiveAverage,Timer.color);
 		DrawTimer(ExclusiveMax,Timer.color);
 
-		if(TimersMeta)
+		context.fillStyle = 'white';
+		var Col = R;
+		for(var j = 0; j < nMetaLen; ++j)
 		{
-			context.fillStyle = 'white';
-			for(var j = 0; j < nMetaLen; ++j)
-			{
-			    DrawMeta(Timer.meta[j], MetaLengths[j], 0, YText);
-			    DrawMeta(Timer.metaavg[j], MetaLengthsAvg[j], 2, YText);
-			    DrawMeta(Timer.metamax[j], MetaLengthsMax[j], 0, YText);
-			}
+		    DrawMeta(Timer.meta[j], MetaLengths[j], 0, YText, Col + j);
+		    DrawMeta(Timer.metaavg[j], MetaLengthsAvg[j], 2, YText, Col + j);
+		    DrawMeta(Timer.metamax[j], MetaLengthsMax[j], 0, YText, Col + j);
 		}
 		context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
 		context.fillRect(0, Y, NameWidth, Height);
@@ -2349,19 +2393,17 @@ function DrawBarView()
 		DrawHeaderSplit(StrMax);
 		DrawHeaderSplit(StrTotal);
 		DrawHeaderSplit(StrMin);
-		DrawHeaderSplitSingle(StrSpike, CountWidth);
+		DrawHeaderSplitSingle(StrSpike, R);
 		DrawHeaderSplit(StrCallAverage);
-		DrawHeaderSplitSingle(StrCount, CountWidth);
+		DrawHeaderSplitSingle(StrCount, R);
 		DrawHeaderSplit(StrExclAverage);
 		DrawHeaderSplit(StrExclMax);
-		if(TimersMeta)
+		var Col = R;
+		for(var i = 0; i < nMetaLen; ++i)
 		{
-			for(var i = 0; i < nMetaLen; ++i)
-			{
-				DrawHeaderSplitSingle(MetaNames[i], MetaLengths[i] * FontWidth);
-				DrawHeaderSplitSingle(MetaNames[i] + " Avg", MetaLengthsAvg[i] * FontWidth);
-				DrawHeaderSplitSingle(MetaNames[i] + " Max", MetaLengthsMax[i] * FontWidth);
-			}
+			DrawHeaderSplitSingle(MetaNames[i], Col + i);
+			DrawHeaderSplitSingle(MetaNames[i] + " Avg", Col + i);
+			DrawHeaderSplitSingle(MetaNames[i] + " Max", Col + i);
 		}
 		X = 0;
 		context.fillStyle = nBackColorOffset;
@@ -4434,8 +4476,11 @@ function ReadCookie()
 		{
 			nHideHelp = 1;
 		}
+		if(Obj.ColumnsEnabled)
+		{
+			ColumnsEnabled = Obj.ColumnsEnabled;
+		}
 		TimersGroups = Obj.TimersGroups?Obj.TimersGroups:0;
-		TimersMeta = Obj.TimersMeta?0:1;
 	}
 	SetContextSwitch(nContextSwitchEnabled);
 	SetMode(NewMode, TimersGroups);
@@ -4454,8 +4499,8 @@ function WriteCookie()
 	Obj.GroupsAllActive = GroupsAllActive;
 	Obj.nContextSwitchEnabled = nContextSwitchEnabled;
 	Obj.TimersGroups = TimersGroups?TimersGroups:0;
-	Obj.TimersMeta = TimersMeta?0:1;
 	Obj.GroupColors = GroupColors;
+	Obj.ColumnsEnabled = ColumnsEnabled;
 	if(nHideHelp)
 	{
 		Obj.nHideHelp = 1;
@@ -4972,14 +5017,33 @@ function Preprocess()
 	ProfileModeDump();
 	ProfileMode = ProfileModeOld;
 	PreprocessWidths();
-
-	var nMetaLen = TimerInfo[0].meta.length;
-	ColumnsWidth = new Array(nMetaLen + 10);
 	Initialized = 1;
-
-
-	ResetColumnWidth();
 }
+
+function ToggleColumn(idx, isMeta)
+{
+	ColumnsEnabled[idx] = !ColumnsEnabled[idx];
+	UpdateColumnsMenu();
+	WriteCookie();
+	Invalidate = 0;
+}
+function UpdateColumnsMenu()
+{
+	var ulColumnMenu = document.getElementById('ColumnsSubMenu');
+	var Lis = ulColumnMenu.getElementsByTagName('li');
+	for(var i = 0; i < Lis.length; ++i)
+	{
+		if(ColumnsEnabled[i])
+		{
+			Lis[i].style['text-decoration'] = 'underline';
+		}
+		else
+		{
+			Lis[i].style['text-decoration'] = 'none';
+		}
+	}
+}
+
 function ResetColumnWidth()
 {
 	if(ColumnsWidth)
@@ -4996,12 +5060,12 @@ ReadCookie();
 MeasureFont()
 InitThreadMenu();
 InitGroupMenu();
+InitColumnMenu();
 InitFrameInfo();
 UpdateThreadMenu();
 ResizeCanvas();
 Preprocess();
 OnPageReady();
-Ready = 1;
 Draw(1);
 AutoRedraw();
 
