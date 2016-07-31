@@ -133,6 +133,7 @@ Settings.AggregateFrames = 60;
 var AggregatePresets = [0, 10,20,30,60,90,120,500];
 var AggregateHistorySize = 5;
 var AggregateTweak = -1;
+var AggregateCurrent = 0;
 
 var AutoCaptureEnabled = 0;
 var AutoCaptureDefaultThreshold = 66;
@@ -2277,9 +2278,16 @@ function GetAggregateString()
 
 function AggregateRoll(Direction, Tweak, SetDirect)
 {
-	if(SetDirect)
+	if(SetDirect || SetDirect == 0)
 	{
-		Settings.AggregateFrames = SetDirect;
+		if(SetDirect <= 0 || SetDirect == 'infinite')
+		{
+			Settings.AggregateFrames = 0;
+		}
+		else
+		{
+			Settings.AggregateFrames = SetDirect;
+		}
 	}
 	else if(Tweak)
 	{
@@ -2345,6 +2353,13 @@ function DrawMenuSettings()
 	if(DrawMenuElement(M, Settings.AutomaticReference, "Automatic Reference Time", Settings.AutomaticReference, 'white'))
 	{
 		Settings.AutomaticReference = 1-Settings.AutomaticReference;
+	}
+	if(Settings.AggregateFrames <= 0)
+	{
+		if(DrawMenuElement(M, 0, "Clear Aggregate", "Current[" + AggregateCurrent + "]", 'white'))
+		{
+			WSSendMessage("r");
+		}
 	}
 	SizeInfo.h = M.y - SizeInfo.y;
 	return SizeInfo;
@@ -3034,6 +3049,7 @@ function ProcessFrame(F)
 	PushIntoArray(FrameData.Frozen, F.wasfrozen ? 1 : 0);
 	var CaptureId = null;
 	var AutoCapture = AutoCaptureEnabled && !F.wasfrozen;
+	AggregateCurrent = F.a;
 	if(!F.wasfrozen)
 	{
 		ClearFrozen();

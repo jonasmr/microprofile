@@ -2688,7 +2688,6 @@ void MicroProfileFlip(void* pContext)
 	MICROPROFILE_SCOPE(g_MicroProfileFlip);
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 
-	uint32_t nAggregateClear = S.nAggregateClear || S.nAutoClearFrames, nAggregateFlip = 0;
 	if(S.nDumpFileNextFrame)
 	{
 		if(0 == S.nDumpFileCountDown)
@@ -2726,6 +2725,8 @@ void MicroProfileFlip(void* pContext)
 			}
 		}
 	}while(S.nFrozen);
+
+	uint32_t nAggregateClear = S.nAggregateClear || S.nAutoClearFrames, nAggregateFlip = 0;
 
 	if(S.nAutoClearFrames)
 	{
@@ -5478,7 +5479,7 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 	if(h0.RSV1 != 0 || h0.RSV2 != 0 || h0.RSV3 != 0)
 		goto fail;
 
-foo= 3;
+	foo= 3;
 	nSize = h1.payload;
 	nSizeBytes = 0;
 	switch(nSize)
@@ -5569,6 +5570,10 @@ foo= 3;
 			break;
 		case 'f':
 			MicroProfileToggleFrozen();
+			break;
+		case 'r':
+			printf("got clear message\n");
+			S.nAggregateClear = 1;
 			break;
 		default:
 			printf("got unknown message size %lld: '%s'\n", nSize, Bytes);
@@ -5673,7 +5678,7 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 	uint64_t nFrameTicks = pFrameNext->nFrameStartCpu - pFrameCurrent->nFrameStartCpu;
 	uint64_t nFrame = pFrameCurrent->nFrameId;
 	double fTime = nFrameTicks * fTickToMsCpu;
-	WSPrintf("{\"k\":\"%d\",\"v\":{\"t\":%f,\"f\":%lld", MSG_FRAME, fTime, nFrame);
+	WSPrintf("{\"k\":\"%d\",\"v\":{\"t\":%f,\"f\":%lld,\"a\":%d", MSG_FRAME, fTime, nFrame, MicroProfileGetCurrentAggregateFrames());
 	if(S.nWasFrozen)
 	{
 		WSPrintf(",\"wasfrozen\":1");
