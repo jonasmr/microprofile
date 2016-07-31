@@ -39,12 +39,12 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 .help {position:absolute;z-index:5;text-align:left;padding:2px;margin-left:-999em;background-color: #313131;width:300px;}
 .helpstart {position:absolute;z-index:5;text-align:left;padding:2px;background-color: #313131;width:300px;display:none}
 .root {z-index:1;position:absolute;top:0px;left:0px;}
-.filterinput0{position:fixed; background-color: #313131;display:none;}
-.filterinput{width:100px;}
+.filterinputsearchdiv{position:fixed; background-color: #313131;display:none;}
+.filterinputsearch{width:100px;}
 </style>
 </head>
 <body style="">
-<div class="filterinput0" id="FilterInputDiv">Filter<br><input type="text" id="FilterInput" class="filterinput"></div>
+<div class="filterinputsearchdiv" id="FilterInputDiv">Filter<br><input type="text" id="FilterInput" class="filterinputsearch"></div>
 <canvas id="DetailedView" height="100%" style="background-color:#474747;margin:0px;padding:0px;"></canvas>
 <script>
 "use strict"
@@ -54,7 +54,6 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 //default load on start does not work.. settings default load doesn't enable timers..
 //strict in normal
 //aggregate visualization
-//first column viz
 
 
 
@@ -1565,10 +1564,6 @@ function EnableMenu(m)
 	{
 		FilterInputDiv.style['display'] = 'none';
 	}
-
-	console.log("submenuactive " + SubMenuActive + ' timeout ' + SubMenuTimeout);
-
-
 }
 
 function Clamp(v, low, high)
@@ -1636,11 +1631,7 @@ function DrawTopMenu()
 
 function AggregateMenuSize()
 {
-	// var Obj = {};
 	var w = 250 + 5 + FontWidth;
-	// Obj.w = ;
-	// Obj.x = ;
-	// Obj.y = ;
 	return WindowRect(nWidth / 2 - w / 2,HistoryHeight + 50, w, nHeight);
 }
 

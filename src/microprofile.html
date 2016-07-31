@@ -41,6 +41,9 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 .root {z-index:1;position:absolute;top:0px;left:0px;}
 .filterinput0{position:fixed;bottom:10px;left:25px;background-color: #313131}
 .filterinput1{position:fixed;bottom:10px;left:175px;background-color: #313131}
+.filterinputsearchdiv{position:fixed; background-color: #313131;display:none;}
+.filterinputsearch{width:100px;}
+
 </style>
 </head>
 <body style="">
@@ -48,6 +51,7 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 <div class="filterinput0">Group<br><input type="text" id="filtergroup"></div>
 <div class="filterinput1">Timer/Thread<br><input type="text" id="filtertimer"></div>
 </div>
+<div class="filterinputsearchdiv" id="FilterInputDiv">Filter<br><input type="text" id="FilterInput" class="filterinputsearch"></div>
 <canvas id="History" height="70" style="background-color:#474747;margin:0px;padding:0px;"></canvas><canvas id="DetailedView" height="200" style="background-color:#474747;margin:0px;padding:0px;"></canvas>
 <div id="root" class="root">
 <ul id="nav">
@@ -219,6 +223,11 @@ var CanvasHistory = document.getElementById('History');
 var CanvasDetailedOffscreen = document.createElement('canvas');
 var FilterInputGroup = document.getElementById('filtergroup');
 var FilterInputTimer = document.getElementById('filtertimer');
+
+var FilterInput = document.getElementById('FilterInput');
+var FilterInputDiv = document.getElementById('FilterInputDiv');
+var FilterInputDivPos = {"x":-1,"y":-1,"w":-1,"h":-1};
+
 var FilterInputGroupString = null;
 var FilterInputTimerString = null;
 var FilterInputArray = [FilterInputGroup, FilterInputTimer];
@@ -301,7 +310,12 @@ var SortColumnMouseOverNext = null;
 var ColumnsWidth = [];
 var ColumnsEnabled = [];
 var NumColumns = 0;
-
+var FilterSearchActive = 0;
+var FilterSearchSelection = -1;
+var FilterSearchSelectionMax = 0;
+var FilterSearchPassIndex = -1;
+var FilterSearchArray = new Array();
+var FilterSearchStartTime = new Date();
 function RangeInit()
 {
 	return {"Begin":-1, "End":-1, "YBegin":-1, "YEnd":-1, "Thread": -1 , "Index": -1};
@@ -1939,6 +1953,20 @@ function FormatMeta(Value, Dec)
 	return Value;
 }
 
+function FilterMatch(FilterArray, value)
+{
+	if(!FilterArray)
+		return true;
+	for(var i = 0; i < FilterArray.length; ++i)
+	{
+		var res = value.search(FilterArray[i]);
+		if(res<0)
+			return false;
+	}
+	return true;
+}
+
+
 function DrawBarView()
 {
 	ProfileEnter("DrawBarView");
@@ -2187,18 +2215,6 @@ function DrawBarView()
 			context.fillStyle = 'white';
 			context.fillText(GroupInfo[Timer.group].name, 1, YText);
 		}
-	}
-	function FilterMatch(FilterArray, value)
-	{
-		if(!FilterArray)
-			return true;
-		for(var i = 0; i < FilterArray.length; ++i)
-		{
-			var res = value.search(FilterArray[i]);
-			if(res<0)
-				return false;
-		}
-		return true;
 	}
 	if(SortColumn && TimersGroups == 0)
 	{
@@ -3066,6 +3082,24 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 									}
 								}
 
+								if(index == FilterSearchPassIndex)
+								{
+									var Range = RangeInit();
+									Range.Begin = timestart;
+									Range.End = timeend;
+									Range.Thread = nLog;
+									Range.YBegin = Y - ThreadY[nLog];
+
+									if(FilterSearchArray.length < 500)
+									{
+										FilterSearchArray.push(Range);
+										if(FilterSearchArray.length == 500)
+										{
+											ShowFlashMessage('Capping Search Result to 500', 30);
+										}
+									}
+								}
+
 								if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
 								{
 
@@ -3246,7 +3280,6 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 				context.fillText(TxtArray[j], PosArray[k],PosArray[k+1]);
 			}
 		}
-
 	}
 }
 function DrawTextBox(context, text, x, y, align)
@@ -3268,6 +3301,111 @@ function DrawTextBox(context, text, x, y, align)
 	context.fillText(text, x, y);
 
 }
+
+function DrawFilterSearchRanges(context, Ranges, ColorBack, ColorFront, ThreadY)
+{
+	if(0 == Ranges.length)
+		return;
+	//todo: arrow key support 
+	var MarginTop = 1.0 * FontHeight;
+	var MarginBottom = nHeight - 1.0 * FontHeight;
+
+
+	var Time = new Date();
+	var Delta = Time - FilterSearchStartTime;
+	var BlinkTime = 2.5 * 1000;
+	var Blinks = 5;
+	var HoverFloat = 0.2;
+	var Blinking = 0;
+	if(Delta < BlinkTime)
+	{
+		Blinking = 1;
+		var b0 = Blinks* Math.PI * Delta;
+		var b1 = b0 / BlinkTime;
+		var Mag = Math.abs(Math.sin(b1));
+		HoverFloat = Mag * 0.5 + 0.2;
+	}
+	var Lines = new Array();
+	var Rects = new Array();
+
+
+	for(var i = 0; i < Ranges.length; ++i)
+	{
+		var Range = Ranges[i];
+		var fBegin = Range.Begin;
+		var fEnd = Range.End;
+		var OffsetTop = Range.YBegin + ThreadY[Range.Thread];
+		var OffsetBottom = OffsetTop + BoxHeight;
+
+		if(fBegin < fEnd)
+		{
+			{
+				OffsetTop = Math.max(OffsetTop, 0);
+				OffsetBottom = Math.max(OffsetBottom, MarginTop);
+				OffsetTop = Math.min(OffsetTop, MarginBottom);
+				OffsetBottom = Math.min(OffsetBottom, nHeight);
+				var fScaleX = nWidth / fDetailedRange; 
+				var X = (fBegin - fDetailedOffset) * fScaleX;
+				var Y = OffsetTop;
+				var W = (fEnd - fBegin) * fScaleX;
+				if(W > 1)
+				{
+					Rects.push(X-3);
+					Rects.push(OffsetTop-3);
+					Rects.push(W+5);
+					Rects.push(5 + OffsetBottom - OffsetTop);
+				}
+				else
+				{
+					X += W * 0.5;
+					Lines.push(X);
+					context.beginPath();
+					context.moveTo(X, 0);
+					context.lineTo(X, nHeight);
+					context.stroke();
+				}
+			}
+		}
+	}
+
+	context.fillStyle = ColorBack;
+	context.strokeStyle = ColorBack;
+
+	context.globalAlpha = HoverFloat;
+
+	for(var i = 0; i < Rects.length;)
+	{
+		var X = Rects[i++];
+		var Y = Rects[i++];
+		var W = Rects[i++];
+		var H = Rects[i++];
+		context.fillRect(X, Y, W, H);
+	}
+	context.globalAlpha = 1;
+	for(var i = 0; i < Rects.length;)
+	{
+		var X = Rects[i++];
+		var Y = Rects[i++];
+		var W = Rects[i++];
+		var H = Rects[i++];
+		context.strokeRect(X, Y, W, H);
+	}
+
+	for(var i = 0; i < Lines.length; ++i)
+	{
+		context.beginPath();
+		context.moveTo(Lines[i], 0);
+		context.lineTo(Lines[i], nHeight);
+		context.stroke();
+	}
+	if(Blinking>0)
+	{
+		Invalidate = 1;
+	}
+
+}
+
+
 function DrawRange(context, Range, ColorBack, ColorFront, Name)
 {
 	var fBegin = Range.Begin;
@@ -3416,7 +3554,7 @@ function DrawDetailed(Animation)
 		ProfileRedraw2++;
 	}
 
-	if(KeyShiftDown || KeyCtrlDown || MouseDragButton || MouseDragSelectRange() || ZoomActive)
+	if(KeyShiftDown || KeyCtrlDown || MouseDragButton || MouseDragSelectRange() || ZoomActive || FilterSearchActive)
 	{
 		nHoverToken = -1;
 		nHoverTokenIndex = -1;
@@ -3471,7 +3609,13 @@ function DrawDetailed(Animation)
 	Offset = DrawRange(context, RangeCpu, '#009900', '#00ff00', "Cpu");
 	Offset = DrawRange(context, RangeGpu, '#996600', '#775500', "Gpu");
 
+	DrawFilterSearchRanges(context, FilterSearchArray, '#ff9900', '#ff9900', ThreadY);
+
 	nHoverCSCpu = nHoverCSCpuNext;
+
+	DrawFilterSearch();
+
+
 	ProfileLeave();
 }
 function ZoomToHighlight(NoGpu)
@@ -3987,6 +4131,10 @@ function MouseHandleDragClick()
 				Draw(1);
 			}
 		}
+		else if(Mode == ModeDetailed && FilterSearchSelection >= 0)
+		{
+			FilterInputCommit();
+		}
 		else
 		{
 			ZoomToHighlight();
@@ -4280,6 +4428,19 @@ function ToggleFilterInput(escape)
 
 function KeyUp(evt)
 {
+	if(FilterSearchActive != 0)
+	{
+		// index is into implicit list, doesnt work
+		// if(evt.keyCode == 38)
+		// {
+		// 	FilterSearchSelection--;
+		// }
+		// else if(evt.keyCode == 40)
+		// {
+		// 	FilterSearchSelection++;
+		// }
+	}
+
 	if(evt.keyCode == 39)
 	{
 		MoveToNext(1);
@@ -4347,6 +4508,17 @@ function KeyUp(evt)
 			ToggleFilterInput(1);
 			evt.preventDefault();
 		}
+		if(FilterSearchActive)
+		{
+			if(FilterInput.value != '')
+			{
+				FilterInput.value = '';
+			}
+			else
+			{
+				FilterInputHide();
+			}
+		}
 	}
 
 	if(evt.keyCode == 18 || evt.keyCode == 90) // z/tab to toggle tooltip
@@ -4371,7 +4543,54 @@ function KeyUp(evt)
 	{
 		ToggleMode();
 	}
+	if(evt.keyCode == 13)
+	{
+		if(FilterSearchActive)
+		{
+			FilterInputCommit();
+		}
+		else
+		{
+			FilterInputShow();
+		}
+	}
+
 	Invalidate = 0;
+}
+function FilterInputUpdate()
+{
+	Invalidate = 0;	
+	if(FilterSearchActive == 1)
+	{
+		FilterInputDiv.style['display'] = 'inline';
+		FilterInput.focus();
+	}
+	else
+	{
+		FilterSearchSelection = -1;
+		FilterInputDiv.style['display'] = 'none';
+	}	
+}
+function FilterInputShow()
+{
+	FilterSearchActive = 1;
+	FilterInputUpdate();
+}
+function FilterInputHide()
+{
+	FilterSearchActive = 0;
+	FilterInputUpdate();
+}
+
+function FilterInputCommit()
+{
+	if(FilterSearchSelection >= 0)
+	{
+		FilterSearchArray = new Array();
+		FilterSearchPassIndex = FilterSearchSelection;
+		FilterSearchStartTime = new Date();
+	}
+	FilterInputHide();
 }
 function CreateFilter(Filter)
 {
@@ -4511,28 +4730,98 @@ function WriteCookie()
 	document.cookie = cookie;
 }
 
-var mousewheelevt = (/Firefox/i.test(navigator.userAgent)) ? "DOMMouseScroll" : "mousewheel" //FF doesn't recognize mousewheel as of FF3.x
+function WindowRect(x,y,w,h)
+{
+	var s = {};
+	s.x = x;
+	s.y = y;
+	s.w = w;
+	s.h = h;
+	return s;
+}
 
-CanvasDetailedView.addEventListener('mousemove', MouseMove, false);
-CanvasDetailedView.addEventListener('mousedown', function(evt) { MouseButton(true, evt); });
-CanvasDetailedView.addEventListener('mouseup', function(evt) { MouseButton(false, evt); } );
-CanvasDetailedView.addEventListener('mouseout', MouseOut);
-CanvasDetailedView.addEventListener("contextmenu", function (e) { e.preventDefault(); }, false);
-CanvasDetailedView.addEventListener(mousewheelevt, MouseWheel, false);
-CanvasHistory.addEventListener('mousemove', MouseMove);
-CanvasHistory.addEventListener('mousedown', function(evt) { MouseButton(true, evt); });
-CanvasHistory.addEventListener('mouseup', function(evt) { MouseButton(false, evt); } );
-CanvasHistory.addEventListener('mouseout', MouseOut);
-CanvasHistory.addEventListener("contextmenu", function (e) { e.preventDefault(); }, false);
-CanvasHistory.addEventListener(mousewheelevt, MouseWheel, false);
-FilterInputTimer.addEventListener('keyup', FilterKeyUp);
-FilterInputGroup.addEventListener('keyup', FilterKeyUp);
-window.addEventListener('keydown', KeyDown);
-window.addEventListener('keyup', KeyUp);
-window.addEventListener('resize', ResizeCanvas, false);
+function MenuSize(w)
+{
+	return WindowRect(nWidth / 2 - w / 2, 5, w, nHeight);
+}
+
+function TimerMenuSize()
+{
+	return MenuSize(200 + 5 + FontWidth); //fix menu size
+}
+function MoveFilterInputDiv(x, y, w)
+{
+	if(FilterInputDivPos.x != x || FilterInputDivPos.y != y || FilterInputDivPos.w != w)
+	{
+		FilterInputDivPos.x = x;
+		FilterInputDivPos.y = y;
+		FilterInputDivPos.w = w;
+		FilterInputDiv.style['left'] = x + 'px';
+		FilterInputDiv.style['top'] = (y + (CanvasHistory.height / DPR)) + 'px';
+		FilterInput.style['width'] = w + 'px';
+	}
+}
+
+function DrawFilterSearch()
+{
+	FilterSearchSelection = -1;
+	FilterSearchPassIndex = -1;
+	FilterSearchSelectionMax = 0;
+	if(!FilterSearchActive)
+		return;
+	nHoverToken = -1;
 
 
+	var FilterArray = CreateFilter(FilterInput.value);
+	var context = CanvasDetailedView.getContext('2d');
+	var nColorIndex = 0;
+	var SizeInfo = TimerMenuSize();
+	var Y = SizeInfo.y;
+	var Width = SizeInfo.w;
+	var X = SizeInfo.x;
 
+	MoveFilterInputDiv(SizeInfo.x, SizeInfo.y, SizeInfo.w);
+	Y += 35; //todo: measure somehow?
+	var MouseX = DetailedViewMouseX;
+	var MouseY = DetailedViewMouseY;
+
+	var Count = 0;
+	for(var i = 0; i < TimerInfo.length; ++i)
+	{
+		var v = TimerInfo[i];
+		{
+			var Name = v.name;
+			if(FilterMatch(FilterArray, Name))
+			{
+				Count++;
+				var ParentName = GroupInfo[v.group].name;
+				var ParentColor = 'white';
+				var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+				var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+				var TextY = Y+BoxHeight-FontAscent;
+				context.fillStyle = bgcolor;
+				context.fillRect(X, Y, Width, BoxHeight);
+				context.fillStyle = ParentColor;
+				context.fillText(ParentName, X + 2, TextY);
+				context.fillStyle = v.color;
+				context.textAlign = 'right';
+				context.fillText(Name, X + Width - 2, TextY);
+				context.textAlign = 'left';
+				if(bMouseIn)
+				{
+					FilterSearchSelection = i;
+				}
+				Y += BoxHeight;
+				if(Y > nHeight)
+					break;
+				nColorIndex = 1-nColorIndex;
+			}
+		}
+	}
+	FilterSearchSelectionMax = Count;
+	SizeInfo.h = Y-SizeInfo.y;
+	return SizeInfo;
+}
 
 function CalcAverage()
 {
@@ -5054,6 +5343,27 @@ function ResetColumnWidth()
 		}
 	}
 }
+
+var mousewheelevt = (/Firefox/i.test(navigator.userAgent)) ? "DOMMouseScroll" : "mousewheel" //FF doesn't recognize mousewheel as of FF3.x
+
+CanvasDetailedView.addEventListener('mousemove', MouseMove, false);
+CanvasDetailedView.addEventListener('mousedown', function(evt) { MouseButton(true, evt); });
+CanvasDetailedView.addEventListener('mouseup', function(evt) { MouseButton(false, evt); } );
+CanvasDetailedView.addEventListener('mouseout', MouseOut);
+CanvasDetailedView.addEventListener("contextmenu", function (e) { e.preventDefault(); }, false);
+CanvasDetailedView.addEventListener(mousewheelevt, MouseWheel, false);
+CanvasHistory.addEventListener('mousemove', MouseMove);
+CanvasHistory.addEventListener('mousedown', function(evt) { MouseButton(true, evt); });
+CanvasHistory.addEventListener('mouseup', function(evt) { MouseButton(false, evt); } );
+CanvasHistory.addEventListener('mouseout', MouseOut);
+CanvasHistory.addEventListener("contextmenu", function (e) { e.preventDefault(); }, false);
+CanvasHistory.addEventListener(mousewheelevt, MouseWheel, false);
+FilterInputTimer.addEventListener('keyup', FilterKeyUp);
+FilterInputGroup.addEventListener('keyup', FilterKeyUp);
+window.addEventListener('keydown', KeyDown);
+window.addEventListener('keyup', KeyUp);
+window.addEventListener('resize', ResizeCanvas, false);
+
 
 InitGroups();
 ReadCookie();
