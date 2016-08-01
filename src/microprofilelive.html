@@ -49,11 +49,7 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 <script>
 "use strict"
 
-
 //todo
-//status: make sure view is restores
-//reconnect fails.
-//prune aggregate arrays
 //strict in normal
 
 
@@ -218,6 +214,11 @@ var WidthArray = [];
 var WidthTree = 0;
 Settings.ViewActive = 0;
 var ViewNames = ["Graph", "Bar Time", "Counters", "Single Timer[experimental]"];
+
+var VIEW_GRAPH = 0;
+var VIEW_BAR = 1;
+var VIEW_COUNTERS = 2;
+var VIEW_SINGLE = 3;
 
 
 Settings.FancyGraph = 1;
@@ -1906,22 +1907,22 @@ function ActivateView(idx)
 	{
 		Views[i].visible = false;
 	}
-	if(idx == 0)
+	if(idx == VIEW_GRAPH)
 	{
 		MainView.DisplayFunc = DrawGraph;
 		MainView.visible = true;
 	}
-	else if(idx == 1)
+	else if(idx == VIEW_BAR)
 	{
 		MainView.DisplayFunc = DrawBarView;
 		MainView.visible = true;
 	}
-	else if(idx == 2)
+	else if(idx == VIEW_COUNTERS)
 	{
 		MainView.DisplayFunc = DrawCounterView;
 		MainView.visible = true;
 	}
-	if(idx == 3)
+	if(idx == VIEW_SINGLE)
 	{
 		for(var i = 0; i < X5Views.length; ++i)
 		{
@@ -2762,6 +2763,7 @@ function WSOpen()
 	WSReceiveBytes = 0;
 	WSIsOpen = 1;
 
+	Empty = {"id":0, "w":0, "depth":0, "sibling":-1,"parent":-1,"firstchild":-1};
 	TimerArray = [];
 	TimerArray.push(Empty);
 	WidthArray = [];
@@ -2985,6 +2987,7 @@ function GetFrameData(id)
 		FD.TimeCallAvg = AllocClearedArray(AggregateHistorySize);
 		FD.TimeTotal = AllocClearedArray(AggregateHistorySize);
 		FD.CallCount = AllocClearedArray(AggregateHistorySize);
+		FD.EmptyFrames = 0;
 		
 
 		FD.AggregateFrames = 0;
@@ -3084,6 +3087,10 @@ function ProcessFrame(F)
 	{
 		console.log('wasfrozen!!');
 		SetFrozen();
+	}
+	if(F.m != Settings.ViewActive)
+	{
+		WSSendMessage("v" + Settings.ViewActive);
 	}
 	if(AutoCapture)
 	{
@@ -3225,6 +3232,7 @@ function ProcessFrame(F)
 		}
 	}
 
+	var ToDelete = new Array();
 	for(var id in FrameData.TimerMap)
 	{
 		FD = FrameData.TimerMap[id];
@@ -3234,10 +3242,23 @@ function ProcessFrame(F)
 			PushIntoArray(FD.TimeExcl, 0.0);
 			PushIntoArray(FD.Count, 0);
 			FindMaxTime(FD.Time);
+			FD.EmptyFrames++;
+		}
+		else
+		{
+			FD.EmptyFrames = 0;
 		}
 		FD.FrameTime = FD.Time[FD.Time.length-1];
 		FD.AggregateTime = FD.Time[FD.Time.length-1];
 
+		if(FD.EmptyFrames == FD.Time.length)
+		{
+			ToDelete.push(id);
+		}
+	}
+	for(var i = 0; i < ToDelete.length; ++i)
+	{
+		delete FrameData.TimerMap[ToDelete[i]];
 	}
 	FramePending++;
 

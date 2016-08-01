@@ -1301,6 +1301,7 @@ struct MicroProfile
 	uint32_t 					nJsonSettingsBufferSize;
 	uint32_t 					nWSWasConnected;
 	uint32_t 					nMicroProfileShutdown;
+	uint32_t					nWSViewMode;
 
 	char 						CounterNames[MICROPROFILE_MAX_COUNTER_NAME_CHARS];
 	MicroProfileCounterInfo 	CounterInfo[MICROPROFILE_MAX_COUNTERS];
@@ -4774,6 +4775,14 @@ enum
 	MSG_COUNTERS = 7,
 };
 
+enum
+{
+	VIEW_GRAPH = 0,
+	VIEW_BAR = 1,
+	VIEW_COUNTERS = 2,
+	VIEW_SINGLE= 3
+
+};
 void MicroProfileSocketDumpState()
 {
 	fd_set Read, Write, Error;
@@ -5571,6 +5580,9 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 		case 'f':
 			MicroProfileToggleFrozen();
 			break;
+		case 'v':
+			S.nWSViewMode = (int)Bytes[1]-'0';
+			break;
 		case 'r':
 			printf("got clear message\n");
 			S.nAggregateClear = 1;
@@ -5654,14 +5666,17 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 void MicroProfileWebSocketSendCounters()
 {
 	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileWebSocketSendCounters", 0xff0000);
-	WSPrintf("{\"k\":\"%d\",\"v\":[", MSG_COUNTERS);
-	for(uint32_t i = 0; i < S.nNumCounters; ++i)
+	if(S.nWSViewMode == VIEW_COUNTERS)
 	{
-		uint64_t nCounter = S.Counters[i].load();
-		WSPrintf("%c%lld", i == 0 ? ' ' : ',', nCounter);
+		WSPrintf("{\"k\":\"%d\",\"v\":[", MSG_COUNTERS);
+		for(uint32_t i = 0; i < S.nNumCounters; ++i)
+		{
+			uint64_t nCounter = S.Counters[i].load();
+			WSPrintf("%c%lld", i == 0 ? ' ' : ',', nCounter);
+		}
+		WSPrintf("]}");
+		WSFlush();
 	}
-	WSPrintf("]}");
-	WSFlush();
 }
 
 void MicroProfileWebSocketSendFrame(MpSocket Connection)
