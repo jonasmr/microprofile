@@ -51,9 +51,10 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 
 
 //todo
-//default load on start does not work.. settings default load doesn't enable timers..
+//status: make sure view is restores
+//reconnect fails.
+//prune aggregate arrays
 //strict in normal
-//aggregate visualization
 
 
 
@@ -118,6 +119,7 @@ var DPR = 0;
 var C_HUGE = 1e10;
 
 var ActivePreset = "Default";
+var PresetPending = 0;
 var Presets = [];
 
 Settings.ReferenceTime = 50.0;
@@ -172,6 +174,7 @@ var FrameCount = 256;
 var FramePending = 0;
 
 var WSConnected = 0;
+var WSIsOpen = 0;
 var WSSeconds = 0;
 var WSFail = 0;
 var WS;
@@ -1426,15 +1429,19 @@ function DrawMessage(context)
 	context.textAlign = 'center';
 	context.fillStyle = 'red';
 	context.fillText(Text, X, Y);
-	if(GroupsEnabled == 0)
+	if(WSIsOpen && PresetPending > 20)
 	{
-		Y -= 60;
-		context.fillText("Paused: Enable groups in 'Control' menu to unpause", X, Y);
-	}
-	if(TimersEnabled == 0)
-	{
-		Y -= 60;
-		context.fillText("Select Timers in 'Timers' menu", X, Y);
+		PresetPending++;
+		if(GroupsEnabled == 0)
+		{
+			Y -= 60;
+			context.fillText("Paused: Enable groups in 'Control' menu to unpause", X, Y);
+		}
+		if(TimersEnabled == 0)
+		{
+			Y -= 60;
+			context.fillText("Select Timers in 'Timers' menu", X, Y);
+		}
 	}
 	context.textAlign = 'left';
 	context.font = Font;
@@ -1688,12 +1695,24 @@ function AddPresets(Names)
 		}
 	}
 }
+function GetFullName(T)
+{
+	var parent = T.parent;
+	var ParentName = "unknown";
+	var Name = T.name;
+	if(parent && parent < TimerArray.length)
+	{
+		ParentName = TimerArray[parent].name;
+	}
+	return ParentName + "/" + Name;
+}
+
 function EnableByName(name, type)
 {
 	for(var i = 0;i < TimerArray.length; ++i)
 	{
 		var t = TimerArray[i];
-		if(t.idtype == type && t.name == name)
+		if(t.idtype == type && GetFullName(t) == name)
 		{
 			WSSendMessage("c" + t.id);
 		}
@@ -1703,8 +1722,13 @@ function EnableByName(name, type)
 
 function OnLoadPreset(NewSettings, Apply)
 {
-	WSSendMessage("d");
+	if(Apply)
+	{
+		WSSendMessage("d");
+		PresetPending = 0;
+	}
 	ActivePreset = NewSettings.PresetName;
+	var EnableCount = 0;
 	for(var idx in NewSettings)
 	{
 		console.log(' setting ' + idx + ' to ' + NewSettings[idx]);
@@ -1715,8 +1739,9 @@ function OnLoadPreset(NewSettings, Apply)
 				var Timers = NewSettings[idx];
 				for(var i = 0; i < Timers.length; ++i)
 				{
-					var name = Timers[i];
-					EnableByName(name, TYPE_TIMER);
+					var FullName = Timers[i];
+					EnableCount++;
+					EnableByName(FullName, TYPE_TIMER);
 				}
 			}
 		}
@@ -1727,8 +1752,8 @@ function OnLoadPreset(NewSettings, Apply)
 				var Groups = NewSettings[idx];
 				for(var i = 0; i < Groups.length; ++i)
 				{
-					var name = Groups[i];
-					EnableByName(name, TYPE_GROUP);
+					var FullName = Groups[i];
+					EnableByName(FullName, TYPE_GROUP);
 				}
 			}
 		}
@@ -1763,11 +1788,11 @@ function SavePreset(Name)
 		{
 			if(idtype == TYPE_TIMER)
 			{
-				Timers.push(t.name);
+				Timers.push(GetFullName(t));
 			}
 			else if(idtype == TYPE_GROUP)
 			{
-				Groups.push(t.name);
+				Groups.push(GetFullName(t));
 			}
 		}
 	}
@@ -2735,6 +2760,7 @@ function WSOpen()
 	WSReceive = 0;
 	WSSendBytes = 0;
 	WSReceiveBytes = 0;
+	WSIsOpen = 1;
 
 	TimerArray = [];
 	TimerArray.push(Empty);
@@ -3275,15 +3301,23 @@ function WSError()
 function WSClose()
 {
 	console.log('WSClose');
+	WSIsOpen = 0;
 }
 function WSSendMessage(msgid)
 {
-	if(WSConnected)
+	if(WSIsOpen)
 	{
 		var str = '' + msgid;
 		WSSend++;
 		WSSendBytes += str.length;
 		WS.send(str);
+	}
+	else
+	{
+		if(msgid[0] == 'c')
+		{
+			console.log('failing to send ' + msgid);
+		}
 	}
 }
 
