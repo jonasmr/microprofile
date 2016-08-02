@@ -1,6 +1,9 @@
 # microprofile
 
-MicroProfile is a embeddable profiler in a single file, written in C++
+Microprofile is a embeddable profiler in a single file, written in C++
+Microprofile is mirrored on 
+* github: https://github.com/jonasmr/microprofile.git
+* bitbucket: https://bitbucket.org/jonasmeyer/microprofile-git.git
 
 It can display profile information in the application, or by generating captures via a minimal built in webserver.
 
