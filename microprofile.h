@@ -4762,6 +4762,7 @@ enum
 {
 	SETTING_FORCE_ENABLE = 0,
 	SETTING_CONTEXT_SWITCH_TRACE = 1,
+	SETTING_PLATFORM_MARKERS = 2, 
 };
 
 enum
@@ -5212,6 +5213,9 @@ void MicroProfileWebSocketCommand(uint32_t nCommand)
 		    {
 		    	MicroProfileStopContextSwitchTrace();
 		    }
+			break;
+		case SETTING_PLATFORM_MARKERS:
+			MicroProfilePlatformMarkersSetEnabled(!MicroProfilePlatformMarkersGetEnabled());
 			break;
 		}
 		S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
@@ -5681,46 +5685,48 @@ void MicroProfileWebSocketSendCounters()
 
 void MicroProfileWebSocketSendFrame(MpSocket Connection)
 {
-	MicroProfileWebSocketSendState(Connection);
-	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileWebSocketSendFrame", 0xff0000);
-	WSPrintStart(Connection);
-
-	float fTickToMsCpu = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
-	float fTickToMsGpu = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondGpu());
-	MicroProfileFrameState* pFrameCurrent = &S.Frames[S.nFrameCurrent];
-	MicroProfileFrameState* pFrameNext = &S.Frames[S.nFrameNext];
-
-	uint64_t nFrameTicks = pFrameNext->nFrameStartCpu - pFrameCurrent->nFrameStartCpu;
-	uint64_t nFrame = pFrameCurrent->nFrameId;
-	double fTime = nFrameTicks * fTickToMsCpu;
-	WSPrintf("{\"k\":\"%d\",\"v\":{\"t\":%f,\"f\":%lld,\"a\":%d", MSG_FRAME, fTime, nFrame, MicroProfileGetCurrentAggregateFrames());
-	if(S.nWasFrozen)
+	if(S.nFrameCurrent != S.WebSocketFrameLast[0] || S.nFrozen)
 	{
-		WSPrintf(",\"wasfrozen\":1");
-	}
-	WSPrintf(",\"x\":{");
-	int nTimer = S.WebSocketTimers;
-	while(-1 != nTimer)
-	{
-		MicroProfileTimerInfo& TI = S.TimerInfo[nTimer];
-		float fTickToMs = TI.Type == MicroProfileTokenTypeGpu ? fTickToMsGpu : fTickToMsCpu;
-		uint32_t id = MicroProfileWebSocketIdPack(TYPE_TIMER, nTimer);
-		float fTime = fTickToMs * S.Frame[nTimer].nTicks;
-		float fCount = (float)S.Frame[nTimer].nCount;
-		float fTimeExcl = fTickToMs * S.FrameExclusive[nTimer];
-		if(0 == (S.nActiveGroup & (1llu << TI.nGroupIndex)))
+		MicroProfileWebSocketSendState(Connection);
+		MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileWebSocketSendFrame", 0xff0000);
+		WSPrintStart(Connection);
+		float fTickToMsCpu = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+		float fTickToMsGpu = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondGpu());
+		MicroProfileFrameState* pFrameCurrent = &S.Frames[S.nFrameCurrent];
+		MicroProfileFrameState* pFrameNext = &S.Frames[S.nFrameNext];
+
+		uint64_t nFrameTicks = pFrameNext->nFrameStartCpu - pFrameCurrent->nFrameStartCpu;
+		uint64_t nFrame = pFrameCurrent->nFrameId;
+		double fTime = nFrameTicks * fTickToMsCpu;
+
+		WSPrintf("{\"k\":\"%d\",\"v\":{\"t\":%f,\"f\":%lld,\"a\":%d,\"fr\":%d", MSG_FRAME, fTime, nFrame, MicroProfileGetCurrentAggregateFrames(), S.nFrozen);
+		if(S.nFrameCurrent != S.WebSocketFrameLast[0])
 		{
-			fTime = fCount = fTimeExcl = 0.f;
+			WSPrintf(",\"x\":{");
+			int nTimer = S.WebSocketTimers;
+			while(-1 != nTimer)
+			{
+				MicroProfileTimerInfo& TI = S.TimerInfo[nTimer];
+				float fTickToMs = TI.Type == MicroProfileTokenTypeGpu ? fTickToMsGpu : fTickToMsCpu;
+				uint32_t id = MicroProfileWebSocketIdPack(TYPE_TIMER, nTimer);
+				float fTime = fTickToMs * S.Frame[nTimer].nTicks;
+				float fCount = (float)S.Frame[nTimer].nCount;
+				float fTimeExcl = fTickToMs * S.FrameExclusive[nTimer];
+				if(0 == (S.nActiveGroup & (1llu << TI.nGroupIndex)))
+				{
+					fTime = fCount = fTimeExcl = 0.f;
+				}
+				nTimer = TI.nWSNext;
+				WSPrintf("\"%d\":[%f,%f,%f]%c", id, fTime, fTimeExcl, fCount, nTimer == -1 ? ' ' : ',');
+			}
+			WSPrintf("}");
 		}
-
-
-		nTimer = TI.nWSNext;
-		WSPrintf("\"%d\":[%f,%f,%f]%c", id, fTime, fTimeExcl, fCount, nTimer == -1 ? ' ' : ',');
+		WSPrintf("}}");
+		WSFlush();
+		MicroProfileWebSocketSendCounters();
+		WSPrintEnd();
+		S.WebSocketFrameLast[0] = S.nFrameCurrent;
 	}
-	WSPrintf("}}}");
-	WSFlush();
-	MicroProfileWebSocketSendCounters();
-	WSPrintEnd();
 }
 
 
@@ -5781,19 +5787,8 @@ void MicroProfileWebSocketFrame()
 				MicroProfileFlipEnabled();
 				MicroProfileWebSocketSendEnabled(s);
 				S.nWebSocketDirty = 0;
-			}		
-			if(!S.nFrozen)
-			{
-				if(S.nFrameCurrent != S.WebSocketFrameLast[i])
-				{
-					MicroProfileWebSocketSendFrame(s);
-					S.WebSocketFrameLast[i] = S.nFrameCurrent;
-				}
-			}
-			else
-			{
-				S.nWasFrozen = MICROPROFILE_GPU_FRAME_DELAY+3;
-			}
+			}	
+			MicroProfileWebSocketSendFrame(s);	
 		}
 		if(S.nSocketFail)
 		{
@@ -5905,6 +5900,7 @@ void MicroProfileWebSocketSendEnabled(MpSocket C)
 	}
 	MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_FORCE_ENABLE), MicroProfileGetEnableAllGroups());
 	MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_CONTEXT_SWITCH_TRACE), S.bContextSwitchRunning);
+	MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_PLATFORM_MARKERS), MicroProfilePlatformMarkersGetEnabled());
 
 
 	WSPrintEnd();
@@ -5967,8 +5963,12 @@ void MicroProfileWebSocketSendState(MpSocket C)
 			uint32_t parent = CI.nParent == (uint32_t)-1 ? 0 : MicroProfileWebSocketIdPack(TYPE_COUNTER, CI.nParent);
 			MicroProfileWebSocketSendCounterEntry(id, parent, CI.pName, CI.nLimit, CI.eFormat);
 		}
-
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
 		MicroProfileWebSocketSendEntry(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_CONTEXT_SWITCH_TRACE), 0, "Context Switch Trace", S.bContextSwitchRunning, (uint32_t)-1);
+#endif
+#if MICROPROFILE_PLATFORM_MARKERS
+		MicroProfileWebSocketSendEntry(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_PLATFORM_MARKERS), 0, "Platform Markers", S.bContextSwitchRunning, (uint32_t)-1);
+#endif
 		WSPrintEnd();
 
 		S.WSCategoriesSent = S.nCategoryCount;
