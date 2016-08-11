@@ -1429,19 +1429,32 @@ function DrawMessage(context)
 	context.font = FontFlash;
 	context.textAlign = 'center';
 	context.fillStyle = 'red';
-	context.fillText(Text, X, Y);
+
+	function MSG(a)
+	{
+		context.fillText(a, X, Y);
+		Y -= 60;
+	}
+
+	if(Text != "")
+	{
+		MSG(Text);
+	}
+	if(IsFrozen)
+	{
+		MSG("FROZEN[space]");
+	}
+
+	PresetPending++; //hack: wait 20 frames before showing enable messages to prevent it from showing when loading settings. [[[test]]]
 	if(WSIsOpen && PresetPending > 20)
 	{
-		PresetPending++;
 		if(GroupsEnabled == 0)
 		{
-			Y -= 60;
-			context.fillText("Paused: Enable groups in 'Control' menu to unpause", X, Y);
+			MSG("Paused: Enable groups in 'Control' menu to unpause");
 		}
 		if(TimersEnabled == 0)
 		{
-			Y -= 60;
-			context.fillText("Select Timers in 'Timers' menu", X, Y);
+			MSG("Select Timers in 'Timers' menu");
 		}
 	}
 	context.textAlign = 'left';
@@ -3008,22 +3021,6 @@ function GetFrameData(id)
 		return FD;
 	}
 }
-function SetFrozen()
-{
-	IsFrozen = 10;
-	SetMessage("FROZEN");
-}
-function ClearFrozen()
-{
-	if(IsFrozen)
-	{
-		if(--IsFrozen == 0)
-		{
-			ClearMessage("FROZEN");
-		}
-
-	}
-}
 
 function ProcessCounters(C)
 {
@@ -3072,6 +3069,13 @@ function ProcessCounters(C)
 
 function ProcessFrame(F)
 {
+	if(F.fr)
+	{
+		IsFrozen = 1;
+		return;
+	}
+	console.log('got frame');
+	IsFrozen = 0;
 	var TriggerAutoCapture = 0;
 	PushIntoArray(FrameData.Time, F.t);
 	PushIntoArray(FrameData.Ids, F.f);
@@ -3079,15 +3083,6 @@ function ProcessFrame(F)
 	var CaptureId = null;
 	var AutoCapture = AutoCaptureEnabled && !F.wasfrozen;
 	AggregateCurrent = F.a;
-	if(!F.wasfrozen)
-	{
-		ClearFrozen();
-	}
-	else
-	{
-		console.log('wasfrozen!!');
-		SetFrozen();
-	}
 	if(F.m != Settings.ViewActive)
 	{
 		WSSendMessage("v" + Settings.ViewActive);
@@ -3718,7 +3713,6 @@ function KeyUp(evt)
 	}
 	if(k == 32)
 	{
-		SetFrozen();
 		WSSendMessage("f");
 	}
 	if(k == 13)
