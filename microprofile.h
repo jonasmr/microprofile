@@ -5705,8 +5705,7 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 		uint64_t nFrameTicks = pFrameNext->nFrameStartCpu - pFrameCurrent->nFrameStartCpu;
 		uint64_t nFrame = pFrameCurrent->nFrameId;
 		double fTime = nFrameTicks * fTickToMsCpu;
-
-		WSPrintf("{\"k\":\"%d\",\"v\":{\"t\":%f,\"f\":%lld,\"a\":%d,\"fr\":%d", MSG_FRAME, fTime, nFrame, MicroProfileGetCurrentAggregateFrames(), S.nFrozen);
+		WSPrintf("{\"k\":\"%d\",\"v\":{\"t\":%f,\"f\":%lld,\"a\":%d,\"fr\":%d,\"m\":%d", MSG_FRAME, fTime, nFrame, MicroProfileGetCurrentAggregateFrames(), S.nFrozen, S.nWSViewMode);
 		if(S.nFrameCurrent != S.WebSocketFrameLast[0])
 		{
 			WSPrintf(",\"x\":{");
