@@ -215,7 +215,8 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 	MicroProfileSetEnableAllGroups(true);
 	MicroProfileSetForceMetaCounters(true);
 	MICROPROFILE_CONDITIONAL(g_QueueGraphics = MICROPROFILE_GPU_INIT_QUEUE("GPU-Graphics-Queue"));
-	MicroProfileGpuInitD3D12(g_pDevice, g_pCommandQueue);
+	MicroProfileGpuInitD3D12(g_pDevice, 1, (void**)&g_pCommandQueue);
+	MicroProfileSetCurrentNodeD3D12(0);
 	//MICROPROFILE_GPU_BEGIN(0, MicroProfileGetGlobaGpuThreadLog());
 
 
