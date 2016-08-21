@@ -72,6 +72,7 @@ int WINAPI WinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 
 	MicroProfileGpuInitD3D11(g_pd3dDevice, g_pImmediateContext);
+	MICROPROFILE_GPU_SET_CONTEXT(g_pImmediateContext, MicroProfileGetGlobaGpuThreadLog());
 	MicroProfileStartContextSwitchTrace();
 	StartFakeWork();
 	char buffer[256];
@@ -499,6 +500,6 @@ void Render()
 		g_pSwapChain->Present( 0, 0 );
 	}
 
-	MicroProfileFlip(0);
+	MicroProfileFlip(g_pImmediateContext);
 
 }

@@ -222,10 +222,11 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileGpuGetTimeStamp(a) 0
 #define MicroProfileTicksPerSecondGpu() 1
 #define MicroProfileGetGpuTickReference(a,b) 0
-#define MicroProfileGpuInitD3D12(pDevice,pCommandQueue) do{}while(0)
+#define MicroProfileGpuInitD3D12(pDevice,nNodeCount,pCommandQueue) do{}while(0)
 #define MicroProfileGpuInitD3D11(pDevice,pDeviceContext) do{}while(0)
 #define MicroProfileGpuShutdown() do{}while(0)
 #define MicroProfileGpuInitGL() do{}while(0)
+#define MicroProfileSetCurrentNodeD3D12(nNode) do{}while(0)
 #define MicroProfilePlatformMarkersGetEnabled() 0
 #define MicroProfilePlatformMarkersSetEnabled(bEnabled) do{}while(0)
 #define MicroProfileTickToMsMultiplierCpu() 1.f
@@ -244,7 +245,13 @@ typedef uint16_t MicroProfileGroupId;
 #ifdef _WIN32
 typedef uint32_t MicroProfileThreadIdType;
 #else
+#ifdef MICROPROFILE_THREADID_SIZE_4BYTE
+typedef uint32_t MicroProfileThreadIdType;
+#elif MICROPROFILE_THREADID_SIZE_8BYTE
 typedef uint64_t MicroProfileThreadIdType;
+#else
+typedef uint64_t MicroProfileThreadIdType;
+#endif
 #endif
 
 
@@ -571,8 +578,9 @@ extern "C"
 #endif
 
 #if defined(MICROPROFILE_GPU_TIMERS_D3D12)
-MICROPROFILE_API void MicroProfileGpuInitD3D12(void* pDevice, void* pCommandQueue);
+MICROPROFILE_API void MicroProfileGpuInitD3D12(void* pDevice,  uint32_t nNodeCount, void** pCommandQueues);
 MICROPROFILE_API void MicroProfileGpuShutdown();
+MICROPROFILE_API void MicroProfileSetCurrentNodeD3D12(uint32_t nNode);
 #endif
 
 MICROPROFILE_API void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, float fGpuSpike);
@@ -583,11 +591,16 @@ MICROPROFILE_API uint32_t MicroProfileGpuInsertTimeStamp(void* pContext);
 MICROPROFILE_API uint64_t MicroProfileGpuGetTimeStamp(uint32_t nKey);
 MICROPROFILE_API uint64_t MicroProfileTicksPerSecondGpu();
 MICROPROFILE_API int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu);
+MICROPROFILE_API uint32_t MicroProfileGpuFlip(void*);
+MICROPROFILE_API void MicroProfileGpuShutdown();
 #else
 #define MicroProfileGpuInsertTimeStamp(a) 1
 #define MicroProfileGpuGetTimeStamp(a) 0
 #define MicroProfileTicksPerSecondGpu() 1
 #define MicroProfileGetGpuTickReference(a,b) 0
+#define MicroProfileGpuFlip(a) 0
+#define MicroProfileGpuShutdown() do{}while(0)
+
 #endif
 
 #if MICROPROFILE_GPU_TIMERS_D3D11
@@ -778,6 +791,7 @@ MicroProfileToken MicroProfileMakeToken(uint64_t nGroupMask, uint16_t nTimer);//
 
 //////////////////////////////////////////////////////////////////////////
 // platform IMPL
+void* MicroProfileAllocAligned(size_t nSize, size_t nAlign);
 
 #if defined(__APPLE__)
 #include <mach/mach.h>
@@ -1050,11 +1064,13 @@ struct MicroProfileThreadLogGpu
 };
 
 
+struct MicroProfileGpuTimerState;
 #if MICROPROFILE_GPU_TIMERS_D3D11
 struct MicroProfileD3D11Frame
 {
 	uint32_t m_nQueryStart;
-	uint32_t m_nQueryCount;
+	uint32_t m_nQueryCountMax;
+	std::atomic<uint32_t> m_nQueryCount;
 	uint32_t m_nRateQueryStarted;
 	void* m_pRateQuery;
 };
@@ -1063,14 +1079,17 @@ struct MicroProfileGpuTimerState
 {
 	uint32_t bInitialized;
 	void* m_pDevice;
-	void* m_pDeviceContext;
-	void* m_pQueries[MICROPROFILE_D3D_MAX_QUERIES];
+	void* m_pImmediateContext;
+	void* m_pQueries[MICROPROFILE_D3D_MAX_QUERIES];	
 	int64_t m_nQueryResults[MICROPROFILE_D3D_MAX_QUERIES];
+
 	uint32_t m_nQueryPut;
 	uint32_t m_nQueryGet;
 	uint32_t m_nQueryFrame;
 	int64_t m_nQueryFrequency;
 	void* pSyncQuery;
+
+
 	MicroProfileD3D11Frame m_QueryFrames[MICROPROFILE_GPU_FRAME_DELAY];
 };
 #elif defined(MICROPROFILE_GPU_TIMERS_D3D12)
@@ -1080,30 +1099,41 @@ struct MicroProfileGpuTimerState
 #define MICROPROFILE_D3D_MAX_QUERIES (32<<10)
 #endif
 
+#define MICROPROFILE_D3D_MAX_NODE_COUNT 4
 #define MICROPROFILE_D3D_INTERNAL_DELAY 8
+
+#define MP_NODE_MASK_ALL(n) ((1u<<(n))-1u)
+#define MP_NODE_MASK_ONE(n) (1u<<(n))
+
 struct MicroProfileD3D12Frame
 {
 	uint32_t nBegin;
 	uint32_t nCount;
-	ID3D12GraphicsCommandList* pCommandList;
+	uint32_t nNode;
+	ID3D12GraphicsCommandList* pCommandList[MICROPROFILE_D3D_MAX_NODE_COUNT];
 	ID3D12CommandAllocator* pCommandAllocator;
 };
 struct MicroProfileGpuTimerState
 {
+	ID3D12Device* pDevice;
+	uint32_t nNodeCount;
+	uint32_t nCurrentNode;
+
 	uint64_t nFrame;
 	uint64_t nPendingFrame;
 
 	uint32_t nFrameStart;
 	std::atomic<uint32_t> nFrameCount;
 	int64_t nFrequency;
-
-
-	ID3D12CommandQueue* pCommandQueue;
-	ID3D12QueryHeap* pHeap;
-	ID3D12Fence* pFence;
-	ID3D12Device* pDevice;
 	ID3D12Resource* pBuffer;
 
+	struct
+	{
+		ID3D12CommandQueue* pCommandQueue;
+		ID3D12QueryHeap* pHeap;
+		ID3D12Fence* pFence;
+	}
+	NodeState[MICROPROFILE_D3D_MAX_NODE_COUNT];
 
 	uint16_t nQueryFrames[MICROPROFILE_D3D_MAX_QUERIES];
 	int64_t nResults[MICROPROFILE_D3D_MAX_QUERIES];
@@ -1118,8 +1148,7 @@ struct MicroProfileGpuTimerState
 	uint32_t GLTimers[MICROPROFILE_GL_MAX_QUERIES];
 	uint32_t GLTimerPos;
 };
-#else
-struct MicroProfileGpuTimerState {};
+
 #endif
 
 
@@ -1319,7 +1348,7 @@ struct MicroProfile
 	int							GpuQueue;
 	MicroProfileThreadLogGpu* 	pGpuGlobal;
 
-	MicroProfileGpuTimerState 	GPU;
+	MicroProfileGpuTimerState* 	pGPU;
 
 };
 
@@ -1553,8 +1582,8 @@ inline void MicroProfileThreadStart(MicroProfileThread* pThread, MicroProfileThr
 inline void MicroProfileThreadJoin(MicroProfileThread* pThread)
 {
     (*pThread)->join();
-    (*pThread)->~std::thread();
-    MICRPPROFILE_FREE(*pThread);
+    (*pThread)->~thread();
+	MICROPROFILE_FREE(*pThread);
     *pThread = 0;
 }
 #endif
@@ -1586,16 +1615,6 @@ void MicroProfileDumpToFile();
 #define MicroProfileWebServerUpdate() false
 #define MicroProfileDumpToFile() do{} while(0)
 #endif 
-
-
-#if defined(MICROPROFILE_GPU_TIMERS_D3D11) || defined(MICROPROFILE_GPU_TIMERS_D3D12)
-uint32_t MicroProfileGpuFlip(void*);
-void MicroProfileGpuShutdown();
-#else
-#define MicroProfileGpuFlip(a) MicroProfileGpuInsertTimeStamp(a)
-#define MicroProfileGpuShutdown() do{}while(0)
-#endif
-
 
 
 #include <stdlib.h>
@@ -1928,7 +1947,6 @@ int MicroProfileInitGpuQueue(const char* pQueueName)
 	{
 		if(S.Pool[i] == pLog)
 		{
-			MicroProfileRegisterGroup(pQueueName, "GPU", (uint32_t)-1);
 			return i;
 		}
 	}
@@ -2341,6 +2359,7 @@ uint64_t MicroProfileEnterInternal(MicroProfileToken nToken_)
 			uint32_t idx = MicroProfileGetTimerIndex(nToken_);
 			MicroProfileTimerInfo& TI = S.TimerInfo[idx];
 			MICROPROFILE_PLATFORM_MARKER_BEGIN(TI.nColor, TI.pNameExt);
+			return nTick;
 		}
 		else
 		{
@@ -2750,7 +2769,7 @@ void MicroProfileFlip(void* pContext)
 			}
 		}
 
-		MicroProfileGpuBegin(0, S.pGpuGlobal);
+		MicroProfileGpuBegin(pContext, S.pGpuGlobal);
 
 		uint32_t nGpuTimeStamp = MicroProfileGpuFlip(pContext);
 
@@ -2976,7 +2995,7 @@ void MicroProfileFlip(void* pContext)
 							}
 							else
 							{
-								MP_BREAK();
+								//MP_BREAK();
 							}
 						}
 					}
@@ -4844,7 +4863,7 @@ void MicroProfileSocketDumpState()
 		MpSocket s = S.WebSockets[i];
 		int error_code;
 		socklen_t error_code_size = sizeof(error_code);
-		int r = getsockopt(s, SOL_SOCKET, SO_ERROR, &error_code, &error_code_size);
+		int r = getsockopt(s, SOL_SOCKET, SO_ERROR, (char*)&error_code, &error_code_size);
 		MP_ASSERT(r >= 0);
 		if (error_code != 0) {
 		    /* socket has a non zero error status */
@@ -4988,6 +5007,10 @@ bool MicroProfileSocketSend2(MpSocket Connection, const void* pMessage, int nLen
 		return false;
 	}
 #endif
+	if(s < 0)
+	{
+		return false;
+	}
 	MP_ASSERT(s == nLen);
 	return true;
 }
@@ -5257,7 +5280,6 @@ struct MicroProfileSettingsHeader
 typedef bool (*MicroProfileOnSettings)(const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJson);
 
 
-
 #define MICROPROFILE_SETTINGS_FILE "mppresets.cfg"
 #define MICROPROFILE_SETTINGS_FILE_TEMP MICROPROFILE_SETTINGS_FILE ".tmp"
 
@@ -5432,7 +5454,9 @@ bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSetting
 	}
 	fflush(F);
 	fclose(F);
-#ifdef _WIN32
+#ifdef MICROPROFILE_MOVE_FILE
+	MICROPROFILE_MOVE_FILE(MICROPROFILE_SETTINGS_FILE_TEMP, MICROPROFILE_SETTINGS_FILE);
+#elif defined(_WIN32)
 	MoveFileEx(MICROPROFILE_SETTINGS_FILE_TEMP, MICROPROFILE_SETTINGS_FILE, MOVEFILE_REPLACE_EXISTING);
 #else
 	rename(MICROPROFILE_SETTINGS_FILE_TEMP, MICROPROFILE_SETTINGS_FILE);
@@ -5732,8 +5756,7 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 		uint64_t nFrameTicks = pFrameNext->nFrameStartCpu - pFrameCurrent->nFrameStartCpu;
 		uint64_t nFrame = pFrameCurrent->nFrameId;
 		double fTime = nFrameTicks * fTickToMsCpu;
-
-		WSPrintf("{\"k\":\"%d\",\"v\":{\"t\":%f,\"f\":%lld,\"a\":%d,\"fr\":%d", MSG_FRAME, fTime, nFrame, MicroProfileGetCurrentAggregateFrames(), S.nFrozen);
+		WSPrintf("{\"k\":\"%d\",\"v\":{\"t\":%f,\"f\":%lld,\"a\":%d,\"fr\":%d,\"m\":%d", MSG_FRAME, fTime, nFrame, MicroProfileGetCurrentAggregateFrames(), S.nFrozen, S.nWSViewMode);
 		if(S.nFrameCurrent != S.WebSocketFrameLast[0])
 		{
 			WSPrintf(",\"x\":{");
@@ -6889,23 +6912,28 @@ void MicroProfileStartContextSwitchTrace(){}
 
 
 #if MICROPROFILE_GPU_TIMERS_D3D11
-#include <d3d11.h>
-uint32_t MicroProfileGpuInsertTimeStamp(void* pContext)
+uint32_t MicroProfileGpuInsertTimeStamp(void* pContext_)
 {
-	MicroProfileD3D11Frame& Frame = S.GPU.m_QueryFrames[S.GPU.m_nQueryFrame];
+	MicroProfileD3D11Frame& Frame = S.pGPU->m_QueryFrames[S.pGPU->m_nQueryFrame];
+	uint32_t nStart = Frame.m_nQueryStart;
 	if(Frame.m_nRateQueryStarted)
 	{
-		uint32_t nCurrent = (Frame.m_nQueryStart + Frame.m_nQueryCount) % MICROPROFILE_D3D_MAX_QUERIES;
-		uint32_t nNext = (nCurrent + 1) % MICROPROFILE_D3D_MAX_QUERIES;
-		if(nNext != S.GPU.m_nQueryGet)
+		uint32_t nIndex = -1;
+		do
 		{
-			Frame.m_nQueryCount++;
-			ID3D11Query* pQuery = (ID3D11Query*)S.GPU.m_pQueries[nCurrent];
-			ID3D11DeviceContext* pContext = (ID3D11DeviceContext*)S.GPU.m_pDeviceContext;
-			pContext->End(pQuery);
-			S.GPU.m_nQueryPut = nNext;
-			return nCurrent;
-		}
+			nIndex = Frame.m_nQueryCount.load();
+			if(nIndex + 1 >= Frame.m_nQueryCountMax)
+			{
+				return -1;
+			}
+		}while(!Frame.m_nQueryCount.compare_exchange_weak(nIndex, nIndex+1));
+		nIndex += nStart;
+		uint32_t nQueryIndex = nIndex % MICROPROFILE_D3D_MAX_QUERIES;
+
+		ID3D11Query* pQuery = (ID3D11Query*)S.pGPU->m_pQueries[nQueryIndex];
+		ID3D11DeviceContext* pContext = (ID3D11DeviceContext*)pContext_;
+		pContext->End(pQuery);
+		return nQueryIndex;
 	}
 	return (uint32_t)-1;
 }
@@ -6916,7 +6944,7 @@ uint64_t MicroProfileGpuGetTimeStamp(uint32_t nIndex)
 	{
 		return (uint64_t)-1;
 	}
-	int64_t nResult = S.GPU.m_nQueryResults[nIndex];
+	int64_t nResult = S.pGPU->m_nQueryResults[nIndex];
 	MP_ASSERT(nResult != -1);
 	return nResult;	
 }
@@ -6926,7 +6954,7 @@ bool MicroProfileGpuGetData(void* pQuery, void* pData, uint32_t nDataSize)
 	HRESULT hr;
 	do
 	{
-		hr = ((ID3D11DeviceContext*)S.GPU.m_pDeviceContext)->GetData((ID3D11Query*)pQuery, pData, nDataSize, 0);
+		hr = ((ID3D11DeviceContext*)S.pGPU->m_pImmediateContext)->GetData((ID3D11Query*)pQuery, pData, nDataSize, 0);
 	}while(hr == S_FALSE);
 	switch(hr)
 	{
@@ -6942,20 +6970,22 @@ bool MicroProfileGpuGetData(void* pQuery, void* pData, uint32_t nDataSize)
 
 uint64_t MicroProfileTicksPerSecondGpu()
 {
-	return S.GPU.m_nQueryFrequency;
+	return S.pGPU->m_nQueryFrequency;
 }
 
-uint32_t MicroProfileGpuFlip(void* pCtx)
+uint32_t MicroProfileGpuFlip(void* pDeviceContext_)
 {
-	uint32_t nFrameTimeStamp = MicroProfileGpuInsertTimeStamp(pCtx);
-	MicroProfileD3D11Frame& CurrentFrame = S.GPU.m_QueryFrames[S.GPU.m_nQueryFrame];
-	ID3D11DeviceContext* pContext = (ID3D11DeviceContext*)S.GPU.m_pDeviceContext;
+	ID3D11DeviceContext* pDeviceContext = (ID3D11DeviceContext*)pDeviceContext_;
+	uint32_t nFrameTimeStamp = MicroProfileGpuInsertTimeStamp(pDeviceContext);
+	MicroProfileD3D11Frame& CurrentFrame = S.pGPU->m_QueryFrames[S.pGPU->m_nQueryFrame];
+	ID3D11DeviceContext* pImmediateContext = (ID3D11DeviceContext*)S.pGPU->m_pImmediateContext;
 	if(CurrentFrame.m_nRateQueryStarted)
 	{
-		pContext->End((ID3D11Query*)CurrentFrame.m_pRateQuery);
+		pImmediateContext->End((ID3D11Query*)CurrentFrame.m_pRateQuery);
 	}
-	uint32_t nNextFrame = (S.GPU.m_nQueryFrame + 1) % MICROPROFILE_GPU_FRAME_DELAY;
-	MicroProfileD3D11Frame& OldFrame = S.GPU.m_QueryFrames[nNextFrame];
+	uint32_t nNextFrame = (S.pGPU->m_nQueryFrame + 1) % MICROPROFILE_GPU_FRAME_DELAY;
+	S.pGPU->m_nQueryPut = (CurrentFrame.m_nQueryStart + CurrentFrame.m_nQueryCount) % MICROPROFILE_D3D_MAX_QUERIES;
+	MicroProfileD3D11Frame& OldFrame = S.pGPU->m_QueryFrames[nNextFrame];
 	if(OldFrame.m_nRateQueryStarted)
 	{
 		struct RateQueryResult
@@ -6966,13 +6996,13 @@ uint32_t MicroProfileGpuFlip(void* pCtx)
 		RateQueryResult Result;
 		if(MicroProfileGpuGetData(OldFrame.m_pRateQuery, &Result, sizeof(Result)))
 		{
-			if(S.GPU.m_nQueryFrequency != (int64_t)Result.nFrequency)
+			if(S.pGPU->m_nQueryFrequency != (int64_t)Result.nFrequency)
 			{
-				if(S.GPU.m_nQueryFrequency)
+				if(S.pGPU->m_nQueryFrequency)
 				{
 					OutputDebugStringA("Query freq changing");
 				}
-				S.GPU.m_nQueryFrequency = Result.nFrequency;
+				S.pGPU->m_nQueryFrequency = Result.nFrequency;
 			}
 			uint32_t nStart = OldFrame.m_nQueryStart;
 			uint32_t nCount = OldFrame.m_nQueryCount;
@@ -6980,11 +7010,9 @@ uint32_t MicroProfileGpuFlip(void* pCtx)
 			{
 				uint32_t nIndex = (i + nStart) % MICROPROFILE_D3D_MAX_QUERIES;
 
-
-
-				if(!MicroProfileGpuGetData(S.GPU.m_pQueries[nIndex], &S.GPU.m_nQueryResults[nIndex], sizeof(uint64_t)))
+				if(!MicroProfileGpuGetData(S.pGPU->m_pQueries[nIndex], &S.pGPU->m_nQueryResults[nIndex], sizeof(uint64_t)))
 				{
-					S.GPU.m_nQueryResults[nIndex] = -1;
+					S.pGPU->m_nQueryResults[nIndex] = -1;
 				}
 			}
 		}
@@ -6995,51 +7023,61 @@ uint32_t MicroProfileGpuFlip(void* pCtx)
 			for(uint32_t i = 0; i < nCount; ++i)
 			{
 				uint32_t nIndex = (i + nStart) % MICROPROFILE_D3D_MAX_QUERIES;
-				S.GPU.m_nQueryResults[nIndex] = -1;
+				S.pGPU->m_nQueryResults[nIndex] = -1;
 			}
 		}
-		S.GPU.m_nQueryGet = (OldFrame.m_nQueryStart + OldFrame.m_nQueryCount) % MICROPROFILE_D3D_MAX_QUERIES;
+		S.pGPU->m_nQueryGet = (OldFrame.m_nQueryStart + OldFrame.m_nQueryCount) % MICROPROFILE_D3D_MAX_QUERIES;
 	}
 
-	S.GPU.m_nQueryFrame = nNextFrame;
-	MicroProfileD3D11Frame& NextFrame = S.GPU.m_QueryFrames[nNextFrame];
-	pContext->Begin((ID3D11Query*)NextFrame.m_pRateQuery);
-	NextFrame.m_nQueryStart = S.GPU.m_nQueryPut;
+	S.pGPU->m_nQueryFrame = nNextFrame;
+	MicroProfileD3D11Frame& NextFrame = S.pGPU->m_QueryFrames[nNextFrame];
+	pImmediateContext->Begin((ID3D11Query*)NextFrame.m_pRateQuery);
+	NextFrame.m_nQueryStart = S.pGPU->m_nQueryPut;
 	NextFrame.m_nQueryCount = 0;
-
+	if(S.pGPU->m_nQueryPut >= S.pGPU->m_nQueryGet)
+	{
+		NextFrame.m_nQueryCountMax = (MICROPROFILE_D3D_MAX_QUERIES - S.pGPU->m_nQueryPut) + S.pGPU->m_nQueryGet;
+	}
+	else
+	{
+		NextFrame.m_nQueryCountMax = S.pGPU->m_nQueryGet - S.pGPU->m_nQueryPut - 1;
+	}
+	if(NextFrame.m_nQueryCountMax)
+		NextFrame.m_nQueryCountMax -= 1;
 	NextFrame.m_nRateQueryStarted = 1;
 	return nFrameTimeStamp;
 }
 
-void MicroProfileGpuInitD3D11(void* pDevice_, void* pDeviceContext_)
+void MicroProfileGpuInitD3D11(void* pDevice_, void* pImmediateContext)
 {
 	ID3D11Device* pDevice = (ID3D11Device*)pDevice_;
-	ID3D11DeviceContext* pDeviceContext = (ID3D11DeviceContext*)pDeviceContext_;
-	S.GPU.m_pDeviceContext = pDeviceContext_;
+	ID3D11DeviceContext* pDeviceContext = (ID3D11DeviceContext*)pImmediateContext;
+	S.pGPU = MICROPROFILE_ALLOC_OBJECT(MicroProfileGpuTimerState);
+	S.pGPU->m_pImmediateContext = pImmediateContext;
 
 	D3D11_QUERY_DESC Desc;
 	Desc.MiscFlags = 0;
 	Desc.Query = D3D11_QUERY_TIMESTAMP;
 	for(uint32_t i = 0; i < MICROPROFILE_D3D_MAX_QUERIES; ++i)
 	{
-		HRESULT hr = pDevice->CreateQuery(&Desc, (ID3D11Query**)&S.GPU.m_pQueries[i]);
+		HRESULT hr = pDevice->CreateQuery(&Desc, (ID3D11Query**)&S.pGPU->m_pQueries[i]);
 		MP_ASSERT(hr == S_OK);
-		S.GPU.m_nQueryResults[i] = -1;
+		S.pGPU->m_nQueryResults[i] = -1;
 	}
-	HRESULT hr = pDevice->CreateQuery(&Desc, (ID3D11Query**)&S.GPU.pSyncQuery);
+	HRESULT hr = pDevice->CreateQuery(&Desc, (ID3D11Query**)&S.pGPU->pSyncQuery);
 	MP_ASSERT(hr == S_OK);
 
-	S.GPU.m_nQueryPut = 0;
-	S.GPU.m_nQueryGet = 0;
-	S.GPU.m_nQueryFrame = 0;
-	S.GPU.m_nQueryFrequency = 0;
+	S.pGPU->m_nQueryPut = 0;
+	S.pGPU->m_nQueryGet = 0;
+	S.pGPU->m_nQueryFrame = 0;
+	S.pGPU->m_nQueryFrequency = 0;
 	Desc.Query = D3D11_QUERY_TIMESTAMP_DISJOINT;
 	for(uint32_t i = 0; i < MICROPROFILE_GPU_FRAME_DELAY; ++i)
 	{
-		S.GPU.m_QueryFrames[i].m_nQueryStart = 0;
-		S.GPU.m_QueryFrames[i].m_nQueryCount = 0;
-		S.GPU.m_QueryFrames[i].m_nRateQueryStarted = 0;
-		HRESULT hr = pDevice->CreateQuery(&Desc, (ID3D11Query**)&S.GPU.m_QueryFrames[i].m_pRateQuery);
+		S.pGPU->m_QueryFrames[i].m_nQueryStart = 0;
+		S.pGPU->m_QueryFrames[i].m_nQueryCount = 0;
+		S.pGPU->m_QueryFrames[i].m_nRateQueryStarted = 0;
+		HRESULT hr = pDevice->CreateQuery(&Desc, (ID3D11Query**)&S.pGPU->m_QueryFrames[i].m_pRateQuery);
 		MP_ASSERT(hr == S_OK);
 	}
 }
@@ -7049,42 +7087,45 @@ void MicroProfileGpuShutdown()
 {
 	for(uint32_t i = 0; i < MICROPROFILE_D3D_MAX_QUERIES; ++i)
 	{
-		if(S.GPU.m_pQueries[i])
+		if(S.pGPU->m_pQueries[i])
 		{
-			ID3D11Query* pQuery = (ID3D11Query*)S.GPU.m_pQueries[i];
-			S.GPU.m_pQueries[i] = 0;
+			ID3D11Query* pQuery = (ID3D11Query*)S.pGPU->m_pQueries[i];
+			S.pGPU->m_pQueries[i] = 0;
 		}
 	}
 	for(uint32_t i = 0; i < MICROPROFILE_GPU_FRAME_DELAY; ++i)
 	{
-		if(S.GPU.m_QueryFrames[i].m_pRateQuery)
+		if(S.pGPU->m_QueryFrames[i].m_pRateQuery)
 		{
-			ID3D11Query* pQuery = (ID3D11Query*)S.GPU.m_QueryFrames[i].m_pRateQuery;
+			ID3D11Query* pQuery = (ID3D11Query*)S.pGPU->m_QueryFrames[i].m_pRateQuery;
 			pQuery->Release();
-			S.GPU.m_QueryFrames[i].m_pRateQuery = 0;
+			S.pGPU->m_QueryFrames[i].m_pRateQuery = 0;
 		}
 	}
-	if(S.GPU.pSyncQuery)
+	if(S.pGPU->pSyncQuery)
 	{
-		ID3D11Query* pSyncQuery = (ID3D11Query*)S.GPU.pSyncQuery;
+		ID3D11Query* pSyncQuery = (ID3D11Query*)S.pGPU->pSyncQuery;
 		pSyncQuery->Release();
-		S.GPU.pSyncQuery = 0;
+		S.pGPU->pSyncQuery = 0;
 	}
+
+	MICROPROFILE_FREE(S.pGPU);
+	S.pGPU = 0;
 }
 
 int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu)
 {
-	MicroProfileD3D11Frame& Frame = S.GPU.m_QueryFrames[S.GPU.m_nQueryFrame];
+	MicroProfileD3D11Frame& Frame = S.pGPU->m_QueryFrames[S.pGPU->m_nQueryFrame];
 	if (Frame.m_nRateQueryStarted)
 	{
-		ID3D11Query* pSyncQuery = (ID3D11Query*)S.GPU.pSyncQuery;
-		ID3D11DeviceContext* pContext = (ID3D11DeviceContext*)S.GPU.m_pDeviceContext;
-		pContext->End(pSyncQuery);
+		ID3D11Query* pSyncQuery = (ID3D11Query*)S.pGPU->pSyncQuery;
+		ID3D11DeviceContext* pImmediateContext = (ID3D11DeviceContext*)S.pGPU->m_pImmediateContext;
+		pImmediateContext->End(pSyncQuery);
 
 		HRESULT hr;
 		do
 		{
-			hr = pContext->GetData(pSyncQuery, pOutGpu, sizeof(*pOutGpu), 0);
+			hr = pImmediateContext->GetData(pSyncQuery, pOutGpu, sizeof(*pOutGpu), 0);
 		} while (hr == S_FALSE);
 		*pOutCPU = MP_TICK();
 		switch (hr)
@@ -7104,65 +7145,83 @@ int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu)
 
 #elif defined(MICROPROFILE_GPU_TIMERS_D3D12)
 #include <d3d12.h>
-//#include <d3dx12.h>
 uint32_t MicroProfileGpuInsertTimeStamp(void* pContext)
 {
-	
-	uint32_t nFrame = S.GPU.nFrame;
-	uint32_t nQueryIndex = (S.GPU.nFrameCount.fetch_add(1) + S.GPU.nFrameStart) % MICROPROFILE_D3D_MAX_QUERIES;
+	uint32_t nNode = S.pGPU->nCurrentNode;
+	uint32_t nFrame = S.pGPU->nFrame;
+	uint32_t nQueryIndex = (S.pGPU->nFrameCount.fetch_add(1) + S.pGPU->nFrameStart) % MICROPROFILE_D3D_MAX_QUERIES;
 	
 	ID3D12GraphicsCommandList* pCommandList = (ID3D12GraphicsCommandList*)pContext;
-	pCommandList->EndQuery(S.GPU.pHeap, D3D12_QUERY_TYPE_TIMESTAMP, nQueryIndex);
+	pCommandList->EndQuery(S.pGPU->NodeState[nNode].pHeap, D3D12_QUERY_TYPE_TIMESTAMP, nQueryIndex);
 	MP_ASSERT(nQueryIndex <= 0xffff);
 	//uprintf("insert timestamp %d :: %d ... ctx %p\n", nQueryIndex, nFrame, pContext);
 	return ((nFrame << 16) & 0xffff0000) | (nQueryIndex);
 }
 
-void MicroProfileGpuFetchRange(uint32_t nBegin, int32_t nCount, uint64_t nFrame)
+void MicroProfileGpuFetchRange(uint32_t nBegin, int32_t nCount, uint64_t nFrame, int64_t nTimestampOffset)
 {
 	if (nCount <= 0)
 		return;
 	void* pData = 0;
 	//uprintf("fetch [%d-%d]\n", nBegin, nBegin + nCount);
 	D3D12_RANGE Range = { sizeof(uint64_t)*nBegin, sizeof(uint64_t)*(nBegin+nCount) };
-	S.GPU.pBuffer->Map(0, &Range, &pData);
-	memcpy(&S.GPU.nResults[nBegin], nBegin + (uint64_t*)pData, nCount * sizeof(uint64_t));
+	S.pGPU->pBuffer->Map(0, &Range, &pData);
+	memcpy(&S.pGPU->nResults[nBegin], nBegin + (uint64_t*)pData, nCount * sizeof(uint64_t));
 	for (int i = 0; i < nCount; ++i)
 	{
-		S.GPU.nQueryFrames[i + nBegin] = nFrame;
+		S.pGPU->nQueryFrames[i + nBegin] = nFrame;
+		S.pGPU->nResults[i + nBegin] -= nTimestampOffset;
 	}
-	S.GPU.pBuffer->Unmap(0, 0);
+	S.pGPU->pBuffer->Unmap(0, 0);
 }
-void MicroProfileGpuWaitFence(uint64_t nFence)
+void MicroProfileGpuWaitFence(uint32_t nNode, uint64_t nFence)
 {
-	uint64_t nCompletedFrame = S.GPU.pFence->GetCompletedValue();
+	uint64_t nCompletedFrame = S.pGPU->NodeState[nNode].pFence->GetCompletedValue();
 	//while(nCompletedFrame < nPending)
 	//while(0 < nPending - nCompletedFrame)
-	while (0 <= (int64_t)(nFence - nCompletedFrame))
+	while (0 < (int64_t)(nFence - nCompletedFrame))
 	{
 		MICROPROFILE_SCOPEI("Microprofile", "gpu-wait", 0);
 		Sleep(20);//todo: use event.
-		nCompletedFrame = S.GPU.pFence->GetCompletedValue();
+		nCompletedFrame = S.pGPU->NodeState[nNode].pFence->GetCompletedValue();
 	}
 
 }
 
 void MicroProfileGpuFetchResults(uint64_t nFrame)
 {
-	uint64_t nPending = S.GPU.nPendingFrame;
+	uint64_t nPending = S.pGPU->nPendingFrame;
 	//while(nPending <= nFrame)
 	//while(0 <= nFrame - nPending)
 	while (0 <= (int64_t)(nFrame - nPending))
 	{
-		MicroProfileGpuWaitFence(nPending);
-
 		uint32_t nInternal = nPending % MICROPROFILE_D3D_INTERNAL_DELAY;
-		uint32_t nBegin = S.GPU.Frames[nInternal].nBegin;
-		uint32_t nCount = S.GPU.Frames[nInternal].nCount;
-		MicroProfileGpuFetchRange(nBegin, (nBegin + nCount) > MICROPROFILE_D3D_MAX_QUERIES ? MICROPROFILE_D3D_MAX_QUERIES - nBegin : nCount, nPending);
-		MicroProfileGpuFetchRange(0, (nBegin + nCount) - MICROPROFILE_D3D_MAX_QUERIES, nPending);
-		nPending = ++S.GPU.nPendingFrame;
-		MP_ASSERT(S.GPU.nFrame > nPending);
+		uint32_t nNode = S.pGPU->Frames[nInternal].nNode;
+		MicroProfileGpuWaitFence(nNode, nPending);
+		int64_t nTimestampOffset = 0;
+		if (nNode != 0)
+		{
+			// Adjust timestamp queries from GPU x to be in GPU 0's frame of reference
+			HRESULT hr;
+			int64_t nCPU0, nGPU0;
+			hr = S.pGPU->NodeState[0].pCommandQueue->GetClockCalibration((uint64_t *)&nGPU0, (uint64_t*)&nCPU0);
+			MP_ASSERT(hr == S_OK);
+			int64_t nCPUx, nGPUx;
+			hr = S.pGPU->NodeState[nNode].pCommandQueue->GetClockCalibration((uint64_t *)&nGPUx, (uint64_t*)&nCPUx);
+			MP_ASSERT(hr == S_OK);
+			int64_t nFreqCPU = MicroProfileTicksPerSecondCpu();
+			int64_t nElapsedCPU = nCPUx - nCPU0;
+			int64_t nElapsedGPU = S.pGPU->nFrequency * nElapsedCPU / nFreqCPU;
+			nTimestampOffset = nGPUx - nGPU0 - nElapsedGPU;
+		}
+
+		uint32_t nBegin = S.pGPU->Frames[nInternal].nBegin;
+		uint32_t nCount = S.pGPU->Frames[nInternal].nCount;
+		MicroProfileGpuFetchRange(nBegin, (nBegin + nCount) > MICROPROFILE_D3D_MAX_QUERIES ? MICROPROFILE_D3D_MAX_QUERIES - nBegin : nCount, nPending, nTimestampOffset);
+		MicroProfileGpuFetchRange(0, (nBegin + nCount) - MICROPROFILE_D3D_MAX_QUERIES, nPending, nTimestampOffset);
+
+		nPending = ++S.pGPU->nPendingFrame;
+		MP_ASSERT(S.pGPU->nFrame > nPending);
 	}
 
 }
@@ -7171,77 +7230,103 @@ uint64_t MicroProfileGpuGetTimeStamp(uint32_t nIndex)
 {
 	uint32_t nFrame = nIndex >> 16;
 	uint32_t nQueryIndex = nIndex & 0xffff;
-	uint32_t lala = S.GPU.nQueryFrames[nQueryIndex];
+	uint32_t lala = S.pGPU->nQueryFrames[nQueryIndex];
 	MP_ASSERT((0xffff & lala) == nFrame);
-	//uprintf("read TS [%d <- %lld]\n", nQueryIndex, S.GPU.nResults[nQueryIndex]);
-	return S.GPU.nResults[nQueryIndex];
+	//uprintf("read TS [%d <- %lld]\n", nQueryIndex, S.pGPU->nResults[nQueryIndex]);
+	return S.pGPU->nResults[nQueryIndex];
 }
 
 uint64_t MicroProfileTicksPerSecondGpu()
 {
-	return S.GPU.nFrequency;
+	return S.pGPU->nFrequency;
 }
 
 uint32_t MicroProfileGpuFlip(void* pContext)
 {
-	uint32_t nFrameIndex = S.GPU.nFrame % MICROPROFILE_D3D_INTERNAL_DELAY;
+	uint32_t nNode = S.pGPU->nCurrentNode;
+	uint32_t nFrameIndex = S.pGPU->nFrame % MICROPROFILE_D3D_INTERNAL_DELAY;
 	uint32_t nCount = 0, nStart = 0;
 
-	ID3D12GraphicsCommandList* pCommandList = S.GPU.Frames[nFrameIndex].pCommandList;
-	ID3D12CommandAllocator* pCommandAllocator = S.GPU.Frames[nFrameIndex].pCommandAllocator;
+	ID3D12GraphicsCommandList* pCommandList = S.pGPU->Frames[nFrameIndex].pCommandList[nNode];
+	ID3D12CommandAllocator* pCommandAllocator = S.pGPU->Frames[nFrameIndex].pCommandAllocator;
 	pCommandAllocator->Reset();
 	pCommandList->Reset(pCommandAllocator, nullptr);
 
 
 	uint32_t nFrameTimeStamp = MicroProfileGpuInsertTimeStamp(pCommandList);
-	if (S.GPU.nFrameCount)
+	if (S.pGPU->nFrameCount)
 	{
 
-		nCount = S.GPU.nFrameCount.exchange(0);
-		nStart = S.GPU.nFrameStart;
-		S.GPU.nFrameStart = (S.GPU.nFrameStart + nCount) % MICROPROFILE_D3D_MAX_QUERIES;
+		nCount = S.pGPU->nFrameCount.exchange(0);
+		nStart = S.pGPU->nFrameStart;
+		S.pGPU->nFrameStart = (S.pGPU->nFrameStart + nCount) % MICROPROFILE_D3D_MAX_QUERIES;
 		uint32_t nEnd = MicroProfileMin(nStart + nCount, (uint32_t)MICROPROFILE_D3D_MAX_QUERIES);
 		MP_ASSERT(nStart != nEnd);
 		uint32_t nSize = nEnd - nStart;
-		pCommandList->ResolveQueryData(S.GPU.pHeap, D3D12_QUERY_TYPE_TIMESTAMP, nStart, nEnd - nStart, S.GPU.pBuffer, nStart * sizeof(int64_t));
+		pCommandList->ResolveQueryData(S.pGPU->NodeState[nNode].pHeap, D3D12_QUERY_TYPE_TIMESTAMP, nStart, nEnd - nStart, S.pGPU->pBuffer, nStart * sizeof(int64_t));
 		if (nStart + nCount > MICROPROFILE_D3D_MAX_QUERIES)
 		{
-			pCommandList->ResolveQueryData(S.GPU.pHeap, D3D12_QUERY_TYPE_TIMESTAMP, 0, nEnd + nStart - MICROPROFILE_D3D_MAX_QUERIES, S.GPU.pBuffer, 0);
+			pCommandList->ResolveQueryData(S.pGPU->NodeState[nNode].pHeap, D3D12_QUERY_TYPE_TIMESTAMP, 0, nEnd + nStart - MICROPROFILE_D3D_MAX_QUERIES, S.pGPU->pBuffer, 0);
 		}
 	} 
 	pCommandList->Close();
 	ID3D12CommandList* pList = pCommandList;
-	S.GPU.pCommandQueue->ExecuteCommandLists(1, &pList);
+	S.pGPU->NodeState[nNode].pCommandQueue->ExecuteCommandLists(1, &pList);
 	//uprintf("EXECUTE %p\n", pCommandList);
-	S.GPU.pCommandQueue->Signal(S.GPU.pFence, S.GPU.nFrame);
-	S.GPU.Frames[nFrameIndex].nBegin = nStart;
-	S.GPU.Frames[nFrameIndex].nCount = nCount;
-	S.GPU.nFrame++;
+	S.pGPU->NodeState[nNode].pCommandQueue->Signal(S.pGPU->NodeState[nNode].pFence, S.pGPU->nFrame);
+	S.pGPU->Frames[nFrameIndex].nBegin = nStart;
+	S.pGPU->Frames[nFrameIndex].nCount = nCount;
+	S.pGPU->Frames[nFrameIndex].nNode = nNode;
+
+	S.pGPU->nFrame++;
 	//fetch from earlier frames
 
-	MicroProfileGpuFetchResults(S.GPU.nFrame - MICROPROFILE_GPU_FRAME_DELAY);
+	MicroProfileGpuFetchResults(S.pGPU->nFrame - MICROPROFILE_GPU_FRAME_DELAY);
 	return nFrameTimeStamp;
 }
-void MicroProfileGpuInitD3D12(void* pDevice_, void* pCommandQueue_)
+void MicroProfileGpuInitD3D12(void* pDevice_, uint32_t nNodeCount, void** pCommandQueues_)
 {
 	ID3D12Device* pDevice = (ID3D12Device*)pDevice_;
-	ID3D12CommandQueue* pCommandQueue = (ID3D12CommandQueue*)pCommandQueue_;
-	memset(&S.GPU, 0, sizeof(S.GPU));
-	S.GPU.pDevice = pDevice;
-	S.GPU.pCommandQueue = pCommandQueue;
-	pCommandQueue->GetTimestampFrequency((uint64_t*)&S.GPU.nFrequency);
-	
+	S.pGPU = MICROPROFILE_ALLOC_OBJECT(MicroProfileGpuTimerState);
+	memset(S.pGPU, 0, sizeof(*S.pGPU));
+	S.pGPU->pDevice = pDevice;
+	S.pGPU->nNodeCount = nNodeCount;
+	MP_ASSERT(S.pGPU->nNodeCount <= MICROPROFILE_D3D_MAX_NODE_COUNT);
+
+	for(uint32_t nNode = 0; nNode < S.pGPU->nNodeCount; ++nNode)
+	{
+		S.pGPU->NodeState[nNode].pCommandQueue = (ID3D12CommandQueue *)pCommandQueues_[nNode];
+		if (nNode == 0)
+		{
+			S.pGPU->NodeState[nNode].pCommandQueue->GetTimestampFrequency((uint64_t*)&(S.pGPU->nFrequency));
+			MP_ASSERT(S.pGPU->nFrequency);
+		}
+		else
+		{
+			// Don't support GPUs with different timer frequencies for now
+			int64_t nFrequency;
+			S.pGPU->NodeState[nNode].pCommandQueue->GetTimestampFrequency((uint64_t*)&nFrequency);
+			MP_ASSERT(nFrequency == S.pGPU->nFrequency);
+		}
+
+		D3D12_QUERY_HEAP_DESC QHDesc;
+		QHDesc.Count = MICROPROFILE_D3D_MAX_QUERIES;
+		QHDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+		QHDesc.NodeMask = MP_NODE_MASK_ONE(nNode);
+		HRESULT	hr = pDevice->CreateQueryHeap(&QHDesc, IID_PPV_ARGS(&S.pGPU->NodeState[nNode].pHeap));
+		MP_ASSERT(hr == S_OK);
+
+		pDevice->CreateFence(S.pGPU->nPendingFrame, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&S.pGPU->NodeState[nNode].pFence));
+	}
+
+
+
 	HRESULT hr;
-	D3D12_QUERY_HEAP_DESC QHDesc = {};
-	QHDesc.Count = MICROPROFILE_D3D_MAX_QUERIES;
-	QHDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
-	hr = pDevice->CreateQueryHeap(&QHDesc, IID_PPV_ARGS(&S.GPU.pHeap));
-	MP_ASSERT(hr == S_OK);
 	D3D12_HEAP_PROPERTIES HeapProperties;
 	HeapProperties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
 	HeapProperties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-	HeapProperties.CreationNodeMask = 1;
-	HeapProperties.VisibleNodeMask = 1;
+	HeapProperties.CreationNodeMask = 0;
+	HeapProperties.VisibleNodeMask = MP_NODE_MASK_ALL(S.pGPU->nNodeCount);
 	HeapProperties.Type = D3D12_HEAP_TYPE_READBACK;
 
 	const size_t nResourceSize = MICROPROFILE_D3D_MAX_QUERIES * 8;
@@ -7265,56 +7350,81 @@ void MicroProfileGpuInitD3D12(void* pDevice_, void* pCommandQueue_)
 		&ResourceDesc,
 		D3D12_RESOURCE_STATE_COPY_DEST,	
 		nullptr, 
-		IID_PPV_ARGS(&S.GPU.pBuffer));
+		IID_PPV_ARGS(&S.pGPU->pBuffer));
 	MP_ASSERT(hr == S_OK);
 
-	S.GPU.nFrame = 0;
-	S.GPU.nPendingFrame = 0;
-	pDevice->CreateFence(S.GPU.nPendingFrame, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&S.GPU.pFence));
+	S.pGPU->nFrame = 0;
+	S.pGPU->nPendingFrame = 0;
 
-	for(MicroProfileD3D12Frame& Frame : S.GPU.Frames)
+	for(MicroProfileD3D12Frame& Frame : S.pGPU->Frames)
 	{
 		hr = pDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&Frame.pCommandAllocator));
 		MP_ASSERT(hr == S_OK);
-		hr = pDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, Frame.pCommandAllocator, nullptr, IID_PPV_ARGS(&Frame.pCommandList));
-		MP_ASSERT(hr == S_OK);
-		hr = Frame.pCommandList->Close();
-		MP_ASSERT(hr == S_OK);
-	}	
+		for (uint32_t nNode = 0; nNode < S.pGPU->nNodeCount; ++nNode)
+		{
+			hr = pDevice->CreateCommandList(MP_NODE_MASK_ONE(nNode), D3D12_COMMAND_LIST_TYPE_DIRECT, Frame.pCommandAllocator, nullptr, IID_PPV_ARGS(&Frame.pCommandList[nNode]));
+			MP_ASSERT(hr == S_OK);
+			hr = Frame.pCommandList[nNode]->Close();
+			MP_ASSERT(hr == S_OK);
+		}
+	}
 }
 
 void MicroProfileGpuShutdown()
 {
-	MicroProfileGpuWaitFence(S.GPU.nFrame-1);
-	S.GPU.pHeap->Release();
-	S.GPU.pBuffer->Release();
-	S.GPU.pFence->Release();
+	for(uint32_t nNode=0; nNode < S.pGPU->nNodeCount; ++nNode)
+	{
+		MicroProfileGpuWaitFence(nNode, S.pGPU->nFrame - 1);
+	}
+	for(uint32_t nNode = 0; nNode < S.pGPU->nNodeCount; ++nNode)
+	{
+		S.pGPU->NodeState[nNode].pHeap->Release();
+		S.pGPU->NodeState[nNode].pFence->Release();
+	}
+	S.pGPU->pBuffer->Release();
+	for(MicroProfileD3D12Frame& Frame : S.pGPU->Frames)
+	{
+		Frame.pCommandAllocator->Release();
+		for(uint32_t nNode = 0; nNode < S.pGPU->nNodeCount; ++nNode)
+		{
+			Frame.pCommandList[nNode]->Release();
+		}
+	}
+
+
+	MICROPROFILE_FREE(S.pGPU);
+	S.pGPU = 0;
+
+}
+void MicroProfileSetCurrentNodeD3D12(uint32_t nNode)
+{
+	S.pGPU->nCurrentNode = nNode;
 }
 
 int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu)
 {
-	HRESULT hr = S.GPU.pCommandQueue->GetClockCalibration((uint64_t*)pOutGpu, (uint64_t*)pOutCPU);
+	HRESULT hr = S.pGPU->NodeState[0].pCommandQueue->GetClockCalibration((uint64_t*)pOutGpu, (uint64_t*)pOutCPU);
 	MP_ASSERT(hr == S_OK);
 	return 1;
 }
 #elif MICROPROFILE_GPU_TIMERS_GL
 void MicroProfileGpuInitGL()
 {
-	S.GPU.GLTimerPos = 0;
-	glGenQueries(MICROPROFILE_GL_MAX_QUERIES, &S.GPU.GLTimers[0]);		
+	S.pGPU->GLTimerPos = 0;
+	glGenQueries(MICROPROFILE_GL_MAX_QUERIES, &S.pGPU->GLTimers[0]);		
 }
 
 uint32_t MicroProfileGpuInsertTimeStamp(void* pContext)
 {
-	uint32_t nIndex = (S.GPU.GLTimerPos+1)%MICROPROFILE_GL_MAX_QUERIES;
-	glQueryCounter(S.GPU.GLTimers[nIndex], GL_TIMESTAMP);
-	S.GPU.GLTimerPos = nIndex;
+	uint32_t nIndex = (S.pGPU->GLTimerPos+1)%MICROPROFILE_GL_MAX_QUERIES;
+	glQueryCounter(S.pGPU->GLTimers[nIndex], GL_TIMESTAMP);
+	S.pGPU->GLTimerPos = nIndex;
 	return nIndex;
 }
 uint64_t MicroProfileGpuGetTimeStamp(uint32_t nKey)
 {
 	uint64_t result;
-	glGetQueryObjectui64v(S.GPU.GLTimers[nKey], GL_QUERY_RESULT, &result);
+	glGetQueryObjectui64v(S.pGPU->GLTimers[nKey], GL_QUERY_RESULT, &result);
 	return result;
 }
 

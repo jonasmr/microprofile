@@ -533,7 +533,8 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 		snprintf(frame, sizeof(frame) - 1, "Compute-Write-%d", i);
 		g_TokenGpuComputeFrameIndex[i] = MicroProfileGetToken("GPU", frame, (uint32_t)-1, MicroProfileTokenTypeGpu);
 	}
-	MicroProfileGpuInitD3D12(g_pDevice, g_pCommandQueue);
+	MicroProfileGpuInitD3D12(g_pDevice, 1, (void**)&g_pCommandQueue);
+	MicroProfileSetCurrentNodeD3D12(0);
 
 
 	for (int i = 0; i < NumContexts; ++i)
