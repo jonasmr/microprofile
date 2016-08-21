@@ -5258,13 +5258,8 @@ typedef bool (*MicroProfileOnSettings)(const char* pName, uint32_t nNameLen, con
 
 
 
-#define MICROPROFILE_SETTINGS_FILE "mppresets"
-#define MICROPROFILE_SETTINGS_FILE_TEMP "mppresets" ".tmp"
-
-
-#define WRITE(s, l, f) do{int r = (int)fwrite(s, l, 1, f); nWritten += l; if(r != 1){ Fail(r, __LINE__); MP_BREAK(); return false;} }while(0)
-#define CHECK_EQ(v, st) do{int r = (int)(st); if(r != v){Fail(r, __LINE__);return;} }while(0)
-#define CHECK_NEQ(v, st) do{int r = (int)s(st); if(r != v){Fail(r, __LINE__);return;} }while(0)
+#define MICROPROFILE_SETTINGS_FILE "mppresets.cfg"
+#define MICROPROFILE_SETTINGS_FILE_TEMP MICROPROFILE_SETTINGS_FILE ".tmp"
 
 template<typename T>
 void MicroProfileParseSettings(T CB)
@@ -5272,126 +5267,169 @@ void MicroProfileParseSettings(T CB)
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileGetMutex());
 
 
-	FILE* F = fopen(MICROPROFILE_SETTINGS_FILE, "rb");
+	FILE* F = fopen(MICROPROFILE_SETTINGS_FILE, "r");
 	if(!F)
 	{
-		printf("load failed\n");
 		return;
 	}
-	long filesize = 0;
+	long nFileSize = 0;
 	fseek(F, 0, SEEK_END);
-	filesize = ftell(F);
-	auto Fail = [=](int r, uint32_t nLine)
+	nFileSize = ftell(F);
+	if(nFileSize > (32<<10))
 	{
-
-		printf("failing reading file error %d, line %d,filesize %ld \n", r, nLine, filesize);
-		fclose(F);
+		printf("trying to load a >32kb settings file on the stack. this should never happen!\n");
 		MP_BREAK();
-	};
-
-	CHECK_EQ(0, fseek(F, -(int)sizeof(MicroProfileSettingsFileHeader), SEEK_END));
-	MicroProfileSettingsFileHeader FileHeader;
-	CHECK_EQ(1, fread(&FileHeader, sizeof(FileHeader), 1, F));
-	if(!FileHeader.nNumHeaders || FileHeader.nMagic != MICROPROFILE_PRESET_HEADER_MAGIC2 || FileHeader.nVersion != MICROPROFILE_PRESET_HEADER_VERSION2)
-	{
-		Fail(-1, __LINE__);
-		return;
 	}
-	MicroProfileSettingsHeader* pHeaders = (MicroProfileSettingsHeader*)alloca(sizeof(MicroProfileSettingsHeader) * FileHeader.nNumHeaders);
-	CHECK_EQ(0, fseek(F, FileHeader.nHeadersOffset, SEEK_SET));
-	char* pName = (char*)alloca(FileHeader.nMaxNameSize);
-	char* pJsonSettings = (char*)alloca(FileHeader.nMaxJsonSize);
-	fread(pHeaders, sizeof(MicroProfileSettingsHeader) * FileHeader.nNumHeaders, 1, F);
-	for(uint32_t i = 0; i < FileHeader.nNumHeaders;++i)
+	char* pFile = (char*)alloca(nFileSize+1);
+	fseek(F, 0, SEEK_SET);
+	if(1 != fread(pFile, nFileSize, 1, F))
 	{
-		CHECK_EQ(0, fseek(F, pHeaders[i].nNameOffset, SEEK_SET));
-		CHECK_EQ(1, fread(pName, pHeaders[i].nNameSize, 1, F));
-		CHECK_EQ(0, fseek(F, pHeaders[i].nJsonOffset, SEEK_SET));
-		CHECK_EQ(1, fread(pJsonSettings, pHeaders[i].nJsonSize, 1, F));
-		if(!CB(pName, pHeaders[i].nNameSize, pJsonSettings, pHeaders[i].nJsonSize))
-			break;
+		printf("failed to read settings file\n");
+		fclose(F);
+		return;
 	}
 	fclose(F);
+	pFile[nFileSize] = '\0';
 
+	char* pPos = pFile;
+	char* pEnd = pFile + nFileSize;
+
+	while(pPos != pEnd)
+	{
+		const char* pName = 0;
+		int nNameLen = 0;
+		const char* pJson = 0;
+		int nJsonLen = 0;
+		int Failed = 0;
+
+		auto SkipWhite = [&](char* pPos, const char* pEnd)
+		{
+			while(pPos != pEnd)
+			{
+				if(isspace(*pPos))
+				{
+					pPos++;
+				}
+				else if('#' == *pPos)
+				{
+					while(pPos != pEnd && *pPos != '\n')
+					{
+						++pPos;
+					}
+				}
+				else
+				{
+					break;
+				}
+			}
+			return pPos;
+		};
+
+		auto ParseName = [&](char* pPos, char* pEnd, const char** ppName, int* pLen)
+		{
+			pPos = SkipWhite(pPos, pEnd);
+			int nLen = 0;
+			*ppName = pPos;
+
+			while(pPos != pEnd && (isalpha(*pPos) || isdigit(*pPos)))
+			{
+				nLen++;
+				pPos++;
+			}
+			*pLen = nLen;
+			if(pPos == pEnd || !isspace(*pPos))
+			{
+				Failed = 1;
+				return pEnd;
+			}
+			*pPos++ = '\0';
+			return pPos;
+		};
+
+		auto ParseJson = [&](char* pPos, char* pEnd, const char** pJson, int* pLen) -> char*
+		{
+			pPos = SkipWhite(pPos, pEnd);
+			if(*pPos != '{' || pPos == pEnd)
+			{
+				Failed = 1;
+				return pPos;
+			}
+			*pJson = pPos++;
+			int nLen = 1;
+			int nDepth = 1;
+			while(pPos != pEnd && nDepth != 0)
+			{
+				nLen++;
+				char nChar = *pPos++;
+				if(nChar == '{')
+				{
+					nDepth++;
+				}
+				else if(nChar == '}')
+				{
+					nDepth--;
+				}
+			}
+			if(pPos == pEnd || !isspace(*pPos))
+			{
+				Failed = 1;
+				return pEnd;
+			}
+			*pLen = nLen;
+			*pPos++ = '\0';		
+			return pPos;
+		};
+
+		pPos = ParseName(pPos, pEnd, &pName, &nNameLen);
+		pPos = ParseJson(pPos, pEnd, &pJson, &nJsonLen);
+		if(Failed)
+		{
+			break;
+		}
+		if(!CB(pName, nNameLen, pJson, nJsonLen))
+		{
+			break;
+		}
+	}
 }
 
 bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSettings)
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileGetMutex());
 
-	FILE* F = fopen(MICROPROFILE_SETTINGS_FILE_TEMP, "wb");
+	FILE* F = fopen(MICROPROFILE_SETTINGS_FILE_TEMP, "w");
 	if(!F)
 	{
 		return false;
 	}
 
-	auto Fail = [=](int r, uint32_t nLine)
-	{
-
-#if MICROPROFILE_DEBUG
-		printf("failing reading file error %d, line %d \n", r, nLine);
-#endif
-		fclose(F);
-		MP_BREAK();
-	};
-
-
-	const uint32_t MAX_HEADERS = 256;
-	MicroProfileSettingsHeader*	pHeaders = (MicroProfileSettingsHeader*)alloca(sizeof(MicroProfileSettingsHeader) * MAX_HEADERS);
-	MicroProfileSettingsHeader& H = pHeaders[0];
-	uint32_t nWritten = 0;
-
-
-
-	H.nNameOffset = ftell(F);
-	H.nNameSize = (uint32_t)strlen(pSettingsName)+1;
-	WRITE(pSettingsName, H.nNameSize, F);
-	H.nJsonOffset = ftell(F);
-	H.nJsonSize = (uint32_t)strlen(pJsonSettings)+1;
-	WRITE(pJsonSettings, H.nJsonSize, F);
-	
-	uint32_t nNumHeaders = 1;
-
-	uint32_t nMaxJsonSize = H.nJsonSize;
-	uint32_t nMaxNameSize = H.nNameSize;
-
+	bool bWritten = false;
 
 	MicroProfileParseSettings(
 		[&](const char* pName, uint32_t nNameSize, const char* pJson, uint32_t nJsonSize) -> bool
 		{
-			nMaxJsonSize = MicroProfileMax(nJsonSize, nMaxJsonSize);
-			nMaxNameSize = MicroProfileMax(nNameSize, nMaxNameSize);
+			fwrite(pName, nNameSize, 1, F);
+			fputc(' ', F);
 			if(0 != MP_STRCASECMP(pSettingsName, pName))
 			{
-				MicroProfileSettingsHeader* pSettings = pHeaders + nNumHeaders++;
-				pSettings->nNameOffset = ftell(F);
-				pSettings->nNameSize = nNameSize;
-				WRITE(pName, nNameSize, F);
-				pSettings->nJsonOffset = ftell(F);
-				pSettings->nJsonSize = nJsonSize;
-				WRITE(pJson, nJsonSize, F);
+				fwrite(pJson, nJsonSize, 1, F);
 			}
+			else
+			{
+				bWritten = true;
+				fwrite(pJsonSettings, strlen(pJsonSettings), 1, F);
+			}
+			fputc('\n', F);
 			return true;
 		}
 	);
-
-
-
-
-	MicroProfileSettingsFileHeader FileHeader;
-	FileHeader.nMagic = MICROPROFILE_PRESET_HEADER_MAGIC2;
-	FileHeader.nVersion = MICROPROFILE_PRESET_HEADER_VERSION2;
-	FileHeader.nNumHeaders = nNumHeaders;
-	FileHeader.nHeadersOffset = ftell(F);
-	FileHeader.nMaxJsonSize = nMaxJsonSize;
-	FileHeader.nMaxNameSize = nMaxNameSize;
-	WRITE(pHeaders, sizeof(pHeaders[0]) * nNumHeaders, F);
-	WRITE(&FileHeader, sizeof(FileHeader), F); 
-
-#if MICROPROFILE_DEBUG
-	printf("wrote %d offset is %ld, BYTES is %d\n", nNumHeaders, ftell(F), nWritten);
-#endif
-
+	if(!bWritten)
+	{
+		fwrite(pSettingsName, strlen(pSettingsName), 1, F);
+		fputc(' ', F);
+		fwrite(pJsonSettings, strlen(pJsonSettings), 1, F);
+		fputc('\n', F);
+	}
 	fflush(F);
 	fclose(F);
 #ifdef _WIN32
@@ -5401,10 +5439,6 @@ bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSetting
 #endif
 	return false;
 }
-
-#undef WRITE
-#undef CHECK_EQ
-#undef CHECK_NEQ
 
 
 void MicroProfileWebSocketSendPresets(MpSocket Connection)
