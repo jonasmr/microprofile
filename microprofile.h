@@ -828,7 +828,7 @@ inline uint64_t MicroProfileGetCurrentThreadId()
 #define MP_GETCURRENTTHREADID() MicroProfileGetCurrentThreadId()
 typedef uint64_t MicroProfileThreadIdType;
 
-static void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
+void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 {
 	void* p; 
 	posix_memalign(&p, nAlign, nSize); 
@@ -1326,6 +1326,7 @@ struct MicroProfile
 	uint32_t 					WSCountersSent;
 	MicroProfileWebSocketBuffer WSBuf;
 	char* 						pJsonSettings;
+	bool 						bJsonSettingsReadOnly;
 	uint32_t 					nJsonSettingsPending;
 	uint32_t 					nJsonSettingsBufferSize;
 	uint32_t 					nWSWasConnected;
@@ -4517,6 +4518,11 @@ MicroProfileGetCommand MicroProfileParseGet(const char* pGet, MicroProfileParseG
 		return EMICROPROFILE_GET_COMMAND_LIVE;
 	}
 	const char* pStart = pGet;
+	if(*pStart == 'b' || *pStart == 'p')
+	{
+		S.nWSWasConnected = 1; //do not load default when url has one specified.
+		return EMICROPROFILE_GET_COMMAND_LIVE;
+	}
 	if(*pStart == 'r') // range
 	{
 		//very very manual parsing
@@ -5281,15 +5287,16 @@ typedef bool (*MicroProfileOnSettings)(const char* pName, uint32_t nNameLen, con
 
 
 #define MICROPROFILE_SETTINGS_FILE "mppresets.cfg"
+#define MICROPROFILE_SETTINGS_FILE_BUILTIN "mppresets.builtin.cfg"
 #define MICROPROFILE_SETTINGS_FILE_TEMP MICROPROFILE_SETTINGS_FILE ".tmp"
 
 template<typename T>
-void MicroProfileParseSettings(T CB)
+void MicroProfileParseSettings(const char* pFileName, T CB)
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileGetMutex());
 
 
-	FILE* F = fopen(MICROPROFILE_SETTINGS_FILE, "r");
+	FILE* F = fopen(pFileName, "r");
 	if(!F)
 	{
 		return;
@@ -5427,7 +5434,7 @@ bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSetting
 
 	bool bWritten = false;
 
-	MicroProfileParseSettings(
+	MicroProfileParseSettings(MICROPROFILE_SETTINGS_FILE,
 		[&](const char* pName, uint32_t nNameSize, const char* pJson, uint32_t nJsonSize) -> bool
 		{
 			fwrite(pName, nNameSize, 1, F);
@@ -5469,24 +5476,35 @@ void MicroProfileWebSocketSendPresets(MpSocket Connection)
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileGetMutex());
 	WSPrintStart(Connection);
-	WSPrintf("{\"k\":\"%d\",\"v\":[", MSG_PRESETS);
-	WSPrintf("\"Default\"");
-	MicroProfileParseSettings(
+	WSPrintf("{\"k\":\"%d\",\"v\":{", MSG_PRESETS);
+	WSPrintf("\"p\":[\"Default\"");
+	MicroProfileParseSettings(MICROPROFILE_SETTINGS_FILE,
 		[](const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJsonLen)
 		{
 			WSPrintf(",\"%s\"", pName);
 			return true;
 		}
 	);
-	WSPrintf("]}");
+	WSPrintf("],\"r\":[");
+	bool bFirst = true;
+	MicroProfileParseSettings(MICROPROFILE_SETTINGS_FILE_BUILTIN,
+		[&bFirst](const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJsonLen)
+		{
+			WSPrintf("%c\"%s\"", bFirst ? ' ': ',', pName);
+			bFirst = false;
+			return true;
+		}
+	);
+	WSPrintf("]}}");
 	WSFlush();
 	WSPrintEnd();
 }
 
-void MicroProfileLoadPresets(const char* pSettingsName)
+void MicroProfileLoadPresets(const char* pSettingsName, bool bReadOnlyPreset)
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileGetMutex());	
-	MicroProfileParseSettings(
+	const char* pPresetFile = bReadOnlyPreset ? MICROPROFILE_SETTINGS_FILE_BUILTIN : MICROPROFILE_SETTINGS_FILE;
+	MicroProfileParseSettings(pPresetFile,
 		[=](const char* pName, uint32_t l0, const char* pJson, uint32_t l1)
 		{
 			if(0 == MP_STRCASECMP(pName, pSettingsName))
@@ -5499,6 +5517,7 @@ void MicroProfileLoadPresets(const char* pSettingsName)
 				}
 				memcpy(S.pJsonSettings, pJson, nLen);
 				S.nJsonSettingsPending = 1;
+				S.bJsonSettingsReadOnly = bReadOnlyPreset ? 1 : 0;
 				return false;
 			}
 			return true;
@@ -5622,7 +5641,12 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 
 		case 'l':
 			{
-				MicroProfileLoadPresets((const char*)Bytes+1);
+				MicroProfileLoadPresets((const char*)Bytes+1, 0);
+				break;
+			}
+		case 'm':
+			{
+				MicroProfileLoadPresets((const char*)Bytes+1, 1);
 				break;
 			}
 		case 'd':
@@ -5710,14 +5734,14 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 	if(!S.nWSWasConnected)
 	{
 		S.nWSWasConnected = 1;
-		MicroProfileLoadPresets("Default");
+		MicroProfileLoadPresets("Default", 0);
 	}
 	else
 	{
 		if(S.pJsonSettings)
 		{
 			WSPrintStart(Connection);
-			WSPrintf("{\"k\":\"%d\",\"v\":%s}", MSG_CURRENTSETTINGS, S.pJsonSettings);
+			WSPrintf("{\"k\":\"%d\",\"ro\":%d,\"v\":%s}", MSG_CURRENTSETTINGS, S.bJsonSettingsReadOnly ? 1 : 0, S.pJsonSettings);
 			WSFlush();
 			WSPrintEnd();
 		}
@@ -5834,7 +5858,7 @@ void MicroProfileWebSocketFrame()
 			if(S.nJsonSettingsPending)
 			{
 				WSPrintStart(s);
-				WSPrintf("{\"k\":\"%d\",\"v\":%s}", MSG_LOADSETTINGS, S.pJsonSettings);
+				WSPrintf("{\"k\":\"%d\",\"ro\":%d,\"v\":%s}", MSG_LOADSETTINGS, S.bJsonSettingsReadOnly ? 1 : 0, S.pJsonSettings);
 				WSFlush();
 				WSPrintEnd();
 				S.nJsonSettingsPending = 0;

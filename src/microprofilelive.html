@@ -115,8 +115,10 @@ var DPR = 0;
 var C_HUGE = 1e10;
 
 var ActivePreset = "Default";
+var ActivePresetRO = 0;
 var PresetPending = 0;
 var Presets = [];
+var ReadOnlyPresets = [];
 
 Settings.ReferenceTime = 50.0;
 var ReferencePresets = [5.0, 10.0, 15.0, 20, 30, 33.33, 50, 66.66,100.0,250.0,500,1000.0];
@@ -1407,8 +1409,9 @@ function ClearMessage(Message)
 	}
 }
 
-function DrawMessage(context)
+function DrawMessage()
 {
+	var context = CanvasDetailedView.getContext('2d');
 	var Now = new Date();
 	var Delta = Now - MessageTimeoutLast;
 	if(MessageTimeout>0)
@@ -1536,7 +1539,6 @@ function DrawViews()
 	}
 
 	DrawCaptureButton(context);
-	DrawMessage(context);
 
 	ProfileLeave();
 
@@ -1698,14 +1700,29 @@ function FilterMatch(FilterArray, value)
 	return true;
 }
 
-
-function AddPresets(Names)
+function AddPreset(Name)
 {
+	var O = {};
+	O.p = [Name];
+	O.r = [];
+	AddPresets(O);
+}
+function AddPresets(Obj)
+{
+	var Names = Obj.p;
+	var ReadOnlyNames = Obj.r;
 	for(var i = 0; i < Names.length; ++i)
 	{
 		if(Presets.indexOf(Names[i]) == -1)
 		{
 			Presets.push(Names[i]);
+		}
+	}
+	for(var i = 0; i < ReadOnlyNames.length; ++i)
+	{
+		if(ReadOnlyPresets.indexOf(ReadOnlyNames[i]) == -1)
+		{
+			ReadOnlyPresets.push(ReadOnlyNames[i]);
 		}
 	}
 }
@@ -1734,7 +1751,7 @@ function EnableByName(name, type)
 }
 
 
-function OnLoadPreset(NewSettings, Apply)
+function OnLoadPreset(NewSettings, Apply, RO)
 {
 	if(Apply)
 	{
@@ -1742,6 +1759,8 @@ function OnLoadPreset(NewSettings, Apply)
 		PresetPending = 0;
 	}
 	ActivePreset = NewSettings.PresetName;
+	ActivePresetRO = RO ? 1 : 0;
+	console.log('active preset RO IS ' + ActivePresetRO);
 	var EnableCount = 0;
 	for(var idx in NewSettings)
 	{
@@ -1782,16 +1801,16 @@ function OnLoadPreset(NewSettings, Apply)
 	}
 }
 
-function LoadPreset(Name)
+function LoadPreset(Name, RO)
 {
 	Name = Name.replace(",","_");
-	WSSendMessage("l"+Name);
+	WSSendMessage((RO?"m":"l")+Name);
 }
 
 function SavePreset(Name)
 {
 	Name = Name.replace(",","_");
-	AddPresets([Name]);
+	AddPreset(Name);
 	var Timers = [];
 	var Groups = [];
 	for(var i = 0; i < TimerArray.length; ++i)
@@ -1818,17 +1837,22 @@ function SavePreset(Name)
 	console.log('settings stored ' + JsonSettings);
 	WSSendMessage("s"+Name+","+JsonSettings);
 	ActivePreset = Name;
+	ActivePresetRO = 0;
 }
 function DrawMenuPresets()
 {
 	var Selection = null;
 	var SizeInfo = {};
 	SizeInfo.h = BoxHeight * (Presets.length * 2 + 1);
+	if(ReadOnlyPresets.length)
+	{
+		SizeInfo.h += BoxHeight * (Presets.length + 1);
+	}
 	var x = MenuItems[SubMenuPresets].x;
 	var y = MenuItems[SubMenuPresets].y;
 
 	var Width = 50;
-	var WLeft = MeasureArray(0, ["Save ", "Load ", "Save As .." ]);
+	var WLeft = MeasureArray(0, ["Save ", "Load ", "Save As ..", "Builtin" ]);
 	Width = MeasureArray(Width, Presets);
 	var Width = 35 + Width + WLeft;
 	SizeInfo.w = Width;
@@ -1842,7 +1866,7 @@ function DrawMenuPresets()
 
 	for(var i = 0; i < Presets.length; ++i)
 	{
-		var Active = ActivePreset == Presets[i] ? 1 : 0;
+		var Active = (ActivePresetRO == 0 && ActivePreset == Presets[i]) ? 1 : 0;
 		if(DrawMenuElement(M, Active, "Load", Presets[i], 'white', 0))
 		{
 			LoadPreset(Presets[i]);
@@ -1861,10 +1885,22 @@ function DrawMenuPresets()
 
 	for(var i = 0; i < Presets.length; ++i)
 	{
-		var Active = ActivePreset == Presets[i] ? 1 : 0;
+		var Active = (ActivePresetRO == 0 && ActivePreset == Presets[i]) ? 1 : 0;
 		if(DrawMenuElement(M, Active, "Save", Presets[i], 'white', 0))
 		{
 			SavePreset(Presets[i]);
+		}
+	}
+	if(ReadOnlyPresets && ReadOnlyPresets.length > 0)
+	{
+		DrawMenuElement(M, 0, "---", "", 'white', 0);
+		for(var i = 0; i < ReadOnlyPresets.length; ++i)
+		{
+			var Active = (ActivePresetRO && ActivePreset == ReadOnlyPresets[i]) ? 1 : 0;
+			if(DrawMenuElement(M, Active, "Builtin", ReadOnlyPresets[i], 'white', 0))
+			{
+				LoadPreset(ReadOnlyPresets[i], 1);
+			}
 		}
 	}
 	SizeInfo.h = M.y - SizeInfo.y;
@@ -2740,9 +2776,18 @@ function Draw()
 
 	UpdateSettings();
 
-	DrawViews();
-	
-	DrawMenu();
+	if(WSConnected && WS && WS.readyState == 1)
+	{
+		DrawViews();
+		DrawMenu();
+	}
+	else
+	{
+		var context = CanvasDetailedView.getContext('2d');
+		context.clearRect(0, 0, nWidth, nHeight);
+	}
+	DrawMessage();
+
 	DrawConnectionStatus();
 	DrawPlotf(CanvasDetailedView);
 	DrawActiveToolTip();
@@ -2788,6 +2833,11 @@ function WSOpen()
 	WidthTree = FontWidth;
 
 	ResetFrameData();
+
+	if(PresetToLoad && PresetToLoad != "")
+	{
+		LoadPreset(PresetToLoad, PresetToLoadRO);
+	}
 }
 
 function SplitIdTop(v)
@@ -2950,9 +3000,7 @@ function AddTimer(T)
 		TimerArray[idx].counterhistory = {};		
 		TimerArray[idx].counterhistory.history = AllocClearedArray(120);
 		TimerArray[idx].counterhistory.prc = AllocClearedArray(120);		
-		// console.log('counter ' + idx  + ' parent ' + pidx );
 	}
-	// console.log("add timer " + idx + " json: " + JSON.stringify(TimerArray[idx]));
 	RequestDraw();
 }
 
@@ -3074,7 +3122,6 @@ function ProcessFrame(F)
 		IsFrozen = 1;
 		return;
 	}
-	console.log('got frame');
 	IsFrozen = 0;
 	var TriggerAutoCapture = 0;
 	PushIntoArray(FrameData.Time, F.t);
@@ -3271,7 +3318,6 @@ function ProcessFrame(F)
 
 function WSMessage()
 {
-	//Sconsole.log(event.data);
 	var Obj = JSON.parse(event.data);
 	WSReceive++;
 	WSReceiveBytes += event.data.length;
@@ -3290,11 +3336,11 @@ function WSMessage()
 	}
 	else if(k == MSG_LOADSETTINGS)
 	{
-		OnLoadPreset(Obj.v, 1);
+		OnLoadPreset(Obj.v, 1, Obj.ro);
 	}
 	else if(k == MSG_CURRENTSETTINGS)
 	{
-		OnLoadPreset(Obj.v, 0);
+		OnLoadPreset(Obj.v, 0, Obj.ro);
 	}
 	else if(k == MSG_PRESETS)
 	{
@@ -4111,7 +4157,24 @@ function DrawCounterView(View, LocalMouseX, LocalMouseY, SubIndex)
 	ProfileLeave();
 }
 
+var PresetToLoad;
+var PresetToLoadRO = 0;
+function ParseUrl()
+{
+	var path = window.location.pathname;
+	var idx = path.indexOf('/');
+	if(idx < 0)
+		return;
+	var StrCommand = path.substring(idx+1);
+	idx = StrCommand.indexOf('/');
+	if(idx < 0)
+		return;
+	var StrSettings = StrCommand.substring(idx+1);
+	PresetToLoad = StrSettings;
+	PresetToLoadRO = StrCommand[0] == 'b';
+}
 
+ParseUrl();
 ResizeCanvas();
 SetupEvents();
 InitMenu();
