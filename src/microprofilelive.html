@@ -1162,6 +1162,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex)
 			context.lineTo(X, Y);
 			X += fWidth;
 		}
+		context.stroke();
 		if(Settings.FancyGraph)
 		{
 			context.lineTo(X, h);
@@ -1169,7 +1170,6 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex)
 			context.fill();
 			context.globalAlpha = 1;
 		}
-		context.stroke();
 	}
 	if(HighlightFrame >= 0)
 	{
@@ -2468,7 +2468,27 @@ function DrawMenuTimer()
 	var Selection = null;
 	var X = SizeInfo.x;
 	MoveFilterInputDiv(SizeInfo.x, SizeInfo.y, SizeInfo.w);
-	Y += 35;//todo: measure somehow?
+	Y += 35;
+
+
+	var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+	var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+	var TextY = Y+BoxHeight-FontAscent;
+
+	context.fillStyle = bgcolor;
+	context.fillRect(X-2, Y, Width+4, BoxHeight);
+	context.fillText(ParentName, X + 2, TextY);
+	context.fillStyle = 'white';
+	context.textAlign = 'center';
+	context.fillText("[clear]", X + 2 + Width * 0.5, TextY);
+	context.textAlign = 'left';
+	if(bMouseIn && MouseReleased)
+	{
+		WSSendMessage("x");
+	}
+
+	Y += BoxHeight;
+	nColorIndex = 1-nColorIndex;
 
 	for(var i = 0; i < TimerArray.length; ++i)
 	{
@@ -2480,9 +2500,9 @@ function DrawMenuTimer()
 			{
 				var ParentName = TimerArray[v.parent].name;
 				var ParentColor = TimerArray[v.parent].e ? 'white' : 'grey';
-				var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
-				var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-				var TextY = Y+BoxHeight-FontAscent;
+				bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+				bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+				TextY = Y+BoxHeight-FontAscent;
 				context.fillStyle = v.e?'white':bgcolor;
 				context.fillRect(X-2, Y, Width+4, BoxHeight);
 				context.fillStyle = bgcolor;

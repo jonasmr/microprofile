@@ -5673,6 +5673,9 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 			printf("got clear message\n");
 			S.nAggregateClear = 1;
 			break;
+		case 'x':
+			MicroProfileWebSocketClearTimers();
+			break;
 		default:
 			printf("got unknown message size %lld: '%s'\n", nSize, Bytes);
 	}
