@@ -215,12 +215,13 @@ var Empty = {"id":0, "w":0, "depth":0, "sibling":-1,"parent":-1,"firstchild":-1}
 var WidthArray = [];
 var WidthTree = 0;
 Settings.ViewActive = 0;
-var ViewNames = ["Graph", "Bar Time", "Counters", "Single Timer[experimental]"];
+var ViewNames = ["Graph", "Bar Time[table]", "Counters", "Bars[all]", "Bars[single]"];
 
 var VIEW_GRAPH = 0;
 var VIEW_BAR = 1;
 var VIEW_COUNTERS = 2;
-var VIEW_SINGLE = 3;
+var VIEW_BAR_ALL = 3;
+var VIEW_BAR_SINGLE = 4;
 
 
 Settings.FancyGraph = 1;
@@ -1760,11 +1761,10 @@ function OnLoadPreset(NewSettings, Apply, RO)
 	}
 	ActivePreset = NewSettings.PresetName;
 	ActivePresetRO = RO ? 1 : 0;
-	console.log('active preset RO IS ' + ActivePresetRO);
+	console.log('loading preset ' + ActivePresetRO);
 	var EnableCount = 0;
 	for(var idx in NewSettings)
 	{
-		console.log(' setting ' + idx + ' to ' + NewSettings[idx]);
 		if(idx == 'Timers')
 		{
 			if(Apply)
@@ -1971,7 +1971,13 @@ function ActivateView(idx)
 		MainView.DisplayFunc = DrawCounterView;
 		MainView.visible = true;
 	}
-	if(idx == VIEW_SINGLE)
+	else if(idx == VIEW_BAR_ALL)
+	{
+		MainView.DisplayFunc = DrawBars;
+		MainView.visible = true;
+		SingleTimerBars = 0;
+	}
+	else if(idx == VIEW_BAR_SINGLE)
 	{
 		for(var i = 0; i < X5Views.length; ++i)
 		{

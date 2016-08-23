@@ -5646,12 +5646,13 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "var WidthArray = [];\n"
 "var WidthTree = 0;\n"
 "Settings.ViewActive = 0;\n"
-"var ViewNames = [\"Graph\", \"Bar Time\", \"Counters\", \"Single Timer[experimental]\"];\n"
+"var ViewNames = [\"Graph\", \"Bar Time[table]\", \"Counters\", \"Bars[all]\", \"Bars[single]\"];\n"
 "\n"
 "var VIEW_GRAPH = 0;\n"
 "var VIEW_BAR = 1;\n"
 "var VIEW_COUNTERS = 2;\n"
-"var VIEW_SINGLE = 3;\n"
+"var VIEW_BAR_ALL = 3;\n"
+"var VIEW_BAR_SINGLE = 4;\n"
 "\n"
 "\n"
 "Settings.FancyGraph = 1;\n"
@@ -6811,13 +6812,13 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "{\n"
 "	return MouseInside(Rect.x, Rect.y, Rect.w, Rect.h);\n"
 "}\n"
-"function MouseInside(X, Y, W, H)\n"
-"{\n"
-"	";
+"func";
 
 const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
 const char g_MicroProfileHtmlLive_begin_1[] =
-"return MouseX >= X && MouseX <= X + W && MouseY >= Y && MouseY <= Y + H;\n"
+"tion MouseInside(X, Y, W, H)\n"
+"{\n"
+"	return MouseX >= X && MouseX <= X + W && MouseY >= Y && MouseY <= Y + H;\n"
 "}\n"
 "\n"
 "var MessageText = \"\";\n"
@@ -7195,11 +7196,10 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	}\n"
 "	ActivePreset = NewSettings.PresetName;\n"
 "	ActivePresetRO = RO ? 1 : 0;\n"
-"	console.log(\'active preset RO IS \' + ActivePresetRO);\n"
+"	console.log(\'loading preset \' + ActivePresetRO);\n"
 "	var EnableCount = 0;\n"
 "	for(var idx in NewSettings)\n"
 "	{\n"
-"		console.log(\' setting \' + idx + \' to \' + NewSettings[idx]);\n"
 "		if(idx == \'Timers\')\n"
 "		{\n"
 "			if(Apply)\n"
@@ -7406,7 +7406,13 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "		MainView.DisplayFunc = DrawCounterView;\n"
 "		MainView.visible = true;\n"
 "	}\n"
-"	if(idx == VIEW_SINGLE)\n"
+"	else if(idx == VIEW_BAR_ALL)\n"
+"	{\n"
+"		MainView.DisplayFunc = DrawBars;\n"
+"		MainView.visible = true;\n"
+"		SingleTimerBars = 0;\n"
+"	}\n"
+"	else if(idx == VIEW_BAR_SINGLE)\n"
 "	{\n"
 "		for(var i = 0; i < X5Views.length; ++i)\n"
 "		{\n"
@@ -8331,7 +8337,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "				case TYPE_GROUP:\n"
 "					GroupsEnabled++;\n"
 "				break;\n"
-"				case TYPE_TIMER:\n"
+"				case TYPE_";
+
+const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
+const char g_MicroProfileHtmlLive_begin_2[] =
+"TIMER:\n"
 "					TimersEnabled++;\n"
 "				break;\n"
 "			}\n"
@@ -8340,11 +8350,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "}\n"
 "function UpdateEnabledTimer(idx)\n"
 "{\n"
-"	Updat";
-
-const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
-const char g_MicroProfileHtmlLive_begin_2[] =
-"eActive();\n"
+"	UpdateActive();\n"
 "	var type = TimerArray[idx].idtype;\n"
 "	var enabled = TimerArray[idx].e;\n"
 "	if(TimerArray[idx].idtype != TYPE_TIMER)\n"
