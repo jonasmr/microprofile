@@ -236,7 +236,9 @@ var ReferenceGraphAutomatic = 0;
 var SingleTimerBars = 0;
 var History;
 var MainView;
-var X5Views;
+var X7Views;
+var X7BarColumnRemap = [0,1,2,3,4,5,6];
+var X7BarColumnActive = -1;
 
 Settings.SortColumn = 0;
 Settings.SortColumnOrderFlip = 0;
@@ -251,6 +253,7 @@ var IsFrozen = 0;
 
 TimerArray.push(Empty); // 0 is root of tree
 
+var StrTime = "Time";
 var StrGroup = "Group";
 var StrThread = "Thread";
 var StrTimer = "Timer";
@@ -263,6 +266,7 @@ var StrCallAverage = "Call Average";
 var StrCount = "Count";
 var StrExclAverage = "Excl Average";
 var StrExclMax = "Excl Max";
+var StrExclMin = "Excl Max";
 
 
 
@@ -272,18 +276,58 @@ var CounterLimitWidth = 100;
 
 var FormatCounterDefault = 0;
 var FormatCounterBytes = 1;
-var FormatCounterBytesExt = [ "b","kb","mb","gb","tb","pb", "eb","zb", "yb" ];
+var FormatCounterBytesExt = ["b","kb","mb","gb","tb","pb","eb","zb","yb"];
 
-var BarColumnNames = [StrAverage, StrMax, StrTotal, StrMin, StrSpike, StrCallAverage, StrCount, StrExclAverage, StrExclMax];
-Settings.BarColumnsEnabled = new Array(BarColumnNames.length);
-var ColumnsWidth = new Array(BarColumnNames.length);
+var BarColumnNamesTable = [StrAverage, StrMax, StrTotal, StrMin, StrSpike, StrCallAverage, StrCount, StrExclAverage, StrExclMax];
+var BarColumnNamesMulti = [StrTime, StrAverage, StrMax, StrMin, StrExclAverage, StrExclMax, StrExclMin];
+var BarColumnNamesSingle = [StrAverage, StrMax, StrMin, StrExclAverage, StrExclMax, StrExclMin, StrCallAverage];
 
-for(var i = 0; i < Settings.BarColumnsEnabled.length; ++i)
+function GetBarColumnNames()
 {
-	Settings.BarColumnsEnabled[i] = 1;
-	ColumnsWidth[i] = 10;
+	if(Settings.ViewActive == VIEW_BAR_ALL)
+	{
+		return BarColumnNamesMulti;
+	}
+	else if(Settings.ViewActive == VIEW_BAR_SINGLE)
+	{
+		return BarColumnNamesSingle;
+	}
+	else
+	{
+		return BarColumnNamesTable;
+	}
+}
+function GetBarColumnEnabled()
+{
+	if(Settings.ViewActive == VIEW_BAR_ALL)
+	{
+		return Settings.BarColumnEnabledMulti;
+	}
+	else if(Settings.ViewActive == VIEW_BAR_SINGLE)
+	{
+		return Settings.BarColumnEnabledSingle;
+	}
+	else
+	{
+		return Settings.BarColumnEnabledTable;
+	}
 }
 
+Settings.BarColumnEnabledTable = new Array(BarColumnNamesTable.length);
+Settings.BarColumnEnabledSingle = new Array(BarColumnNamesSingle.length);
+Settings.BarColumnEnabledMulti = new Array(BarColumnNamesMulti.length);
+var ColumnsWidth = new Array(BarColumnNamesTable.length);
+function ClearEnabled(E)
+{
+	for(var i = 0; i < E.length; ++i)
+	{
+		E[i] = 1;
+		ColumnsWidth[i] = 10;
+	}
+}
+ClearEnabled(Settings.BarColumnEnabledTable);
+ClearEnabled(Settings.BarColumnEnabledSingle);
+ClearEnabled(Settings.BarColumnEnabledMulti);
 
 function Plotf(str)
 {
@@ -449,6 +493,22 @@ function ResizeCanvasDPR2(w, h, c)
 	}
 
 }
+function ResizeView(View, x, y, w, h)
+{
+	View.x = x;
+	View.y = y;
+	View.w = w;
+	View.h = h;
+	var c0 = View.Canvas[0];
+	var c1 = View.Canvas[1];
+	ResizeCanvasDPR(w, h, c0);
+	ResizeCanvasDPR(w, h, c1);
+	c0.getContext('2d').clearRect(0, 0, w, h);
+	c1.getContext('2d').clearRect(0, 0, w, h);
+	View.OffscreenData[0] = c0.getContext('2d').getImageData(0, 0, c0.width, c0.height);
+	View.OffscreenData[1] = c1.getContext('2d').getImageData(0, 0, c1.width, c1.height);
+
+}
 function CreateView(x, y, w, h, name, DisplayFunc, visible, index)
 {
 	var idx = Views.length;
@@ -491,16 +551,16 @@ function CreateViews(Width, Height)
 	Views = [];
 	History = CreateView(0, 0, Width, HistoryHeight, "History", DrawHistory, true, 0);
 	MainView = CreateView(0, HistoryHeight, Width, Height-HistoryHeight, "Main", DrawGraph, true);
-	X5Views = [];
+	X7Views = [];
 	var w = Width / 7;
 	var x = 0;
-	X5Views.push(CreateView(w*0, HistoryHeight, w, Height - HistoryHeight, "x5_0", DrawBars, false, 0) );
-	X5Views.push(CreateView(w*1, HistoryHeight, w, Height - HistoryHeight, "x5_1", DrawBars, false, 1) );
-	X5Views.push(CreateView(w*2, HistoryHeight, w, Height - HistoryHeight, "x5_2", DrawBars, false, 2) );
-	X5Views.push(CreateView(w*3, HistoryHeight, w, Height - HistoryHeight, "x5_3", DrawBars, false, 3) );
-	X5Views.push(CreateView(w*4, HistoryHeight, w, Height - HistoryHeight, "x5_4", DrawBars, false, 4) );
-	X5Views.push(CreateView(w*5, HistoryHeight, w, Height - HistoryHeight, "x5_3", DrawBars, false, 5) );
-	X5Views.push(CreateView(w*6, HistoryHeight, w, Height - HistoryHeight, "x5_3", DrawBars, false, 6) );
+	X7Views.push(CreateView(w*0, HistoryHeight, w, Height - HistoryHeight, "x5_0", DrawBars, false, 0) );
+	X7Views.push(CreateView(w*1, HistoryHeight, w, Height - HistoryHeight, "x5_1", DrawBars, false, 1) );
+	X7Views.push(CreateView(w*2, HistoryHeight, w, Height - HistoryHeight, "x5_2", DrawBars, false, 2) );
+	X7Views.push(CreateView(w*3, HistoryHeight, w, Height - HistoryHeight, "x5_3", DrawBars, false, 3) );
+	X7Views.push(CreateView(w*4, HistoryHeight, w, Height - HistoryHeight, "x5_4", DrawBars, false, 4) );
+	X7Views.push(CreateView(w*5, HistoryHeight, w, Height - HistoryHeight, "x5_3", DrawBars, false, 5) );
+	X7Views.push(CreateView(w*6, HistoryHeight, w, Height - HistoryHeight, "x5_3", DrawBars, false, 6) );
 
 }
 
@@ -567,6 +627,7 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 	var BarColors = [];
 	var AggregateIndex = Settings.AggregateFrames <= 0 ? AggregateHistorySize-1 : AggregateHistorySize-2; //fix med 
 	var GetTime = null;
+	var SubIndex = X7BarColumnRemap[SubIndex];
 
 	if(SingleTimerBars == 0)
 	{
@@ -785,7 +846,7 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 	}
 	function DrawHeaderSplit(Header)
 	{
-		if(Settings.BarColumnsEnabled[R])
+		if(Settings.BarColumnEnabledTable[R])
 		{
 			context.fillStyle = 'white';
 			context.fillText(HeaderString(Header), X, Height-FontAscent);
@@ -804,7 +865,7 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 	}
 	function DrawHeaderSplitSingle(Header)
 	{
-		if(Settings.BarColumnsEnabled[R])
+		if(Settings.BarColumnEnabledTable[R])
 		{
 			context.fillStyle = 'white';
 			context.fillText(HeaderString(Header), X, Height-FontAscent);
@@ -843,7 +904,7 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 	}
 	function DrawTimer(Value, Color)
 	{
-		if(Settings.BarColumnsEnabled[R])
+		if(Settings.BarColumnEnabledTable[R])
 		{
 			var Prc = Value * RcpReferenceTime;
 			var YText = Y+Height-FontAscent;
@@ -868,7 +929,7 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 	}
 	function DrawCount(Str)
 	{
-		if(Settings.BarColumnsEnabled[R])
+		if(Settings.BarColumnEnabledTable[R])
 		{
 			X += ColumnsWidth[R];
 			context.fillStyle = 'white';
@@ -1509,9 +1570,39 @@ function DrawCaptureButton(context)
 	}
 
 }
+function UpdateX7Views()
+{
+	if(Settings.ViewActive == VIEW_BAR_SINGLE || Settings.ViewActive == VIEW_BAR_ALL)
+	{
+		var NumSubViews = 0;
+		var BarColumnEnabled = GetBarColumnEnabled();
+		for(var i = 0; i < BarColumnEnabled.length; ++i)
+		{
+			if(BarColumnEnabled[i])
+			{
+				X7BarColumnRemap[NumSubViews++] = i;
+			}
+		}
+		if(NumSubViews != X7BarColumnActive)
+		{
+			console.log("resizing views");
+			var w = NumSubViews ? nWidth / NumSubViews : 1;
+			for(var i = 0; i < X7Views.length; ++i)
+			{
+				X7Views[i].visible = i < NumSubViews;
+				if(i < NumSubViews)
+				{
+					ResizeView(X7Views[i], w*i, HistoryHeight, w, nHeight - HistoryHeight);
+				}
+			}
+			X7BarColumnActive = NumSubViews;
+		}
+	}
+}
 function DrawViews()
 {
 	Plotf("DrawViews");
+	UpdateX7Views();
 	ProfileEnter("UpdateViews");
 	for(var i = 0; i < Views.length; ++i)
 	{
@@ -1911,6 +2002,8 @@ function DrawMenuColumns()
 {
 	var Selection = null;
 	var SizeInfo = {};
+	var BarColumnNames = GetBarColumnNames();
+	var BarColumnEnabled = GetBarColumnEnabled();
 	SizeInfo.h = BoxHeight * (BarColumnNames.length);
 	var x = MenuItems[SubMenuColumns].x;
 	var y = MenuItems[SubMenuColumns].y;
@@ -1928,10 +2021,10 @@ function DrawMenuColumns()
 	for(var i = 0; i < BarColumnNames.length; ++i)
 	{
 		var Active = ActivePreset == Presets[i] ? 1 : 0;
-		if(DrawMenuElement(M, Settings.BarColumnsEnabled[i], BarColumnNames[i], "", 'white', 0))
+		if(DrawMenuElement(M, BarColumnEnabled[i], BarColumnNames[i], "", 'white', 0))
 		{
-			Settings.BarColumnsEnabled[i] = !Settings.BarColumnsEnabled[i];
-			for(var i = 0; i < ColumnsWidth.length; ++i)
+			BarColumnEnabled[i] = !BarColumnEnabled[i];
+			for(var j = 0; j < ColumnsWidth.length; ++j)
 			{
 				ColumnsWidth[i] = 20;
 			}
@@ -1946,7 +2039,7 @@ function DrawMenuColumns()
 
 function ToggleView()
 {
-	Settings.ViewActive = (Settings.ViewActive+1) % 4;
+	Settings.ViewActive = (Settings.ViewActive+1) % 5;
 	ActivateView(Settings.ViewActive);
 }
 
@@ -1971,19 +2064,13 @@ function ActivateView(idx)
 		MainView.DisplayFunc = DrawCounterView;
 		MainView.visible = true;
 	}
-	else if(idx == VIEW_BAR_ALL)
+	else if(idx == VIEW_BAR_SINGLE || idx == VIEW_BAR_ALL)
 	{
-		MainView.DisplayFunc = DrawBars;
-		MainView.visible = true;
-		SingleTimerBars = 0;
-	}
-	else if(idx == VIEW_BAR_SINGLE)
-	{
-		for(var i = 0; i < X5Views.length; ++i)
+		for(var i = 0; i < X7Views.length; ++i)
 		{
-			X5Views[i].visible = true;
+			X7Views[i].visible = true;
 		}
-		SingleTimerBars = 1;
+		SingleTimerBars = idx == VIEW_BAR_SINGLE;
 	}
 	Settings.ViewActive = idx;
 }
