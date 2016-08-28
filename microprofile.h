@@ -233,6 +233,7 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileTickToMsMultiplierGpu() 0.f
 #define MicroProfileTicksPerSecondCpu() 1
 #define MicroProfileTick() 0
+#define MicroProfileEnabled() 0
 
 #else
 
@@ -240,6 +241,13 @@ typedef uint16_t MicroProfileGroupId;
 
 #ifndef MICROPROFILE_API
 #define MICROPROFILE_API
+#endif
+
+#ifdef MICROPROFILE_PS4
+#include "microprofile_ps4.h"
+#endif
+#ifdef MICROPROFILE_XBOXONE
+#include "microprofile_xboxone.h"
 #endif
 
 #ifdef _WIN32
@@ -493,6 +501,7 @@ MICROPROFILE_API int MicroProfileGetGpuQueue(const char* pQueueName);
 MICROPROFILE_API void MicroProfileFlip(void* pGpuContext); //! call once per frame.
 MICROPROFILE_API void MicroProfileToggleFrozen();
 MICROPROFILE_API int MicroProfileIsFrozen();
+MICROPROFILE_API int MicroProfileEnabled();
 MICROPROFILE_API void MicroProfileForceEnableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Type);
 MICROPROFILE_API float MicroProfileGetTime(const char* pGroup, const char* pName);
@@ -667,12 +676,59 @@ struct MicroProfileScopeGpuHandler
 };
 #endif //__cplusplus
 #endif //enabled
+
+enum MicroProfileDrawMask
+{
+	MP_DRAW_OFF = 0x0,
+	MP_DRAW_BARS = 0x1,
+	MP_DRAW_DETAILED = 0x2,
+	MP_DRAW_COUNTERS = 0x3,
+	MP_DRAW_HIDDEN = 0x4,
+	MP_DRAW_SIZE = 0x5,
+};
+
+enum MicroProfileDrawBarsMask
+{
+	MP_DRAW_TIMERS = 0x1,
+	MP_DRAW_AVERAGE = 0x2,
+	MP_DRAW_MAX = 0x4,
+	MP_DRAW_MIN = 0x8,
+	MP_DRAW_CALL_COUNT = 0x10,
+	MP_DRAW_TIMERS_EXCLUSIVE = 0x20,
+	MP_DRAW_AVERAGE_EXCLUSIVE = 0x40,
+	MP_DRAW_MAX_EXCLUSIVE = 0x80,
+	MP_DRAW_META_FIRST = 0x100,
+	MP_DRAW_ALL = 0xffffffff,
+
+};
+
+enum MicroProfileCounterFormat
+{
+	MICROPROFILE_COUNTER_FORMAT_DEFAULT = 0,
+	MICROPROFILE_COUNTER_FORMAT_BYTES = 1,
+};
+
+enum MicroProfileCounterFlags
+{
+	MICROPROFILE_COUNTER_FLAG_NONE = 0,
+	MICROPROFILE_COUNTER_FLAG_DETAILED = 0x1,
+	MICROPROFILE_COUNTER_FLAG_DETAILED_GRAPH = 0x2,
+	//internal:
+	MICROPROFILE_COUNTER_FLAG_INTERNAL_MASK = ~0x3,
+	MICROPROFILE_COUNTER_FLAG_HAS_LIMIT = 0x4,
+	MICROPROFILE_COUNTER_FLAG_CLOSED = 0x8,
+	MICROPROFILE_COUNTER_FLAG_MANUAL_SWAP = 0x10,
+	MICROPROFILE_COUNTER_FLAG_LEAF = 0x20,
+};
+
 #endif //once
 
 //////////////////////////////////////////////////////////////////////////
 // IMPL WALL
 //////////////////////////////////////////////////////////////////////////
 #if defined(MICROPROFILE_IMPL) && MICROPROFILE_ENABLED
+
+
 
 #include <thread>
 #include <mutex>
@@ -719,49 +775,6 @@ enum
 
 
 
-enum MicroProfileDrawMask
-{
-	MP_DRAW_OFF = 0x0,
-	MP_DRAW_BARS = 0x1,
-	MP_DRAW_DETAILED = 0x2,
-	MP_DRAW_COUNTERS = 0x3,
-	MP_DRAW_HIDDEN = 0x4,
-	MP_DRAW_SIZE = 0x5,
-};
-
-enum MicroProfileDrawBarsMask
-{
-	MP_DRAW_TIMERS = 0x1,
-	MP_DRAW_AVERAGE = 0x2,
-	MP_DRAW_MAX = 0x4,
-	MP_DRAW_MIN = 0x8,
-	MP_DRAW_CALL_COUNT = 0x10,
-	MP_DRAW_TIMERS_EXCLUSIVE = 0x20,
-	MP_DRAW_AVERAGE_EXCLUSIVE = 0x40,
-	MP_DRAW_MAX_EXCLUSIVE = 0x80,
-	MP_DRAW_META_FIRST = 0x100,
-	MP_DRAW_ALL = 0xffffffff,
-
-};
-
-enum MicroProfileCounterFormat
-{
-	MICROPROFILE_COUNTER_FORMAT_DEFAULT = 0,
-	MICROPROFILE_COUNTER_FORMAT_BYTES = 1,
-};
-
-enum MicroProfileCounterFlags
-{
-	MICROPROFILE_COUNTER_FLAG_NONE = 0,
-	MICROPROFILE_COUNTER_FLAG_DETAILED = 0x1,
-	MICROPROFILE_COUNTER_FLAG_DETAILED_GRAPH = 0x2,
-	//internal:
-	MICROPROFILE_COUNTER_FLAG_INTERNAL_MASK = ~0x3,
-	MICROPROFILE_COUNTER_FLAG_HAS_LIMIT = 0x4,
-	MICROPROFILE_COUNTER_FLAG_CLOSED = 0x8,
-	MICROPROFILE_COUNTER_FLAG_MANUAL_SWAP = 0x10,
-	MICROPROFILE_COUNTER_FLAG_LEAF = 0x20,
-};
 
 
 
@@ -842,7 +855,7 @@ int64_t MicroProfileGetTick();
 #define MP_THREAD_LOCAL __declspec(thread)
 #define MP_STRCASECMP _stricmp
 #define MP_GETCURRENTTHREADID() GetCurrentThreadId()
-static void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
+void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 {
 	return _aligned_malloc(nSize, nAlign);
 }
@@ -870,13 +883,25 @@ typedef uint64_t MicroProfileThreadIdType;
 #endif
 
 
+
+#ifdef MICROPROFILE_PS4
+#define MICROPROFILE_PS4_DECL
+#include "microprofile_ps4.h"
+#endif
+
+#ifdef MICROPROFILE_XBOXONE
+#define MICROPROFILE_XBOXONE_DECL
+#include "microprofile_xboxone.h"
+#endif
+
+
 #ifndef MP_GETCURRENTTHREADID 
 #define MP_GETCURRENTTHREADID() 0
 typedef uint32_t MicroProfileThreadIdType;
 static void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 {
 	void* p; 
-	posix_memalign(&p, align, s); 
+	posix_memalign(&p, nAlign, nSize); 
 	return p;
 }
 
@@ -1152,13 +1177,6 @@ struct MicroProfileGpuTimerState
 #endif
 
 
-
-
-
-
-
-
-
 struct MicroProfile
 {
 	uint32_t nTotalTimers;
@@ -1353,14 +1371,6 @@ struct MicroProfile
 
 };
 
-
-
-
-
-
-
-
-
 inline uint64_t MicroProfileLogType(MicroProfileLogEntry Index)
 {
 	return ((MP_LOG_BEGIN_MASK & Index) >> 62) & 0x3;
@@ -1413,11 +1423,6 @@ inline MicroProfileToken MicroProfileMakeToken(uint64_t nGroupMask, uint16_t nTi
 	return (nGroupMask << 16) | nTimer;
 }
 
-
-
-
-
-
 template<typename T>
 T MicroProfileMin(T a, T b)
 {
@@ -1464,61 +1469,13 @@ uint64_t MicroProfileTick()
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #ifdef _WIN32
 #include <windows.h>
 #define snprintf _snprintf
 
 #pragma warning(push)
 #pragma warning(disable: 4244)
+#pragma warning(disable: 4100)
 int64_t MicroProfileTicksPerSecondCpu()
 {
 	static int64_t nTicksPerSecond = 0;	
@@ -1672,15 +1629,20 @@ MICROPROFILE_API MicroProfile* MicroProfileGet()
 
 MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName);
 MicroProfileThreadLogGpu* MicroProfileThreadLogGpuAllocInternal();
-
+void* MicroProfileSocketSenderThread(void*);
 
 void MicroProfileInit()
 {
+	static bool bOnce = true;
+	if(!bOnce)
+	{
+		return;
+	}
+
 	std::recursive_mutex& mutex = MicroProfileMutex();
 	bool bUseLock = g_bUseLock;
 	if(bUseLock)
 		mutex.lock();
-	static bool bOnce = true;
 	if(bOnce)
 	{
 		S.nMemUsage += sizeof(S);
@@ -1749,7 +1711,9 @@ void MicroProfileInit()
 		S.nWSWasConnected = 0;
 	}
 	if(bUseLock)
+	{
 		mutex.unlock();
+	}
 }
 
 void MicroProfileShutdown()
@@ -1784,7 +1748,7 @@ MicroProfileThreadLog* MicroProfileGetThreadLog()
 {
 	return g_MicroProfileThreadLogThreadLocal;
 }
-inline void MicroProfileSetThreadLog(MicroProfileThreadLog* pLog)
+void MicroProfileSetThreadLog(MicroProfileThreadLog* pLog)
 {
 	g_MicroProfileThreadLogThreadLocal = pLog;
 }
@@ -1849,10 +1813,12 @@ MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 
 void MicroProfileOnThreadCreate(const char* pThreadName)
 {
+	char Buffer[64];
 	g_bUseLock = true;
 	MicroProfileInit();
 	MP_ASSERT(MicroProfileGetThreadLog() == 0);
 	MicroProfileThreadLog* pLog = MicroProfileCreateThreadLog(pThreadName ? pThreadName : MicroProfileGetThreadName(Buffer));
+	(void)Buffer;
 	MP_ASSERT(pLog);
 	MicroProfileSetThreadLog(pLog);
 }
@@ -2654,7 +2620,11 @@ int MicroProfileIsFrozen()
 {
 	return S.nFrozen != 0?1:0;
 }
-
+int MicroProfileEnabled()
+{
+	return S.nActiveGroup != 0;
+}
+	
 static void MicroProfileFlipEnabled()
 {
 	uint64_t nNewActiveGroup = 0;
@@ -2726,6 +2696,11 @@ void MicroProfileFlip(void* pContext)
 	{
 		MicroProfileWebServerStart();
 		S.nWebServerDataSent = 0;
+		if(!S.WebSocketThreadRunning)
+		{
+			MicroProfileThreadStart(&S.WebSocketSendThread, MicroProfileSocketSenderThread);
+			S.WebSocketThreadRunning = 1;
+		}
 	}
 
 	int nLoop = 0;
@@ -3000,10 +2975,10 @@ void MicroProfileFlip(void* pContext)
 							}
 						}
 					}
-					for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
+					for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
 					{
-						pLog->nGroupTicks[i] += nGroupTicks[i];
-						pFrameGroup[i] += nGroupTicks[i];
+						pLog->nGroupTicks[j] += nGroupTicks[j];
+						pFrameGroup[j] += nGroupTicks[j];
 					}
 					pLog->nStackPos = nStackPos;
 				}
@@ -3564,7 +3539,7 @@ void MicroProfilePrintf(MicroProfileWriteCallback CB, void* Handle, const char* 
 }
 
 #define printf(...) MicroProfilePrintf(CB, Handle, __VA_ARGS__)
-void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle, int nMaxFrames)
+void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle)
 {
 	uint32_t nAggregateFrames = S.nAggregateFrames ? S.nAggregateFrames : 1;
 	float fToMsCPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
@@ -3998,7 +3973,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 	MicroProfilePrintf(CB, Handle, "];\n\n");
 
 	uint32_t nNumFrames = 0;
-	uint32_t nFirstFrame = -1;
+	uint32_t nFirstFrame = (uint32_t)-1;
 	if(nStartFrameId != (uint64_t)-1)
 	{
 		//search for the frane
@@ -4079,10 +4054,10 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 				MicroProfilePrintf(CB, Handle, "%f", fTime);
 				for(k = (k+1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 				{
-					uint64_t nLogType = MicroProfileLogType(pLog->Log[k]);
-					float fToMs = nLogType == MP_LOG_GPU_EXTRA ? fToMsCpu : fToMsBase;
+					nLogType = MicroProfileLogType(pLog->Log[k]);
+					fToMs = nLogType == MP_LOG_GPU_EXTRA ? fToMsCpu : fToMsBase;
 					nStartTick = nLogType == MP_LOG_GPU_EXTRA ? nTickStart : nStartTickBase;
-					float fTime = nLogType == MP_LOG_META ? 0.f : MicroProfileLogTickDifference(nStartTick, pLog->Log[k]) * fToMs;
+					fTime = nLogType == MP_LOG_META ? 0.f : MicroProfileLogTickDifference(nStartTick, pLog->Log[k]) * fToMs;
 					MicroProfilePrintf(CB, Handle, ",%f", fTime);
 				}
 			}
@@ -4291,7 +4266,7 @@ void MicroProfileDumpToFile()
 		FILE* F = fopen(S.CsvDumpPath, "w");
 		if(F)
 		{
-			MicroProfileDumpCsv(MicroProfileWriteFile, F, MICROPROFILE_WEBSERVER_MAXFRAMES);
+			MicroProfileDumpCsv(MicroProfileWriteFile, F);
 			fclose(F);
 		}
 	}
@@ -4465,7 +4440,7 @@ void MicroProfileWebServerStart()
 	WSADATA wsa;
 	if(WSAStartup(MAKEWORD(2, 2), &wsa))
 	{
-		S.ListenerSocket = -1;
+		S.ListenerSocket = (MpSocket)-1;
 		return;
 	}
 #endif
@@ -4834,7 +4809,7 @@ void MicroProfileSocketDumpState()
 	for(uint32_t i = 0; i < S.nNumWebSockets; i++)
 	{
 		MpSocket s = S.WebSockets[i];
-		printf("%lld ", (uint64_t)s);
+		printf("%" PRId64 " ", (uint64_t)s);
 
 		if(FD_ISSET(s, &Error))
 		{
@@ -4873,7 +4848,7 @@ void MicroProfileSocketDumpState()
 		MP_ASSERT(r >= 0);
 		if (error_code != 0) {
 		    /* socket has a non zero error status */
-		    fprintf(stderr, "socket error: %d %s\n", s, strerror(error_code));
+		    fprintf(stderr, "socket error: %d %s\n", (int)s, strerror(error_code));
 		    MP_ASSERT(0);
 		}
 #endif
@@ -4897,12 +4872,12 @@ void* MicroProfileSocketSenderThread(void*)
 	MicroProfileOnThreadCreate("MicroProfileSocketSenderThread");
 	while(!S.nMicroProfileShutdown)
 	{
-		MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSocketSendLoop", 0xff00ff00);
 		if(S.nSocketFail)
 		{
 			MicroProfileSleep(100);
 			continue;
 		}
+		MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSocketSendLoop", 0xff00ff00);
 		uint32_t nEnd = MICROPROFILE_WEBSOCKET_BUFFER_SIZE;
 		uint32_t nGet = S.WSBuf.nSendGet.load();
 		uint32_t nPut = S.WSBuf.nSendPut.load();
@@ -4994,7 +4969,7 @@ bool MicroProfileSocketSend2(MpSocket Connection, const void* pMessage, int nLen
 	{
 		return false;
 	}
-	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSocketSend2", 0);
+	//MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSocketSend2", 0);
 #ifndef _WIN32 
 	int error_code;
 	socklen_t error_code_size = sizeof(error_code);
@@ -5286,8 +5261,11 @@ struct MicroProfileSettingsHeader
 typedef bool (*MicroProfileOnSettings)(const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJson);
 
 
-#define MICROPROFILE_SETTINGS_FILE "mppresets.cfg"
-#define MICROPROFILE_SETTINGS_FILE_BUILTIN "mppresets.builtin.cfg"
+#ifndef MICROPROFILE_SETTINGS_FILE_PATH
+#define MICROPROFILE_SETTINGS_FILE_PATH ""
+#endif
+#define MICROPROFILE_SETTINGS_FILE MICROPROFILE_SETTINGS_FILE_PATH "mppresets.cfg"
+#define MICROPROFILE_SETTINGS_FILE_BUILTIN MICROPROFILE_SETTINGS_FILE_PATH "mppresets.builtin.cfg"
 #define MICROPROFILE_SETTINGS_FILE_TEMP MICROPROFILE_SETTINGS_FILE ".tmp"
 
 template<typename T>
@@ -5296,7 +5274,7 @@ void MicroProfileParseSettings(const char* pFileName, T CB)
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileGetMutex());
 
 
-	FILE* F = fopen(pFileName, "r");
+	FILE* F = fopen(pFileName, "rb");
 	if(!F)
 	{
 		return;
@@ -5542,7 +5520,6 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
      // | |1|2|3|       |K|             |                               |
      // +-+-+-+-+-------+-+-------------+ - - - - - - - - - - - - - - - +
 	int r;
-	int foo = 0;
 	uint64_t nSize;
 	uint64_t nSizeBytes = 0;
 	uint8_t Mask[4];
@@ -5552,14 +5529,12 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 	MicroProfileWebSocketHeader1 h1;
 	static_assert(sizeof(h0) == 1, "");
 	static_assert(sizeof(h1) == 1, "");
-	foo= 1;
 	r = recv(Connection, (char*)&h0, 1, 0);
 	if(1 != r)
 		goto fail;
 	r = recv(Connection, (char*)&h1, 1, 0);
 	if(1 != r)
 		goto fail;
-	foo= 2;
 
 	if(h0.v == 0x88)
 	{
@@ -5569,7 +5544,6 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 	if(h0.RSV1 != 0 || h0.RSV2 != 0 || h0.RSV3 != 0)
 		goto fail;
 
-	foo= 3;
 	nSize = h1.payload;
 	nSizeBytes = 0;
 	switch(nSize)
@@ -5588,18 +5562,18 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 		nSize = 0;
         uint64_t MessageLength = 0;
 
-		uint8_t Bytes[8];
-		int r = recv(Connection, (char*)&Bytes[0], nSizeBytes, 0);
+		uint8_t BytesMessage[8];
+		r = recv(Connection, (char*)&BytesMessage[0], nSizeBytes, 0);
 		if(nSizeBytes != r)
 			goto fail;
 		for(uint32_t i = 0; i < nSizeBytes; i++)
 		{
 			nSize <<= 8;
-			nSize += Bytes[i];			
+			nSize += BytesMessage[i];			
 		}
 
         for(uint32_t i = 0; i < nSizeBytes; i++)
-            MessageLength |= Bytes[i] << ((nSizeBytes - 1 - i) * 8);
+            MessageLength |= BytesMessage[i] << ((nSizeBytes - 1 - i) * 8);
         MP_ASSERT(MessageLength == nSize);
 	}
 
@@ -5607,8 +5581,6 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 	{
 		recv(Connection, (char*)&Mask[0], 4, 0);
 	}
-
-	foo = 4;
 
 
 	if(nSize+1 > BytesAllocated)
@@ -5674,7 +5646,7 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 			S.nAggregateClear = 1;
 			break;
 		default:
-			printf("got unknown message size %lld: '%s'\n", nSize, Bytes);
+			printf("got unknown message size %lld: '%s'\n", (long long)nSize, Bytes);
 	}
 	return true;
 
@@ -5691,11 +5663,11 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 	S.WSBuf.nSendPut.store(0);
 	S.WSBuf.nSendGet.store(0);
 	S.nSocketFail = 0;
-	if(!S.WebSocketThreadRunning)
-	{
-        MicroProfileThreadStart(&S.WebSocketSendThread, MicroProfileSocketSenderThread);
-		S.WebSocketThreadRunning = 1;
-	}
+	//if(!S.WebSocketThreadRunning)
+	//{
+ //       MicroProfileThreadStart(&S.WebSocketSendThread, MicroProfileSocketSenderThread);
+	//	S.WebSocketThreadRunning = 1;
+	//}
 
 	const char* pGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 	const char* pHandShake = "HTTP/1.1 101 Switching Protocols\r\n"
@@ -5790,7 +5762,7 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 				MicroProfileTimerInfo& TI = S.TimerInfo[nTimer];
 				float fTickToMs = TI.Type == MicroProfileTokenTypeGpu ? fTickToMsGpu : fTickToMsCpu;
 				uint32_t id = MicroProfileWebSocketIdPack(TYPE_TIMER, nTimer);
-				float fTime = fTickToMs * S.Frame[nTimer].nTicks;
+				fTime = fTickToMs * S.Frame[nTimer].nTicks;
 				float fCount = (float)S.Frame[nTimer].nCount;
 				float fTimeExcl = fTickToMs * S.FrameExclusive[nTimer];
 				if(0 == (S.nActiveGroup & (1llu << TI.nGroupIndex)))
@@ -5820,7 +5792,7 @@ void MicroProfileWebSocketFrame()
 	{
 		return;
 	}
-	MICROPROFILE_SCOPEI("MicroProfile", "Websocket-update", -1);
+	MICROPROFILE_SCOPEI("MicroProfile", "Websocket-update", (uint32_t)-1);
 	fd_set Read, Write, Error;
 	FD_ZERO(&Read);
 	FD_ZERO(&Write);
@@ -5964,7 +5936,7 @@ void MicroProfileWebSocketSendEnabledMessage(uint32_t id, int bEnabled)
 }
 void MicroProfileWebSocketSendEnabled(MpSocket C)
 {
-	MICROPROFILE_SCOPEI("MicroProfile", "Websocket-SendEnabled", -1);
+	MICROPROFILE_SCOPEI("MicroProfile", "Websocket-SendEnabled", (uint32_t)-1);
 	WSPrintStart(C);
 	for(uint32_t i = 0; i < S.nCategoryCount; ++i)
 	{
@@ -6063,7 +6035,7 @@ void MicroProfileWebSocketSendState(MpSocket C)
 
 bool MicroProfileWebServerUpdate()
 {
-	MICROPROFILE_SCOPEI("MicroProfile", "Webserver-update", -1);
+	MICROPROFILE_SCOPEI("MicroProfile", "Webserver-update", (uint32_t)-1);
 	MpSocket Connection = accept(S.ListenerSocket, 0, 0);
 	bool bServed = false;
 	MicroProfileWebSocketFrame();
@@ -6164,6 +6136,8 @@ bool MicroProfileWebServerUpdate()
 
 			#if MICROPROFILE_DEBUG
 							printf("\n<!-- Sent %dkb(compressed %dkb) in %.2fms-->\n\n", nKb, nCompressedKb, fMs);
+			#else
+							(void)nCompressedKb;
 			#endif
 					}
 					break;
@@ -6209,6 +6183,8 @@ bool MicroProfileWebServerUpdate()
 
 			#if MICROPROFILE_DEBUG
 							printf("\n<!-- Sent %dkb(compressed %dkb) in %.2fms-->\n\n", nKb, nCompressedKb, fMs);
+			#else
+							(void)nCompressedKb;
 			#endif
 						}
 					}
@@ -6942,13 +6918,13 @@ uint32_t MicroProfileGpuInsertTimeStamp(void* pContext_)
 	uint32_t nStart = Frame.m_nQueryStart;
 	if(Frame.m_nRateQueryStarted)
 	{
-		uint32_t nIndex = -1;
+		uint32_t nIndex = (uint32_t)-1;
 		do
 		{
 			nIndex = Frame.m_nQueryCount.load();
 			if(nIndex + 1 >= Frame.m_nQueryCountMax)
 			{
-				return -1;
+				return (uint32_t)-1;
 			}
 		}while(!Frame.m_nQueryCount.compare_exchange_weak(nIndex, nIndex+1));
 		nIndex += nStart;
@@ -7075,7 +7051,6 @@ uint32_t MicroProfileGpuFlip(void* pDeviceContext_)
 void MicroProfileGpuInitD3D11(void* pDevice_, void* pImmediateContext)
 {
 	ID3D11Device* pDevice = (ID3D11Device*)pDevice_;
-	ID3D11DeviceContext* pDeviceContext = (ID3D11DeviceContext*)pImmediateContext;
 	S.pGPU = MICROPROFILE_ALLOC_OBJECT(MicroProfileGpuTimerState);
 	S.pGPU->m_pImmediateContext = pImmediateContext;
 
@@ -7101,7 +7076,7 @@ void MicroProfileGpuInitD3D11(void* pDevice_, void* pImmediateContext)
 		S.pGPU->m_QueryFrames[i].m_nQueryStart = 0;
 		S.pGPU->m_QueryFrames[i].m_nQueryCount = 0;
 		S.pGPU->m_QueryFrames[i].m_nRateQueryStarted = 0;
-		HRESULT hr = pDevice->CreateQuery(&Desc, (ID3D11Query**)&S.pGPU->m_QueryFrames[i].m_pRateQuery);
+		hr = pDevice->CreateQuery(&Desc, (ID3D11Query**)&S.pGPU->m_QueryFrames[i].m_pRateQuery);
 		MP_ASSERT(hr == S_OK);
 	}
 }
@@ -7114,6 +7089,7 @@ void MicroProfileGpuShutdown()
 		if(S.pGPU->m_pQueries[i])
 		{
 			ID3D11Query* pQuery = (ID3D11Query*)S.pGPU->m_pQueries[i];
+			pQuery->Release();
 			S.pGPU->m_pQueries[i] = 0;
 		}
 	}
@@ -7503,7 +7479,16 @@ int MicroProfileGetGpuTickReference(int64_t* pOutCpu, int64_t* pOutGpu)
 #pragma warning(pop)
 #endif
 
+#ifdef MICROPROFILE_PS4
+#define MICROPROFILE_PS4_IMPL
+#include "microprofile_ps4.h"
 #endif
+#ifdef MICROPROFILE_XBOXONE
+#define MICROPROFILE_XBOXONE_IMPL
+#include "microprofile_xboxone.h"
+#endif
+
+#endif //#if defined(MICROPROFILE_IMPL) && MICROPROFILE_ENABLED
 
 #ifdef MICROPROFILE_EMBED_HTML
 #include "microprofile_html.h"
