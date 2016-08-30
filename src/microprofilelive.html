@@ -230,15 +230,21 @@ Settings.AutomaticReference = 1;
 
 var ReferenceHistory = 0;
 var ReferenceGraph = 0;
+var ReferenceBar = 0;
 var ReferenceHistoryAutomatic = 0;
 var ReferenceGraphAutomatic = 0;
+var ReferenceBarAutomatic = 0;
 
 var SingleTimerBars = 0;
 var History;
 var MainView;
 var X7Views;
+var X7LegendView;
 var X7BarColumnRemap = [0,1,2,3,4,5,6];
 var X7BarColumnActive = -1;
+var X7LegendOffset = 25;
+var X7BarLastView = -1;
+var X7BarFirstView = -1;
 
 Settings.SortColumn = 0;
 Settings.SortColumnOrderFlip = 0;
@@ -561,6 +567,7 @@ function CreateViews(Width, Height)
 	X7Views.push(CreateView(w*4, HistoryHeight, w, Height - HistoryHeight, "x5_4", DrawBars, false, 4) );
 	X7Views.push(CreateView(w*5, HistoryHeight, w, Height - HistoryHeight, "x5_3", DrawBars, false, 5) );
 	X7Views.push(CreateView(w*6, HistoryHeight, w, Height - HistoryHeight, "x5_3", DrawBars, false, 6) );
+	X7LegendView = CreateView(0, Height-X7LegendOffset, Width, X7LegendOffset, "x7_legend", DrawBarsLegend, false, 0);
 
 }
 
@@ -605,6 +612,52 @@ function FormatTime(Time)
 	return Time.toFixed(2);
 }
 var hh = 0;
+
+
+function DrawBarsLegend(View, LocalMouseX, LocalMouseY, SubIndex)
+{
+	ProfileEnter("DrawBar");
+	var TimerMap = FrameData.TimerMap;
+	if(!TimerMap)
+		return;
+	var Canvas = View.Canvas[View.BackBuffer];
+	var context = Canvas.getContext('2d');
+	context.clearRect(0, 0, View.w, View.h);
+	var X = 0;
+	var Y = View.h/2;
+	var XSpace = 5;
+	var XSpace2 = XSpace * 2;
+	function DrawEntry(T)
+	{
+		X += XSpace2*2;
+		context.fillStyle = T.color;
+		context.fillRect(X-XSpace,Y-XSpace,XSpace2,XSpace2);
+		X += XSpace + 2;
+		context.fillStyle = 'white';
+		var w = context.measureText(T.name).width;
+		context.fillText(T.name, X, Y + FontHeight/2);
+		X += w;		
+	}
+
+	if(SingleTimerBars == 0)
+	{
+		for(var key in TimerMap)
+		{
+			var idx = GetTimer(key);
+			var T = TimerArray[idx];
+			if(T.e)
+			{
+				DrawEntry(T);
+			}
+		}
+	}
+	else if(EnabledArray.length > 0)
+	{
+		var idx = EnabledArray[0];
+		var T = TimerArray[idx];
+		DrawEntry(T);
+	}		
+}
 
 function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 {
@@ -753,9 +806,11 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 	var BarWidth = (DrawWidth-SpaceWidth*(nNumBars-1))/ nNumBars;
 	if(BarWidth > 50)
 		BarWidth = 50;
-	var BarHeight = DrawHeight - 10;
+	var BarHeight = DrawHeight - 20;
 
-	var fHeightScale = h / Settings.ReferenceTime;
+	var ReferenceTime = ReferenceBar;
+
+	var fHeightScale = h / ReferenceTime;
 	var MouseDragging = 0;
 	var fWidth = w / FrameCount;
 	var Keys = [];
@@ -764,17 +819,26 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 	context.textAlign = 'center'
 	context.fillStyle = '#ffffff';
 	context.fillText(Title, w / 2.0, FontHeight);
-	if(TitleName)
+	context.textAlign = 'left';
+	context.fillStyle = 'wheat';
+	if(SubIndex == X7BarFirstView)
 	{
-		context.fillText(TitleName, w / 2.0, DrawY - offset);
+		context.fillText(ReferenceTime.toFixed(2) + 'ms', 0, DrawX + DrawHeight - BarHeight);
+	}
+	else if(SubIndex == X7BarLastView)
+	{
+		context.textAlign = 'right';
+		context.fillText(ReferenceTime.toFixed(2) + 'ms', w, DrawX + DrawHeight - BarHeight);
 	}
 	context.textAlign = 'right';
+
 
 	for(var i = 0; i < BarTimes.length; ++i)
 	{
 		var Time = BarTimes[i];
+		ReferenceBarAutomatic = Math.max(Time, ReferenceBarAutomatic);
 		var Color = BarColors[i];
-		var fPrc = Time / Settings.ReferenceTime;
+		var fPrc = Time / ReferenceTime;
 		if(fPrc > 1.0)
 			fPrc = 1.0
 		var BarH = fPrc * BarHeight;
@@ -786,11 +850,6 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 		context.fillStyle = '#ffffff';
 		var TimeText = FormatTime(Time);
 		context.fillText(TimeText, X+BarWidth, DrawX+DrawHeight + FontHeight);
-		if(!TitleName)
-		{
-			var Name = BarNames[i];
-			context.fillText(Name, X+BarWidth, DrawY - offset);
-		}
 		X += BarWidth + SpaceWidth;
 	}
 	ProfileLeave();
@@ -1576,11 +1635,16 @@ function UpdateX7Views()
 	{
 		var NumSubViews = 0;
 		var BarColumnEnabled = GetBarColumnEnabled();
+		X7BarFirstView = -1;
+		X7BarLastView = -1;
 		for(var i = 0; i < BarColumnEnabled.length; ++i)
 		{
 			if(BarColumnEnabled[i])
 			{
+				if(X7BarFirstView == -1)
+					X7BarFirstView = i;
 				X7BarColumnRemap[NumSubViews++] = i;
+				X7BarLastView = i;
 			}
 		}
 		if(NumSubViews != X7BarColumnActive)
@@ -1597,6 +1661,8 @@ function UpdateX7Views()
 			}
 			X7BarColumnActive = NumSubViews;
 		}
+		X7LegendView.visible = true;
+		ReferenceBarAutomatic = 0;
 	}
 }
 function DrawViews()
@@ -2879,11 +2945,13 @@ function UpdateSettings()
 		}
 		ReferenceGraph = 0.9 * ReferenceGraph + 0.1 * ReferenceGraphAutomatic;
 		ReferenceHistory = 0.9 * ReferenceHistory + 0.1 * ReferenceHistoryAutomatic;
+		ReferenceBar = 0.9 * ReferenceBar + 0.1 * ReferenceBarAutomatic;
 	}
 	else
 	{
 		ReferenceGraph = Settings.ReferenceTime;
 		ReferenceHistory = Settings.ReferenceTime;
+		ReferenceBar = Settings.ReferenceTime;
 	}
 	if(Settings.AggregateFrames != AggregateFrames)
 	{

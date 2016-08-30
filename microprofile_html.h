@@ -5667,15 +5667,21 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "\n"
 "var ReferenceHistory = 0;\n"
 "var ReferenceGraph = 0;\n"
+"var ReferenceBar = 0;\n"
 "var ReferenceHistoryAutomatic = 0;\n"
 "var ReferenceGraphAutomatic = 0;\n"
+"var ReferenceBarAutomatic = 0;\n"
 "\n"
 "var SingleTimerBars = 0;\n"
 "var History;\n"
 "var MainView;\n"
 "var X7Views;\n"
+"var X7LegendView;\n"
 "var X7BarColumnRemap = [0,1,2,3,4,5,6];\n"
 "var X7BarColumnActive = -1;\n"
+"var X7LegendOffset = 25;\n"
+"var X7BarLastView = -1;\n"
+"var X7BarFirstView = -1;\n"
 "\n"
 "Settings.SortColumn = 0;\n"
 "Settings.SortColumnOrderFlip = 0;\n"
@@ -5998,6 +6004,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "	X7Views.push(CreateView(w*4, HistoryHeight, w, Height - HistoryHeight, \"x5_4\", DrawBars, false, 4) );\n"
 "	X7Views.push(CreateView(w*5, HistoryHeight, w, Height - HistoryHeight, \"x5_3\", DrawBars, false, 5) );\n"
 "	X7Views.push(CreateView(w*6, HistoryHeight, w, Height - HistoryHeight, \"x5_3\", DrawBars, false, 6) );\n"
+"	X7LegendView = CreateView(0, Height-X7LegendOffset, Width, X7LegendOffset, \"x7_legend\", DrawBarsLegend, false, 0);\n"
 "\n"
 "}\n"
 "\n"
@@ -6042,6 +6049,52 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "	return Time.toFixed(2);\n"
 "}\n"
 "var hh = 0;\n"
+"\n"
+"\n"
+"function DrawBarsLegend(View, LocalMouseX, LocalMouseY, SubIndex)\n"
+"{\n"
+"	ProfileEnter(\"DrawBar\");\n"
+"	var TimerMap = FrameData.TimerMap;\n"
+"	if(!TimerMap)\n"
+"		return;\n"
+"	var Canvas = View.Canvas[View.BackBuffer];\n"
+"	var context = Canvas.getContext(\'2d\');\n"
+"	context.clearRect(0, 0, View.w, View.h);\n"
+"	var X = 0;\n"
+"	var Y = View.h/2;\n"
+"	var XSpace = 5;\n"
+"	var XSpace2 = XSpace * 2;\n"
+"	function DrawEntry(T)\n"
+"	{\n"
+"		X += XSpace2*2;\n"
+"		context.fillStyle = T.color;\n"
+"		context.fillRect(X-XSpace,Y-XSpace,XSpace2,XSpace2);\n"
+"		X += XSpace + 2;\n"
+"		context.fillStyle = \'white\';\n"
+"		var w = context.measureText(T.name).width;\n"
+"		context.fillText(T.name, X, Y + FontHeight/2);\n"
+"		X += w;		\n"
+"	}\n"
+"\n"
+"	if(SingleTimerBars == 0)\n"
+"	{\n"
+"		for(var key in TimerMap)\n"
+"		{\n"
+"			var idx = GetTimer(key);\n"
+"			var T = TimerArray[idx];\n"
+"			if(T.e)\n"
+"			{\n"
+"				DrawEntry(T);\n"
+"			}\n"
+"		}\n"
+"	}\n"
+"	else if(EnabledArray.length > 0)\n"
+"	{\n"
+"		var idx = EnabledArray[0];\n"
+"		var T = TimerArray[idx];\n"
+"		DrawEntry(T);\n"
+"	}		\n"
+"}\n"
 "\n"
 "function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)\n"
 "{\n"
@@ -6190,9 +6243,11 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "	var BarWidth = (DrawWidth-SpaceWidth*(nNumBars-1))/ nNumBars;\n"
 "	if(BarWidth > 50)\n"
 "		BarWidth = 50;\n"
-"	var BarHeight = DrawHeight - 10;\n"
+"	var BarHeight = DrawHeight - 20;\n"
 "\n"
-"	var fHeightScale = h / Settings.ReferenceTime;\n"
+"	var ReferenceTime = ReferenceBar;\n"
+"\n"
+"	var fHeightScale = h / ReferenceTime;\n"
 "	var MouseDragging = 0;\n"
 "	var fWidth = w / FrameCount;\n"
 "	var Keys = [];\n"
@@ -6201,17 +6256,26 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "	context.textAlign = \'center\'\n"
 "	context.fillStyle = \'#ffffff\';\n"
 "	context.fillText(Title, w / 2.0, FontHeight);\n"
-"	if(TitleName)\n"
+"	context.textAlign = \'left\';\n"
+"	context.fillStyle = \'wheat\';\n"
+"	if(SubIndex == X7BarFirstView)\n"
 "	{\n"
-"		context.fillText(TitleName, w / 2.0, DrawY - offset);\n"
+"		context.fillText(ReferenceTime.toFixed(2) + \'ms\', 0, DrawX + DrawHeight - BarHeight);\n"
+"	}\n"
+"	else if(SubIndex == X7BarLastView)\n"
+"	{\n"
+"		context.textAlign = \'right\';\n"
+"		context.fillText(ReferenceTime.toFixed(2) + \'ms\', w, DrawX + DrawHeight - BarHeight);\n"
 "	}\n"
 "	context.textAlign = \'right\';\n"
+"\n"
 "\n"
 "	for(var i = 0; i < BarTimes.length; ++i)\n"
 "	{\n"
 "		var Time = BarTimes[i];\n"
+"		ReferenceBarAutomatic = Math.max(Time, ReferenceBarAutomatic);\n"
 "		var Color = BarColors[i];\n"
-"		var fPrc = Time / Settings.ReferenceTime;\n"
+"		var fPrc = Time / ReferenceTime;\n"
 "		if(fPrc > 1.0)\n"
 "			fPrc = 1.0\n"
 "		var BarH = fPrc * BarHeight;\n"
@@ -6223,11 +6287,6 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "		context.fillStyle = \'#ffffff\';\n"
 "		var TimeText = FormatTime(Time);\n"
 "		context.fillText(TimeText, X+BarWidth, DrawX+DrawHeight + FontHeight);\n"
-"		if(!TitleName)\n"
-"		{\n"
-"			var Name = BarNames[i];\n"
-"			context.fillText(Name, X+BarWidth, DrawY - offset);\n"
-"		}\n"
 "		X += BarWidth + SpaceWidth;\n"
 "	}\n"
 "	ProfileLeave();\n"
@@ -6744,7 +6803,11 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "		var W = XEnd - X;\n"
 "		var H = YEnd - Y;\n"
 "		context.globalAlpha = 0.1;\n"
-"		context.fillStyle = ColorBack;\n"
+"		context.fillSt";
+
+const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
+const char g_MicroProfileHtmlLive_begin_1[] =
+"yle = ColorBack;\n"
 "		context.fillRect(X, Y, W, H);\n"
 "		context.globalAlpha = 1;\n"
 "		context.strokeStyle = ColorFront;\n"
@@ -6798,11 +6861,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "		fPrc = Clamp(fPrc, 0, 1);\n"
 "		var color = LerpColor(fPrc);\n"
 "		var fid = FrameData.Ids[i];\n"
-"		if(fid >= ";
-
-const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
-const char g_MicroProfileHtmlLive_begin_1[] =
-"id0 && fid <= id1)\n"
+"		if(fid >= id0 && fid <= id1)\n"
 "		{\n"
 "			color = \'cyan\';\n"
 "		}else if(FrameData.Frozen[i])\n"
@@ -7017,11 +7076,16 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	{\n"
 "		var NumSubViews = 0;\n"
 "		var BarColumnEnabled = GetBarColumnEnabled();\n"
+"		X7BarFirstView = -1;\n"
+"		X7BarLastView = -1;\n"
 "		for(var i = 0; i < BarColumnEnabled.length; ++i)\n"
 "		{\n"
 "			if(BarColumnEnabled[i])\n"
 "			{\n"
+"				if(X7BarFirstView == -1)\n"
+"					X7BarFirstView = i;\n"
 "				X7BarColumnRemap[NumSubViews++] = i;\n"
+"				X7BarLastView = i;\n"
 "			}\n"
 "		}\n"
 "		if(NumSubViews != X7BarColumnActive)\n"
@@ -7038,6 +7102,8 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "			}\n"
 "			X7BarColumnActive = NumSubViews;\n"
 "		}\n"
+"		X7LegendView.visible = true;\n"
+"		ReferenceBarAutomatic = 0;\n"
 "	}\n"
 "}\n"
 "function DrawViews()\n"
@@ -8228,7 +8294,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "			MenuRect = DrawMenuCapture();\n"
 "		}\n"
 "\n"
-"		var Grow = 10;\n"
+"		var Grow = ";
+
+const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
+const char g_MicroProfileHtmlLive_begin_2[] =
+"10;\n"
 "		MenuRect.x -= Grow;\n"
 "		MenuRect.y -= Grow;\n"
 "		MenuRect.h += 2*Grow;\n"
@@ -8296,11 +8366,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	Strings.push(\"\" + WSSendBytes);\n"
 "	Strings.push(\"ReceiveBytes\");\n"
 "	Strings.push(\"\" + WSReceiveBytes);\n"
-"	Strin";
-
-const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
-const char g_MicroProfileHtmlLive_begin_2[] =
-"gs.push(\"Seconds\");\n"
+"	Strings.push(\"Seconds\");\n"
 "	Strings.push(\"\" + WSSeconds);\n"
 "	DrawToolTip(Strings, CanvasDetailedView, 50000, 0);\n"
 "}\n"
@@ -8324,11 +8390,13 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "		}\n"
 "		ReferenceGraph = 0.9 * ReferenceGraph + 0.1 * ReferenceGraphAutomatic;\n"
 "		ReferenceHistory = 0.9 * ReferenceHistory + 0.1 * ReferenceHistoryAutomatic;\n"
+"		ReferenceBar = 0.9 * ReferenceBar + 0.1 * ReferenceBarAutomatic;\n"
 "	}\n"
 "	else\n"
 "	{\n"
 "		ReferenceGraph = Settings.ReferenceTime;\n"
 "		ReferenceHistory = Settings.ReferenceTime;\n"
+"		ReferenceBar = Settings.ReferenceTime;\n"
 "	}\n"
 "	if(Settings.AggregateFrames != AggregateFrames)\n"
 "	{\n"
@@ -9739,7 +9807,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	context.fillRect(0, 0, Width, Height);\n"
 "	context.fillStyle = \'white\';\n"
 "	DrawHeaderSplitSingle(\'Name\', CounterNameWidth);\n"
-"	DrawHeaderSplitSingleRight(\'Value\', CounterValueWidth + (FontWidth+1));\n"
+"	DrawHeaderSplitSingleRight(\'Value\', CounterValu";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+"eWidth + (FontWidth+1));\n"
 "	DrawHeaderSplitSingle(\'Limit\', CounterLimitWidth + CounterWidth + 3 * (FontWidth+1));\n"
 "	ProfileLeave();\n"
 "}\n"
@@ -9774,18 +9846,20 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "</html>      \n"
 "";
 
-const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
 const char* g_MicroProfileHtmlLive_begin[] = {
 &g_MicroProfileHtmlLive_begin_0[0],
 &g_MicroProfileHtmlLive_begin_1[0],
 &g_MicroProfileHtmlLive_begin_2[0],
+&g_MicroProfileHtmlLive_begin_3[0],
 };
 size_t g_MicroProfileHtmlLive_begin_sizes[] = {
 sizeof(g_MicroProfileHtmlLive_begin_0),
 sizeof(g_MicroProfileHtmlLive_begin_1),
 sizeof(g_MicroProfileHtmlLive_begin_2),
+sizeof(g_MicroProfileHtmlLive_begin_3),
 };
-size_t g_MicroProfileHtmlLive_begin_count = 3;
+size_t g_MicroProfileHtmlLive_begin_count = 4;
 const char* g_MicroProfileHtmlLive_end[] = {
 ""};
 size_t g_MicroProfileHtmlLive_end_sizes[] = {
