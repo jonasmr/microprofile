@@ -1720,6 +1720,14 @@ function DrawTopMenu()
 	var MouseInY = MouseY < BoxHeight;
 	for(var i = 0; i < MenuItems.length; ++i)
 	{
+		if(i == SubMenuColumns)
+		{
+			if(Settings.ViewActive == VIEW_GRAPH || 
+				Settings.ViewActive == VIEW_COUNTERS)
+			{
+				continue;
+			}
+		}
 		var Item = MenuItems[i];
 		var w = context.measureText(Item.name).width + 4;
 		var MouseIn = MouseInY && MouseX >= X && MouseX < X + w;
@@ -3581,22 +3589,38 @@ function MouseHandleDrag()
 					MouseDragActiveXEnd += X;
 				}
 			}
-
-			if(MouseDragKeyShift || MouseDragButton == 1)
+			if(Settings.ViewActive == VIEW_BAR)
 			{
-				var X = MouseDragX - MouseDragXLast;
-				var Y = MouseDragY - MouseDragYLast;
-				nOffsetBarsY -= Y;
-				nOffsetBarsX -= X;
-				if(nOffsetBarsY < 0)
+				if(MouseDragKeyShift || MouseDragButton == 1)
 				{
-					nOffsetBarsY = 0;
-				}
-				if(nOffsetBarsX < 0)
-				{
-					nOffsetBarsX = 0;
+					var X = MouseDragX - MouseDragXLast;
+					var Y = MouseDragY - MouseDragYLast;
+					nOffsetBarsY -= Y;
+					nOffsetBarsX -= X;
+					if(nOffsetBarsY < 0)
+					{
+						nOffsetBarsY = 0;
+					}
+					if(nOffsetBarsX < 0)
+					{
+						nOffsetBarsX = 0;
+					}
 				}
 			}
+			if(Settings.ViewActive == VIEW_COUNTERS)
+			{
+				if(MouseDragKeyShift || MouseDragButton == 1)
+				{
+					var Y = MouseDragY - MouseDragYLast;
+					nOffsetCountersY -= Y;
+					if(nOffsetCountersY < 0)
+					{
+						nOffsetCountersY = 0;
+					}
+				}
+			}
+
+
 		}
 	}
 	MouseDragXLast = MouseDragX;
