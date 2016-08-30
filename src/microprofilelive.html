@@ -1772,10 +1772,15 @@ function CreateFilter(Filter)
 		return null;
 	}
 	Filter = Filter.split(' ');
+	
+	var regexp = "";
 	for(var i = 0; i < Filter.length; ++i)
 	{
-		Filter[i] = new RegExp(Filter[i], "i");
+		regexp = regexp + ".*" + Filter[i];
 	}
+	Filter = new Array();
+	regexp = regexp + ".*";
+	Filter.push(new RegExp(regexp, "i"));
 	return Filter;
 }
 
@@ -2589,9 +2594,9 @@ function DrawMenuTimer()
 		if(v.idtype == TYPE_TIMER)
 		{
 			var Name = v.name;
-			if(FilterMatch(FilterArray, Name))
+			var ParentName = TimerArray[v.parent].name;
+			if(FilterMatch(FilterArray, ParentName + " " + Name))
 			{
-				var ParentName = TimerArray[v.parent].name;
 				var ParentColor = TimerArray[v.parent].e ? 'white' : 'grey';
 				bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
 				bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];

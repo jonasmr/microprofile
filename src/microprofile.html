@@ -4599,10 +4599,15 @@ function CreateFilter(Filter)
 		return null;
 	}
 	Filter = Filter.split(' ');
+	
+	var regexp = "";
 	for(var i = 0; i < Filter.length; ++i)
 	{
-		Filter[i] = new RegExp(Filter[i], "i");
+		regexp = regexp + ".*" + Filter[i];
 	}
+	Filter = new Array();
+	regexp = regexp + ".*";
+	Filter.push(new RegExp(regexp, "i"));
 	return Filter;
 }
 function FilterKeyUp()
@@ -4791,7 +4796,8 @@ function DrawFilterSearch()
 		var v = TimerInfo[i];
 		{
 			var Name = v.name;
-			if(FilterMatch(FilterArray, Name))
+			var ParentName = GroupInfo[v.group].name;
+			if(FilterMatch(FilterArray, ParentName + " " + Name))
 			{
 				Count++;
 				var ParentName = GroupInfo[v.group].name;
