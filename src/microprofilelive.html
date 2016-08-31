@@ -848,7 +848,20 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 		context.fillRect(X0, Y0, BarWidth, BarH);
 		context.fillStyle = '#ffffff';
 		var TimeText = FormatTime(Time);
-		context.fillText(TimeText, X+BarWidth, DrawX+DrawHeight + FontHeight);
+		var TimeText0 = Time.toFixed(0);
+		var XText = X+BarWidth;
+		var YText = DrawX + DrawHeight + FontHeight;
+		var w = context.measureText(TimeText).width;
+		var w0 = context.measureText(TimeText0).width;
+		if(w < BarWidth)
+		{
+			context.fillText(TimeText, XText, YText);
+		}
+		else if(w0 < BarWidth)
+		{
+			context.fillText(TimeText0, XText, YText);
+		}
+
 		X += BarWidth + SpaceWidth;
 	}
 	ProfileLeave();
@@ -3563,6 +3576,7 @@ function WSClose()
 {
 	console.log('WSClose');
 	WSIsOpen = 0;
+	FilterInputDiv.style['display'] = 'none';
 }
 function WSSendMessage(msgid)
 {

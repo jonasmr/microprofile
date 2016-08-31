@@ -6285,7 +6285,20 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "		context.fillRect(X0, Y0, BarWidth, BarH);\n"
 "		context.fillStyle = \'#ffffff\';\n"
 "		var TimeText = FormatTime(Time);\n"
-"		context.fillText(TimeText, X+BarWidth, DrawX+DrawHeight + FontHeight);\n"
+"		var TimeText0 = Time.toFixed(0);\n"
+"		var XText = X+BarWidth;\n"
+"		var YText = DrawX + DrawHeight + FontHeight;\n"
+"		var w = context.measureText(TimeText).width;\n"
+"		var w0 = context.measureText(TimeText0).width;\n"
+"		if(w < BarWidth)\n"
+"		{\n"
+"			context.fillText(TimeText, XText, YText);\n"
+"		}\n"
+"		else if(w0 < BarWidth)\n"
+"		{\n"
+"			context.fillText(TimeText0, XText, YText);\n"
+"		}\n"
+"\n"
 "		X += BarWidth + SpaceWidth;\n"
 "	}\n"
 "	ProfileLeave();\n"
@@ -6787,7 +6800,11 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "		v = (v-0.5) * 2;\n"
 "		var v0 = (1-v)\n"
 "		R = R_1 * v0 + R_2 * v;\n"
-"		G = G_1 * v0 + G_2 * v;\n"
+"		G = ";
+
+const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
+const char g_MicroProfileHtmlLive_begin_1[] =
+"G_1 * v0 + G_2 * v;\n"
 "	}\n"
 "	R *= 255;\n"
 "	G *= 255;\n"
@@ -6802,11 +6819,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "		var W = XEnd - X;\n"
 "		var H = YEnd - Y;\n"
 "		context.globalAlpha = 0.1;\n"
-"		context.fillSty";
-
-const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
-const char g_MicroProfileHtmlLive_begin_1[] =
-"le = ColorBack;\n"
+"		context.fillStyle = ColorBack;\n"
 "		context.fillRect(X, Y, W, H);\n"
 "		context.globalAlpha = 1;\n"
 "		context.strokeStyle = ColorFront;\n"
@@ -8278,7 +8291,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "		}\n"
 "		else if(SubMenuActive == SubMenuViews)\n"
 "		{\n"
-"			MenuRect = DrawMenuViews();\n"
+"			MenuRect = DrawM";
+
+const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
+const char g_MicroProfileHtmlLive_begin_2[] =
+"enuViews();\n"
 "		}\n"
 "		else if(SubMenuActive == SubMenuPresets)\n"
 "		{\n"
@@ -8293,11 +8310,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "			MenuRect = DrawMenuCapture();\n"
 "		}\n"
 "\n"
-"		var Grow = 1";
-
-const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
-const char g_MicroProfileHtmlLive_begin_2[] =
-"0;\n"
+"		var Grow = 10;\n"
 "		MenuRect.x -= Grow;\n"
 "		MenuRect.y -= Grow;\n"
 "		MenuRect.h += 2*Grow;\n"
@@ -9008,6 +9021,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "{\n"
 "	console.log(\'WSClose\');\n"
 "	WSIsOpen = 0;\n"
+"	FilterInputDiv.style[\'display\'] = \'none\';\n"
 "}\n"
 "function WSSendMessage(msgid)\n"
 "{\n"
@@ -9797,7 +9811,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "		if(Index == 0 || (!Counter.closed && Counter.idtype == TYPE_COUNTER))\n"
 "		{\n"
 "			var ChildIndex = Counter.firstchild;\n"
-"			while(ChildIndex != -1)\n"
+"			while(";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+"ChildIndex != -1)\n"
 "			{\n"
 "				DrawCounterRecursive(ChildIndex);\n"
 "				ChildIndex = TimerArray[ChildIndex].sibling;\n"
@@ -9812,11 +9830,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	context.fillRect(0, 0, Width, Height);\n"
 "	context.fillStyle = \'white\';\n"
 "	DrawHeaderSplitSingle(\'Name\', CounterNameWidth);\n"
-"	DrawHead";
-
-const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
-const char g_MicroProfileHtmlLive_begin_3[] =
-"erSplitSingleRight(\'Value\', CounterValueWidth + (FontWidth+1));\n"
+"	DrawHeaderSplitSingleRight(\'Value\', CounterValueWidth + (FontWidth+1));\n"
 "	DrawHeaderSplitSingle(\'Limit\', CounterLimitWidth + CounterWidth + 3 * (FontWidth+1));\n"
 "	ProfileLeave();\n"
 "}\n"
