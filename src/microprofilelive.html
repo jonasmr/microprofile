@@ -52,8 +52,6 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 //todo
 //strict in normal
 
-
-
 var FRAME_HISTORY_COLOR_CPU = '#ff7f27';
 var FRAME_HISTORY_COLOR_GPU = '#ffffff';
 
@@ -65,6 +63,7 @@ var CanvasDetailedOffscreen = document.createElement('canvas');
 var FilterInput = document.getElementById('FilterInput');
 var FilterInputDiv = document.getElementById('FilterInputDiv');
 var FilterInputDivPos = {"x":-1,"y":-1,"w":-1,"h":-1};
+var FilterInputValueLast = '';
 
 var CanvasArray0 = [];
 var CanvasArray1 = [];
@@ -88,6 +87,7 @@ var nBarsWidth = 80;
 var nOffsetBarsX = 0;
 var nOffsetBarsY = 0;
 var nOffsetCountersY = 0;
+var nOffsetMenuTimers = 0;
 var nHoverCounter = -1;
 
 var MouseDragOff = 0;
@@ -2638,9 +2638,13 @@ function MoveFilterInputDiv(x, y, w)
 		FilterInput.style['width'] = w + 'px';
 	}
 }
-
 function DrawMenuTimer()
 {
+	if(FilterInputValueLast != FilterInput.value)
+	{
+		nOffsetMenuTimers = 0;
+	}
+	FilterInputValueLast = FilterInput.value;
 	var FilterArray = CreateFilter(FilterInput.value);
 	var context = CanvasDetailedView.getContext('2d');
 	var nColorIndex = 0;
@@ -2654,25 +2658,25 @@ function DrawMenuTimer()
 	MoveFilterInputDiv(SizeInfo.x, SizeInfo.y, SizeInfo.w);
 	Y += 35;
 
-
 	var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
 	var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
 	var TextY = Y+BoxHeight-FontAscent;
+	var YClear = Y;
+	var TextYClear = TextY;
+	var bgcolorClear = bgcolor;
+	var YStart = Y;
 
-	context.fillStyle = bgcolor;
-	context.fillRect(X-2, Y, Width+4, BoxHeight);
-	context.fillText(ParentName, X + 2, TextY);
-	context.fillStyle = 'white';
-	context.textAlign = 'center';
-	context.fillText("[clear]", X + 2 + Width * 0.5, TextY);
-	context.textAlign = 'left';
+	var MouseTaken = bMouseIn;
 	if(bMouseIn && MouseReleased)
 	{
 		WSSendMessage("x");
+		
 	}
 
 	Y += BoxHeight;
 	nColorIndex = 1-nColorIndex;
+
+	Y -= nOffsetMenuTimers;
 
 	for(var i = 0; i < TimerArray.length; ++i)
 	{
@@ -2683,30 +2687,44 @@ function DrawMenuTimer()
 			var ParentName = TimerArray[v.parent].name;
 			if(FilterMatch(FilterArray, ParentName + " " + Name))
 			{
-				var ParentColor = TimerArray[v.parent].e ? 'white' : 'grey';
-				bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
-				bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-				TextY = Y+BoxHeight-FontAscent;
-				context.fillStyle = v.e?'white':bgcolor;
-				context.fillRect(X-2, Y, Width+4, BoxHeight);
-				context.fillStyle = bgcolor;
-				context.fillRect(X, Y, Width, BoxHeight);
-				context.fillStyle = ParentColor;
-				context.fillText(ParentName, X + 2, TextY);
-				context.fillStyle = v.color;
-				context.textAlign = 'right';
-				context.fillText(Name, X + Width - 2, TextY);
-				context.textAlign = 'left';
-				if(bMouseIn)
+				if(Y > YStart)
 				{
-					Selection = v.id;
+					var ParentColor = TimerArray[v.parent].e ? 'white' : 'grey';
+					bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight && !MouseTaken;
+					bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+					TextY = Y+BoxHeight-FontAscent;
+					context.fillStyle = v.e?'white':bgcolor;
+					context.fillRect(X-2, Y, Width+4, BoxHeight);
+					context.fillStyle = bgcolor;
+					context.fillRect(X, Y, Width, BoxHeight);
+					context.fillStyle = ParentColor;
+					context.fillText(ParentName, X + 2, TextY);
+					context.fillStyle = v.color;
+					context.textAlign = 'right';
+					context.fillText(Name, X + Width - 2, TextY);
+					context.textAlign = 'left';
+					if(bMouseIn)
+					{
+						Selection = v.id;
+					}
 				}
 				Y += BoxHeight;
 				nColorIndex = 1-nColorIndex;
 			}
 		}
 	}
-	if(Selection && MouseReleased)
+
+	context.fillStyle = bgcolorClear;
+	context.fillRect(X-2, YClear, Width+4, BoxHeight);
+	context.fillText(ParentName, X + 2, TextYClear);
+	context.fillStyle = 'white';
+	context.textAlign = 'center';
+	context.fillText("[clear]", X + 2 + Width * 0.5, TextYClear);
+	context.textAlign = 'left';
+
+
+
+	if(Selection && MouseReleased && !MouseTaken)
 	{
 		WSSendMessage("c" + Selection);
 	}
@@ -3706,8 +3724,18 @@ function MouseHandleDrag()
 					}
 				}
 			}
-
-
+		}
+		else if(SubMenuActive == SubMenuTimers)
+		{
+			if(MouseDragKeyShift || MouseDragButton == 1)
+			{
+				var Y = MouseDragY - MouseDragYLast;
+				nOffsetMenuTimers -= Y;
+				if(nOffsetMenuTimers < 0)
+				{
+					nOffsetMenuTimers = 0;
+				}
+			}
 		}
 	}
 	MouseDragXLast = MouseDragX;
@@ -3953,10 +3981,40 @@ function MouseWheel(e)
 function KeyUp(evt)
 {
 	var k = evt.keyCode;
-	console.log('keyup ' + k);
-	if(k == 220)
+	var InputActive = SubMenuActive == SubMenuTimers;
+	if(!InputActive)
 	{
-		ProfileMode = !ProfileMode;
+		if(k == 220)
+		{
+			ProfileMode = !ProfileMode;
+		}
+		if(k == 191)
+		{
+			WSPort++;
+			if(WSPort > 1338+2)
+			{
+				WSPort = 1338;
+			}
+			if(WS)
+			{
+				WS.close();
+				WS = null;
+			}
+		}
+		if(k == 32)
+		{
+			WSSendMessage("f");
+		}
+		if(k == 88)
+		{
+			ToggleView();
+		}
+		if(k == 13)
+		{
+			Capture();
+		}
+
+
 	}
 	if(k == 27)
 	{
@@ -3973,27 +4031,7 @@ function KeyUp(evt)
 		Settings.SortColumn = 0;
 		Settings.SortColumnMouseOver = "";
 	}
-	if(k == 191)
-	{
-		WSPort++;
-		if(WSPort > 1338+2)
-		{
-			WSPort = 1338;
-		}
-		if(WS)
-		{
-			WS.close();
-			WS = null;
-		}
-	}
-	if(k == 32)
-	{
-		WSSendMessage("f");
-	}
-	if(k == 13)
-	{
-		Capture();
-	}
+
 	if(evt.keyCode == 17)
 	{
 		KeyCtrlDown = 0;
@@ -4003,10 +4041,6 @@ function KeyUp(evt)
 	{
 		KeyShiftDown = 0;
 		MouseDragKeyUp();
-	}
-	if(k == 88)
-	{
-		ToggleView();
 	}
 }
 

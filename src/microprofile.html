@@ -246,6 +246,8 @@ var nOffsetY = 0;
 var nOffsetBarsX = 0;
 var nOffsetBarsY = 0;
 var nOffsetCountersY = 0;
+var nOffsetFilterSearch = 0;
+var FilterInputSearchLast = '';
 var nBarsWidth = 80;
 var GroupNameWidth = 200;
 var TimerNameWidth = 200;
@@ -3984,47 +3986,63 @@ function MouseHandleDrag()
 	{
 		if(Mode == ModeDetailed)
 		{
-			if(MouseDragSelectRange())
+
+			if(FilterSearchActive)
 			{
-				var xStart = MouseDragXStart;
-				var xEnd = MouseDragX;
-				if(xStart > xEnd)
+				if(MouseDragKeyShift || MouseDragButton == 1)
 				{
-					var Temp = xStart;
-					xStart = xEnd;
-					xEnd = Temp;
-				}
-				if(xEnd - xStart > 1)
-				{
-					RangeCpu.Begin = fDetailedOffset + fDetailedRange * (xStart / nWidth);
-					RangeCpu.End = fDetailedOffset + fDetailedRange * (xEnd / nWidth);
-					RangeSelect.Begin = fDetailedOffset + fDetailedRange * (xStart / nWidth);
-					RangeSelect.End = fDetailedOffset + fDetailedRange * (xEnd / nWidth);
-					RangeSelect.Thread = -1;
-					RangeSelect.Index = -1;
+					var Y = MouseDragY - MouseDragYLast;
+					nOffsetFilterSearch -= Y;
+					if(nOffsetFilterSearch < 0)
+					{
+						nOffsetFilterSearch = 0;
+					}
 				}
 			}
-			else if(MouseDragPan())
+			else
 			{
-				var X = MouseDragX - MouseDragXLast;
-				var Y = MouseDragY - MouseDragYLast;
-				if(X)
+				if(MouseDragSelectRange())
 				{
-					fDetailedOffset += -X * fDetailedRange / nWidth;
+					var xStart = MouseDragXStart;
+					var xEnd = MouseDragX;
+					if(xStart > xEnd)
+					{
+						var Temp = xStart;
+						xStart = xEnd;
+						xEnd = Temp;
+					}
+					if(xEnd - xStart > 1)
+					{
+						RangeCpu.Begin = fDetailedOffset + fDetailedRange * (xStart / nWidth);
+						RangeCpu.End = fDetailedOffset + fDetailedRange * (xEnd / nWidth);
+						RangeSelect.Begin = fDetailedOffset + fDetailedRange * (xStart / nWidth);
+						RangeSelect.End = fDetailedOffset + fDetailedRange * (xEnd / nWidth);
+						RangeSelect.Thread = -1;
+						RangeSelect.Index = -1;
+					}
 				}
-				nOffsetY -= Y;
-				if(nOffsetY < 0)
+				else if(MouseDragPan())
 				{
-					nOffsetY = 0;
+					var X = MouseDragX - MouseDragXLast;
+					var Y = MouseDragY - MouseDragYLast;
+					if(X)
+					{
+						fDetailedOffset += -X * fDetailedRange / nWidth;
+					}
+					nOffsetY -= Y;
+					if(nOffsetY < 0)
+					{
+						nOffsetY = 0;
+					}
 				}
-			}
-			else if(MouseDragKeyCtrl)
-			{
-				if(MouseDragY != MouseDragYLast)
+				else if(MouseDragKeyCtrl)
 				{
-					ZoomGraph(MouseDragY - MouseDragYLast);
+					if(MouseDragY != MouseDragYLast)
+					{
+						ZoomGraph(MouseDragY - MouseDragYLast);
+					}
 				}
-			}
+			}	
 		}
 		else if(Mode == ModeTimers)
 		{
@@ -4428,27 +4446,79 @@ function ToggleFilterInput(escape)
 
 function KeyUp(evt)
 {
-	if(FilterSearchActive != 0)
+	if(!FilterSearchActive)
 	{
-		// index is into implicit list, doesnt work
-		// if(evt.keyCode == 38)
-		// {
-		// 	FilterSearchSelection--;
-		// }
-		// else if(evt.keyCode == 40)
-		// {
-		// 	FilterSearchSelection++;
-		// }
-	}
+		if(evt.keyCode == 39)
+		{
+			MoveToNext(1);
+		}
+		if(evt.keyCode == 37)
+		{
+			MoveToNext(-1);
+		}
+		if(evt.keyCode == 32)
+		{
+			if(RangeSelect.Begin < RangeSelect.End)
+			{
+				ZoomTo(RangeSelect.Begin, RangeSelect.End);
+				RangeSelect = RangeInit();
+				MouseHandleDragEnd();
+			}
+		}
+		if(evt.keyCode == 9)
+		{
+			evt.preventDefault();
+			if(Mode == ModeDetailed)
+			{
+				var Token = nHoverToken;
+				if(Token == -1 && RangeValid(RangeSelect) && RangeSelect.Index >= 0)
+				{
+					Token = RangeSelect.Index;
+				}
+				if(Token != -1 && Token < TimerInfo.length)
+				{
+					var start = TimerInfo[Token].worststart;
+					var end = TimerInfo[Token].worstend;
+					RangeSelect.Begin = start;
+					RangeSelect.End = end;
+					RangeSelect.Thread = TimerInfo[Token].worstthread;
+					RangeSelect.Index = Token;
+					ShowFlashMessage('Worst: ' + (end-start).toFixed(2) + 'ms', 100);
+					MoveTo(RangeSelect.Begin, RangeSelect.End, ThreadY[RangeSelect.Thread] + nOffsetY, ThreadY[RangeSelect.Thread+1] + nOffsetY);
+					MouseHandleDragEnd();
+				}
+			}
+			else if(Mode == ModeTimers)
+			{
+				ToggleFilterInput(0);
+				evt.preventDefault();
+			}
 
-	if(evt.keyCode == 39)
-	{
-		MoveToNext(1);
-	}
-	if(evt.keyCode == 37)
-	{
-		MoveToNext(-1);
-	}
+		}
+		if(evt.keyCode == 18 || evt.keyCode == 90) // z/tab to toggle tooltip
+		{
+			ToolTip = (ToolTip+1)%3; //0: off, 1: default, 2: flipped
+			var ToolTipStr = 'Off';
+			var bShowTimers = Mode == ModeTimers;
+			if(ToolTip == 2)
+			{
+				bShowTimers = !bShowTimers;
+			}
+			if(ToolTip)
+			{
+				if(bShowTimers)
+					ToolTipStr = "Timers";
+				else
+					ToolTipStr = "Detailed";
+			}
+			ShowFlashMessage('ToolTip: ' + ToolTipStr, 100);
+		}
+		if(evt.keyCode == 88)
+		{
+			ToggleMode();
+		}
+
+	}		
 	if(evt.keyCode == 17)
 	{
 		KeyCtrlDown = 0;
@@ -4459,45 +4529,8 @@ function KeyUp(evt)
 		KeyShiftDown = 0;
 		MouseDragKeyUp();
 	}
-	if(evt.keyCode == 32)
-	{
-		if(RangeSelect.Begin < RangeSelect.End)
-		{
-			ZoomTo(RangeSelect.Begin, RangeSelect.End);
-			RangeSelect = RangeInit();
-			MouseHandleDragEnd();
-		}
-	}
-	if(evt.keyCode == 9)
-	{
-		evt.preventDefault();
-		if(Mode == ModeDetailed)
-		{
-			var Token = nHoverToken;
-			if(Token == -1 && RangeValid(RangeSelect) && RangeSelect.Index >= 0)
-			{
-				Token = RangeSelect.Index;
-			}
-			if(Token != -1 && Token < TimerInfo.length)
-			{
-				var start = TimerInfo[Token].worststart;
-				var end = TimerInfo[Token].worstend;
-				RangeSelect.Begin = start;
-				RangeSelect.End = end;
-				RangeSelect.Thread = TimerInfo[Token].worstthread;
-				RangeSelect.Index = Token;
-				ShowFlashMessage('Worst: ' + (end-start).toFixed(2) + 'ms', 100);
-				MoveTo(RangeSelect.Begin, RangeSelect.End, ThreadY[RangeSelect.Thread] + nOffsetY, ThreadY[RangeSelect.Thread+1] + nOffsetY);
-				MouseHandleDragEnd();
-			}
-		}
-		else if(Mode == ModeTimers)
-		{
-			ToggleFilterInput(0);
-			evt.preventDefault();
-		}
 
-	}
+
 	if(evt.keyCode == 27)
 	{
 		RangeSelect = RangeInit();
@@ -4519,30 +4552,13 @@ function KeyUp(evt)
 				FilterInputHide();
 			}
 		}
+		else
+		{
+			FilterSearchArray = new Array();
+		}
 	}
 
-	if(evt.keyCode == 18 || evt.keyCode == 90) // z/tab to toggle tooltip
-	{
-		ToolTip = (ToolTip+1)%3; //0: off, 1: default, 2: flipped
-		var ToolTipStr = 'Off';
-		var bShowTimers = Mode == ModeTimers;
-		if(ToolTip == 2)
-		{
-			bShowTimers = !bShowTimers;
-		}
-		if(ToolTip)
-		{
-			if(bShowTimers)
-				ToolTipStr = "Timers";
-			else
-				ToolTipStr = "Detailed";
-		}
-		ShowFlashMessage('ToolTip: ' + ToolTipStr, 100);
-	}
-	if(evt.keyCode == 88)
-	{
-		ToggleMode();
-	}
+
 	if(evt.keyCode == 13)
 	{
 		if(FilterSearchActive)
@@ -4776,20 +4792,28 @@ function DrawFilterSearch()
 		return;
 	nHoverToken = -1;
 
+	if(FilterInputSearchLast != FilterInput.value)
+	{
+		nOffsetFilterSearch = 0;
+	}
+	FilterInputSearchLast = FilterInput.value;
 
 	var FilterArray = CreateFilter(FilterInput.value);
 	var context = CanvasDetailedView.getContext('2d');
 	var nColorIndex = 0;
 	var SizeInfo = TimerMenuSize();
 	var Y = SizeInfo.y;
-	var Width = SizeInfo.w;
+	var Width = TimerNameWidth + GroupNameWidth;
+	SizeInfo.w = Width;
 	var X = SizeInfo.x;
 
 	MoveFilterInputDiv(SizeInfo.x, SizeInfo.y, SizeInfo.w);
+	var YStart = Y;
 	Y += 35; //todo: measure somehow?
 	var MouseX = DetailedViewMouseX;
 	var MouseY = DetailedViewMouseY;
 
+	Y -= nOffsetFilterSearch;
 	var Count = 0;
 	for(var i = 0; i < TimerInfo.length; ++i)
 	{
@@ -4799,23 +4823,26 @@ function DrawFilterSearch()
 			var ParentName = GroupInfo[v.group].name;
 			if(FilterMatch(FilterArray, ParentName + " " + Name))
 			{
-				Count++;
-				var ParentName = GroupInfo[v.group].name;
-				var ParentColor = 'white';
-				var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
-				var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-				var TextY = Y+BoxHeight-FontAscent;
-				context.fillStyle = bgcolor;
-				context.fillRect(X, Y, Width, BoxHeight);
-				context.fillStyle = ParentColor;
-				context.fillText(ParentName, X + 2, TextY);
-				context.fillStyle = v.color;
-				context.textAlign = 'right';
-				context.fillText(Name, X + Width - 2, TextY);
-				context.textAlign = 'left';
-				if(bMouseIn)
+				if(Y >= YStart)
 				{
-					FilterSearchSelection = i;
+					Count++;
+					var ParentName = GroupInfo[v.group].name;
+					var ParentColor = 'white';
+					var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+					var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+					var TextY = Y+BoxHeight-FontAscent;
+					context.fillStyle = bgcolor;
+					context.fillRect(X, Y, Width, BoxHeight);
+					context.fillStyle = ParentColor;
+					context.fillText(ParentName, X + 2, TextY);
+					context.fillStyle = v.color;
+					context.textAlign = 'right';
+					context.fillText(Name, X + Width - 2, TextY);
+					context.textAlign = 'left';
+					if(bMouseIn)
+					{
+						FilterSearchSelection = i;
+					}
 				}
 				Y += BoxHeight;
 				if(Y > nHeight)
