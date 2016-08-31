@@ -786,7 +786,6 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 			BarTimes.push(Time);
 			BarColors.push(T.color);
 		}
-
 	}
 
 
@@ -3093,13 +3092,19 @@ function UpdateEnabledTimer(idx)
 	}
 
 	var i = EnabledArray.indexOf(idx);
-	if(i >= 0)
-	{
-		EnabledArray.splice(i, 1);
-	}
 	if(enabled)
 	{
-		EnabledArray.unshift(idx);
+		if(i == -1)
+		{
+			EnabledArray.unshift(idx);
+		}
+	}
+	else
+	{
+		if(i != -1)
+		{
+			EnabledArray.splice(i, 1);
+		}
 	}
 	var NewIndex = AutoCaptureSourceValue != null ? EnabledArray.indexOf(AutoCaptureSourceValue) : -1;
 	AutoCaptureSourceIndex = NewIndex;

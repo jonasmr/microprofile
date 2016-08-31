@@ -6223,7 +6223,6 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "			BarTimes.push(Time);\n"
 "			BarColors.push(T.color);\n"
 "		}\n"
-"\n"
 "	}\n"
 "\n"
 "\n"
@@ -6803,11 +6802,11 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "		var W = XEnd - X;\n"
 "		var H = YEnd - Y;\n"
 "		context.globalAlpha = 0.1;\n"
-"		context.fillSt";
+"		context.fillSty";
 
 const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
 const char g_MicroProfileHtmlLive_begin_1[] =
-"yle = ColorBack;\n"
+"le = ColorBack;\n"
 "		context.fillRect(X, Y, W, H);\n"
 "		context.globalAlpha = 1;\n"
 "		context.strokeStyle = ColorFront;\n"
@@ -8294,11 +8293,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "			MenuRect = DrawMenuCapture();\n"
 "		}\n"
 "\n"
-"		var Grow = ";
+"		var Grow = 1";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-"10;\n"
+"0;\n"
 "		MenuRect.x -= Grow;\n"
 "		MenuRect.y -= Grow;\n"
 "		MenuRect.h += 2*Grow;\n"
@@ -8538,13 +8537,19 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	}\n"
 "\n"
 "	var i = EnabledArray.indexOf(idx);\n"
-"	if(i >= 0)\n"
-"	{\n"
-"		EnabledArray.splice(i, 1);\n"
-"	}\n"
 "	if(enabled)\n"
 "	{\n"
-"		EnabledArray.unshift(idx);\n"
+"		if(i == -1)\n"
+"		{\n"
+"			EnabledArray.unshift(idx);\n"
+"		}\n"
+"	}\n"
+"	else\n"
+"	{\n"
+"		if(i != -1)\n"
+"		{\n"
+"			EnabledArray.splice(i, 1);\n"
+"		}\n"
 "	}\n"
 "	var NewIndex = AutoCaptureSourceValue != null ? EnabledArray.indexOf(AutoCaptureSourceValue) : -1;\n"
 "	AutoCaptureSourceIndex = NewIndex;\n"
@@ -9807,11 +9812,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	context.fillRect(0, 0, Width, Height);\n"
 "	context.fillStyle = \'white\';\n"
 "	DrawHeaderSplitSingle(\'Name\', CounterNameWidth);\n"
-"	DrawHeaderSplitSingleRight(\'Value\', CounterValu";
+"	DrawHead";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-"eWidth + (FontWidth+1));\n"
+"erSplitSingleRight(\'Value\', CounterValueWidth + (FontWidth+1));\n"
 "	DrawHeaderSplitSingle(\'Limit\', CounterLimitWidth + CounterWidth + 3 * (FontWidth+1));\n"
 "	ProfileLeave();\n"
 "}\n"
