@@ -261,7 +261,7 @@ var MainView;
 var X7Views;
 var X7LegendView;
 var X7BarColumnRemap = [0,1,2,3,4,5,6];
-var X7BarColumnActive = -1;
+var X7BarColumnMask = -1;
 var X7LegendOffset = 25;
 var X7BarLastView = -1;
 var X7BarFirstView = -1;
@@ -1685,6 +1685,7 @@ function UpdateX7Views()
 		var BarColumnEnabled = GetBarColumnEnabled();
 		X7BarFirstView = -1;
 		X7BarLastView = -1;
+		var ViewMask = 0;
 		for(var i = 0; i < BarColumnEnabled.length; ++i)
 		{
 			if(BarColumnEnabled[i])
@@ -1692,10 +1693,11 @@ function UpdateX7Views()
 				if(X7BarFirstView == -1)
 					X7BarFirstView = i;
 				X7BarColumnRemap[NumSubViews++] = i;
+				ViewMask = ViewMask | (1 << i);
 				X7BarLastView = i;
 			}
 		}
-		if(NumSubViews != X7BarColumnActive)
+		if(ViewMask != X7BarColumnMask)
 		{
 			console.log("resizing views");
 			var w = NumSubViews ? nWidth / NumSubViews : 1;
@@ -1707,7 +1709,7 @@ function UpdateX7Views()
 					ResizeView(X7Views[i], w*i, HistoryHeight, w, nHeight - HistoryHeight);
 				}
 			}
-			X7BarColumnActive = NumSubViews;
+			X7BarColumnMask = ViewMask;
 		}
 		X7LegendView.visible = true;
 		ReferenceBarAutomatic = 0;
@@ -2200,6 +2202,7 @@ function ActivateView(idx)
 		SingleTimerBars = idx == VIEW_BAR_SINGLE;
 	}
 	Settings.ViewActive = idx;
+	X7BarColumnMask = -1;
 }
 function DrawMenuViews()
 {

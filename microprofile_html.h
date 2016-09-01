@@ -5726,7 +5726,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "var X7Views;\n"
 "var X7LegendView;\n"
 "var X7BarColumnRemap = [0,1,2,3,4,5,6];\n"
-"var X7BarColumnActive = -1;\n"
+"var X7BarColumnMask = -1;\n"
 "var X7LegendOffset = 25;\n"
 "var X7BarLastView = -1;\n"
 "var X7BarFirstView = -1;\n"
@@ -6810,11 +6810,11 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "			var CrossY = Y;\n"
 "			context.moveTo(CrossX-2, CrossY-2);\n"
 "			context.lineTo(CrossX+2, CrossY+2);\n"
-"			context.mov";
+"			context.moveT";
 
 const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
 const char g_MicroProfileHtmlLive_begin_1[] =
-"eTo(CrossX+2, CrossY-2);\n"
+"o(CrossX+2, CrossY-2);\n"
 "			context.lineTo(CrossX-2, CrossY+2);\n"
 "			//context.closePath();\n"
 "			context.stroke();\n"
@@ -7154,6 +7154,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "		var BarColumnEnabled = GetBarColumnEnabled();\n"
 "		X7BarFirstView = -1;\n"
 "		X7BarLastView = -1;\n"
+"		var ViewMask = 0;\n"
 "		for(var i = 0; i < BarColumnEnabled.length; ++i)\n"
 "		{\n"
 "			if(BarColumnEnabled[i])\n"
@@ -7161,10 +7162,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "				if(X7BarFirstView == -1)\n"
 "					X7BarFirstView = i;\n"
 "				X7BarColumnRemap[NumSubViews++] = i;\n"
+"				ViewMask = ViewMask | (1 << i);\n"
 "				X7BarLastView = i;\n"
 "			}\n"
 "		}\n"
-"		if(NumSubViews != X7BarColumnActive)\n"
+"		if(ViewMask != X7BarColumnMask)\n"
 "		{\n"
 "			console.log(\"resizing views\");\n"
 "			var w = NumSubViews ? nWidth / NumSubViews : 1;\n"
@@ -7176,7 +7178,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "					ResizeView(X7Views[i], w*i, HistoryHeight, w, nHeight - HistoryHeight);\n"
 "				}\n"
 "			}\n"
-"			X7BarColumnActive = NumSubViews;\n"
+"			X7BarColumnMask = ViewMask;\n"
 "		}\n"
 "		X7LegendView.visible = true;\n"
 "		ReferenceBarAutomatic = 0;\n"
@@ -7669,6 +7671,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "		SingleTimerBars = idx == VIEW_BAR_SINGLE;\n"
 "	}\n"
 "	Settings.ViewActive = idx;\n"
+"	X7BarColumnMask = -1;\n"
 "}\n"
 "function DrawMenuViews()\n"
 "{\n"
@@ -8303,15 +8306,15 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "		context.fillStyle = color;\n"
 "		if(!Indent) Indent = 0;\n"
 "		context.fillText(Name, X + Indent*FontWidth, Y+BoxHeight-FontAscent);\n"
-"		nColorIndex = 1-nColorIndex;\n"
-"		Y += BoxHeight;\n"
-"		return bMouseIn;\n"
-"	}\n"
-"	function D";
+"		nColorIndex =";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-"rawMenuRecursive(Index, Indent)\n"
+" 1-nColorIndex;\n"
+"		Y += BoxHeight;\n"
+"		return bMouseIn;\n"
+"	}\n"
+"	function DrawMenuRecursive(Index, Indent)\n"
 "	{\n"
 "		ProfileEnter(\"DrawMenuRecursive\");		\n"
 "		var v = TimerArray[Index];\n"
@@ -9855,14 +9858,14 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "				var CounterHistory = Counter.counterhistory;\n"
 "				var Prc = CounterHistory.prc;\n"
 "				context.fillStyle = \'cyan\';\n"
-"				context.strokeStyle = \'cyan\';\n"
-"				context.globalAlpha = 0.5;\n"
-"				context.beginPath();\n"
-"				v";
+"				context.strokeStyle = \'c";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-"ar x = X;\n"
+"yan\';\n"
+"				context.globalAlpha = 0.5;\n"
+"				context.beginPath();\n"
+"				var x = X;\n"
 "				var YBase = Y0 + HeightExpanded-1;\n"
 "				var YOffset = -(HeightExpanded-2);\n"
 "\n"
