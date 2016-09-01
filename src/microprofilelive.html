@@ -45,6 +45,26 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 </head>
 <body style="">
 <div class="filterinputsearchdiv" id="FilterInputDiv">Filter<br><input type="text" id="FilterInput" class="filterinputsearch"></div>
+<div class="helpstart" id="helpwindow" style="left:20px;top:20px">
+History View:<br>
+Right Click + Drag : Select Region<br>
+Click + Drag: Move Selection<br>
+Click Frame : Center on frame<br>
+<hr>
+Main View:<br>
+space: Freeze capturing<br>
+x : Toggle View<br>
+/ : Rotate connection port % 3<br>
+Ctrl + Drag: Pan<br>
+Click + Drag: Pan<br>
+Enter: Capture selection/Next N Frames
+<hr>
+<table style="width:100%">
+<tr>
+<td width="50%" align="left"><a href='javascript:void(0)' onclick="ShowHelp(0);">Close</a></td>
+</tr>
+</table>
+</div>
 <canvas id="DetailedView" height="100%" style="background-color:#474747;margin:0px;padding:0px;"></canvas>
 <script>
 "use strict"
@@ -256,6 +276,11 @@ var KeyShiftDown = 0;
 var KeyCtrlDown = 0;
 
 var IsFrozen = 0;
+
+var PresetToLoad;
+var PresetToLoadRO = 0;
+var HelpFade;
+
 
 TimerArray.push(Empty); // 0 is root of tree
 
@@ -1561,6 +1586,7 @@ function DrawMessage()
 
 	var Text = MessageText;
 	var X = nWidth / 2;
+
 	var Y = nHeight / 2;
 	context.font = FontFlash;
 	context.textAlign = 'center';
@@ -1570,6 +1596,16 @@ function DrawMessage()
 	{
 		context.fillText(a, X, Y);
 		Y -= 60;
+	}
+	if(!HelpFade)
+		HelpFade = new Date()
+	var HelpFadeTime = new Date() - HelpFade;
+	if(HelpFadeTime < 2000)
+	{
+		var Alpha = 1 - (HelpFadeTime/2000);
+		context.globalAlpha = Alpha;
+		context.fillText("Press 'h' for help", X, 200);
+		context.globalAlpha = 1;
 	}
 
 	if(Text != "")
@@ -3981,6 +4017,7 @@ function MouseWheel(e)
 function KeyUp(evt)
 {
 	var k = evt.keyCode;
+	console.log('key is ' + k);
 	var InputActive = SubMenuActive == SubMenuTimers;
 	if(!InputActive)
 	{
@@ -4013,6 +4050,10 @@ function KeyUp(evt)
 		{
 			Capture();
 		}
+		if(k == 72)
+		{
+			ShowHelp(0, 1);
+		}
 
 
 	}
@@ -4030,6 +4071,7 @@ function KeyUp(evt)
 		MouseDragActiveXStart = MouseDragActiveXEnd = -1;
 		Settings.SortColumn = 0;
 		Settings.SortColumnMouseOver = "";
+		ShowHelp(0);
 	}
 
 	if(evt.keyCode == 17)
@@ -4420,8 +4462,33 @@ function DrawCounterView(View, LocalMouseX, LocalMouseY, SubIndex)
 	ProfileLeave();
 }
 
-var PresetToLoad;
-var PresetToLoadRO = 0;
+function ShowHelp(Show, Toggle)
+{
+	var HelpWindow = document.getElementById('helpwindow');
+	if(Toggle)
+	{
+		if(HelpWindow.style['display'] == 'block')
+		{
+			HelpWindow.style['display'] = 'none';
+		}
+		else
+		{
+			HelpWindow.style['display'] = 'block';			
+		}
+	}
+	else
+	{
+		if(Show)
+		{
+			HelpWindow.style['display'] = 'block';
+		}
+		else
+		{
+			HelpWindow.style['display'] = 'none';
+		}
+	}
+}
+
 function ParseUrl()
 {
 	var path = window.location.pathname;
