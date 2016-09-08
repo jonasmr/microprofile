@@ -214,6 +214,7 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileEnableMetaCounter(c) do{}while(0)
 #define MicroProfileDisableMetaCounter(c) do{}while(0)
 #define MicroProfileDumpFile(html,csv,spikecpu,spikegpu) do{} while(0)
+#define MicroProfileDumpFileImmediately(html,csv,gfcontext) do{} while(0)
 #define MicroProfileWebServerPort() ((uint32_t)-1)
 #define MicroProfileStartContextSwitchTrace() do{}while(0)
 #define MicroProfileDumpFile(html,csv,cpu, gpu) do{} while(0)
@@ -593,6 +594,7 @@ MICROPROFILE_API void MicroProfileSetCurrentNodeD3D12(uint32_t nNode);
 #endif
 
 MICROPROFILE_API void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, float fGpuSpike);
+MICROPROFILE_API void MicroProfileDumpFileImmediately(const char* pHtml, const char* pCsv, void* pGpuContext);
 MICROPROFILE_API uint32_t MicroProfileWebServerPort();
 
 #if MICROPROFILE_GPU_TIMERS
@@ -1492,6 +1494,8 @@ inline uint64_t MicroProfileGetCurrentThreadId()
 	return tid;
 }
 
+#include <stdlib.h>
+
 #define MP_BREAK() __builtin_trap()
 #define MP_THREAD_LOCAL __thread
 #define MP_STRCASECMP strcasecmp
@@ -1679,6 +1683,7 @@ struct MicroProfileFrameState
 	int64_t nFrameStartCpu;
 	int64_t nFrameStartGpu;
 	uint64_t nFrameId;
+	uint32_t nGpuPending;
 	uint32_t nLogStart[MICROPROFILE_MAX_THREADS];
 };
 
@@ -2663,6 +2668,7 @@ uint16_t MicroProfileGetGroup(const char* pGroup, MicroProfileTokenType Type)
 	if(S.nStartEnabled)
 	{
 		S.nActiveGroupWanted |= (1ll << (uint64_t)S.nGroupCount);
+		S.nActiveGroup |= (1ll << (uint64_t)S.nGroupCount);
 	}
 	nGroupIndex = S.nGroupCount++;
 	S.nGroupMask = (S.nGroupMask<<1)|1;
@@ -3431,6 +3437,8 @@ void MicroProfileFlip(void* pContext)
 		MicroProfileFrameState* pFramePut = &S.Frames[S.nFramePut];
 		MicroProfileFrameState* pFrameCurrent = &S.Frames[S.nFrameCurrent];
 		MicroProfileFrameState* pFrameNext = &S.Frames[nFrameNext];
+		pFrameCurrent->nGpuPending = 0;
+		pFramePut->nGpuPending = 1;
 		
 		pFramePut->nFrameStartCpu = MP_TICK();
 		
@@ -3806,11 +3814,13 @@ void MicroProfileSetEnableAllGroups(int bEnable)
 	{
 		S.nActiveGroupWanted = S.nGroupMask;
 		S.nStartEnabled = 1;
+		MicroProfileFlipEnabled();
 	}
 	else
 	{
 		S.nActiveGroupWanted = 0;
 		S.nStartEnabled = 0;
+		MicroProfileFlipEnabled();
 	}
 }
 void MicroProfileEnableCategory(const char* pCategory, int bEnabled)
@@ -4142,6 +4152,49 @@ uint32_t MicroProfileWebServerPort()
 	return S.nWebServerPort;
 }
 
+void MicroProfileDumpFileImmediately(const char* pHtml, const char* pCsv, void* pGpuContext)
+{
+	for(uint32_t i = 0; i < 2; ++i)
+	{
+		MicroProfileFlip(pGpuContext);
+	}
+	for(uint32_t i = 0; i < MICROPROFILE_GPU_FRAME_DELAY+1; ++i)
+	{
+		MicroProfileFlip(pGpuContext);
+	}
+
+	uint32_t nDumpMask = 0;
+	if(pHtml)
+	{
+		size_t nLen = strlen(pHtml);
+		if(nLen > sizeof(S.HtmlDumpPath)-1)
+		{
+			return;
+		}
+		memcpy(S.HtmlDumpPath, pHtml, nLen+1);
+
+		nDumpMask |= 1;
+	}
+	if(pCsv)
+	{
+		size_t nLen = strlen(pCsv);
+		if(nLen > sizeof(S.CsvDumpPath)-1)
+		{
+			return;
+		}
+		memcpy(S.CsvDumpPath, pCsv, nLen+1);
+		nDumpMask |= 2;
+	}
+	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+	S.nDumpFileNextFrame = nDumpMask;
+	S.nDumpSpikeMask = 0;
+	S.nDumpFileCountDown = 0;
+
+	MicroProfileDumpToFile();
+
+
+
+}
 void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, float fGpuSpike)
 {
 	S.fDumpCpuSpike = fCpuSpike;
@@ -4175,9 +4228,12 @@ void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, 
 	}
 	else
 	{
+		std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 		S.nDumpFileNextFrame = nDumpMask;
 		S.nDumpSpikeMask = 0;
 		S.nDumpFileCountDown = 0;
+
+		MicroProfileDumpToFile();
 	}
 }
 
