@@ -3388,16 +3388,19 @@ function ProcessFrame(F)
 {
 	if(F.fr)
 	{
-		IsFrozen = 1;
+		IsFrozen = 10;//allow it to stabilize after freezing
 		return;
 	}
-	IsFrozen = 0;
+	if(IsFrozen)
+	{
+		IsFrozen--;
+	}
 	var TriggerAutoCapture = 0;
 	PushIntoArray(FrameData.Time, F.t);
 	PushIntoArray(FrameData.Ids, F.f);
-	PushIntoArray(FrameData.Frozen, F.wasfrozen ? 1 : 0);
+	PushIntoArray(FrameData.Frozen, IsFrozen ? 1 : 0);
 	var CaptureId = null;
-	var AutoCapture = AutoCaptureEnabled && !F.wasfrozen;
+	var AutoCapture = AutoCaptureEnabled && !IsFrozen;
 	AggregateCurrent = F.a;
 	if(F.m != Settings.ViewActive)
 	{

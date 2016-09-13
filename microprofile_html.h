@@ -252,7 +252,7 @@ const char g_MicroProfileHtml_end_0[] =
 "\n"
 "var Initialized = 0;\n"
 "var fDetailedOffset = Frames[0].framestart;\n"
-"var fDetailedRange = Frames[0].frameend - fDetailedOffset;\n"
+"var fDetailedRange = Frames[Frames.length-1].frameend - fDetailedOffset;\n"
 "var nWidth = CanvasDetailedView.width;\n"
 "var nHeight = CanvasDetailedView.height;\n"
 "var ReferenceTime = 33;\n"
@@ -1664,11 +1664,11 @@ const char g_MicroProfileHtml_end_0[] =
 "	}\n"
 "	ProfileLeave();\n"
 "}\n"
-"function TimeToMsString(Time)\n"
-"";
+"function TimeToM";
 
 const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
 const char g_MicroProfileHtml_end_1[] =
+"sString(Time)\n"
 "{\n"
 "	return Time.toFixed(3) + \"ms\";\n"
 "}\n"
@@ -2913,14 +2913,14 @@ const char g_MicroProfileHtml_end_1[] =
 "					RangeCpuNext.Begin = TimeIn;\n"
 "					RangeCpuNext.End = TimeOut;\n"
 "					RangeCpuNext.Thread = ThreadId;\n"
-"					RangeGpuNext.Begin = RangeGpuNext.End = -1;\n"
-"				}\n"
-"			}\n"
-"	";
+"					RangeGpuNext.Begin = RangeGpuNext.End = -1";
 
 const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
 const char g_MicroProfileHtml_end_2[] =
-"	}\n"
+";\n"
+"				}\n"
+"			}\n"
+"		}\n"
 "	}\n"
 "	ProfileLeave();\n"
 "}\n"
@@ -4322,11 +4322,11 @@ const char g_MicroProfileHtml_end_2[] =
 "\n"
 "function MouseSortClick()\n"
 "{\n"
-"	if(SortColumnMou";
+"	if";
 
 const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
 const char g_MicroProfileHtml_end_3[] =
-"seOverNext)\n"
+"(SortColumnMouseOverNext)\n"
 "	{\n"
 "		if(SortColumnMouseOverNext == SortColumnMouseOver)\n"
 "		{\n"
@@ -8861,16 +8861,19 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "{\n"
 "	if(F.fr)\n"
 "	{\n"
-"		IsFrozen = 1;\n"
+"		IsFrozen = 10;//allow it to stabilize after freezing\n"
 "		return;\n"
 "	}\n"
-"	IsFrozen = 0;\n"
+"	if(IsFrozen)\n"
+"	{\n"
+"		IsFrozen--;\n"
+"	}\n"
 "	var TriggerAutoCapture = 0;\n"
 "	PushIntoArray(FrameData.Time, F.t);\n"
 "	PushIntoArray(FrameData.Ids, F.f);\n"
-"	PushIntoArray(FrameData.Frozen, F.wasfrozen ? 1 : 0);\n"
+"	PushIntoArray(FrameData.Frozen, IsFrozen ? 1 : 0);\n"
 "	var CaptureId = null;\n"
-"	var AutoCapture = AutoCaptureEnabled && !F.wasfrozen;\n"
+"	var AutoCapture = AutoCaptureEnabled && !IsFrozen;\n"
 "	AggregateCurrent = F.a;\n"
 "	if(F.m != Settings.ViewActive)\n"
 "	{\n"
@@ -9857,12 +9860,12 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "			{\n"
 "				var CounterHistory = Counter.counterhistory;\n"
 "				var Prc = CounterHistory.prc;\n"
-"				context.fillStyle = \'cyan\';\n"
-"				context.strokeStyle = \'c";
+"				cont";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-"yan\';\n"
+"ext.fillStyle = \'cyan\';\n"
+"				context.strokeStyle = \'cyan\';\n"
 "				context.globalAlpha = 0.5;\n"
 "				context.beginPath();\n"
 "				var x = X;\n"

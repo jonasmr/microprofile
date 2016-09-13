@@ -238,7 +238,7 @@ var g_Msg = '0';
 
 var Initialized = 0;
 var fDetailedOffset = Frames[0].framestart;
-var fDetailedRange = Frames[0].frameend - fDetailedOffset;
+var fDetailedRange = Frames[Frames.length-1].frameend - fDetailedOffset;
 var nWidth = CanvasDetailedView.width;
 var nHeight = CanvasDetailedView.height;
 var ReferenceTime = 33;
