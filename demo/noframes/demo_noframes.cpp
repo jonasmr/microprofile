@@ -24,9 +24,9 @@
 #include <string>
 #include <thread>
 #include <atomic>
+#include "unistd.h"
 
 
-#define MICROPROFILE_IMPL
 #include "microprofile.h"
 
 uint32_t g_nQuit;
@@ -35,7 +35,7 @@ void StopFakeWork();
 
 void Run2Sec()
 {
-	uint64_t nStart = MP_TICK();
+	uint64_t nStart = MicroProfileTick();
 	uint64_t nTicksPerSecond = MicroProfileTicksPerSecondCpu();
 	float fTime = 0;
 	do
@@ -52,7 +52,7 @@ void Run2Sec()
 			usleep(250);
 		}
 		usleep(3000);
-		uint64_t nEnd = MP_TICK();
+		uint64_t nEnd = MicroProfileTick();
 		fTime = (nEnd - nStart) / (float)nTicksPerSecond;
 		printf("\r%4.2f", fTime);		
 	}while(fTime < 2);

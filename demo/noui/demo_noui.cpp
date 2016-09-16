@@ -24,6 +24,7 @@
 #include <string>
 #include <thread>
 #include <atomic>
+#include "math.h"
 
 #if defined(__APPLE__) || defined(__linux__)
 #include <unistd.h>

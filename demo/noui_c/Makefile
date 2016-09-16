@@ -16,7 +16,7 @@ CPPFLAGS=$(CFLAGS)
 CPPFLAGS+=-stdlib=libc++ -std=c++11
 
 
-CPP_SOURCES = microprofile.cpp
+CPP_SOURCES = microprofile.cpp ../../microprofile.cpp
 C_SOURCES = demo_noui.c
 
 TARGET=demo_noui_c
