@@ -8,5 +8,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="noui_d3d12.cpp" />
+    <ClCompile Include="..\..\microprofile.cpp" />
   </ItemGroup>
 </Project>

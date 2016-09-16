@@ -3,6 +3,7 @@
   <ItemGroup>
     <ClCompile Include="demo_noui_d3d11.cpp" />
     <ClCompile Include="fakework.cpp" />
+    <ClCompile Include="..\..\microprofile.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\microprofile.h" />

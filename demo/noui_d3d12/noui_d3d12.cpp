@@ -9,8 +9,6 @@
 #include <string>
 #include <wrl.h>
 
-#define MICROPROFILE_GPU_TIMERS_D3D12
-#define MICROPROFILE_IMPL
 #include "microprofile.h"
 
 

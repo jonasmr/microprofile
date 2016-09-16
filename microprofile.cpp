@@ -884,6 +884,8 @@ MICROPROFILE_DEFINE(g_MicroProfileClear, "MicroProfile", "Clear", MP_GREEN4);
 MICROPROFILE_DEFINE(g_MicroProfileAccumulate, "MicroProfile", "Accumulate", MP_GREEN4);
 MICROPROFILE_DEFINE(g_MicroProfileContextSwitchSearch,"MicroProfile", "ContextSwitchSearch", MP_GREEN4);
 MICROPROFILE_DEFINE(g_MicroProfileGpuSubmit, "MicroProfile", "MicroProfileGpuSubmit", MP_HOTPINK2);
+MICROPROFILE_DEFINE(g_MicroProfileSendLoop, "MicroProfile", "MicroProfileSocketSendLoop", MP_GREEN4);
+
 
 inline std::recursive_mutex& MicroProfileMutex()
 {
@@ -4202,7 +4204,7 @@ void* MicroProfileSocketSenderThread(void*)
 			MicroProfileSleep(100);
 			continue;
 		}
-		MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSocketSendLoop", MP_GREEN4);
+		
 		uint32_t nEnd = MICROPROFILE_WEBSOCKET_BUFFER_SIZE;
 		uint32_t nGet = S.WSBuf.nSendGet.load();
 		uint32_t nPut = S.WSBuf.nSendPut.load();
@@ -4222,6 +4224,7 @@ void* MicroProfileSocketSenderThread(void*)
 
 		if(nSendAmount)
 		{
+			MICROPROFILE_SCOPE(g_MicroProfileSendLoop);
 			if(!MicroProfileSocketSend2(S.WebSockets[0], &S.WSBuf.SendBuffer[nSendStart], nSendAmount))
 			{
 				S.nSocketFail = 1;
@@ -6237,9 +6240,9 @@ void MicroProfileStartContextSwitchTrace(){}
 #endif
 
 
-
-
 #if MICROPROFILE_GPU_TIMERS_D3D11
+#include <d3d11_1.h>
+
 uint32_t MicroProfileGpuInsertTimeStamp(void* pContext_)
 {
 	MicroProfileD3D11Frame& Frame = S.pGPU->m_QueryFrames[S.pGPU->m_nQueryFrame];

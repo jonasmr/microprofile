@@ -166,6 +166,7 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\microprofile.cpp" />
     <ClCompile Include="demo_noui.cpp" />
     <ClCompile Include="fakework.cpp" />
     <ClCompile Include="test.c" />
