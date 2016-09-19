@@ -6,7 +6,8 @@
 #include <thread>
 #include <mutex>
 #include <atomic>
-
+#include <stdio.h>
+#include <ctype.h>
 
 #define MICROPROFILE_MAX_COUNTERS 512
 #define MICROPROFILE_MAX_COUNTER_NAME_CHARS (MICROPROFILE_MAX_COUNTERS*16)
@@ -165,6 +166,8 @@ typedef uint64_t MicroProfileThreadIdType;
 #ifdef MICROPROFILE_XBOXONE
 #define MICROPROFILE_XBOXONE_DECL
 #include "microprofile_xboxone.h"
+#else
+#include <d3d11_1.h>
 #endif
 
 
@@ -6241,7 +6244,6 @@ void MicroProfileStartContextSwitchTrace(){}
 
 
 #if MICROPROFILE_GPU_TIMERS_D3D11
-#include <d3d11_1.h>
 
 uint32_t MicroProfileGpuInsertTimeStamp(void* pContext_)
 {
