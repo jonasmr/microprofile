@@ -1,3 +1,4 @@
+#pragma once
 // This is free and unencumbered software released into the public domain.
 // Anyone is free to copy, modify, publish, use, compile, sell, or
 // distribute this software, either in source code form or as a compiled
@@ -21,6 +22,9 @@
 //
 // ***********************************************************************
 
+#ifdef MICROPROFILE_USE_CONFIG
+#include "microprofile.config.h"
+#endif
 
 #ifndef MICROPROFILE_ENABLED
 #define MICROPROFILE_ENABLED 1

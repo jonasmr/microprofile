@@ -1,3 +1,4 @@
+#define MICROPROFILE_IMPL
 #include "microprofile.h"
 #if MICROPROFILE_ENABLED
 
@@ -167,7 +168,9 @@ typedef uint64_t MicroProfileThreadIdType;
 #define MICROPROFILE_XBOXONE_DECL
 #include "microprofile_xboxone.h"
 #else
+#ifdef _WIN32
 #include <d3d11_1.h>
+#endif
 #endif
 
 
@@ -4595,8 +4598,12 @@ typedef bool (*MicroProfileOnSettings)(const char* pName, uint32_t nNameLen, con
 #ifndef MICROPROFILE_SETTINGS_FILE_PATH
 #define MICROPROFILE_SETTINGS_FILE_PATH ""
 #endif
+#ifndef MICROPROFILE_SETTINGS_FILE
 #define MICROPROFILE_SETTINGS_FILE MICROPROFILE_SETTINGS_FILE_PATH "mppresets.cfg"
+#endif
+#ifndef MICROPROFILE_SETTINGS_FILE_BUILTIN
 #define MICROPROFILE_SETTINGS_FILE_BUILTIN MICROPROFILE_SETTINGS_FILE_PATH "mppresets.builtin.cfg"
+#endif
 #define MICROPROFILE_SETTINGS_FILE_TEMP MICROPROFILE_SETTINGS_FILE ".tmp"
 
 template<typename T>
