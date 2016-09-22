@@ -2478,6 +2478,19 @@ const char g_MicroProfileHtml_end_1[] =
 "var FormatCounterBytes = 1;\n"
 "var FormatCounterBytesExt = [ \"b\",\"kb\",\"mb\",\"gb\",\"tb\",\"pb\", \"eb\",\"zb\", \"yb\" ];\n"
 "\n"
+"function ShiftRight10(v)\n"
+"{\n"
+"	if(v > 1024)\n"
+"	{\n"
+"		return v / 1024.0;\n"
+"	}\n"
+"	else\n"
+"	{\n"
+"		return v >> 10;\n"
+"	}\n"
+"}\n"
+"\n"
+"\n"
 "function FormatCounter(Format, Counter)\n"
 "{\n"
 "	if(!Counter)\n"
@@ -2528,11 +2541,11 @@ const char g_MicroProfileHtml_end_1[] =
 "	{\n"
 "		var Shift = 0;\n"
 "		var Divisor = 1;\n"
-"		var CountShifted = Counter >> 10;\n"
+"		var CountShifted = ShiftRight10(Counter);\n"
 "		while(CountShifted)\n"
 "		{\n"
 "			Divisor <<= 10;\n"
-"			CountShifted >>= 10;\n"
+"			CountShifted = ShiftRight10(CountShifted);\n"
 "			Shift++;\n"
 "		}\n"
 "		if(Shift)\n"
@@ -2910,14 +2923,14 @@ const char g_MicroProfileHtml_end_1[] =
 "				if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < fOffsetY+CSwitchHeight && DetailedViewMouseY >= fOffsetY)\n"
 "				{\n"
 "					nHoverCSCpuNext = ActiveCpu;\n"
-"					RangeCpuNext.Begin = TimeIn;\n"
-"					RangeCpuNext.End = TimeOut;\n"
-"					RangeCpuNext.Thread = ThreadId;\n"
-"					RangeGpuNext.Begin = RangeGpuNext.End = -1";
+"					RangeCpuNext.B";
 
 const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
 const char g_MicroProfileHtml_end_2[] =
-";\n"
+"egin = TimeIn;\n"
+"					RangeCpuNext.End = TimeOut;\n"
+"					RangeCpuNext.Thread = ThreadId;\n"
+"					RangeGpuNext.Begin = RangeGpuNext.End = -1;\n"
 "				}\n"
 "			}\n"
 "		}\n"
@@ -4313,7 +4326,11 @@ const char g_MicroProfileHtml_end_2[] =
 "	}\n"
 "	else if(evt.target = CanvasHistory)\n"
 "	{\n"
-"		var Rect = CanvasHistory.getBoundingClientRect();\n"
+"		var Rect = Canv";
+
+const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
+const char g_MicroProfileHtml_end_3[] =
+"asHistory.getBoundingClientRect();\n"
 "		HistoryViewMouseX = x;\n"
 "		HistoryViewMouseY = y;\n"
 "	}\n"
@@ -4322,11 +4339,7 @@ const char g_MicroProfileHtml_end_2[] =
 "\n"
 "function MouseSortClick()\n"
 "{\n"
-"	if";
-
-const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
-const char g_MicroProfileHtml_end_3[] =
-"(SortColumnMouseOverNext)\n"
+"	if(SortColumnMouseOverNext)\n"
 "	{\n"
 "		if(SortColumnMouseOverNext == SortColumnMouseOver)\n"
 "		{\n"
@@ -7093,7 +7106,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "		{\n"
 "			MSG(\"Paused: Enable groups in \'Control\' menu to unpause\");\n"
 "		}\n"
-"		if(TimersEnabled == 0)\n"
+"		if(TimersEnabled == 0 && Settings.ViewActive != VIEW_COUNTERS)\n"
 "		{\n"
 "			MSG(\"Select Timers in \'Timers\' menu\");\n"
 "		}\n"
@@ -8305,12 +8318,12 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "		context.fillRect(X, Y, Width, BoxHeight);\n"
 "		context.fillStyle = color;\n"
 "		if(!Indent) Indent = 0;\n"
-"		context.fillText(Name, X + Indent*FontWidth, Y+BoxHeight-FontAscent);\n"
-"		nColorIndex =";
+"		context.fillText(Name, X + Indent*FontWidth, ";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-" 1-nColorIndex;\n"
+"Y+BoxHeight-FontAscent);\n"
+"		nColorIndex = 1-nColorIndex;\n"
 "		Y += BoxHeight;\n"
 "		return bMouseIn;\n"
 "	}\n"
@@ -9680,6 +9693,19 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	}\n"
 "}\n"
 "\n"
+"\n"
+"function ShiftRight10(v)\n"
+"{\n"
+"	if(v > 1024)\n"
+"	{\n"
+"		return v / 1024.0;\n"
+"	}\n"
+"	else\n"
+"	{\n"
+"		return v >> 10;\n"
+"	}\n"
+"}\n"
+"\n"
 "function FormatCounter(Format, Counter)\n"
 "{\n"
 "	if(!Counter)\n"
@@ -9730,11 +9756,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	{\n"
 "		var Shift = 0;\n"
 "		var Divisor = 1;\n"
-"		var CountShifted = Counter >> 10;\n"
+"		var CountShifted = ShiftRight10(Counter);\n"
 "		while(CountShifted)\n"
 "		{\n"
 "			Divisor <<= 10;\n"
-"			CountShifted >>= 10;\n"
+"			CountShifted = ShiftRight10(CountShifted);\n"
 "			Shift++;\n"
 "		}\n"
 "		if(Shift)\n"
@@ -9853,18 +9879,18 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "			else\n"
 "			{\n"
 "				X += CounterLimitWidth;\n"
-"				X += CounterWidth + 10;\n"
+"				X";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+" += CounterWidth + 10;\n"
 "			}\n"
 "			\n"
 "			if(Counter.minvalue != Counter.maxvalue)\n"
 "			{\n"
 "				var CounterHistory = Counter.counterhistory;\n"
 "				var Prc = CounterHistory.prc;\n"
-"				cont";
-
-const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
-const char g_MicroProfileHtmlLive_begin_3[] =
-"ext.fillStyle = \'cyan\';\n"
+"				context.fillStyle = \'cyan\';\n"
 "				context.strokeStyle = \'cyan\';\n"
 "				context.globalAlpha = 0.5;\n"
 "				context.beginPath();\n"

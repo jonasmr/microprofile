@@ -1624,7 +1624,7 @@ function DrawMessage()
 		{
 			MSG("Paused: Enable groups in 'Control' menu to unpause");
 		}
-		if(TimersEnabled == 0)
+		if(TimersEnabled == 0 && Settings.ViewActive != VIEW_COUNTERS)
 		{
 			MSG("Select Timers in 'Timers' menu");
 		}
@@ -4207,6 +4207,19 @@ function DrawPlotf(Canvas)
 	}
 }
 
+
+function ShiftRight10(v)
+{
+	if(v > 1024)
+	{
+		return v / 1024.0;
+	}
+	else
+	{
+		return v >> 10;
+	}
+}
+
 function FormatCounter(Format, Counter)
 {
 	if(!Counter)
@@ -4257,11 +4270,11 @@ function FormatCounter(Format, Counter)
 	{
 		var Shift = 0;
 		var Divisor = 1;
-		var CountShifted = Counter >> 10;
+		var CountShifted = ShiftRight10(Counter);
 		while(CountShifted)
 		{
 			Divisor <<= 10;
-			CountShifted >>= 10;
+			CountShifted = ShiftRight10(CountShifted);
 			Shift++;
 		}
 		if(Shift)
