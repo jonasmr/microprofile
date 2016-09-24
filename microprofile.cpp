@@ -1080,6 +1080,7 @@ MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 		memset(pLog, 0, sizeof(*pLog));
 		S.nMemUsage += sizeof(MicroProfileThreadLog);
 		pLog->nLogIndex = S.nNumLogs;
+		MP_ASSERT(S.nNumLogs < MICROPROFILE_MAX_THREADS);
 		S.Pool[S.nNumLogs++] = pLog;	
 	}
 	int len = (int)strlen(pName);
