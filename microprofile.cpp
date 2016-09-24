@@ -4111,11 +4111,13 @@ enum
 
 enum
 {
-	VIEW_GRAPH = 0,
-	VIEW_BAR = 1,
-	VIEW_COUNTERS = 2,
-	VIEW_SINGLE= 3
-
+	VIEW_GRAPH_SPLIT = 0,
+	VIEW_GRAPH = 1,
+	VIEW_BAR = 2,
+	VIEW_BAR_ALL = 3,
+	VIEW_BAR_SINGLE = 4,
+	VIEW_COUNTERS = 5,
+	VIEW_SIZE = 6,
 };
 void MicroProfileSocketDumpState()
 {

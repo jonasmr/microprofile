@@ -8,7 +8,7 @@ UNAME_S := $(shell uname -s)
 
 CFLAGS=-Wno-c++11-extensions -I../..
 #CFLAGS+=-fsanitize=undefined-trap -fsanitize-undefined-trap-on-error
-CFLAGS+=-Wall -DMICROPROFILE_UI=0 -DMICROPROFILE_WEBSERVER=1 -DMICROPROFILE_GPU_TIMERS=0
+CFLAGS+=-Wall -DMICROPROFILE_GPU_TIMERS=0
 CFLAGS+=-g -O0 -Wno-invalid-offsetof -Wall -Werror
 
 #CFLAGS+=-DMICROPROFILE_ENABLED=0
@@ -16,10 +16,10 @@ CPPFLAGS=$(CFLAGS)
 CPPFLAGS+=-stdlib=libc++ -std=c++11
 
 
-CPP_SOURCES = microprofile.cpp ../../microprofile.cpp
-C_SOURCES = demo_noui.c
+CPP_SOURCES = fakework.cpp demo_noframes.cpp ../../microprofile.cpp
+C_SOURCES = 
 
-TARGET=demo_noui_c
+TARGET=demo_noframes
 CC=clang
 CPP=clang++
 LD=clang++
