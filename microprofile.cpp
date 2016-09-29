@@ -1820,9 +1820,11 @@ void MicroProfileGpuSubmit(int nQueue, uint64_t nWork)
 	{
 		nCount = pGpuLog->Log[nStart];
 	}
+	MP_ASSERT(nCount < MICROPROFILE_GPU_BUFFER_SIZE);
 	nStart++;
 	for(int32_t i = 0; i < nCount; ++i)
 	{
+		MP_ASSERT(nStart< MICROPROFILE_GPU_BUFFER_SIZE);
 		MicroProfileLogEntry LE = pGpuLog->Log[nStart++];
 		MicroProfileLogPut(LE, pQueueLog);
 	}
