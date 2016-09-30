@@ -2,6 +2,7 @@
 
 Microprofile is a embeddable profiler in a few files, written in C++
 Microprofile is mirrored on 
+
 * github: https://github.com/jonasmr/microprofile.git
 * bitbucket: https://bitbucket.org/jonasmeyer/microprofile-git.git
 
@@ -30,6 +31,11 @@ MicroProfile can be used without calling MicroProfileFlip, in which case you sho
 # Gpu Timing
 Gpu timers work like normal timers, except they are all put in a shared group, "GPU". To use them insert `MICROPROFILE_SCOPEGPUI()`.
 Gpu timers also supports multithreaded renderers - Please refer to demo_nouid3d12 for an example of how to use this.
+Gpu timers are available for the following apis:
+
+* OpenGL
+* D3D11
+* D3D12
 
 # Counters
 
@@ -69,8 +75,6 @@ Capturing in live view provides a complete view of what is recorded in the ring 
 * noui_d3d11: frame based implementation, with live view and D3D11 gpu timers
 * noui_d3d12: frame based implementation, with live view and D3D12 gpu timers
 * noui_d3d12_multithreading: frame based implementation, with live view and D3D12 gpu timers, with gpu timings generated from multiple threads.
-* ui: inengine ui, deprecated, no longer supported.
-
 
 # Dependencies
 Microprofile supports generating compressed captures using miniz(http:/code.google.com/miniz). 
@@ -88,18 +92,25 @@ MicroProfile uses a few large allocations.
 		** A state buffer for loading/saving settings.
 	* one small allocation for receiving packets from the sender
 
+
  To change how microprofile allocates memory, define these macros when compiling microprofile implementation
  	* MICROPROFILE_ALLOC
  	* MICROPROFILE_REALLOC
  	* MICROPROFILE_FREE
 
+# microprofile.config.h
+Microprofile has lots of predefined macros that can be change. To modify this, make sure `MICROPROFILE_USE_CONFIG` is defined, and put the changed defines in `microprofile.config.h`. 
 
-# Known Issues
-There are a few minor known issues:
+# Known Issues & Limitations
+There are a few minor known issues & Limitations:
 - Currently the relative placement of gpu timings vs the cpu timings tend to slide a bit, and thus the relative position of GPU timestamps and CPU timestamp are not correct.
 - Chrome has an internal limit to how big a page it will cache. if you generate a capture file that is larger than 32mb, chrome will refuse to cache it. This causes the page to redownload when you save it, which is pretty catastrophic, since it will generate a capture. To mitigate this:
   - Use miniz. This drastically reduces the size of captures, to the point where its no longer a problem
   - If you still have issues, increase chromes disk cache size.
+- If you're dynamically creating threads, you must call `MicroProfileOnThreadExit` when threads exit, to reuse the thread log objects
+
+# Console support
+Microprofile supports the two major consoles - Search for 'microprofile' in the closed platform forums.
 
 # License
 Licensed using unlicense.org
