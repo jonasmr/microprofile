@@ -95,12 +95,13 @@ MicroProfile uses a few large allocations.
 * one small allocation for receiving packets from the sender
 
 To change how microprofile allocates memory, define these macros when compiling microprofile implementation
+
 * MICROPROFILE_ALLOC
 * MICROPROFILE_REALLOC
 * MICROPROFILE_FREE
 
 # microprofile.config.h
-Microprofile has lots of predefined macros that can be change. To modify this, make sure `MICROPROFILE_USE_CONFIG` is defined, and put the changed defines in `microprofile.config.h`. 
+Microprofile has lots of predefined macros that can be changed. To modify this, make sure `MICROPROFILE_USE_CONFIG` is defined, and put the changed defines in `microprofile.config.h`. 
 
 # Known Issues & Limitations
 There are a few minor known issues & Limitations:
