@@ -6776,7 +6776,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "						TimerState.tooltipysoft = TimerState.tooltipy;\n"
 "					}\n"
 "					var Y = TimerState.tooltipysoft;\n"
-"					var str = (\'\' + T.name) + \"  \" +(\'\' + FormatTime(Time[index]) + \'ms\');\n"
+"					var str = \'\' + FormatTime(Time[index]) + \'ms\';\n"
 "					var w = context.measureText(str, XPos, Y).width;\n"
 "					var X = Math.max(0, XPos - w);\n"
 "					context.fillStyle = \'black\';\n"
@@ -6812,12 +6812,12 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "		var idx = GetTimer(GraphKey);\n"
 "		var T = TimerArray[idx];\n"
 "		var TimerState = TimerMap[GraphKey];\n"
-"		var Time = TimerState.Tim";
+"		var Time = TimerState.Time;\n"
+"		var color = TimerAr";
 
 const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
 const char g_MicroProfileHtmlLive_begin_1[] =
-"e;\n"
-"		var color = TimerArray[idx].color;\n"
+"ray[idx].color;\n"
 "		var X = w - Time.length*fWidth;\n"
 "		var Y = h;\n"
 "		context.globalAlpha = 0.1;\n"
@@ -6888,6 +6888,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "				context.textAlign=\'right\';\n"
 "				context.fillText(FormatTime(Reference) + \'ms\', nWidth, hstart + FontHeight);\n"
 "				context.textAlign=\'left\';\n"
+"				context.fillText(TimerArray[idx].name, 0, hstart + FontHeight);\n"
 "\n"
 "				if(HighlightFrame >= 0)\n"
 "				{\n"
@@ -8312,12 +8313,12 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	MoveFilterInputDiv(SizeInfo.x, SizeInfo.y, SizeInfo.w);\n"
 "	Y += 35;\n"
 "\n"
-"	var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;\n"
-"	var bgco";
+"	var bMouseIn = Mous";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-"lor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];\n"
+"eY >= Y && MouseY < Y + BoxHeight;\n"
+"	var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];\n"
 "	var TextY = Y+BoxHeight-FontAscent;\n"
 "	var YClear = Y;\n"
 "	var TextYClear = TextY;\n"
@@ -9851,12 +9852,12 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	context.font = Font;\n"
 "	for(i = 0; i < PlotfArray.length; i++)\n"
 "	{\n"
-"		var nWidth = context.measureText(PlotfArray[i]).width;\n"
-"		WidthArray[i] = nWidth;";
+"		var nWidth = context.measureText(Plo";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-"\n"
+"tfArray[i]).width;\n"
+"		WidthArray[i] = nWidth;\n"
 "		if(nWidth > nMaxWidth)\n"
 "		{\n"
 "			nMaxWidth = nWidth;\n"

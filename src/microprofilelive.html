@@ -1294,7 +1294,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 						TimerState.tooltipysoft = TimerState.tooltipy;
 					}
 					var Y = TimerState.tooltipysoft;
-					var str = ('' + T.name) + "  " +('' + FormatTime(Time[index]) + 'ms');
+					var str = '' + FormatTime(Time[index]) + 'ms';
 					var w = context.measureText(str, XPos, Y).width;
 					var X = Math.max(0, XPos - w);
 					context.fillStyle = 'black';
@@ -1402,6 +1402,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 				context.textAlign='right';
 				context.fillText(FormatTime(Reference) + 'ms', nWidth, hstart + FontHeight);
 				context.textAlign='left';
+				context.fillText(TimerArray[idx].name, 0, hstart + FontHeight);
 
 				if(HighlightFrame >= 0)
 				{
