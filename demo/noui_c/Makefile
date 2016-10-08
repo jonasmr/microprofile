@@ -42,7 +42,7 @@ $(TARGET): $(C_OBJS) $(CPP_OBJS)
 
 
 clean: depend
-	rm *.o $(TARGET)
+	rm -f *.o ../../microprofile.o $(TARGET)
 
 depend: $(CPP_SOURCES) $(C_SOURCES)
 	$(CPP) -MM $(CPPFLAGS) $(CPP_SOURCES) >> .depend

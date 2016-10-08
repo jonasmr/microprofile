@@ -85,7 +85,7 @@ int main(int argc, char* argv[])
 	MICROPROFILE_COUNTER_ADD("//memory//main2/", 1000);
 	MICROPROFILE_COUNTER_ADD("//memory//main3/", 1000);
 	MICROPROFILE_COUNTER_ADD("//memory//main4/", 1000);
-	MICROPROFILE_COUNTER_ADD("//memory//main5/", 1000);
+	MICROPROFILE_COUNTER_ADD("//memory//main5/", 0xff0000000000ll);
 	MICROPROFILE_COUNTER_ADD("//memory//main6/", 1000);
 	MICROPROFILE_COUNTER_ADD("//memory//main7/", 1000);
 	MICROPROFILE_COUNTER_ADD("//memory//main8/", 1000);

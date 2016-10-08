@@ -45,8 +45,10 @@ enum
 #define MICROPROFILE_FREE(p) free(p)
 #endif
 
-#define MICROPROFILE_ALLOC_OBJECT(T) (T*)MICROPROFILE_ALLOC(sizeof(T), alignof(T))
-
+#define MP_ALLOC(nSize, nAlign) MicroProfileAllocInternal(nSize, nAlign)
+#define MP_REALLOC(p, s) MicroProfileReallocInternal(p, s)
+#define MP_FREE(p) MicroProfileFreeInternal(p)
+#define MP_ALLOC_OBJECT(T) (T*)MP_ALLOC(sizeof(T), alignof(T))
 
 
 
@@ -77,6 +79,11 @@ MicroProfileToken MicroProfileMakeToken(uint64_t nGroupMask, uint16_t nTimer);//
 
 //////////////////////////////////////////////////////////////////////////
 // platform IMPL
+void* MicroProfileAllocInternal(size_t nSize, size_t nAlign);
+void MicroProfileFreeInternal(void* pPtr);
+void* MicroProfileReallocInternal(void* pPtr, size_t nSize);
+
+
 void* MicroProfileAllocAligned(size_t nSize, size_t nAlign);
 
 #if defined(__APPLE__)
@@ -817,14 +824,14 @@ void MicroProfileThreadJoin(MicroProfileThread* pThread)
 typedef std::thread* MicroProfileThread;
 inline void MicroProfileThreadStart(MicroProfileThread* pThread, MicroProfileThreadFunc Func)
 {
-    *pThread = MICROPROFILE_ALLOC_OBJECT(std::thread);
+    *pThread = MP_ALLOC_OBJECT(std::thread);
     new (*pThread) std::thread(Func, nullptr);
 }
 inline void MicroProfileThreadJoin(MicroProfileThread* pThread)
 {
     (*pThread)->join();
     (*pThread)->~thread();
-	MICROPROFILE_FREE(*pThread);
+	MP_FREE(*pThread);
     *pThread = 0;
 }
 #endif
@@ -995,6 +1002,10 @@ void MicroProfileInit()
 		S.nJsonSettingsBufferSize = 0;
 		S.nWSWasConnected = 0;
 	}
+	MICROPROFILE_COUNTER_CONFIG("MicroProfile/Alloc/Memory", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
+	MICROPROFILE_COUNTER_CONFIG("MicroProfile/ThreadLog/Memory", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
+
+
 	if(bUseLock)
 	{
 		mutex.unlock();
@@ -1006,7 +1017,7 @@ void MicroProfileShutdown()
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 	if(S.pJsonSettings)
 	{
-		MICROPROFILE_FREE(S.pJsonSettings);
+		MP_FREE(S.pJsonSettings);
 		S.pJsonSettings = 0;
 		S.nJsonSettingsBufferSize = 0;
 	}
@@ -1079,10 +1090,13 @@ MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 	}
 	else
 	{
-		pLog = MICROPROFILE_ALLOC_OBJECT(MicroProfileThreadLog);
+		MICROPROFILE_COUNTER_ADD("MicroProfile/ThreadLog/Allocated", 1);
+		MICROPROFILE_COUNTER_ADD("MicroProfile/ThreadLog/Memory", sizeof(MicroProfileThreadLog));
+		pLog = MP_ALLOC_OBJECT(MicroProfileThreadLog);
 		memset(pLog, 0, sizeof(*pLog));
 		S.nMemUsage += sizeof(MicroProfileThreadLog);
 		pLog->nLogIndex = S.nNumLogs;
+		MP_ASSERT(S.nNumLogs < MICROPROFILE_MAX_THREADS);
 		S.Pool[S.nNumLogs++] = pLog;	
 	}
 	int len = (int)strlen(pName);
@@ -1130,7 +1144,7 @@ MicroProfileThreadLogGpu* MicroProfileThreadLogGpuAllocInternal()
 	}
 	if (!pLog)
 	{
-		pLog = MICROPROFILE_ALLOC_OBJECT(MicroProfileThreadLogGpu);
+		pLog = MP_ALLOC_OBJECT(MicroProfileThreadLogGpu);
 		int nLogIndex = S.nNumLogsGpu++;
 		MP_ASSERT(nLogIndex < MICROPROFILE_MAX_THREADS);
 		pLog->nId = nLogIndex;
@@ -1822,9 +1836,11 @@ void MicroProfileGpuSubmit(int nQueue, uint64_t nWork)
 	{
 		nCount = pGpuLog->Log[nStart];
 	}
+	MP_ASSERT(nCount < MICROPROFILE_GPU_BUFFER_SIZE);
 	nStart++;
 	for(int32_t i = 0; i < nCount; ++i)
 	{
+		MP_ASSERT(nStart< MICROPROFILE_GPU_BUFFER_SIZE);
 		MicroProfileLogEntry LE = pGpuLog->Log[nStart++];
 		MicroProfileLogPut(LE, pQueueLog);
 	}
@@ -1909,6 +1925,77 @@ int MicroProfileIsFrozen()
 int MicroProfileEnabled()
 {
 	return S.nActiveGroup != 0;
+}
+void* MicroProfileAllocInternal(size_t nSize, size_t nAlign)
+{
+	nAlign = MicroProfileMax(4*sizeof(uint32_t), nAlign);
+	nSize += nAlign;
+	intptr_t nPtr = (intptr_t)MICROPROFILE_ALLOC(nSize, nAlign);
+	nPtr += nAlign;
+	uint32_t* pVal = (uint32_t*)nPtr;
+	MP_ASSERT(nSize < 0xffffffff);
+	MP_ASSERT(nAlign < 0xffffffff);
+	pVal[-1] = (uint32_t)nSize;
+	pVal[-2] = (uint32_t)nAlign;
+	pVal[-3] = (uint32_t)0x28586813;
+	MICROPROFILE_COUNTER_ADD("MicroProfile/Alloc/Memory", nSize);
+	MICROPROFILE_COUNTER_ADD("MicroProfile/Alloc/Count", 1);
+	return (void*)nPtr;
+}
+void MicroProfileFreeInternal(void* pPtr)
+{
+	intptr_t p = (intptr_t)pPtr;
+	uint32_t* p4 = (uint32_t*)pPtr;
+	uint32_t nSize = p4[-1];
+	uint32_t nAlign = p4[-2];
+	uint32_t nMagic = p4[-3];
+	MP_ASSERT(nMagic == 0x28586813);
+	MICROPROFILE_FREE( (void*) (p-nAlign));
+	MICROPROFILE_COUNTER_SUB("MicroProfile/Alloc/Memory", nSize);
+	MICROPROFILE_COUNTER_SUB("MicroProfile/Alloc/Count", 1);
+
+
+}
+void* MicroProfileReallocInternal(void* pPtr, size_t nSize)
+{
+	intptr_t p = (intptr_t)pPtr;
+	uint32_t nAlignBase;
+
+	if(p)
+	{
+		uint32_t* p4 = (uint32_t*)pPtr;
+		uint32_t nSizeBase = p4[-1];
+		nAlignBase = p4[-2];
+		uint32_t nMagicBase = p4[-3];
+		MP_ASSERT(nMagicBase == 0x28586813);
+
+		MICROPROFILE_COUNTER_ADD("MicroProfile/Alloc/Memory", nSize - nSizeBase);
+	}
+	else
+	{
+		nAlignBase = 4 * sizeof(uint32_t);
+		MICROPROFILE_COUNTER_ADD("MicroProfile/Alloc/Memory", nSize + nAlignBase);
+		MICROPROFILE_COUNTER_ADD("MicroProfile/Alloc/Count", 1);
+	}
+
+	nSize += nAlignBase;
+	MP_ASSERT(nAlignBase >= 4 * sizeof(uint32_t));
+	if(p)
+	{
+		p = (intptr_t)MICROPROFILE_REALLOC( (void*)(p - nAlignBase), nSize);
+	}
+	else
+	{
+		p = (intptr_t)MICROPROFILE_REALLOC( (void*)(p), nSize);
+	}
+	p += nAlignBase;
+	uint32_t* pVal = (uint32_t*)p;
+	MP_ASSERT(nSize < 0xffffffff);
+	MP_ASSERT(nAlignBase < 0xffffffff);
+	pVal[-1] = (uint32_t)nSize;
+	pVal[-2] = (uint32_t)nAlignBase;
+	pVal[-3] = (uint32_t)0x28586813;
+	return (void*)p;
 }
 	
 static void MicroProfileFlipEnabled()
@@ -4114,11 +4201,13 @@ enum
 
 enum
 {
-	VIEW_GRAPH = 0,
-	VIEW_BAR = 1,
-	VIEW_COUNTERS = 2,
-	VIEW_SINGLE= 3
-
+	VIEW_GRAPH_SPLIT = 0,
+	VIEW_GRAPH = 1,
+	VIEW_BAR = 2,
+	VIEW_BAR_ALL = 3,
+	VIEW_BAR_SINGLE = 4,
+	VIEW_COUNTERS = 5,
+	VIEW_SIZE = 6,
 };
 void MicroProfileSocketDumpState()
 {
@@ -4831,7 +4920,7 @@ void MicroProfileLoadPresets(const char* pSettingsName, bool bReadOnlyPreset)
 				uint32_t nLen = (uint32_t)strlen(pJson)+1;
 				if(nLen > S.nJsonSettingsBufferSize)
 				{
-					S.pJsonSettings = (char*)MICROPROFILE_REALLOC(S.pJsonSettings, nLen);
+					S.pJsonSettings = (char*)MP_REALLOC(S.pJsonSettings, nLen);
 					S.nJsonSettingsBufferSize = nLen;
 				}
 				memcpy(S.pJsonSettings, pJson, nLen);
@@ -4926,7 +5015,7 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 
 	if(nSize+1 > BytesAllocated)
 	{
-		Bytes = (unsigned char*)MICROPROFILE_REALLOC(Bytes, nSize+1);
+		Bytes = (unsigned char*)MP_REALLOC(Bytes, nSize+1);
 		BytesAllocated = nSize + 1;
 	}
 	recv(Connection, (char*)Bytes, nSize, 0);
@@ -6394,7 +6483,7 @@ uint32_t MicroProfileGpuFlip(void* pDeviceContext_)
 void MicroProfileGpuInitD3D11(void* pDevice_, void* pImmediateContext)
 {
 	ID3D11Device* pDevice = (ID3D11Device*)pDevice_;
-	S.pGPU = MICROPROFILE_ALLOC_OBJECT(MicroProfileGpuTimerState);
+	S.pGPU = MP_ALLOC_OBJECT(MicroProfileGpuTimerState);
 	S.pGPU->m_pImmediateContext = pImmediateContext;
 
 	D3D11_QUERY_DESC Desc;
@@ -6452,7 +6541,7 @@ void MicroProfileGpuShutdown()
 		S.pGPU->pSyncQuery = 0;
 	}
 
-	MICROPROFILE_FREE(S.pGPU);
+	MP_FREE(S.pGPU);
 	S.pGPU = 0;
 }
 
@@ -6631,7 +6720,7 @@ uint32_t MicroProfileGpuFlip(void* pContext)
 void MicroProfileGpuInitD3D12(void* pDevice_, uint32_t nNodeCount, void** pCommandQueues_)
 {
 	ID3D12Device* pDevice = (ID3D12Device*)pDevice_;
-	S.pGPU = MICROPROFILE_ALLOC_OBJECT(MicroProfileGpuTimerState);
+	S.pGPU = MP_ALLOC_OBJECT(MicroProfileGpuTimerState);
 	memset(S.pGPU, 0, sizeof(*S.pGPU));
 	S.pGPU->pDevice = pDevice;
 	S.pGPU->nNodeCount = nNodeCount;
@@ -6736,7 +6825,7 @@ void MicroProfileGpuShutdown()
 	}
 
 
-	MICROPROFILE_FREE(S.pGPU);
+	MP_FREE(S.pGPU);
 	S.pGPU = 0;
 
 }
