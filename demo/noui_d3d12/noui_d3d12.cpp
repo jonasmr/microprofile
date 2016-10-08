@@ -215,7 +215,7 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 	MICROPROFILE_CONDITIONAL(g_QueueGraphics = MICROPROFILE_GPU_INIT_QUEUE("GPU-Graphics-Queue"));
 	MicroProfileGpuInitD3D12(g_pDevice, 1, (void**)&g_pCommandQueue);
 	MicroProfileSetCurrentNodeD3D12(0);
-	//MICROPROFILE_GPU_BEGIN(0, MicroProfileGetGlobaGpuThreadLog());
+	//MICROPROFILE_GPU_BEGIN(0, MicroProfileGetGlobalGpuThreadLog());
 
 
 	// Main sample loop.
@@ -673,7 +673,7 @@ void D3D12HelloTriangle::PopulateCommandList()
 	// list, that command list can then be reset at any time and must be before 
 	// re-recording.
 	ThrowIfFailed(m_commandList->Reset(m_commandAllocator.Get(), m_pipelineState.Get()));
-	MICROPROFILE_GPU_SET_CONTEXT(m_commandList.Get(), MicroProfileGetGlobaGpuThreadLog());
+	MICROPROFILE_GPU_SET_CONTEXT(m_commandList.Get(), MicroProfileGetGlobalGpuThreadLog());
 	MICROPROFILE_SCOPEGPUI("Full Frame", 0xff00ff00);
 	// Set necessary state.
 	m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
@@ -735,13 +735,3 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 	return sample.Run(hInstance, nCmdShow);
 }
 
-#include <windows.h>
-void uprintf(const char* fmt, ...)
-{
-	char buffer[32 * 1024];
-	va_list args;
-	va_start(args, fmt);
-	vsprintf_s(buffer, fmt, args);
-	OutputDebugStringA(&buffer[0]);
-	va_end(args);
-}

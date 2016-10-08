@@ -2317,12 +2317,4 @@ void FrameResource::Bind(ID3D12GraphicsCommandList* pCommandList, BOOL scenePass
 		pCommandList->OMSetRenderTargets(0, nullptr, FALSE, &m_shadowDepthView);	// No render target needed for the shadow pass.
 	}
 }
-void uprintf(const char* fmt, ...)
-{
-	char buffer[32 * 1024];
-	va_list args;
-	va_start(args, fmt);
-	vsprintf_s(buffer, fmt, args);
-	OutputDebugStringA(&buffer[0]);
-	va_end(args);
-}
+
