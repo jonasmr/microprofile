@@ -7037,7 +7037,7 @@ uint32_t MicroProfileGpuFlip(void* pContext)
 
 void MicroProfileGpuInitVulkan(VkDevice* pDevices, VkPhysicalDevice* pPhysicalDevices, VkQueue* pQueues, uint32_t* QueueFamily, uint32_t nNodeCount)
 {
-	S.pGPU = MICROPROFILE_ALLOC_OBJECT(MicroProfileGpuTimerState);
+	S.pGPU = MP_ALLOC_OBJECT(MicroProfileGpuTimerState);
 	memset(S.pGPU, 0, sizeof(*S.pGPU));
 	S.pGPU->nNodeCount = nNodeCount;
 	VkQueryPoolCreateInfo Q;
@@ -7117,8 +7117,7 @@ void MicroProfileGpuInitVulkan(VkDevice* pDevices, VkPhysicalDevice* pPhysicalDe
 
 void MicroProfileGpuShutdown()
 {
-	////fix
-	MICROPROFILE_FREE(S.pGPU);
+	MP_FREE(S.pGPU);
 	S.pGPU = 0;
 }
 void MicroProfileSetCurrentNodeVulkan(uint32_t nNode)
