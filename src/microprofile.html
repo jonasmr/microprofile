@@ -5182,6 +5182,8 @@ function PreprocessGlobalArray()
 		{
 			var Frame_ = Frames[i];	
 			Frame_.LogStart[nLog] = TimeArray.length;
+			var CanDiscard = !ISGPU[nLog] || Frame_.frameendgpu > 0; //in case of no reference, we cannot discard gpu markers. This happens when there is no gpu/cpu tick reference
+
 			var FrameDiscard = (ISGPU[nLog] ? Frame_.frameendgpu : Frame_.frameend) + 33;//if timestamps are more than 33ms after current frame, we assume buffer has wrapped.
 			var tt = Frame_.tt[nLog];
 			var ts = Frame_.ts[nLog];
@@ -5190,7 +5192,7 @@ function PreprocessGlobalArray()
 			var DiscardLast = 0;
 			for(var xx = 0; xx < len; ++xx)
 			{
-				var Skip = (tt[i] == 3) ? DiscardLast : ts[xx] > FrameDiscard;
+				var Skip = (tt[i] == 3) ? DiscardLast : (CanDiscard && ts[xx] > FrameDiscard);
 				if(Skip)
 				{
 					Discard++;
