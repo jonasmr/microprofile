@@ -54,6 +54,7 @@ Press the capture button to generate a capture. By default the last 30 frames ar
 The capture itself is a fully contained webpage, that can be saved and shared for further reference.
 
 There are a few ways the webserver can be invoked
+
 * host:1338/100 (capture 100 frames)
 * host:1338/p/foo (start live view, load preset foo)
 * host:1338/b/foo (start live view, load builtin preset foo)
@@ -81,39 +82,38 @@ Microprofile supports generating compressed captures using miniz(http:/code.goog
 
 # Resource usage
 MicroProfile uses a few large allocations.
-	* One global instance of struct MicroProfile
-	* One Large Allocation per thread that its tracking (MICROPROFILE_PER_THREAD_BUFFER_SIZE, default 2mb)
-	* One Large Allocation per gpu buffer used (MICROPROFILE_PER_THREAD_GPU_BUFFER_SIZE, default 128k)
-	* one thread for sending
-	* one thread for handling context switches, when enabled
-	* 128kb for context switch data, when context switch tracing is enabled.
-	* two small variable size buffers. should not be more than a few kb.
-		** A state buffer for receiving websocket packets
-		** A state buffer for loading/saving settings.
-	* one small allocation for receiving packets from the sender
 
+* One global instance of struct MicroProfile
+* One Large Allocation per thread that its tracking (MICROPROFILE_PER_THREAD_BUFFER_SIZE, default 2mb)
+* One Large Allocation per gpu buffer used (MICROPROFILE_PER_THREAD_GPU_BUFFER_SIZE, default 128k)
+* one thread for sending
+* one thread for handling context switches, when enabled
+* 128kb for context switch data, when context switch tracing is enabled.
+* two small variable size buffers. should not be more than a few kb.
+    * A state buffer for receiving websocket packets
+    * A state buffer for loading/saving settings.
+* one small allocation for receiving packets from the sender
 
- To change how microprofile allocates memory, define these macros when compiling microprofile implementation
- 	* MICROPROFILE_ALLOC
- 	* MICROPROFILE_REALLOC
- 	* MICROPROFILE_FREE
+To change how microprofile allocates memory, define these macros when compiling microprofile implementation
+
+* MICROPROFILE_ALLOC
+* MICROPROFILE_REALLOC
+* MICROPROFILE_FREE
 
 # microprofile.config.h
-Microprofile has lots of predefined macros that can be change. To modify this, make sure `MICROPROFILE_USE_CONFIG` is defined, and put the changed defines in `microprofile.config.h`. 
+Microprofile has lots of predefined macros that can be changed. To modify this, make sure `MICROPROFILE_USE_CONFIG` is defined, and put the changed defines in `microprofile.config.h`. 
 
 # Known Issues & Limitations
 There are a few minor known issues & Limitations:
-- Currently the relative placement of gpu timings vs the cpu timings tend to slide a bit, and thus the relative position of GPU timestamps and CPU timestamp are not correct.
-- Chrome has an internal limit to how big a page it will cache. if you generate a capture file that is larger than 32mb, chrome will refuse to cache it. This causes the page to redownload when you save it, which is pretty catastrophic, since it will generate a capture. To mitigate this:
-  - Use miniz. This drastically reduces the size of captures, to the point where its no longer a problem
-  - If you still have issues, increase chromes disk cache size.
-- If you're dynamically creating threads, you must call `MicroProfileOnThreadExit` when threads exit, to reuse the thread log objects
+
+* Currently the relative placement of gpu timings vs the cpu timings tend to slide a bit, and thus the relative position of GPU timestamps and CPU timestamp are not correct.
+* Chrome has an internal limit to how big a page it will cache. if you generate a capture file that is larger than 32mb, chrome will refuse to cache it. This causes the page to redownload when you save it, which is pretty catastrophic, since it will generate a capture. To mitigate this:
+    * Use miniz. This drastically reduces the size of captures, to the point where its no longer a problem
+    * If you still have issues, increase chromes disk cache size.
+* If you're dynamically creating threads, you must call `MicroProfileOnThreadExit` when threads exit, to reuse the thread log objects
 
 # Console support
 Microprofile supports the two major consoles - Search for 'microprofile' in the closed platform forums.
 
 # License
 Licensed using unlicense.org
-
-
-
