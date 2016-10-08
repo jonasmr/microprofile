@@ -76,6 +76,7 @@ Capturing in live view provides a complete view of what is recorded in the ring 
 * noui_d3d11: frame based implementation, with live view and D3D11 gpu timers
 * noui_d3d12: frame based implementation, with live view and D3D12 gpu timers
 * noui_d3d12_multithreading: frame based implementation, with live view and D3D12 gpu timers, with gpu timings generated from multiple threads.
+* noui_vulkan: Copy of the vulkan Hologram sample, fixed to use microprofile cpu and gpu markers. Only tested on windows.
 
 # Dependencies
 Microprofile supports generating compressed captures using miniz(http:/code.google.com/miniz). 
