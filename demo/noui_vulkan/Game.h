@@ -82,7 +82,7 @@ protected:
         settings_.vsync = true;
         settings_.animate = true;
 
-        settings_.validate = true;
+        settings_.validate = false;
         settings_.validate_verbose = false;
 
         settings_.no_tick = false;
