@@ -35,6 +35,7 @@ Gpu timers are available for the following apis:
 * OpenGL
 * D3D11
 * D3D12
+* Vulkan
 
 # Counters
 
