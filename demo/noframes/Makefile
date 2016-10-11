@@ -1,11 +1,4 @@
-UNAME_S := $(shell uname -s)
-# ifeq ($(UNAME_S),Linux)
-# 	LDFLAGS=-lGL `sdl2-config --static-libs` -lpthread
-# endif
-# ifeq ($(UNAME_S),Darwin)
-# 	LDFLAGS=-framework OpenGL `sdl2-config --static-libs` -lpthread
-# endif
-
+LDFLAGS+=-lpthread
 CFLAGS=-Wno-c++11-extensions -I../..
 #CFLAGS+=-fsanitize=undefined-trap -fsanitize-undefined-trap-on-error
 CFLAGS+=-Wall -DMICROPROFILE_GPU_TIMERS=0
