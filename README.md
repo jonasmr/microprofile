@@ -1,10 +1,9 @@
 # microprofile
 
 Microprofile is a embeddable profiler in a few files, written in C++
-Microprofile is mirrored on 
+Microprofile is hosted on
 
 * github: https://github.com/jonasmr/microprofile.git
-* bitbucket: https://bitbucket.org/jonasmeyer/microprofile-git.git
 
 # Integration
 
