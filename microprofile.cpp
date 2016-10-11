@@ -840,9 +840,7 @@ inline void MicroProfileThreadJoin(MicroProfileThread* pThread)
 
 #ifdef _WIN32
 #define MP_INVALID_SOCKET(f) (f == INVALID_SOCKET)
-#endif
-
-#if defined(__APPLE__)
+#else
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <fcntl.h>
