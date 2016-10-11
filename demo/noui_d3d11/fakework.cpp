@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <thread>
 #include <atomic>
 #include "microprofile.h"
