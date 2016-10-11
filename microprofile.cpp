@@ -146,6 +146,7 @@ void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 }
 
 #else
+#include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
 inline int64_t MicroProfileTicksPerSecondCpu()
@@ -165,6 +166,13 @@ inline int64_t MicroProfileGetTick()
 #define MP_STRCASECMP strcasecmp
 #define MP_GETCURRENTTHREADID() (uint64_t)pthread_self()
 typedef uint64_t MicroProfileThreadIdType;
+
+void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
+{
+	void* p;
+	posix_memalign(&p, nAlign, nSize);
+	return p;
+}
 #endif
 
 
@@ -181,19 +189,6 @@ typedef uint64_t MicroProfileThreadIdType;
 #ifdef _WIN32
 #include <d3d11_1.h>
 #endif
-#endif
-
-
-#ifndef MP_GETCURRENTTHREADID 
-#define MP_GETCURRENTTHREADID() 0
-typedef uint32_t MicroProfileThreadIdType;
-static void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
-{
-	void* p; 
-	posix_memalign(&p, nAlign, nSize); 
-	return p;
-}
-
 #endif
 
 
