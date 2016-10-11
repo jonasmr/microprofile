@@ -7,6 +7,7 @@
 #include <thread>
 #include <mutex>
 #include <atomic>
+#include <stdarg.h>
 #include <stdio.h>
 #include <ctype.h>
 
