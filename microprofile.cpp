@@ -133,7 +133,6 @@ void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 #elif defined(_WIN32)
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <shellapi.h>
 int64_t MicroProfileGetTick();
 #define MP_TICK() MicroProfileGetTick()
 #define MP_BREAK() __debugbreak()
@@ -6158,7 +6157,7 @@ int main(int argc, char* argv[])
 	return 0;
 }
 #endif
-
+#include <shellapi.h>
 void* MicroProfileTraceThread(void* unused)
 {
 	MicroProfileOnThreadCreate("ContextSwitchThread");
