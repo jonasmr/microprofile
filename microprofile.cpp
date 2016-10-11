@@ -144,7 +144,7 @@ void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 	return _aligned_malloc(nSize, nAlign);
 }
 
-#elif defined(__linux__)
+#else
 #include <unistd.h>
 #include <time.h>
 inline int64_t MicroProfileTicksPerSecondCpu()
@@ -207,7 +207,7 @@ typedef int MpSocket;
 #endif
 
 
-#if defined(__APPLE__) || defined(__linux__)
+#ifndef _WIN32
 typedef pthread_t MicroProfileThread;
 #elif defined(_WIN32)
 #if _MSC_VER == 1900
@@ -787,7 +787,7 @@ int64_t MicroProfileGetTick()
 
 typedef void* (*MicroProfileThreadFunc)(void*);
 
-#if defined(__APPLE__) || defined(__linux__)
+#ifndef _WIN32
 typedef pthread_t MicroProfileThread;
 void MicroProfileThreadStart(MicroProfileThread* pThread, MicroProfileThreadFunc Func)
 {	
