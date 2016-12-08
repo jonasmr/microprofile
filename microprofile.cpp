@@ -158,6 +158,14 @@ inline int64_t MicroProfileGetTick()
 	clock_gettime(CLOCK_REALTIME, &ts);
 	return 1000000000ll * ts.tv_sec + ts.tv_nsec;
 }
+
+void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
+{
+	void* p;
+	posix_memalign(&p, nAlign, nSize);
+	return p;
+}
+
 #define MP_TICK() MicroProfileGetTick()
 #define MP_BREAK() __builtin_trap()
 #define MP_THREAD_LOCAL __thread
