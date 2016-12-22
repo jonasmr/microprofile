@@ -103,6 +103,7 @@ var BoxHeight = FontHeight + 2;
 var MouseX = 0;
 var MouseY = 0;
 var MouseReleased = false;
+var MouseMoveTime = new Date();
 
 var nBarsWidth = 80;
 var nOffsetBarsX = 0;
@@ -236,6 +237,7 @@ var Empty = {"id":0, "w":0, "depth":0, "sibling":-1,"parent":-1,"firstchild":-1}
 var WidthArray = [];
 var WidthTree = 0;
 Settings.ViewActive = 0;
+Settings.ViewCompressed = 0;
 var ViewNames = ["Graph", "Graph", "Bars", "Bars", "Bars", "Counters"];
 var ViewNames2 = ["[split]", "[single]", "[table]", "[all]", "[single]", ""];
 
@@ -581,21 +583,23 @@ function CreateView(x, y, w, h, name, DisplayFunc, visible, index)
 	return View;
 }
 
-function CreateViews(Width, Height)
+function CreateViews(Width, Height, ViewCompressed)
 {
 	Views = [];
+	var HistoryH = ViewCompressed ? 0 : HistoryHeight;
 	History = CreateView(0, 0, Width, HistoryHeight, "History", DrawHistory, true, 0);
-	MainView = CreateView(0, HistoryHeight, Width, Height-HistoryHeight, "Main", DrawGraphSplit, true);
+	History.visible = !ViewCompressed;
+	MainView = CreateView(0, HistoryH, Width, Height-HistoryH, "Main", DrawGraphSplit, true);
 	X7Views = [];
 	var w = Width / 7;
 	var x = 0;
-	X7Views.push(CreateView(w*0, HistoryHeight, w, Height - HistoryHeight, "x5_0", DrawBars, false, 0) );
-	X7Views.push(CreateView(w*1, HistoryHeight, w, Height - HistoryHeight, "x5_1", DrawBars, false, 1) );
-	X7Views.push(CreateView(w*2, HistoryHeight, w, Height - HistoryHeight, "x5_2", DrawBars, false, 2) );
-	X7Views.push(CreateView(w*3, HistoryHeight, w, Height - HistoryHeight, "x5_3", DrawBars, false, 3) );
-	X7Views.push(CreateView(w*4, HistoryHeight, w, Height - HistoryHeight, "x5_4", DrawBars, false, 4) );
-	X7Views.push(CreateView(w*5, HistoryHeight, w, Height - HistoryHeight, "x5_3", DrawBars, false, 5) );
-	X7Views.push(CreateView(w*6, HistoryHeight, w, Height - HistoryHeight, "x5_3", DrawBars, false, 6) );
+	X7Views.push(CreateView(w*0, HistoryH, w, Height - HistoryH, "x5_0", DrawBars, false, 0) );
+	X7Views.push(CreateView(w*1, HistoryH, w, Height - HistoryH, "x5_1", DrawBars, false, 1) );
+	X7Views.push(CreateView(w*2, HistoryH, w, Height - HistoryH, "x5_2", DrawBars, false, 2) );
+	X7Views.push(CreateView(w*3, HistoryH, w, Height - HistoryH, "x5_3", DrawBars, false, 3) );
+	X7Views.push(CreateView(w*4, HistoryH, w, Height - HistoryH, "x5_4", DrawBars, false, 4) );
+	X7Views.push(CreateView(w*5, HistoryH, w, Height - HistoryH, "x5_3", DrawBars, false, 5) );
+	X7Views.push(CreateView(w*6, HistoryH, w, Height - HistoryH, "x5_3", DrawBars, false, 6) );
 	X7LegendView = CreateView(0, Height-X7LegendOffset, Width, X7LegendOffset, "x7_legend", DrawBarsLegend, false, 0);
 
 }
@@ -632,7 +636,7 @@ function ResizeCanvas()
 		CanvasDetailedOffscreen.height = nHeight;
 	}
 	MeasureFont();
-	CreateViews(nWidth, nHeight);
+	CreateViews(nWidth, nHeight, Settings.ViewCompressed);
 	ActivateView(Settings.ViewActive);
 }
 
@@ -1759,6 +1763,10 @@ function DrawMessage()
 }
 function DrawCaptureButton(context)
 {
+	if(!ShowMenu())
+	{
+		return;
+	}
 
 	var CaptureRange = MouseDragActiveXStart < MouseDragActiveXEnd ? "Selection" : (""+Settings.CaptureFrames);
 	var CaptureText = "Capture[" + CaptureRange + "]";
@@ -1831,7 +1839,8 @@ function UpdateX7Views()
 				X7Views[i].visible = i < NumSubViews;
 				if(i < NumSubViews)
 				{
-					ResizeView(X7Views[i], w*i, HistoryHeight, w, nHeight - HistoryHeight);
+					var HistoryH = Settings.ViewCompressed ? 0 : HistoryHeight;
+					ResizeView(X7Views[i], w*i, HistoryH, w, nHeight - HistoryH);
 				}
 			}
 			X7BarColumnMask = ViewMask;
@@ -2143,7 +2152,7 @@ function OnLoadPreset(NewSettings, Apply, RO)
 	}
 	if(Settings.ViewActive >= 0)
 	{
-		ActivateView(Settings.ViewActive);
+		ResizeCanvas();
 	}
 }
 
@@ -2783,6 +2792,12 @@ function DrawMenuSettings()
 	{
 		Settings.AutomaticReference = 1-Settings.AutomaticReference;
 	}
+	if(DrawMenuElement(M, Settings.ViewCompressed, "Compressed View", Settings.ViewCompressed, 'white'))
+	{
+		Settings.ViewCompressed = 1-Settings.ViewCompressed;
+		ResizeCanvas();
+	}
+
 	if(Settings.AggregateFrames <= 0)
 	{
 		if(DrawMenuElement(M, 0, "Clear Aggregate", "Current[" + AggregateCurrent + "]", 'white'))
@@ -3026,6 +3041,18 @@ function DrawMenuGroup()
 	return SizeInfo;
 }
 
+function ShowMenu()
+{
+	if(!Settings.ViewCompressed)
+		return true;
+	else
+	{
+		var Time = new Date();
+		var Delta = Time - MouseMoveTime;
+		console.log('delta time is ' + Delta);
+		return Delta < 2000;
+	}
+}
 
 function DrawMenu()
 {
@@ -3036,10 +3063,17 @@ function DrawMenu()
 		var Y = 50;
 		var Width = 300;
 		var Selection = null;
+		if(!ShowMenu())
+		{
+			return;
+		}
 		ProfileEnter("DrawMenu");
 		DrawTopMenu();
 		var MenuRect = WindowRect(0,0,nWidth,nHeight);
-
+		if(SubMenuActive != -1)
+		{
+			MouseMoveTime = new Date();
+		}
 
 		if(SubMenuActive == SubMenuGroup)
 		{
@@ -4093,7 +4127,6 @@ function MouseDrag(Source, Event)
 }
 
 
-
 function MouseMove(evt)
 {
     evt.preventDefault();
@@ -4102,6 +4135,7 @@ function MouseMove(evt)
 	var y = evt.clientY - rect.top;
 	MouseX = x;
 	MouseY = y;
+	MouseMoveTime = new Date();
     MouseDrag(MouseDragMove, evt);
     RequestDraw();
 }
@@ -4260,6 +4294,11 @@ function KeyUp(evt)
 		Settings.SortColumnMouseOver = "";
 		ShowHelp(0);
 	}
+	if(k == 192)
+	{
+		Settings.ViewCompressed = Settings.ViewCompressed ? 0 : 1;
+		ResizeCanvas();
+	}
 
 	if(evt.keyCode == 17)
 	{
@@ -4304,6 +4343,10 @@ function SetupEvents()
 
 function DrawToolTip(StringArray, Canvas, x, y)
 {
+	if(!ShowMenu())
+	{
+		return;
+	}
 	var context = Canvas.getContext('2d');
 	context.font = Font;
 	var WidthArray = Array(StringArray.length);
