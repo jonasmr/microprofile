@@ -5575,9 +5575,11 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "var nBackColorsDark = [\'#292929\', \'#272727\' ];\n"
 "var nBackColorOffset = \'#404040\';\n"
 "var FontHeight = 10;\n"
+"var FontHeightLarge = 12;\n"
 "var FontWidth = 1;\n"
 "var FontAscent = 3; //Set manually\n"
 "var Font = \'Bold \' + FontHeight + \'px Courier New\';\n"
+"var FontLarge = \'Bold \' + FontHeightLarge + \'px Courier New\';\n"
 "var FontFlash = \'Bold \' + 35 + \'px Courier New\';\n"
 "var BoxHeight = FontHeight + 2;\n"
 "var MouseX = 0;\n"
@@ -6134,6 +6136,8 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "	var TimerMap = FrameData.TimerMap;\n"
 "	if(!TimerMap)\n"
 "		return;\n"
+"	if(Settings.ViewCompressed)\n"
+"		return;\n"
 "	var Canvas = View.Canvas[View.BackBuffer];\n"
 "	var context = Canvas.getContext(\'2d\');\n"
 "	context.clearRect(0, 0, View.w, View.h);\n"
@@ -6312,14 +6316,18 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "	var h = View.h;\n"
 "	var w = View.w;\n"
 "	var DrawX = 25;\n"
-"	var DrawY = 35;\n"
+"	var DrawY = 35 * 2;\n"
+"	if(Settings.ViewCompressed)\n"
+"	{\n"
+"		DrawY = 5 + 35;\n"
+"	}\n"
 "	var DrawWidth = w -  2 * DrawX;\n"
-"	var DrawHeight = h - 2 * DrawY;\n"
+"	var DrawHeight = h - DrawY;\n"
 "	var SpaceWidth = 5;\n"
 "	var BarWidth = (DrawWidth-SpaceWidth*(nNumBars-1))/ nNumBars;\n"
 "	if(BarWidth > 50)\n"
 "		BarWidth = 50;\n"
-"	var BarHeight = DrawHeight - 20;\n"
+"	var BarHeight = DrawHeight - 5;\n"
 "\n"
 "	var ReferenceTime = ReferenceBar;\n"
 "\n"
@@ -6357,10 +6365,24 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "		var BarH = fPrc * BarHeight;\n"
 "\n"
 "		var X0 = X;\n"
-"		var Y0 =  DrawX + DrawHeight - BarH;\n"
+"		var Y0 = DrawX + DrawHeight - BarH;\n"
 "		context.fillStyle = Color;\n"
 "		context.fillRect(X0, Y0, BarWidth, BarH);\n"
 "		context.fillStyle = \'#ffffff\';\n"
+"		if(LocalMouseX > X0 && LocalMouseX < X0 + BarWidth||Settings.ViewCompressed)\n"
+"		{\n"
+"			context.save();\n"
+"			context.translate(X0 + BarWidth * 0.5 + FontHeight*0.5, DrawX + DrawHeight - 2);\n"
+"			context.rotate(-3.14/2.0);\n"
+"			context.font = FontLarge;\n"
+"			context.textAlign = \'left\';\n"
+"			var m = context.measureText(BarNames[i]);\n"
+"			context.fillStyle = \'black\';\n"
+"			context.fillText(BarNames[i], -1, -1);\n"
+"			context.fillStyle = \'white\';\n"
+"			context.fillText(BarNames[i], 0, 0);\n"
+"			context.restore();\n"
+"		}\n"
 "		var TimeText = FormatTime(Time);\n"
 "		var TimeText0 = Time.toFixed(0);\n"
 "		var XText = X+BarWidth;\n"
@@ -6782,7 +6804,11 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "					var str = \'\' + FormatTime(Time[index]) + \'ms\';\n"
 "					var w = context.measureText(str, XPos, Y).width;\n"
 "					var X = Math.max(0, XPos - w);\n"
-"					context.fillStyle = \'black\';\n"
+"		";
+
+const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
+const char g_MicroProfileHtmlLive_begin_1[] =
+"			context.fillStyle = \'black\';\n"
 "					context.fillRect(X - 1, Y-1 , w+2, BoxHeight+2);\n"
 "					context.fillStyle = \'white\';\n"
 "					context.textAlign = \'right\';\n"
@@ -6812,11 +6838,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "	if(GraphKey&&0)\n"
 "	{\n"
 "		//solid graph\n"
-"		v";
-
-const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
-const char g_MicroProfileHtmlLive_begin_1[] =
-"ar idx = GetTimer(GraphKey);\n"
+"		var idx = GetTimer(GraphKey);\n"
 "		var T = TimerArray[idx];\n"
 "		var TimerState = TimerMap[GraphKey];\n"
 "		var Time = TimerState.Time;\n"
@@ -6896,7 +6918,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "				if(HighlightFrame >= 0)\n"
 "				{\n"
 "					var X = w - Time.length * fWidth + fWidth * HighlightFrame;\n"
-"					var Y = YStart - Time[HighlightFrame] * fHeightScale2;\n"
+"					var Y = YStart - Math.min(Time[HighlightFrame], Reference) * fHeightScale2;\n"
 "					context.strokeStyle = color;\n"
 "					context.beginPath();\n"
 "					var CrossX = X;\n"
@@ -8284,7 +8306,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "\n"
 "	if(Settings.AggregateFrames <= 0)\n"
 "	{\n"
-"		if(DrawMenuElement(M, 0, \"Clear Aggregate\", \"Current[\" + AggregateCurrent + \"]\", \'white\'))\n"
+"		";
+
+const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
+const char g_MicroProfileHtmlLive_begin_2[] =
+"if(DrawMenuElement(M, 0, \"Clear Aggregate\", \"Current[\" + AggregateCurrent + \"]\", \'white\'))\n"
 "		{\n"
 "			WSSendMessage(\"r\");\n"
 "		}\n"
@@ -8314,11 +8340,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "		nOffsetMenuTimers = 0;\n"
 "	}\n"
 "	FilterInputValueLast = FilterInput.value;\n"
-"	var FilterArray = Creat";
-
-const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
-const char g_MicroProfileHtmlLive_begin_2[] =
-"eFilter(FilterInput.value);\n"
+"	var FilterArray = CreateFilter(FilterInput.value);\n"
 "	var context = CanvasDetailedView.getContext(\'2d\');\n"
 "	var nColorIndex = 0;\n"
 "	var SizeInfo = TimerMenuSize();\n"
@@ -8964,12 +8986,6 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "		TimerArray[idx].counterhistory.history = AllocClearedArray(120);\n"
 "		TimerArray[idx].counterhistory.prc = AllocClearedArray(120);		\n"
 "	}\n"
-"\n"
-"	for(var key in TimerMap)\n"
-"	{\n"
-"		TimerMap[key].tooltipysoft = null;\n"
-"	}\n"
-"\n"
 "	RequestDraw();\n"
 "}\n"
 "\n"
@@ -9829,7 +9845,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	window.addEventListener(\'resize\', ResizeCanvas, false);\n"
 "}\n"
 "\n"
-"function DrawToolTip(StringArray, Canvas, x, y)\n"
+"function DrawToolTip(StringArray, Canvas,";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+" x, y)\n"
 "{\n"
 "	if(!ShowMenu())\n"
 "	{\n"
@@ -9856,11 +9876,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	nMaxWidth += 15;\n"
 "	//bounds check.\n"
 "	x = Math.max(0, x - 10 - nMaxWidth);\n"
-"	var CanvasRect = Canva";
-
-const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
-const char g_MicroProfileHtmlLive_begin_3[] =
-"s.getBoundingClientRect();\n"
+"	var CanvasRect = Canvas.getBoundingClientRect();\n"
 "	if(y + nHeight > CanvasRect.height)\n"
 "	{\n"
 "		y = CanvasRect.height - nHeight;\n"

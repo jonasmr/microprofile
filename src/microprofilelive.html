@@ -95,9 +95,11 @@ var nBackColors = ['#292929', '#343434' ];
 var nBackColorsDark = ['#292929', '#272727' ];
 var nBackColorOffset = '#404040';
 var FontHeight = 10;
+var FontHeightLarge = 12;
 var FontWidth = 1;
 var FontAscent = 3; //Set manually
 var Font = 'Bold ' + FontHeight + 'px Courier New';
+var FontLarge = 'Bold ' + FontHeightLarge + 'px Courier New';
 var FontFlash = 'Bold ' + 35 + 'px Courier New';
 var BoxHeight = FontHeight + 2;
 var MouseX = 0;
@@ -654,6 +656,8 @@ function DrawBarsLegend(View, LocalMouseX, LocalMouseY, SubIndex)
 	var TimerMap = FrameData.TimerMap;
 	if(!TimerMap)
 		return;
+	if(Settings.ViewCompressed)
+		return;
 	var Canvas = View.Canvas[View.BackBuffer];
 	var context = Canvas.getContext('2d');
 	context.clearRect(0, 0, View.w, View.h);
@@ -832,14 +836,18 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 	var h = View.h;
 	var w = View.w;
 	var DrawX = 25;
-	var DrawY = 35;
+	var DrawY = 35 * 2;
+	if(Settings.ViewCompressed)
+	{
+		DrawY = 5 + 35;
+	}
 	var DrawWidth = w -  2 * DrawX;
-	var DrawHeight = h - 2 * DrawY;
+	var DrawHeight = h - DrawY;
 	var SpaceWidth = 5;
 	var BarWidth = (DrawWidth-SpaceWidth*(nNumBars-1))/ nNumBars;
 	if(BarWidth > 50)
 		BarWidth = 50;
-	var BarHeight = DrawHeight - 20;
+	var BarHeight = DrawHeight - 5;
 
 	var ReferenceTime = ReferenceBar;
 
@@ -877,10 +885,24 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 		var BarH = fPrc * BarHeight;
 
 		var X0 = X;
-		var Y0 =  DrawX + DrawHeight - BarH;
+		var Y0 = DrawX + DrawHeight - BarH;
 		context.fillStyle = Color;
 		context.fillRect(X0, Y0, BarWidth, BarH);
 		context.fillStyle = '#ffffff';
+		if(LocalMouseX > X0 && LocalMouseX < X0 + BarWidth||Settings.ViewCompressed)
+		{
+			context.save();
+			context.translate(X0 + BarWidth * 0.5 + FontHeight*0.5, DrawX + DrawHeight - 2);
+			context.rotate(-3.14/2.0);
+			context.font = FontLarge;
+			context.textAlign = 'left';
+			var m = context.measureText(BarNames[i]);
+			context.fillStyle = 'black';
+			context.fillText(BarNames[i], -1, -1);
+			context.fillStyle = 'white';
+			context.fillText(BarNames[i], 0, 0);
+			context.restore();
+		}
 		var TimeText = FormatTime(Time);
 		var TimeText0 = Time.toFixed(0);
 		var XText = X+BarWidth;
@@ -1412,7 +1434,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 				if(HighlightFrame >= 0)
 				{
 					var X = w - Time.length * fWidth + fWidth * HighlightFrame;
-					var Y = YStart - Time[HighlightFrame] * fHeightScale2;
+					var Y = YStart - Math.min(Time[HighlightFrame], Reference) * fHeightScale2;
 					context.strokeStyle = color;
 					context.beginPath();
 					var CrossX = X;
@@ -3476,12 +3498,6 @@ function AddTimer(T)
 		TimerArray[idx].counterhistory.history = AllocClearedArray(120);
 		TimerArray[idx].counterhistory.prc = AllocClearedArray(120);		
 	}
-
-	for(var key in TimerMap)
-	{
-		TimerMap[key].tooltipysoft = null;
-	}
-
 	RequestDraw();
 }
 
