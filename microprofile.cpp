@@ -7,6 +7,7 @@
 #include <thread>
 #include <mutex>
 #include <atomic>
+#include <stdarg.h>
 #include <stdio.h>
 #include <ctype.h>
 
@@ -144,7 +145,8 @@ void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 	return _aligned_malloc(nSize, nAlign);
 }
 
-#elif defined(__linux__)
+#else
+#include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
 inline int64_t MicroProfileTicksPerSecondCpu()
@@ -164,6 +166,13 @@ inline int64_t MicroProfileGetTick()
 #define MP_STRCASECMP strcasecmp
 #define MP_GETCURRENTTHREADID() (uint64_t)pthread_self()
 typedef uint64_t MicroProfileThreadIdType;
+
+void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
+{
+	void* p;
+	posix_memalign(&p, nAlign, nSize);
+	return p;
+}
 #endif
 
 
@@ -183,19 +192,6 @@ typedef uint64_t MicroProfileThreadIdType;
 #endif
 
 
-#ifndef MP_GETCURRENTTHREADID 
-#define MP_GETCURRENTTHREADID() 0
-typedef uint32_t MicroProfileThreadIdType;
-static void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
-{
-	void* p; 
-	posix_memalign(&p, nAlign, nSize); 
-	return p;
-}
-
-#endif
-
-
 #define MP_ASSERT(a) do{if(!(a)){MP_BREAK();} }while(0)
 
 
@@ -207,7 +203,7 @@ typedef int MpSocket;
 #endif
 
 
-#if defined(__APPLE__) || defined(__linux__)
+#ifndef _WIN32
 typedef pthread_t MicroProfileThread;
 #elif defined(_WIN32)
 #if _MSC_VER == 1900
@@ -787,7 +783,7 @@ int64_t MicroProfileGetTick()
 
 typedef void* (*MicroProfileThreadFunc)(void*);
 
-#if defined(__APPLE__) || defined(__linux__)
+#ifndef _WIN32
 typedef pthread_t MicroProfileThread;
 void MicroProfileThreadStart(MicroProfileThread* pThread, MicroProfileThreadFunc Func)
 {	
@@ -840,9 +836,7 @@ inline void MicroProfileThreadJoin(MicroProfileThread* pThread)
 
 #ifdef _WIN32
 #define MP_INVALID_SOCKET(f) (f == INVALID_SOCKET)
-#endif
-
-#if defined(__APPLE__)
+#else
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <fcntl.h>

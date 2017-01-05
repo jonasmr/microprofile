@@ -1,9 +1,10 @@
+#include <stdio.h>
 #include <thread>
 #include <atomic>
 #include "microprofile.h"
 
 
-#if defined(__APPLE__) || defined(__linux__)
+#ifndef _WIN32
 #include <unistd.h>
 #endif
 
