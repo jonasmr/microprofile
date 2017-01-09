@@ -89,6 +89,8 @@ var CanvasArray0 = [];
 var CanvasArray1 = [];
 var Views = [];
 
+var ViewIndex = 0;
+
 var nWidth = CanvasDetailedView.width;
 var nHeight = CanvasDetailedView.height;
 var nBackColors = ['#292929', '#343434' ];
@@ -708,8 +710,11 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 	ProfileEnter("DrawBar");
 	var Canvas = View.Canvas[View.BackBuffer];
 	var context = Canvas.getContext('2d');
-	context.clearRect(0, 0, View.w, View.h);
 
+	context.clearRect(0, 0, View.w, View.h);
+	var bgcolor = nBackColors[ViewIndex%2];
+	context.fillStyle = bgcolor;
+	context.fillRect(0, 0, View.w, View.h);
 	var Title = "?";
 	var TitleName = null;
 	var nNumBars = 0;
@@ -835,7 +840,7 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 
 	var h = View.h;
 	var w = View.w;
-	var DrawX = 25;
+	var DrawX = Settings.ViewCompressed ? 3: 10;
 	var DrawY = 35 * 2;
 	if(Settings.ViewCompressed)
 	{
@@ -845,6 +850,14 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 	var DrawHeight = h - DrawY;
 	var SpaceWidth = 5;
 	var BarWidth = (DrawWidth-SpaceWidth*(nNumBars-1))/ nNumBars;
+	for(var x = 0; x < 2; ++x)
+	{
+		if(BarWidth < 14)
+		{
+			SpaceWidth -= 1;
+			BarWidth = (DrawWidth-SpaceWidth*(nNumBars-1))/ nNumBars;
+		}
+	}
 	if(BarWidth > 50)
 		BarWidth = 50;
 	var BarHeight = DrawHeight - 5;
@@ -862,16 +875,26 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 	context.fillText(Title, w / 2.0, FontHeight);
 	context.textAlign = 'left';
 	context.fillStyle = 'wheat';
+	var BaseY = 20;
 	if(SubIndex == X7BarFirstView)
 	{
-		context.fillText(ReferenceTime.toFixed(2) + 'ms', 0, DrawX + DrawHeight - BarHeight);
+		context.fillText(ReferenceTime.toFixed(2) + 'ms', 0, BaseY - 5 + DrawHeight - BarHeight);
 	}
 	else if(SubIndex == X7BarLastView)
 	{
 		context.textAlign = 'right';
-		context.fillText(ReferenceTime.toFixed(2) + 'ms', w, DrawX + DrawHeight - BarHeight);
+		context.fillText(ReferenceTime.toFixed(2) + 'ms', w, BaseY - 5 + DrawHeight - BarHeight);
 	}
 	context.textAlign = 'right';
+	var BarFont = FontLarge;
+	var DrawNames = true;
+	if(BarWidth < 14)
+	{
+		DrawNames = BarWidth > 4;
+		var FontXX = 'Bold ' + Math.floor(BarWidth) + 'px Courier New';
+		BarFont = FontXX;
+
+	}
 
 
 	for(var i = 0; i < BarTimes.length; ++i)
@@ -885,17 +908,18 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 		var BarH = fPrc * BarHeight;
 
 		var X0 = X;
-		var Y0 = DrawX + DrawHeight - BarH;
+		var Y0 = BaseY + DrawHeight - BarH;
 		context.fillStyle = Color;
 		context.fillRect(X0, Y0, BarWidth, BarH);
 		context.fillStyle = '#ffffff';
-		if(LocalMouseX > X0 && LocalMouseX < X0 + BarWidth||Settings.ViewCompressed)
+		if(LocalMouseX > X0 && LocalMouseX < X0 + BarWidth||(Settings.ViewCompressed&&DrawNames))
 		{
 			context.save();
-			context.translate(X0 + BarWidth * 0.5 + FontHeight*0.5, DrawX + DrawHeight - 2);
+			context.translate(X0 + BarWidth * 0.5, BaseY + DrawHeight - 2);
 			context.rotate(-3.14/2.0);
-			context.font = FontLarge;
+			context.font = BarFont;
 			context.textAlign = 'left';
+			context.textBaseline = 'middle';
 			var m = context.measureText(BarNames[i]);
 			context.fillStyle = 'black';
 			context.fillText(BarNames[i], -1, -1);
@@ -906,7 +930,7 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 		var TimeText = FormatTime(Time);
 		var TimeText0 = Time.toFixed(0);
 		var XText = X+BarWidth;
-		var YText = DrawX + DrawHeight + FontHeight;
+		var YText = BaseY + DrawHeight + FontHeight;
 		var w = context.measureText(TimeText).width;
 		var w0 = context.measureText(TimeText0).width;
 		if(w < BarWidth)
@@ -1876,6 +1900,7 @@ function DrawViews()
 	Plotf("DrawViews");
 	UpdateX7Views();
 	ProfileEnter("UpdateViews");
+	ViewIndex = 0;
 	for(var i = 0; i < Views.length; ++i)
 	{
 		var View = Views[i];
@@ -1886,6 +1911,7 @@ function DrawViews()
 			View.DisplayFunc(View, LocalMouseX, LocalMouseY, View.index);
 			var Canvas = View.Canvas[View.BackBuffer];
 			var Context = Canvas.getContext('2d');
+			ViewIndex++;
 		}
 	}
 	ProfileLeave();
