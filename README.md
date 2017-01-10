@@ -126,6 +126,8 @@ extern "C" TakeMicroprofileThreadState(MicroProfileThreadState* MpThreadStatePtr
     MyMpThreadStatePtr = MpThreadStatePtr;
 }
 ```
+You also must call InitMicroProfileState() once, and InitMicroProfileThreadState() once per thread, before
+you use MicroProfile at alll.
 Finally, you need to pass MP_STATE_PTR and MP_THREAD_STATE_PTR into your loaded DLLs. This must be done
 once per loaded DLL, and in the case of MP_THREAD_STATE_PTR, once per thread.
 ```
