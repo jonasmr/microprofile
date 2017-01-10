@@ -101,6 +101,40 @@ To change how microprofile allocates memory, define these macros when compiling 
 * MICROPROFILE_REALLOC
 * MICROPROFILE_FREE
 
+# Dynamically-loaded DLLs
+To use Microprofile with dynamically loaded DLLs, set MICROPROFILE_DYNAMIC_DLL to 1.
+```
+#define MICROPROFILE_DYNAMIC_DLL 1
+```
+Before including microprofile.h.
+
+Then, inside code that's dynamically loaded, you must have this code:
+```
+#define MP_STATE_PTR MyMpGlobalStatePtr
+#define MP_THREAD_STATE_PTR MyMpThreadStatePtr
+MicroProfileGlobalState* MyMpGlobalStatePtr;
+MP_THREAD_LOCAL MicroProfileThreadState* MyMpThreadStatePtr;
+#include "microprofile.cpp"
+
+extern "C" TakeMicroprofileGlobalState(MicroProfileGlobalState* MpGlobalState)
+{
+    MyMpGlobalStatePtr = MpGlobalStatePtr;
+}
+
+extern "C" TakeMicroprofileThreadState(MicroProfileThreadState* MpThreadStatePtr)
+{
+    MyMpThreadStatePtr = MpThreadStatePtr;
+}
+```
+Finally, you need to pass MP_STATE_PTR and MP_THREAD_STATE_PTR into your loaded DLLs. This must be done
+once per loaded DLL, and in the case of MP_THREAD_STATE_PTR, once per thread.
+```
+// Once
+LoadedDLL.TakeMicroprofileGlobalState(MP_STATE_PTR);
+// For each thread
+LoadedDLL.TakeMicroprofileThreadState(MP_THREAD_STATE_PTR);
+```
+
 # microprofile.config.h
 Microprofile has lots of predefined macros that can be changed. To modify this, make sure `MICROPROFILE_USE_CONFIG` is defined, and put the changed defines in `microprofile.config.h`. 
 
