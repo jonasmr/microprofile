@@ -5756,6 +5756,9 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "var X7BarLastView = -1;\n"
 "var X7BarFirstView = -1;\n"
 "\n"
+"\n"
+"var ViewBarMaxMsTextLength = 0;\n"
+"\n"
 "Settings.SortColumn = 0;\n"
 "Settings.SortColumnOrderFlip = 0;\n"
 "Settings.SortColumnMouseOver = \"\";\n"
@@ -6320,13 +6323,16 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "\n"
 "	var h = View.h;\n"
 "	var w = View.w;\n"
-"	var DrawX = Settings.ViewCompressed ? 3: 10;\n"
+"	var MsTextExtraSpace = Math.cos(3.14/4.0) * (ViewBarMaxMsTextLength);\n"
+"	var DrawXLeft = Settings.ViewCompressed ? 3 : 15;\n"
+"	DrawXLeft = Math.max(DrawXLeft, MsTextExtraSpace);\n"
+"	var DrawXRight = Settings.ViewCompressed ? 3: 10;\n"
 "	var DrawY = 35 * 2;\n"
 "	if(Settings.ViewCompressed)\n"
 "	{\n"
-"		DrawY = 5 + 35;\n"
+"		DrawY = (MsTextExtraSpace) + 35;\n"
 "	}\n"
-"	var DrawWidth = w -  2 * DrawX;\n"
+"	var DrawWidth = w - DrawXLeft - DrawXRight;\n"
 "	var DrawHeight = h - DrawY;\n"
 "	var SpaceWidth = 5;\n"
 "	var BarWidth = (DrawWidth-SpaceWidth*(nNumBars-1))/ nNumBars;\n"
@@ -6348,7 +6354,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "	var MouseDragging = 0;\n"
 "	var fWidth = w / FrameCount;\n"
 "	var Keys = [];\n"
-"	var X = DrawX;\n"
+"	var X = DrawXLeft;\n"
 "	var offset = 0;\n"
 "	context.textAlign = \'center\'\n"
 "	context.fillStyle = \'#ffffff\';\n"
@@ -6375,8 +6381,15 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "		BarFont = FontXX;\n"
 "\n"
 "	}\n"
+"	context.font = BarFont;\n"
+"	for(var i = 0; i < BarTimes.length; ++i)\n"
+"	{\n"
+"		var TimeText = FormatTime(Time);\n"
+"		var w = context.measureText(TimeText).width;\n"
+"		ViewBarMaxMsTextLength = Math.max(w, ViewBarMaxMsTextLength);\n"
+"	\n"
 "\n"
-"\n"
+"	}\n"
 "	for(var i = 0; i < BarTimes.length; ++i)\n"
 "	{\n"
 "		var Time = BarTimes[i];\n"
@@ -6392,7 +6405,8 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "		context.fillStyle = Color;\n"
 "		context.fillRect(X0, Y0, BarWidth, BarH);\n"
 "		context.fillStyle = \'#ffffff\';\n"
-"		if(LocalMouseX > X0 && LocalMouseX < X0 + BarWidth||(Settings.ViewCompressed&&DrawNames))\n"
+"		var MouseOver = LocalMouseX > X0 && LocalMouseX < X0 + BarWidth;\n"
+"		if(MouseOver || (Settings.ViewCompressed&&DrawNames))\n"
 "		{\n"
 "			context.save();\n"
 "			context.translate(X0 + BarWidth * 0.5, BaseY + DrawHeight - 2);\n"
@@ -6405,25 +6419,21 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "			context.fillText(BarNames[i], -1, -1);\n"
 "			context.fillStyle = \'white\';\n"
 "			context.fillText(BarNames[i], 0, 0);\n"
+"			context.textAlign = \'right\';\n"
 "			context.restore();\n"
 "		}\n"
-"		var TimeText = FormatTime(Time);\n"
-"		var TimeText0 = Time.toFixed(0);\n"
+"		context.save();\n"
 "		var XText = X+BarWidth;\n"
-"		var YText = BaseY + DrawHeight + FontHeight;\n"
-"		var w = context.measureText(TimeText).width;\n"
-"		var w0 = context.measureText(TimeText0).width;\n"
-"		if(w < BarWidth)\n"
-"		{\n"
-"			context.fillText(TimeText, XText, YText);\n"
-"		}\n"
-"		else if(w0 < BarWidth)\n"
-"		{\n"
-"			context.fillText(TimeText0, XText, YText);\n"
-"		}\n"
+"		var YText = BaseY + DrawHeight + FontHeight;		\n"
+"		context.translate(XText, YText);\n"
+"		context.rotate(-3.14/4.0);\n"
+"		context.font = BarFont;\n"
+"		context.fillText(TimeText, 0, 0);\n"
+"		context.restore();\n"
 "\n"
 "		X += BarWidth + SpaceWidth;\n"
 "	}\n"
+"	context.font = Font;\n"
 "	ProfileLeave();\n"
 "}\n"
 "\n"
@@ -6792,7 +6802,11 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "			var T = TimerArray[idx];\n"
 "			var TimerState = TimerMap[key];\n"
 "			var Time = TimerState.Time;\n"
-"			if(Time[index] >= MouseTime && (GraphBest == 0 || Time[index] <= GraphBest))\n"
+"			if(Time[index] >= MouseTime && (GraphBest == 0 || Time[index] <=";
+
+const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
+const char g_MicroProfileHtmlLive_begin_1[] =
+" GraphBest))\n"
 "			{\n"
 "				GraphKey = key;\n"
 "				GraphBest = Time[index];\n"
@@ -6810,11 +6824,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "				{\n"
 "					var idx = GetTimer(key);\n"
 "					var T = TimerArray[idx];\n"
-"					var TimerState = TimerMap[key]";
-
-const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
-const char g_MicroProfileHtmlLive_begin_1[] =
-";\n"
+"					var TimerState = TimerMap[key];\n"
 "					var Time = TimerState.Time;\n"
 "					if(TimerState.tooltipysoft)\n"
 "					{\n"
@@ -7875,6 +7885,8 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	}\n"
 "	Settings.ViewActive = idx;\n"
 "	X7BarColumnMask = -1;\n"
+"	ViewBarMaxMsTextLength  = 0;\n"
+"	var hest = 3;\n"
 "}\n"
 "function DrawMenuViews()\n"
 "{\n"
@@ -8307,7 +8319,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	var context = CanvasDetailedView.getContext(\'2d\');\n"
 "	var nColorIndex = 0;\n"
 "	var SizeInfo = AggregateMenuSize();\n"
-"	SizeInfo.x = MenuItems[SubMenuSettings].x;\n"
+"	SizeInfo.x = MenuItems[SubMen";
+
+const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
+const char g_MicroProfileHtmlLive_begin_2[] =
+"uSettings].x;\n"
 "	SizeInfo.y = MenuItems[SubMenuSettings].y;\n"
 "\n"
 "	SizeInfo.w = 200;\n"
@@ -8315,11 +8331,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "\n"
 "	AggregateTweak = DrawMenuRoll(M, \"Aggregate Frames\", GetAggregateString(), \'\', AggregateRoll, AggregateTweak, \'int\');\n"
 "	ReferenceTimeTweak = DrawMenuRoll(M, \"Reference Time\", Settings.ReferenceTime, \'\', ReferenceRoll, ReferenceTimeTweak, \'int\');\n"
-"	TargetTimeTweak = DrawMenuRoll(M, \"Target Time\", Settings.TargetTime, \'\', TargetRoll";
-
-const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
-const char g_MicroProfileHtmlLive_begin_2[] =
-", TargetTimeTweak, \'int\');\n"
+"	TargetTimeTweak = DrawMenuRoll(M, \"Target Time\", Settings.TargetTime, \'\', TargetRoll, TargetTimeTweak, \'int\');\n"
 "	if(DrawMenuElement(M, Settings.FancyGraph, \"Fancy Graph\", Settings.FancyGraph, \'white\'))\n"
 "	{\n"
 "		Settings.FancyGraph = 1-Settings.FancyGraph;\n"
@@ -9838,7 +9850,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	if(evt.keyCode == 16)\n"
 "	{\n"
 "		KeyShiftDown = 0;\n"
-"		MouseDragKeyUp();\n"
+"	";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+"	MouseDragKeyUp();\n"
 "	}\n"
 "}\n"
 "\n"
@@ -9861,11 +9877,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "{\n"
 "	var mousewheelevt = (/Firefox/i.test(navigator.userAgent)) ? \"DOMMouseScroll\" : \"mousewheel\" //FF doesn\'t recognize mousewheel as of \n"
 "	CanvasDetailedView.addEventListener(\'mousemove\', MouseMove, false);\n"
-"	CanvasDetailedView.addEven";
-
-const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
-const char g_MicroProfileHtmlLive_begin_3[] =
-"tListener(\'mousedown\', function(evt) { MouseButton(true, evt); });\n"
+"	CanvasDetailedView.addEventListener(\'mousedown\', function(evt) { MouseButton(true, evt); });\n"
 "	CanvasDetailedView.addEventListener(\'mouseup\', function(evt) { MouseButton(false, evt); } );\n"
 "	CanvasDetailedView.addEventListener(\'mouseout\', MouseOut);\n"
 "	CanvasDetailedView.addEventListener(\"contextmenu\", function (e) { e.preventDefault(); }, false);\n"

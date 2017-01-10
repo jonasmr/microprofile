@@ -276,6 +276,9 @@ var X7LegendOffset = 25;
 var X7BarLastView = -1;
 var X7BarFirstView = -1;
 
+
+var ViewBarMaxMsTextLength = 0;
+
 Settings.SortColumn = 0;
 Settings.SortColumnOrderFlip = 0;
 Settings.SortColumnMouseOver = "";
@@ -840,13 +843,16 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 
 	var h = View.h;
 	var w = View.w;
-	var DrawX = Settings.ViewCompressed ? 3: 10;
+	var MsTextExtraSpace = Math.cos(3.14/4.0) * (ViewBarMaxMsTextLength);
+	var DrawXLeft = Settings.ViewCompressed ? 3 : 15;
+	DrawXLeft = Math.max(DrawXLeft, MsTextExtraSpace);
+	var DrawXRight = Settings.ViewCompressed ? 3: 10;
 	var DrawY = 35 * 2;
 	if(Settings.ViewCompressed)
 	{
-		DrawY = 5 + 35;
+		DrawY = (MsTextExtraSpace) + 35;
 	}
-	var DrawWidth = w -  2 * DrawX;
+	var DrawWidth = w - DrawXLeft - DrawXRight;
 	var DrawHeight = h - DrawY;
 	var SpaceWidth = 5;
 	var BarWidth = (DrawWidth-SpaceWidth*(nNumBars-1))/ nNumBars;
@@ -868,7 +874,7 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 	var MouseDragging = 0;
 	var fWidth = w / FrameCount;
 	var Keys = [];
-	var X = DrawX;
+	var X = DrawXLeft;
 	var offset = 0;
 	context.textAlign = 'center'
 	context.fillStyle = '#ffffff';
@@ -895,8 +901,15 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 		BarFont = FontXX;
 
 	}
+	context.font = BarFont;
+	for(var i = 0; i < BarTimes.length; ++i)
+	{
+		var TimeText = FormatTime(Time);
+		var w = context.measureText(TimeText).width;
+		ViewBarMaxMsTextLength = Math.max(w, ViewBarMaxMsTextLength);
+	
 
-
+	}
 	for(var i = 0; i < BarTimes.length; ++i)
 	{
 		var Time = BarTimes[i];
@@ -912,7 +925,8 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 		context.fillStyle = Color;
 		context.fillRect(X0, Y0, BarWidth, BarH);
 		context.fillStyle = '#ffffff';
-		if(LocalMouseX > X0 && LocalMouseX < X0 + BarWidth||(Settings.ViewCompressed&&DrawNames))
+		var MouseOver = LocalMouseX > X0 && LocalMouseX < X0 + BarWidth;
+		if(MouseOver || (Settings.ViewCompressed&&DrawNames))
 		{
 			context.save();
 			context.translate(X0 + BarWidth * 0.5, BaseY + DrawHeight - 2);
@@ -925,25 +939,21 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 			context.fillText(BarNames[i], -1, -1);
 			context.fillStyle = 'white';
 			context.fillText(BarNames[i], 0, 0);
+			context.textAlign = 'right';
 			context.restore();
 		}
-		var TimeText = FormatTime(Time);
-		var TimeText0 = Time.toFixed(0);
+		context.save();
 		var XText = X+BarWidth;
-		var YText = BaseY + DrawHeight + FontHeight;
-		var w = context.measureText(TimeText).width;
-		var w0 = context.measureText(TimeText0).width;
-		if(w < BarWidth)
-		{
-			context.fillText(TimeText, XText, YText);
-		}
-		else if(w0 < BarWidth)
-		{
-			context.fillText(TimeText0, XText, YText);
-		}
+		var YText = BaseY + DrawHeight + FontHeight;		
+		context.translate(XText, YText);
+		context.rotate(-3.14/4.0);
+		context.font = BarFont;
+		context.fillText(TimeText, 0, 0);
+		context.restore();
 
 		X += BarWidth + SpaceWidth;
 	}
+	context.font = Font;
 	ProfileLeave();
 }
 
@@ -2391,6 +2401,8 @@ function ActivateView(idx)
 	}
 	Settings.ViewActive = idx;
 	X7BarColumnMask = -1;
+	ViewBarMaxMsTextLength  = 0;
+	var hest = 3;
 }
 function DrawMenuViews()
 {
