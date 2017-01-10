@@ -44,6 +44,18 @@
 typedef uint64_t MicroProfileToken;
 typedef uint16_t MicroProfileGroupId;
 
+#ifndef MICROPROFILE_DYNAMIC_DLL
+#define MICROPROFILE_DYNAMIC_DLL 0
+#endif
+
+#if MICROPROFILE_DYNAMIC_DLL
+// NOTE Ozzy these are forward declared so code to pass around MicroProfile
+// state pointers can be written BEFORE including the .cpp
+typedef struct MicroProfileGlobalState MicroProfileGlobalState;
+typedef struct MicroProfileThreadState MicroProfileThreadState;
+#endif
+
+
 #if 0 == MICROPROFILE_ENABLED
 
 #define MICROPROFILE_DECLARE(var)
@@ -165,7 +177,9 @@ typedef uint16_t MicroProfileGroupId;
 
 #ifdef _WIN32
 typedef uint32_t MicroProfileThreadIdType;
+#define MP_THREAD_LOCAL __declspec(thread)
 #else
+#define MP_THREAD_LOCAL __thread
 #ifdef MICROPROFILE_THREADID_SIZE_4BYTE
 typedef uint32_t MicroProfileThreadIdType;
 #elif MICROPROFILE_THREADID_SIZE_8BYTE

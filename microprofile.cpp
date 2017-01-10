@@ -1,8 +1,7 @@
+
 #define MICROPROFILE_IMPL
 #include "microprofile.h"
 #if MICROPROFILE_ENABLED
-
-
 
 #include <thread>
 #include <mutex>
@@ -10,6 +9,9 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <ctype.h>
+
+#define mp_static_variable static
+#define mp_intern static
 
 #define MICROPROFILE_MAX_COUNTERS 512
 #define MICROPROFILE_MAX_COUNTER_NAME_CHARS (MICROPROFILE_MAX_COUNTERS*16)
@@ -51,12 +53,7 @@ enum
 #define MP_FREE(p) MicroProfileFreeInternal(p)
 #define MP_ALLOC_OBJECT(T) (T*)MP_ALLOC(sizeof(T), alignof(T))
 
-
-
-
-
 typedef uint64_t MicroProfileLogEntry;
-
 
 void MicroProfileSleep(uint32_t nMs);
 template<typename T>
@@ -76,7 +73,72 @@ uint16_t MicroProfileGetTimerIndex(MicroProfileToken t);// { return (t & 0xffff)
 uint64_t MicroProfileGetGroupMask(MicroProfileToken t);// { return ((t >> 16)&MICROPROFILE_GROUP_MASK_ALL); }
 MicroProfileToken MicroProfileMakeToken(uint64_t nGroupMask, uint16_t nTimer);// { return (nGroupMask << 16) | nTimer; }
 
+#if TARGET_OS_IPHONE
+#define MICROPROFILE_IOS
+#endif
 
+#ifndef _WIN32
+typedef uint64_t MicroProfileThreadIdType;
+#endif
+
+#if MICROPROFILE_CONTEXT_SWITCH_TRACE
+struct MicroProfileContextSwitch
+{
+	MicroProfileThreadIdType nThreadOut;
+	MicroProfileThreadIdType nThreadIn;
+	int64_t nCpu : 8;
+	int64_t nTicks : 56;
+};
+
+#ifdef _WIN32
+struct MicroProfileWin32ThreadInfo
+{
+	struct Process
+	{
+		uint32_t pid;
+		uint32_t nNumModules;
+		uint32_t nModuleStart;
+		const char* pProcessModule;
+	};
+	struct Module
+	{
+		int64_t nBase;
+		int64_t nEnd;
+		const char* pName;
+	};
+	enum {
+		MAX_PROCESSES = 5 * 1024,
+		MAX_THREADS = 20 * 1024,
+		MAX_MODULES = 20 * 1024,
+		MAX_STRINGS = 16 * 1024,		
+		MAX_CHARS = 128 * 1024,
+	};
+	uint32_t nNumProcesses;
+	uint32_t nNumThreads;
+	uint32_t nStringOffset;
+	uint32_t nNumStrings;
+	uint32_t nNumModules;
+	Process P[MAX_PROCESSES];
+	Module M[MAX_MODULES];
+	MicroProfileThreadInfo T[MAX_THREADS];
+	const char* pStrings[MAX_STRINGS];	
+	char StringData[MAX_CHARS];
+};
+
+struct MicroProfileWin32ContextSwitchShared
+{
+	std::atomic<int64_t> nPut;
+	std::atomic<int64_t> nGet;
+	std::atomic<int64_t> nQuit;
+	std::atomic<int64_t> nTickTrace;
+	std::atomic<int64_t> nTickProgram;
+	enum {
+		BUFFER_SIZE = (2 << 20) / sizeof(MicroProfileContextSwitch),
+	};
+	MicroProfileContextSwitch Buffer[BUFFER_SIZE];
+};
+#endif
+#endif
 
 //////////////////////////////////////////////////////////////////////////
 // platform IMPL
@@ -93,21 +155,18 @@ void* MicroProfileAllocAligned(size_t nSize, size_t nAlign);
 #include <unistd.h>
 #include <libkern/OSAtomic.h>
 #include <TargetConditionals.h>
-#if TARGET_OS_IPHONE
-#define MICROPROFILE_IOS
-#endif
 
 #define MP_TICK() mach_absolute_time()
 inline int64_t MicroProfileTicksPerSecondCpu()
 {
-	static int64_t nTicksPerSecond = 0;
-	if (nTicksPerSecond == 0)
+	DECLARE_STATIC_ASSIGN(int64_t, nTicksPerSecond, 0);
+	if (STATIC(nTicksPerSecond) == 0)
 	{
 		mach_timebase_info_data_t sTimebaseInfo;
 		mach_timebase_info(&sTimebaseInfo);
-		nTicksPerSecond = 1000000000ll * sTimebaseInfo.denom / sTimebaseInfo.numer;
+		STATIC(nTicksPerSecond) = 1000000000ll * sTimebaseInfo.denom / sTimebaseInfo.numer;
 	}
-	return nTicksPerSecond;
+	return STATIC(nTicksPerSecond);
 }
 inline uint64_t MicroProfileGetCurrentThreadId()
 {
@@ -119,10 +178,8 @@ inline uint64_t MicroProfileGetCurrentThreadId()
 #include <stdlib.h>
 
 #define MP_BREAK() __builtin_trap()
-#define MP_THREAD_LOCAL __thread
 #define MP_STRCASECMP strcasecmp
 #define MP_GETCURRENTTHREADID() MicroProfileGetCurrentThreadId()
-typedef uint64_t MicroProfileThreadIdType;
 
 void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 {
@@ -137,7 +194,6 @@ void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 int64_t MicroProfileGetTick();
 #define MP_TICK() MicroProfileGetTick()
 #define MP_BREAK() __debugbreak()
-#define MP_THREAD_LOCAL __declspec(thread)
 #define MP_STRCASECMP _stricmp
 #define MP_GETCURRENTTHREADID() GetCurrentThreadId()
 void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
@@ -162,10 +218,8 @@ inline int64_t MicroProfileGetTick()
 }
 #define MP_TICK() MicroProfileGetTick()
 #define MP_BREAK() __builtin_trap()
-#define MP_THREAD_LOCAL __thread
 #define MP_STRCASECMP strcasecmp
 #define MP_GETCURRENTTHREADID() (uint64_t)pthread_self()
-typedef uint64_t MicroProfileThreadIdType;
 
 void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 {
@@ -214,9 +268,6 @@ typedef HANDLE MicroProfileThread;
 #else
 typedef std::thread* MicroProfileThread;
 #endif
-
-
-
 
 struct MicroProfileTimer
 {
@@ -292,15 +343,6 @@ struct MicroProfileGraphState
 	int32_t nKey;
 };
 
-struct MicroProfileContextSwitch
-{
-	MicroProfileThreadIdType nThreadOut;
-	MicroProfileThreadIdType nThreadIn;
-	int64_t nCpu : 8;
-	int64_t nTicks : 56;
-};
-
-
 struct MicroProfileFrameState
 {
 	int64_t nFrameStartCpu;
@@ -355,9 +397,6 @@ struct MicroProfileWebSocketBuffer
 	std::atomic<uint32_t> nSendPut;
 	std::atomic<uint32_t> nSendGet;
 };
-
-
-
 
 //linear, per-frame per-thread gpu log
 struct MicroProfileThreadLogGpu
@@ -656,6 +695,129 @@ struct MicroProfile
 
 };
 
+#if MICROPROFILE_DYNAMIC_DLL
+#ifdef MP_STATE_PTR
+#define MICROPROFILE_NOFLIP
+#endif
+
+#include <mutex>
+#include <stdint.h>
+
+#if MICROPROFILE_IOS
+#include <pthread.h>
+#endif
+
+struct MicroProfileGlobalState
+{
+	int64_t nTicksPerSecond;
+	bool g_bUseLock;
+	std::recursive_mutex Mutex;
+	bool bInitOnce;
+	char FullNameBuffer[1024];
+	unsigned char* SocketRecieveBytes;
+	char BytesAllocated;
+	int nWasRunning;
+	int nOnce;
+	char result[1024];
+	int64_t nPackets;
+	int64_t nSkips;
+
+	#ifdef MICROPROFILE_IOS
+	pthread_key_t g_MicroProfileThreadLogKey;
+	pthread_once_t g_MicroProfileThreadLogKeyOnce;
+	#endif
+
+	#if MICROPROFILE_CONTEXT_SWITCH_TRACE && defined(_WIN32)
+	MicroProfileWin32ThreadInfo g_ThreadInfo;
+	MicroProfileWin32ContextSwitchShared* g_pShared;
+	#endif
+
+	MicroProfile g_MicroProfile;
+};
+
+#ifndef MP_STATE_PTR
+#define MP_STATE_PTR (&g_MicroProfileState)
+MicroProfileGlobalState g_MicroProfileState;
+#endif
+
+intern void InitMicroProfileState()
+{
+	MP_STATE_PTR->nTicksPerSecond = 0;
+	MP_STATE_PTR->nTicksPerSecond = 0;
+	
+	MP_STATE_PTR->g_bUseLock = false;
+	MP_STATE_PTR->bInitOnce = true;
+	MP_STATE_PTR->SocketRecieveBytes = 0;
+	MP_STATE_PTR->BytesAllocated = 0;
+	MP_STATE_PTR->nWasRunning = 1;
+	MP_STATE_PTR->nOnce = 0;
+	MP_STATE_PTR->nPackets = 0;
+	MP_STATE_PTR->nSkips = 0;
+
+	#ifdef MICROPROFILE_IOS
+	MP_STATE_PTR->g_MicroProfileThreadLogKeyOnce = PTHREAD_ONCE_INIT;
+	#endif
+
+	#if MICROPROFILE_CONTEXT_SWITCH_TRACE && defined(_WIN32)
+	MP_STATE_PTR->g_pShared = 0;
+	#endif
+}
+
+#ifndef MP_STATE_PTR
+#define MP_STATE_PTR (&g_MicroProfileState)
+MicroProfileGlobalState g_MicroProfileState;
+#endif
+
+#define DECLARE_STATIC(type, name)
+#define DECLARE_STATIC_ARRAY(type, name, count)
+#define DECLARE_STATIC_ASSIGN(type, name, value)
+// TODO Ozzy consider replacing with MP_STATE_PTR-> #__FUNCTION__ # name (or however you do it :/)
+#define STATIC(name) MP_STATE_PTR->name
+// TODO Ozzy consider removing g_ prefix from variables wrapped with these macros
+#define DECLARE_GLOBAL(type, name)
+#define DECLARE_GLOBAL_ASSIGN(type, name, value)
+#define GLOBAL(name) MP_STATE_PTR->name
+#define DECLARE_THREADLOCAL(type, name)
+#define DECLARE_THREADLOCAL_ASSIGN(type, name, value)
+#define THREADLOCAL(name) MP_THREAD_STATE_PTR->name
+
+struct MicroProfileThreadState
+{
+	#ifndef MICROPROFILE_IOS
+	MicroProfileThreadLog* g_MicroProfileThreadLogThreadLocal;
+	#else
+	int64_t _KeepStructFromBeingEmpty;
+	#endif
+};
+
+#ifndef MP_THREAD_STATE_PTR
+#define MP_THREAD_STATE_PTR (&g_MicroProfileThreadState)
+MP_THREAD_LOCAL MicroProfileThreadState g_MicroProfileThreadState;
+#endif
+
+intern void InitMicroProfileThreadState()
+{
+	#ifndef MICROPROFILE_IOS
+	MP_THREAD_STATE_PTR->g_MicroProfileThreadLogThreadLocal = 0;
+	#endif
+}
+#else
+// TODO Ozzy Other defines???
+void InitMicroProfileState() { /* Do nothing */ };
+void InitMicroProfileThreadState() { /* Do nothing */ };
+
+#define DECLARE_STATIC(type, name) mp_static_variable type name
+#define DECLARE_STATIC_ARRAY(type, name, count) mp_static_variable type name[count]
+#define DECLARE_STATIC_ASSIGN(type, name, value) mp_static_variable type name = value
+#define STATIC(name) name
+#define DECLARE_GLOBAL(type, name) type name
+#define DECLARE_GLOBAL_ASSIGN(type, name, value) type name = value
+#define GLOBAL(name) name
+#define DECLARE_THREADLOCAL(type, name) MP_THREAD_LOCAL type name
+#define DECLARE_THREADLOCAL_ASSIGN(type, name, value) MP_THREAD_LOCAL type name = value
+#define THREADLOCAL(name) name
+#endif
+
 inline uint64_t MicroProfileLogType(MicroProfileLogEntry Index)
 {
 	return ((MP_LOG_BEGIN_MASK & Index) >> 62) & 0x3;
@@ -763,12 +925,12 @@ uint64_t MicroProfileTick()
 #pragma warning(disable: 4100)
 int64_t MicroProfileTicksPerSecondCpu()
 {
-	static int64_t nTicksPerSecond = 0;	
-	if(nTicksPerSecond == 0) 
+	DECLARE_STATIC_ASSIGN(int64_t, nTicksPerSecond, 0);
+	if(STATIC(nTicksPerSecond) == 0) 
 	{
-		QueryPerformanceFrequency((LARGE_INTEGER*)&nTicksPerSecond);
+		QueryPerformanceFrequency((LARGE_INTEGER*)&STATIC(nTicksPerSecond));
 	}
-	return nTicksPerSecond;
+	return STATIC(nTicksPerSecond);
 }
 int64_t MicroProfileGetTick()
 {
@@ -868,25 +1030,33 @@ void MicroProfileDumpToFile();
 #define MICROPROFILE_DEBUG 0
 #endif
 
-
-#define S g_MicroProfile
-
-MicroProfile g_MicroProfile;
+#define S GLOBAL(g_MicroProfile)
+DECLARE_GLOBAL(MicroProfile, g_MicroProfile)
 #ifdef MICROPROFILE_IOS
 // iOS doesn't support __thread
-static pthread_key_t g_MicroProfileThreadLogKey;
-static pthread_once_t g_MicroProfileThreadLogKeyOnce = PTHREAD_ONCE_INIT;
+DECLARE_GLOBAL(pthread_key_t, g_MicroProfileThreadLogKey);
+DECLARE_GLOBAL_ASSIGN(pthread_once_t, g_MicroProfileThreadLogKeyOnce, PTHREAD_ONCE_INIT);
 
-static void MicroProfileCreateThreadLogKey()
+mp_intern void MicroProfileCreateThreadLogKey()
 {
-	pthread_key_create(&g_MicroProfileThreadLogKey, NULL);
+	pthread_key_create(&GLOBAL(g_MicroProfileThreadLogKey), NULL);
 }
 #else
-MP_THREAD_LOCAL MicroProfileThreadLog* g_MicroProfileThreadLogThreadLocal = 0;
+DECLARE_THREADLOCAL_ASSIGN(MicroProfileThreadLog*, g_MicroProfileThreadLogThreadLocal, 0);
 #endif
-static bool g_bUseLock = false; /// This is used because windows does not support using mutexes under dll init(which is where global initialization is handled)
+DECLARE_GLOBAL_ASSIGN(bool, g_bUseLock, false); /// This is used because windows does not support using mutexes under dll init(which is where global initialization is handled)
 
-
+// TODO Ozzy add these to the global state struct, to avoid weirdness when
+// Flip is called from within a dynamically loaded DLL.
+#ifdef MICROPROFILE_NOFLIP
+MicroProfileToken g_mp_g_MicroProfileFlip;
+MicroProfileToken g_mp_g_MicroProfileThreadLoop;
+MicroProfileToken g_mp_g_MicroProfileClear;
+MicroProfileToken g_mp_g_MicroProfileAccumulate;
+MicroProfileToken g_mp_g_MicroProfileContextSwitchSearch;
+MicroProfileToken g_mp_g_MicroProfileGpuSubmit;
+MicroProfileToken g_mp_g_MicroProfileSendLoop;
+#else
 MICROPROFILE_DEFINE(g_MicroProfileFlip, "MicroProfile", "MicroProfileFlip", MP_GREEN4);
 MICROPROFILE_DEFINE(g_MicroProfileThreadLoop, "MicroProfile", "ThreadLoop", MP_GREEN4);
 MICROPROFILE_DEFINE(g_MicroProfileClear, "MicroProfile", "Clear", MP_GREEN4);
@@ -894,12 +1064,13 @@ MICROPROFILE_DEFINE(g_MicroProfileAccumulate, "MicroProfile", "Accumulate", MP_G
 MICROPROFILE_DEFINE(g_MicroProfileContextSwitchSearch,"MicroProfile", "ContextSwitchSearch", MP_GREEN4);
 MICROPROFILE_DEFINE(g_MicroProfileGpuSubmit, "MicroProfile", "MicroProfileGpuSubmit", MP_HOTPINK2);
 MICROPROFILE_DEFINE(g_MicroProfileSendLoop, "MicroProfile", "MicroProfileSocketSendLoop", MP_GREEN4);
+#endif
 
 
 inline std::recursive_mutex& MicroProfileMutex()
 {
-	static std::recursive_mutex Mutex;
-	return Mutex;
+	DECLARE_STATIC(std::recursive_mutex, Mutex);
+	return STATIC(Mutex);
 }
 std::recursive_mutex& MicroProfileGetMutex()
 {
@@ -908,7 +1079,7 @@ std::recursive_mutex& MicroProfileGetMutex()
 
 MICROPROFILE_API MicroProfile* MicroProfileGet()
 {
-	return &g_MicroProfile;
+	return &GLOBAL(g_MicroProfile);
 }
 
 
@@ -918,20 +1089,20 @@ void* MicroProfileSocketSenderThread(void*);
 
 void MicroProfileInit()
 {
-	static bool bOnce = true;
-	if(!bOnce)
+	DECLARE_STATIC_ASSIGN(bool, bInitOnce, true);
+	if(!STATIC(bInitOnce))
 	{
 		return;
 	}
 
 	std::recursive_mutex& mutex = MicroProfileMutex();
-	bool bUseLock = g_bUseLock;
+	bool bUseLock = GLOBAL(g_bUseLock);
 	if(bUseLock)
 		mutex.lock();
-	if(bOnce)
+	if(STATIC(bInitOnce))
 	{
 		S.nMemUsage += sizeof(S);
-		bOnce = false;
+		STATIC(bInitOnce) = false;
 		memset(&S, 0, sizeof(S));
 		for(int i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
 		{
@@ -1023,23 +1194,23 @@ void MicroProfileShutdown()
 #ifdef MICROPROFILE_IOS
 inline MicroProfileThreadLog* MicroProfileGetThreadLog()
 {
-	pthread_once(&g_MicroProfileThreadLogKeyOnce, MicroProfileCreateThreadLogKey);
-	return (MicroProfileThreadLog*)pthread_getspecific(g_MicroProfileThreadLogKey);
+	pthread_once(&GLOBAL(g_MicroProfileThreadLogKeyOnce), MicroProfileCreateThreadLogKey);
+	return (MicroProfileThreadLog*)pthread_getspecific(GLOBAL(g_MicroProfileThreadLogKey));
 }
 
 inline void MicroProfileSetThreadLog(MicroProfileThreadLog* pLog)
 {
-	pthread_once(&g_MicroProfileThreadLogKeyOnce, MicroProfileCreateThreadLogKey);
-	pthread_setspecific(g_MicroProfileThreadLogKey, pLog);
+	pthread_once(&GLOBAL(g_MicroProfileThreadLogKeyOnce), MicroProfileCreateThreadLogKey);
+	pthread_setspecific(GLOBAL(g_MicroProfileThreadLogKey), pLog);
 }
 #else
 MicroProfileThreadLog* MicroProfileGetThreadLog()
 {
-	return g_MicroProfileThreadLogThreadLocal;
+	return THREADLOCAL(g_MicroProfileThreadLogThreadLocal);
 }
 void MicroProfileSetThreadLog(MicroProfileThreadLog* pLog)
 {
-	g_MicroProfileThreadLogThreadLocal = pLog;
+	THREADLOCAL(g_MicroProfileThreadLogThreadLocal) = pLog;
 }
 #endif
 
@@ -1058,7 +1229,7 @@ struct MicroProfileScopeLock
 {
 	bool bUseLock;
 	std::recursive_mutex& m;
-	MicroProfileScopeLock(std::recursive_mutex& m) : bUseLock(g_bUseLock), m(m)
+	MicroProfileScopeLock(std::recursive_mutex& m) : bUseLock(GLOBAL(g_bUseLock)), m(m)
 	{
 		if(bUseLock)
 			m.lock();
@@ -1106,7 +1277,7 @@ MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 void MicroProfileOnThreadCreate(const char* pThreadName)
 {
 	char Buffer[64];
-	g_bUseLock = true;
+	GLOBAL(g_bUseLock) = true;
 	MicroProfileInit();
 	MP_ASSERT(MicroProfileGetThreadLog() == 0);
 	MicroProfileThreadLog* pLog = MicroProfileCreateThreadLog(pThreadName ? pThreadName : MicroProfileGetThreadName(Buffer));
@@ -1440,7 +1611,7 @@ const char* MicroProfileNextName(const char* pName, char* pNameOut, uint32_t* nS
 
 const char* MicroProfileCounterFullName(int nCounter)
 {
-	static char Buffer[1024];
+	DECLARE_STATIC_ARRAY(char, FullNameBuffer, 1024);
 	int nNodes[32];
 	int nIndex = 0;
 	do
@@ -1449,20 +1620,20 @@ const char* MicroProfileCounterFullName(int nCounter)
 		nCounter = S.CounterInfo[nCounter].nParent;
 	}while(nCounter >= 0);
 	int nOffset = 0;
-	while(nIndex >= 0 && nOffset < (int)sizeof(Buffer)-2)
+	while(nIndex >= 0 && nOffset < (int)sizeof(STATIC(FullNameBuffer))-2)
 	{
-		uint32_t nLen = S.CounterInfo[nNodes[nIndex]].nNameLen + nOffset;// < sizeof(Buffer)-1 
-		nLen = MicroProfileMin((uint32_t)(sizeof(Buffer) - 2 - nOffset), nLen);
-		memcpy(&Buffer[nOffset], S.CounterInfo[nNodes[nIndex]].pName, nLen);
+		uint32_t nLen = S.CounterInfo[nNodes[nIndex]].nNameLen + nOffset;// < sizeof(STATIC(FullNameBuffer))-1 
+		nLen = MicroProfileMin((uint32_t)(sizeof(STATIC(FullNameBuffer)) - 2 - nOffset), nLen);
+		memcpy(&STATIC(FullNameBuffer)[nOffset], S.CounterInfo[nNodes[nIndex]].pName, nLen);
 
 		nOffset += S.CounterInfo[nNodes[nIndex]].nNameLen+1;
 		if(nIndex)
 		{
-			Buffer[nOffset++] = '/';
+			STATIC(FullNameBuffer)[nOffset++] = '/';
 		}
 		nIndex--;
 	}
-	return &Buffer[0];
+	return &STATIC(FullNameBuffer)[0];
 }
 MicroProfileToken MicroProfileGetCounterTokenByParent(int nParent, const char* pName)
 {
@@ -1991,7 +2162,7 @@ void* MicroProfileReallocInternal(void* pPtr, size_t nSize)
 	return (void*)p;
 }
 	
-static void MicroProfileFlipEnabled()
+mp_intern void MicroProfileFlipEnabled()
 {
 	uint64_t nNewActiveGroup = 0;
 	uint64_t nActiveBefore = S.nActiveGroup;
@@ -2834,6 +3005,7 @@ int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_
 
 #define MICROPROFILE_EMBED_HTML
 
+// NOTE Ozzy Don't need to be in global state, although memory savings would be considerable. Save for future.
 extern const char* g_MicroProfileHtml_begin[];
 extern size_t g_MicroProfileHtml_begin_sizes[];
 extern size_t g_MicroProfileHtml_begin_count;
@@ -3963,7 +4135,7 @@ MicroProfileGetCommand MicroProfileParseGet(const char* pGet, MicroProfileParseG
 
 void MicroProfileBase64Encode(char* pOut, const uint8_t* pIn, uint32_t nLen)
 {
-	static const char* CODES ="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+	mp_static_variable const char* CODES ="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
 	//..straight from wikipedia.
 	int b;
 	char* o = pOut;
@@ -4015,7 +4187,7 @@ typedef struct {
 #include <netinet/in.h>
 #endif
 
-static void MicroProfile_SHA1_Transform(uint32_t[5], const unsigned char[64]);
+mp_intern void MicroProfile_SHA1_Transform(uint32_t[5], const unsigned char[64]);
 
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
@@ -4032,7 +4204,7 @@ static void MicroProfile_SHA1_Transform(uint32_t[5], const unsigned char[64]);
 
 // Hash a single 512-bit block. This is the core of the algorithm. 
 
-static void MicroProfile_SHA1_Transform(uint32_t state[5], const unsigned char buffer[64])
+mp_intern void MicroProfile_SHA1_Transform(uint32_t state[5], const unsigned char buffer[64])
 {
     uint32_t a, b, c, d, e;
     typedef union {
@@ -4946,8 +5118,8 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 	uint64_t nSize;
 	uint64_t nSizeBytes = 0;
 	uint8_t Mask[4];
-	static unsigned char* Bytes = 0;
-	static char BytesAllocated = 0;
+	DECLARE_STATIC_ASSIGN(unsigned char*, SocketRecieveBytes, 0);
+	DECLARE_STATIC_ASSIGN(char, BytesAllocated, 0);
 	MicroProfileWebSocketHeader0 h0;
 	MicroProfileWebSocketHeader1 h1;
 	static_assert(sizeof(h0) == 1, "");
@@ -5006,42 +5178,42 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 	}
 
 
-	if(nSize+1 > BytesAllocated)
+	if(nSize+1 > STATIC(BytesAllocated))
 	{
-		Bytes = (unsigned char*)MP_REALLOC(Bytes, nSize+1);
-		BytesAllocated = nSize + 1;
+		STATIC(SocketRecieveBytes) = (unsigned char*)MP_REALLOC(STATIC(SocketRecieveBytes), nSize+1);
+		STATIC(BytesAllocated) = nSize + 1;
 	}
-	recv(Connection, (char*)Bytes, nSize, 0);
+	recv(Connection, (char*)STATIC(SocketRecieveBytes), nSize, 0);
 	for(uint32_t i = 0; i < nSize; ++i)
-		Bytes[i] ^= Mask[i&3];
+		STATIC(SocketRecieveBytes)[i] ^= Mask[i&3];
 
-	Bytes[nSize] = '\0';
-	switch(Bytes[0])
+	STATIC(SocketRecieveBytes)[nSize] = '\0';
+	switch(STATIC(SocketRecieveBytes)[0])
 	{
 		case 'a':
 			{
-				S.nAggregateFlip = strtoll((const char*)&Bytes[1], nullptr, 10);
+				S.nAggregateFlip = strtoll((const char*)&STATIC(SocketRecieveBytes)[1], nullptr, 10);
 			}
 			break;
 		case 's':
 			{
-				char* pJson = strchr((char*)Bytes, ',');
+				char* pJson = strchr((char*)STATIC(SocketRecieveBytes), ',');
 				if(pJson && *pJson != '\0')
 				{
 					*pJson = '\0';
-					MicroProfileSavePresets((const char*)Bytes+1, (const char*)pJson+1);
+					MicroProfileSavePresets((const char*)STATIC(SocketRecieveBytes)+1, (const char*)pJson+1);
 				}
 				break;
 			}
 
 		case 'l':
 			{
-				MicroProfileLoadPresets((const char*)Bytes+1, 0);
+				MicroProfileLoadPresets((const char*)STATIC(SocketRecieveBytes)+1, 0);
 				break;
 			}
 		case 'm':
 			{
-				MicroProfileLoadPresets((const char*)Bytes+1, 1);
+				MicroProfileLoadPresets((const char*)STATIC(SocketRecieveBytes)+1, 1);
 				break;
 			}
 		case 'd':
@@ -5052,7 +5224,7 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 			}
 		case 'c':
 			{
-				char* pStr = (char*)Bytes + 1;
+				char* pStr = (char*)STATIC(SocketRecieveBytes) + 1;
 				char* pEnd = pStr + nSize - 1;
 				uint32_t Message = strtol(pStr, &pEnd, 10);
 				MicroProfileWebSocketCommand(Message);
@@ -5062,7 +5234,7 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 			MicroProfileToggleFrozen();
 			break;
 		case 'v':
-			S.nWSViewMode = (int)Bytes[1]-'0';
+			S.nWSViewMode = (int)STATIC(SocketRecieveBytes)[1]-'0';
 			break;
 		case 'r':
 			printf("got clear message\n");
@@ -5072,7 +5244,7 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 			MicroProfileWebSocketClearTimers();
 			break;
 		default:
-			printf("got unknown message size %lld: '%s'\n", (long long)nSize, Bytes);
+			printf("got unknown message size %lld: '%s'\n", (long long)nSize, STATIC(SocketRecieveBytes));
 	}
 	return true;
 
@@ -5636,9 +5808,6 @@ bool MicroProfileWebServerUpdate()
 }
 #endif
 
-
-
-
 #if MICROPROFILE_CONTEXT_SWITCH_TRACE
 //functions that need to be implemented per platform.
 void* MicroProfileTraceThread(void* unused);
@@ -5671,8 +5840,8 @@ void MicroProfileStopContextSwitchTrace()
 #include <evntcons.h>
 #include <strsafe.h>
 
-
-static GUID g_MicroProfileThreadClassGuid = { 0x3d6fa8d1, 0xfe05, 0x11d0, 0x9d, 0xda, 0x00, 0xc0, 0x4f, 0xd7, 0xba, 0x7c };
+// NOTE Ozzy Does not need to be in global state, is a GUID.
+mp_intern GUID g_MicroProfileThreadClassGuid = { 0x3d6fa8d1, 0xfe05, 0x11d0, 0x9d, 0xda, 0x00, 0xc0, 0x4f, 0xd7, 0xba, 0x7c };
 
 struct MicroProfileSCSwitch
 {
@@ -5797,8 +5966,6 @@ bool MicroProfileStartWin32Trace(EventCallback EvtCb, BufferCallback BufferCB)
 	CloseTrace(hLog);
 	MicroProfileContextSwitchShutdownTrace();
 	return true;
-
-
 }
 
 #include <winternl.h>
@@ -5810,55 +5977,7 @@ typedef NTSTATUS(WINAPI *pNtQIT)(HANDLE, LONG, PVOID, ULONG, PULONG);
 #define STATUS_SUCCESS    ((NTSTATUS)0x000 00000L)
 #define ThreadQuerySetWin32StartAddress 9
 
-
-struct MicroProfileWin32ContextSwitchShared
-{
-	std::atomic<int64_t> nPut;
-	std::atomic<int64_t> nGet;
-	std::atomic<int64_t> nQuit;
-	std::atomic<int64_t> nTickTrace;
-	std::atomic<int64_t> nTickProgram;
-	enum {
-		BUFFER_SIZE = (2 << 20) / sizeof(MicroProfileContextSwitch),
-	};
-	MicroProfileContextSwitch Buffer[BUFFER_SIZE];
-};
-
-struct MicroProfileWin32ThreadInfo
-{
-	struct Process
-	{
-		uint32_t pid;
-		uint32_t nNumModules;
-		uint32_t nModuleStart;
-		const char* pProcessModule;
-	};
-	struct Module
-	{
-		int64_t nBase;
-		int64_t nEnd;
-		const char* pName;
-	};
-	enum {
-		MAX_PROCESSES = 5 * 1024,
-		MAX_THREADS = 20 * 1024,
-		MAX_MODULES = 20 * 1024,
-		MAX_STRINGS = 16 * 1024,		
-		MAX_CHARS = 128 * 1024,
-	};
-	uint32_t nNumProcesses;
-	uint32_t nNumThreads;
-	uint32_t nStringOffset;
-	uint32_t nNumStrings;
-	uint32_t nNumModules;
-	Process P[MAX_PROCESSES];
-	Module M[MAX_MODULES];
-	MicroProfileThreadInfo T[MAX_THREADS];
-	const char* pStrings[MAX_STRINGS];	
-	char StringData[MAX_CHARS];
-};
-
-static MicroProfileWin32ThreadInfo g_ThreadInfo;
+DECLARE_GLOBAL(MicroProfileWin32ThreadInfo, g_ThreadInfo);
 
 const char* MicroProfileWin32ThreadInfoAddString(const char* pString)
 {
@@ -5872,19 +5991,19 @@ const char* MicroProfileWin32ThreadInfoAddString(const char* pString)
 	for (uint32_t i = 0; i < MAX_SEARCH; ++i)
 	{
 		uint32_t idx = (i + nHash) % MicroProfileWin32ThreadInfo::MAX_STRINGS;
-		if (0 == g_ThreadInfo.pStrings[idx])
+		if (0 == GLOBAL(g_ThreadInfo).pStrings[idx])
 		{
-			g_ThreadInfo.pStrings[idx] = &g_ThreadInfo.StringData[g_ThreadInfo.nStringOffset];
-			memcpy(&g_ThreadInfo.StringData[g_ThreadInfo.nStringOffset], pString, nLen + 1);
-			g_ThreadInfo.nStringOffset += (uint32_t)(nLen + 1);
-			return g_ThreadInfo.pStrings[idx];
+			GLOBAL(g_ThreadInfo).pStrings[idx] = &GLOBAL(g_ThreadInfo).StringData[GLOBAL(g_ThreadInfo).nStringOffset];
+			memcpy(&GLOBAL(g_ThreadInfo).StringData[GLOBAL(g_ThreadInfo).nStringOffset], pString, nLen + 1);
+			GLOBAL(g_ThreadInfo).nStringOffset += (uint32_t)(nLen + 1);
+			return GLOBAL(g_ThreadInfo).pStrings[idx];
 		}
-		if(0 == strcmp(g_ThreadInfo.pStrings[idx], pString))
+		if(0 == strcmp(GLOBAL(g_ThreadInfo).pStrings[idx], pString))
 		{
-			return g_ThreadInfo.pStrings[idx];
+			return GLOBAL(g_ThreadInfo).pStrings[idx];
 		}
 	}
-	return "internal hash table fail: should never happen";
+	return "mp_internal hash table fail: should never happen";
 }
 void MicroProfileWin32ExtractModules(MicroProfileWin32ThreadInfo::Process& P)
 {
@@ -5894,9 +6013,9 @@ void MicroProfileWin32ExtractModules(MicroProfileWin32ThreadInfo::Process& P)
 	{
 		do
 		{
-			if (g_ThreadInfo.nNumModules < MicroProfileWin32ThreadInfo::MAX_MODULES)
+			if (GLOBAL(g_ThreadInfo).nNumModules < MicroProfileWin32ThreadInfo::MAX_MODULES)
 			{
-				auto& M = g_ThreadInfo.M[g_ThreadInfo.nNumModules++];
+				auto& M = GLOBAL(g_ThreadInfo).M[GLOBAL(g_ThreadInfo).nNumModules++];
 				P.nNumModules++;
 				intptr_t nBase = (intptr_t)me.modBaseAddr;
 				intptr_t nEnd = nBase + me.modBaseSize;
@@ -5913,7 +6032,7 @@ void MicroProfileWin32ExtractModules(MicroProfileWin32ThreadInfo::Process& P)
 }
 void MicroProfileWin32InitThreadInfo2()
 {
-	memset(&g_ThreadInfo, 0, sizeof(g_ThreadInfo));
+	memset(&GLOBAL(g_ThreadInfo), 0, sizeof(GLOBAL(g_ThreadInfo)));
 	float fToMsCpu = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
 
 	HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPALL, 0);
@@ -5931,28 +6050,28 @@ void MicroProfileWin32InitThreadInfo2()
 				MicroProfileWin32ThreadInfo::Process P;
 				P.pid = pe32.th32ProcessID;
 				P.pProcessModule = MicroProfileWin32ThreadInfoAddString(pe32.szExeFile);
-				g_ThreadInfo.P[g_ThreadInfo.nNumProcesses++] = P;
-			} while (Process32Next(hSnap, &pe32) && g_ThreadInfo.nNumProcesses < MicroProfileWin32ThreadInfo::MAX_PROCESSES);
+				GLOBAL(g_ThreadInfo).P[GLOBAL(g_ThreadInfo).nNumProcesses++] = P;
+			} while (Process32Next(hSnap, &pe32) && GLOBAL(g_ThreadInfo).nNumProcesses < MicroProfileWin32ThreadInfo::MAX_PROCESSES);
 		}
 #if MICROPROFILE_DEBUG
 		int64_t nTicksEnd = MP_TICK();
 		float fMs = fToMsCpu * (nTicksEnd - nTickStart);
-		printf("Process iteration %6.2fms processes %d\n", fMs, g_ThreadInfo.nNumProcesses);
+		printf("Process iteration %6.2fms processes %d\n", fMs, GLOBAL(g_ThreadInfo).nNumProcesses);
 #endif
 	}
 	{
 		int64_t nTickStart = MP_TICK();
-		for (uint32_t i = 0; i < g_ThreadInfo.nNumProcesses; ++i)
+		for (uint32_t i = 0; i < GLOBAL(g_ThreadInfo).nNumProcesses; ++i)
 		{
-			uint32_t pid = g_ThreadInfo.P[i].pid;
-			g_ThreadInfo.P[i].nModuleStart = g_ThreadInfo.nNumModules;
-			g_ThreadInfo.P[i].nNumModules = 0;
-			MicroProfileWin32ExtractModules(g_ThreadInfo.P[i]);
+			uint32_t pid = GLOBAL(g_ThreadInfo).P[i].pid;
+			GLOBAL(g_ThreadInfo).P[i].nModuleStart = GLOBAL(g_ThreadInfo).nNumModules;
+			GLOBAL(g_ThreadInfo).P[i].nNumModules = 0;
+			MicroProfileWin32ExtractModules(GLOBAL(g_ThreadInfo).P[i]);
 		}
 #if MICROPROFILE_DEBUG
 		int64_t nTicksEnd = MP_TICK();
 		float fMs = fToMsCpu * (nTicksEnd - nTickStart);
-		printf("Module iteration %6.2fms NumModules %d\n", fMs, g_ThreadInfo.nNumModules);
+		printf("Module iteration %6.2fms NumModules %d\n", fMs, GLOBAL(g_ThreadInfo).nNumModules);
 #endif
 	}
 
@@ -5980,9 +6099,9 @@ void MicroProfileWin32InitThreadInfo2()
 				{
 					bool bFound = false;
 					uint32_t nProcessIndex = (uint32_t)-1;					
-					for (uint32_t i = 0; i < g_ThreadInfo.nNumProcesses; ++i)
+					for (uint32_t i = 0; i < GLOBAL(g_ThreadInfo).nNumProcesses; ++i)
 					{
-						if (g_ThreadInfo.P[i].pid == te32.th32OwnerProcessID)
+						if (GLOBAL(g_ThreadInfo).P[i].pid == te32.th32OwnerProcessID)
 						{
 							nProcessIndex = i;
 							break;
@@ -5990,11 +6109,11 @@ void MicroProfileWin32InitThreadInfo2()
 					}
 					if (nProcessIndex != (uint32_t)-1)
 					{
-						uint32_t nModuleStart = g_ThreadInfo.P[nProcessIndex].nModuleStart;
-						uint32_t nNumModules = g_ThreadInfo.P[nProcessIndex].nNumModules;
+						uint32_t nModuleStart = GLOBAL(g_ThreadInfo).P[nProcessIndex].nModuleStart;
+						uint32_t nNumModules = GLOBAL(g_ThreadInfo).P[nProcessIndex].nNumModules;
 						for (uint32_t i = 0; i < nNumModules; ++i)
 						{
-							auto& M = g_ThreadInfo.M[nModuleStart + i];
+							auto& M = GLOBAL(g_ThreadInfo).M[nModuleStart + i];
 							if (M.nBase <= dwStartAddress && M.nEnd >= dwStartAddress)
 							{
 								pModule = M.pName;
@@ -6010,11 +6129,11 @@ void MicroProfileWin32InitThreadInfo2()
 				T.pid = te32.th32OwnerProcessID;
 				T.tid = te32.th32ThreadID;
 				const char* pProcess = "unknown";
-				for (uint32_t i = 0; i < g_ThreadInfo.nNumProcesses; ++i)
+				for (uint32_t i = 0; i < GLOBAL(g_ThreadInfo).nNumProcesses; ++i)
 				{
-					if (g_ThreadInfo.P[i].pid == T.pid)
+					if (GLOBAL(g_ThreadInfo).P[i].pid == T.pid)
 					{
-						pProcess = g_ThreadInfo.P[i].pProcessModule;
+						pProcess = GLOBAL(g_ThreadInfo).P[i].pProcessModule;
 						break;
 					}
 				}
@@ -6022,17 +6141,17 @@ void MicroProfileWin32InitThreadInfo2()
 				T.pThreadModule = MicroProfileWin32ThreadInfoAddString(pModule);
 				T.nIsLocal = GetCurrentProcessId() == T.pid ? 1 : 0;
 				nThreadsSucceeded++;
-				g_ThreadInfo.T[g_ThreadInfo.nNumThreads++] = T;
+				GLOBAL(g_ThreadInfo).T[GLOBAL(g_ThreadInfo).nNumThreads++] = T;
 			}
 
 
 
-		} while (Thread32Next(hSnap, &te32) && g_ThreadInfo.nNumThreads < MicroProfileWin32ThreadInfo::MAX_THREADS);
+		} while (Thread32Next(hSnap, &te32) && GLOBAL(g_ThreadInfo).nNumThreads < MicroProfileWin32ThreadInfo::MAX_THREADS);
 
 #if MICROPROFILE_DEBUG
 		int64_t nTickEnd = MP_TICK();
 		float fMs = fToMsCpu * (nTickEnd - nTickStart);
-		printf("Thread iteration %6.2fms Threads %d\n", fMs, g_ThreadInfo.nNumThreads);
+		printf("Thread iteration %6.2fms Threads %d\n", fMs, GLOBAL(g_ThreadInfo).nNumThreads);
 #endif
 
 	}
@@ -6040,43 +6159,43 @@ void MicroProfileWin32InitThreadInfo2()
 
 void MicroProfileWin32UpdateThreadInfo()
 {
-	static int nWasRunning = 1;
-	static int nOnce = 0;
+	DECLARE_STATIC_ASSIGN(int, nWasRunning, 1);
+	DECLARE_STATIC_ASSIGN(int, nOnce, 0);
 	int nRunning = S.nActiveGroup != 0;
 
-	if ((0 == nRunning && 1 == nWasRunning) || nOnce == 0)
+	if ((0 == nRunning && 1 == STATIC(nWasRunning)) || STATIC(nOnce) == 0)
 	{
-		nOnce = 1;
+		STATIC(nOnce) = 1;
 		MicroProfileWin32InitThreadInfo2();
 	}
-	nWasRunning = nRunning;
-
+	STATIC(nWasRunning) = nRunning;
 }
 
 const char* MicroProfileThreadNameFromId(MicroProfileThreadIdType nThreadId)
 {
 	MicroProfileWin32UpdateThreadInfo();
-	static char result[1024];
-	for (uint32_t i = 0; i < g_ThreadInfo.nNumThreads; ++i)
+	DECLARE_STATIC_ARRAY(char, result, 1024);
+	for (uint32_t i = 0; i < GLOBAL(g_ThreadInfo).nNumThreads; ++i)
 	{
-		if (g_ThreadInfo.T[i].tid == nThreadId)
+		if (GLOBAL(g_ThreadInfo).T[i].tid == nThreadId)
 		{
-			sprintf_s(result, "p:%s t:%s", g_ThreadInfo.T[i].pProcessModule, g_ThreadInfo.T[i].pThreadModule);
-			return result;
+			sprintf_s(STATIC(result), "p:%s t:%s", GLOBAL(g_ThreadInfo).T[i].pProcessModule, GLOBAL(g_ThreadInfo).T[i].pThreadModule);
+			return STATIC(result);
 		}
 	}
-	sprintf_s(result, "?");
-	return result;
+	sprintf_s(STATIC(result), "?");
+	return STATIC(result);
 }
 
 #define MICROPROFILE_FILEMAPPING "microprofile-shared"
 #ifdef MICROPROFILE_WIN32_COLLECTOR
 #define MICROPROFILE_WIN32_CSWITCH_TIMEOUT 15 //seconds to wait before collector exits
-static MicroProfileWin32ContextSwitchShared* g_pShared = 0;
+mp_intern DECLARE_GLOBAL_ASSIGN(MicroProfileWin32ContextSwitchShared*, g_pShared, 0);
 VOID WINAPI MicroProfileContextSwitchCallbackCollector(PEVENT_TRACE pEvent)
 {
-	static int64_t nPackets = 0;
-	static int64_t nSkips = 0;
+	DECLARE_STATIC_ASSIGN(int64_t, nPackets, 0);
+	DECLARE_STATIC_ASSIGN(int64_t, nSkips, 0);
+
 	if (pEvent->Header.Guid == g_MicroProfileThreadClassGuid)
 	{
 		if (pEvent->Header.Class.Type == 36)
@@ -6089,13 +6208,13 @@ VOID WINAPI MicroProfileContextSwitchCallbackCollector(PEVENT_TRACE pEvent)
 				Switch.nThreadIn = pCSwitch->NewThreadId;
 				Switch.nCpu = pEvent->BufferContext.ProcessorNumber;
 				Switch.nTicks = pEvent->Header.TimeStamp.QuadPart;
-				int64_t nPut = g_pShared->nPut.load(std::memory_order_relaxed);
-				int64_t nGet = g_pShared->nGet.load(std::memory_order_relaxed);
+				int64_t nPut = GLOBAL(g_pShared)->nPut.load(std::memory_order_relaxed);
+				int64_t nGet = GLOBAL(g_pShared)->nGet.load(std::memory_order_relaxed);
 				nPackets++;
 				if(nPut - nGet < MicroProfileWin32ContextSwitchShared::BUFFER_SIZE)
 				{
-					g_pShared->Buffer[nPut%MicroProfileWin32ContextSwitchShared::BUFFER_SIZE] = Switch;
-					g_pShared->nPut.store(nPut + 1, std::memory_order_release);
+					GLOBAL(g_pShared)->Buffer[nPut%MicroProfileWin32ContextSwitchShared::BUFFER_SIZE] = Switch;
+					GLOBAL(g_pShared)->nPut.store(nPut + 1, std::memory_order_release);
 					nSkips = 0;
 				}
 				else
@@ -6108,15 +6227,15 @@ VOID WINAPI MicroProfileContextSwitchCallbackCollector(PEVENT_TRACE pEvent)
 	if(0 == (nPackets%(4<<10)))
 	{
 		int64_t nTickTrace = MP_TICK();
-		g_pShared->nTickTrace.store(nTickTrace);
-		int64_t nTickProgram = g_pShared->nTickProgram.load();
+		GLOBAL(g_pShared)->nTickTrace.store(nTickTrace);
+		int64_t nTickProgram = GLOBAL(g_pShared)->nTickProgram.load();
 		float fTickToMs = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
 		float fTime = fabs(fTickToMs * (nTickTrace - nTickProgram));
 		printf("\rRead %" PRId64 " CSwitch Packets, Skips %" PRId64 " Time difference %6.3fms         ", nPackets, nSkips, fTime);
 		fflush(stdout);
 		if (fTime > MICROPROFILE_WIN32_CSWITCH_TIMEOUT * 1000)
 		{
-			g_pShared->nQuit.store(1);
+			GLOBAL(g_pShared)->nQuit.store(1);
 		}
 
 	}
@@ -6124,7 +6243,7 @@ VOID WINAPI MicroProfileContextSwitchCallbackCollector(PEVENT_TRACE pEvent)
 
 ULONG WINAPI MicroProfileBufferCallbackCollector(PEVENT_TRACE_LOGFILE Buffer)
 {
-	return (g_pShared->nQuit.load()) ? FALSE : TRUE;
+	return (GLOBAL(g_pShared)->nQuit.load()) ? FALSE : TRUE;
 }
 
 int main(int argc, char* argv[])
@@ -6139,12 +6258,12 @@ int main(int argc, char* argv[])
 	{
 		return 1;
 	}
-	g_pShared = (MicroProfileWin32ContextSwitchShared*)MapViewOfFile(hMemory, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(MicroProfileWin32ContextSwitchShared));
+	GLOBAL(g_pShared) = (MicroProfileWin32ContextSwitchShared*)MapViewOfFile(hMemory, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(MicroProfileWin32ContextSwitchShared));
 	
-	if (g_pShared != NULL)
+	if (GLOBAL(g_pShared) != NULL)
 	{
 		MicroProfileStartWin32Trace(MicroProfileContextSwitchCallbackCollector, MicroProfileBufferCallbackCollector);
-		UnmapViewOfFile(g_pShared);
+		UnmapViewOfFile(GLOBAL(g_pShared));
 	}
 
 	CloseHandle(hMemory);
@@ -6218,11 +6337,11 @@ MicroProfileThreadInfo MicroProfileGetThreadInfo(MicroProfileThreadIdType nThrea
 {
 	MicroProfileWin32UpdateThreadInfo();
 
-	for (uint32_t i = 0; i < g_ThreadInfo.nNumThreads; ++i)
+	for (uint32_t i = 0; i < GLOBAL(g_ThreadInfo).nNumThreads; ++i)
 	{
-		if (g_ThreadInfo.T[i].tid == nThreadId)
+		if (GLOBAL(g_ThreadInfo).T[i].tid == nThreadId)
 		{
-			return g_ThreadInfo.T[i];
+			return GLOBAL(g_ThreadInfo).T[i];
 		}
 	}
 	MicroProfileThreadInfo TI((uint32_t)nThreadId, 0, 0);
@@ -6231,8 +6350,8 @@ MicroProfileThreadInfo MicroProfileGetThreadInfo(MicroProfileThreadIdType nThrea
 uint32_t MicroProfileGetThreadInfoArray(MicroProfileThreadInfo** pThreadArray)
 {
 	MicroProfileWin32InitThreadInfo2();
-	*pThreadArray = &g_ThreadInfo.T[0];
-	return g_ThreadInfo.nNumThreads;
+	*pThreadArray = &GLOBAL(g_ThreadInfo).T[0];
+	return GLOBAL(g_ThreadInfo).nNumThreads;
 }
 
 
@@ -7191,6 +7310,7 @@ int MicroProfileGetGpuTickReference(int64_t* pOutCpu, int64_t* pOutGpu)
 		*pOutCpu = MP_TICK();
 		*pOutGpu = nGpuTimeStamp;
 		#if 0 //debug test if timestamp diverges
+		#ifndef MICROPROFILE_DYNAMIC_DLL // Use case deemed too narrow
 		static int64_t nTicksPerSecondCpu = MicroProfileTicksPerSecondCpu();
 		static int64_t nTicksPerSecondGpu = MicroProfileTicksPerSecondGpu();
 		static int64_t nGpuStart = 0;
@@ -7214,6 +7334,7 @@ int MicroProfileGetGpuTickReference(int64_t* pOutCpu, int64_t* pOutGpu)
 			nCountDown = 100;
 		}
 		#endif
+		#endif
 		return 1;
 	}
 	return 0;
@@ -7236,6 +7357,19 @@ int MicroProfileGetGpuTickReference(int64_t* pOutCpu, int64_t* pOutGpu)
 #define MICROPROFILE_XBOXONE_IMPL
 #include "microprofile_xboxone.h"
 #endif
+
+#undef mp_static_variable
+#undef mp_intern
+#undef DECLARE_STATIC
+#undef DECLARE_STATIC_ARRAY
+#undef DECLARE_STATIC_ASSIGN
+#undef STATIC
+#undef DECLARE_GLOBAL
+#undef DECLARE_GLOBAL_ASSIGN
+#undef GLOBAL
+#undef DECLARE_THREADLOCAL
+#undef DECLARE_THREADLOCAL_ASSIGN
+#undef THREADLOCAL
 
 #endif //#if MICROPROFILE_ENABLED
 
