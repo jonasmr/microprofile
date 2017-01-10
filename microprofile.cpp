@@ -763,11 +763,6 @@ intern void InitMicroProfileState()
 	#endif
 }
 
-#ifndef MP_STATE_PTR
-#define MP_STATE_PTR (&g_MicroProfileState)
-MicroProfileGlobalState g_MicroProfileState;
-#endif
-
 #define DECLARE_STATIC(type, name)
 #define DECLARE_STATIC_ARRAY(type, name, count)
 #define DECLARE_STATIC_ASSIGN(type, name, value)
