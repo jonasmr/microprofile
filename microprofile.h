@@ -104,6 +104,11 @@ typedef uint16_t MicroProfileGroupId;
 #define MICROPROFILE_COUNTER_LOCAL_SET(var, count) do{}while(0)
 #define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD(var) do{}while(0)
 #define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET(var) do{}while(0)
+#define MICROPROFILE_COUNTER_LOCAL_ADD_ATOMIC(var, count) do{}while(0)
+#define MICROPROFILE_COUNTER_LOCAL_SUB_ATOMIC(var, count) do{}while(0)
+#define MICROPROFILE_COUNTER_LOCAL_SET_ATOMIC(var, count) do{}while(0)
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD_ATOMIC(var) do{}while(0)
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET_ATOMIC(var) do{}while(0)
 
 #define MicroProfileGetTime(group, name) 0.f
 #define MicroProfileOnThreadCreate(foo) do{}while(0)
