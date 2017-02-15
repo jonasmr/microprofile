@@ -913,6 +913,7 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 	for(var i = 0; i < BarTimes.length; ++i)
 	{
 		var Time = BarTimes[i];
+		var TimeText = FormatTime(Time);
 		ReferenceBarAutomatic = Math.max(Time, ReferenceBarAutomatic);
 		var Color = BarColors[i];
 		var fPrc = Time / ReferenceTime;

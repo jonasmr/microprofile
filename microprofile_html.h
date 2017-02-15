@@ -6393,6 +6393,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "	for(var i = 0; i < BarTimes.length; ++i)\n"
 "	{\n"
 "		var Time = BarTimes[i];\n"
+"		var TimeText = FormatTime(Time);\n"
 "		ReferenceBarAutomatic = Math.max(Time, ReferenceBarAutomatic);\n"
 "		var Color = BarColors[i];\n"
 "		var fPrc = Time / ReferenceTime;\n"
@@ -6802,11 +6803,11 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "			var T = TimerArray[idx];\n"
 "			var TimerState = TimerMap[key];\n"
 "			var Time = TimerState.Time;\n"
-"			if(Time[index] >= MouseTime && (GraphBest == 0 || Time[index] <=";
+"			if(Time[index] >= MouseTime &";
 
 const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
 const char g_MicroProfileHtmlLive_begin_1[] =
-" GraphBest))\n"
+"& (GraphBest == 0 || Time[index] <= GraphBest))\n"
 "			{\n"
 "				GraphKey = key;\n"
 "				GraphBest = Time[index];\n"
@@ -8318,12 +8319,12 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "{\n"
 "	var context = CanvasDetailedView.getContext(\'2d\');\n"
 "	var nColorIndex = 0;\n"
-"	var SizeInfo = AggregateMenuSize();\n"
-"	SizeInfo.x = MenuItems[SubMen";
+"	var SizeInfo = AggregateMenuSiz";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-"uSettings].x;\n"
+"e();\n"
+"	SizeInfo.x = MenuItems[SubMenuSettings].x;\n"
 "	SizeInfo.y = MenuItems[SubMenuSettings].y;\n"
 "\n"
 "	SizeInfo.w = 200;\n"
@@ -9847,14 +9848,14 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "		KeyCtrlDown = 0;\n"
 "		MouseDragKeyUp();\n"
 "	}\n"
-"	if(evt.keyCode == 16)\n"
-"	{\n"
-"		KeyShiftDown = 0;\n"
-"	";
+"	if(evt.keyC";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-"	MouseDragKeyUp();\n"
+"ode == 16)\n"
+"	{\n"
+"		KeyShiftDown = 0;\n"
+"		MouseDragKeyUp();\n"
 "	}\n"
 "}\n"
 "\n"
