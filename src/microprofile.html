@@ -706,18 +706,18 @@ function InitColumnMenu()
 	var ulColumnMenu = document.getElementById('ColumnsSubMenu');
 	var MaxLen = 10;
 	var BaseIndex = ulColumnMenu.getElementsByTagName('li').length;
-	for(var i = 0; i < MetaNames.length; ++i)
-	{
-		var li = document.createElement('li');
-		var jsfunc = 'ToggleColumn';
-		var html = '<a href="javascript:void(0)" onclick="' + jsfunc + '(' + (i+BaseIndex) + ', 1);">' + MetaNames[i] + '</a>';
-		li.innerHTML = html;
-		ulColumnMenu.appendChild(li);
-		if(MetaNames[i].length > MaxLen)
-		{
-			MaxLen = MetaNames[i].length;
-		}
-	}
+	// for(var i = 0; i < MetaNames.length; ++i)
+	// {
+	// 	var li = document.createElement('li');
+	// 	var jsfunc = 'ToggleColumn';
+	// 	var html = '<a href="javascript:void(0)" onclick="' + jsfunc + '(' + (i+BaseIndex) + ', 1);">' + MetaNames[i] + '</a>';
+	// 	li.innerHTML = html;
+	// 	ulColumnMenu.appendChild(li);
+	// 	if(MetaNames[i].length > MaxLen)
+	// 	{
+	// 		MaxLen = MetaNames[i].length;
+	// 	}
+	// }
 	var Lis = ulColumnMenu.getElementsByTagName('li');
 	var LenStr = (5+(4+MaxLen) * FontWidth) + 'px';
 	for(var i = 0; i < Lis.length; ++i)
@@ -1145,6 +1145,7 @@ function ToggleDisableLod()
 function GatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)
 {
 	var HoverInfo = new Object();
+	return HoverInfo;
 	var StackPos = 1;
 	//search backwards, count meta counters 
 	for(var i = nFrameLast; i >= 0; i--)
@@ -1172,18 +1173,18 @@ function GatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)
 			{
 				StackPos++;
 			}
-			else if(type > 3)
+			else if(type > 1)
 			{
-				var nMetaCount = type - 3;
-				var nMetaIndex = MetaNames[index];
-				if(nMetaIndex in HoverInfo)
-				{
-					HoverInfo[nMetaIndex] += nMetaCount;
-				}
-				else
-				{
-					HoverInfo[nMetaIndex] = nMetaCount;
-				}
+				// var nMetaCount = type - 3;
+				// var nMetaIndex = MetaNames[index];
+				// if(nMetaIndex in HoverInfo)
+				// {
+				// 	HoverInfo[nMetaIndex] += nMetaCount;
+				// }
+				// else
+				// {
+				// 	HoverInfo[nMetaIndex] = nMetaCount;
+				// }
 			}
 		}
 	}
@@ -5278,6 +5279,7 @@ function PreprocessFindFirstFrames()
 }
 function PreprocessMeta()
 {
+	return;
 	MetaLengths = Array(MetaNames.length);
 	MetaLengthsAvg = Array(MetaNames.length);
 	MetaLengthsMax = Array(MetaNames.length);
