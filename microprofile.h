@@ -135,7 +135,6 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileDumpFileImmediately(html,csv,gfcontext) do{} while(0)
 #define MicroProfileWebServerPort() ((uint32_t)-1)
 #define MicroProfileStartContextSwitchTrace() do{}while(0)
-#define MicroProfileDumpFile(html,csv,cpu, gpu) do{} while(0)
 #define MicroProfileWebServerPort() ((uint32_t)-1)
 #define MicroProfileGpuInsertTimeStamp(a) 1
 #define MicroProfileGpuGetTimeStamp(a) 0
