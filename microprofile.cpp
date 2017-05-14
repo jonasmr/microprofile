@@ -2064,8 +2064,8 @@ void MicroProfileFlip(void* pContext)
 		S.nWebServerDataSent = 0;
 		if(!S.WebSocketThreadRunning)
 		{
-			MicroProfileThreadStart(&S.WebSocketSendThread, MicroProfileSocketSenderThread);
 			S.WebSocketThreadRunning = 1;
+			MicroProfileThreadStart(&S.WebSocketSendThread, MicroProfileSocketSenderThread);
 		}
 	}
 
@@ -3883,6 +3883,10 @@ void MicroProfileWebServerStart()
 
 void MicroProfileWebServerStop()
 {
+	if(S.WebSocketThreadRunning)
+	{
+		MicroProfileThreadJoin(&S.WebSocketSendThread);
+	}
 #ifdef _WIN32
 	closesocket(S.ListenerSocket);
 	WSACleanup();
@@ -5089,11 +5093,6 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 	S.WSBuf.nSendPut.store(0);
 	S.WSBuf.nSendGet.store(0);
 	S.nSocketFail = 0;
-	//if(!S.WebSocketThreadRunning)
-	//{
- //       MicroProfileThreadStart(&S.WebSocketSendThread, MicroProfileSocketSenderThread);
-	//	S.WebSocketThreadRunning = 1;
-	//}
 
 	const char* pGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 	const char* pHandShake = "HTTP/1.1 101 Switching Protocols\r\n"
