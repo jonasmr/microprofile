@@ -44,7 +44,7 @@ enum
 #ifndef MICROPROFILE_ALLOC //redefine all if overriding
 #define MICROPROFILE_ALLOC(nSize, nAlign) MicroProfileAllocAligned(nSize, nAlign);
 #define MICROPROFILE_REALLOC(p, s) realloc(p, s)
-#define MICROPROFILE_FREE(p) free(p)
+#define MICROPROFILE_FREE(p) MicroProfileFreeAligned(p)
 #endif
 
 #define MP_ALLOC(nSize, nAlign) MicroProfileAllocInternal(nSize, nAlign)
@@ -87,6 +87,7 @@ void* MicroProfileReallocInternal(void* pPtr, size_t nSize);
 
 
 void* MicroProfileAllocAligned(size_t nSize, size_t nAlign);
+void MicroProfileFreeAligned(void* pMem);
 
 #if defined(__APPLE__)
 #include <mach/mach.h>
@@ -132,6 +133,11 @@ void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 	return p;
 }
 
+void MicroProfileFreeAligned(void* pMem)
+{
+	free(pMem);
+}
+
 #elif defined(_WIN32)
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -144,6 +150,11 @@ int64_t MicroProfileGetTick();
 void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 {
 	return _aligned_malloc(nSize, nAlign);
+}
+
+void MicroProfileFreeAligned(void* pMem)
+{
+	_aligned_free(pMem);
 }
 
 #else
@@ -174,6 +185,11 @@ void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 	posix_memalign(&p, nAlign, nSize);
 	return p;
 }
+void MicroProfileFreeAligned(void* pMem)
+{
+	free(pMem);
+}
+
 #endif
 
 
@@ -7165,6 +7181,7 @@ int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu)
 #elif MICROPROFILE_GPU_TIMERS_GL
 void MicroProfileGpuInitGL()
 {
+	S.pGPU = MP_ALLOC_OBJECT(MicroProfileGpuTimerState);
 	S.pGPU->GLTimerPos = 0;
 	glGenQueries(MICROPROFILE_GL_MAX_QUERIES, &S.pGPU->GLTimers[0]);		
 }
@@ -7223,6 +7240,16 @@ int MicroProfileGetGpuTickReference(int64_t* pOutCpu, int64_t* pOutGpu)
 		return 1;
 	}
 	return 0;
+}
+uint32_t MicroProfileGpuFlip(void* pContext)
+{
+	return MicroProfileGpuInsertTimeStamp(pContext);
+}
+
+void MicroProfileGpuShutdown()
+{
+	glDeleteQueries(MICROPROFILE_GL_MAX_QUERIES, &S.pGPU->GLTimers[0]);
+	MP_FREE(S.pGPU);
 }
 
 
