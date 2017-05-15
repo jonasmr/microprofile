@@ -131,9 +131,18 @@ void HandleEvent(SDL_Event* pEvt)
 
 }
 
-
+void CheckGlError()
+{
+	int r = glGetError();
+	if(r != 0)
+	{
+		printf("error %d\n", r);
+		__BREAK();
+	}
+}
 void DumpGlLog(GLuint handle)
 {
+	return;
 	int nLogLen = 0;
 	MP_ASSERT(0 == glGetError());
 	glGetObjectParameterivARB(handle, GL_OBJECT_INFO_LOG_LENGTH_ARB, &nLogLen);
@@ -148,7 +157,7 @@ void DumpGlLog(GLuint handle)
 		free(pChars);
 		__BREAK();
 	}
-	MP_ASSERT(0 == glGetError());
+	CheckGlError();
 }
 
 GLuint CreateProgram(int nType, const char* pShader)
@@ -167,7 +176,7 @@ struct SDrawElement
 	float x, y;
 	uint32_t nColor;
 };
-#define QUADS 512
+#define QUADS 32
 
 void InitGLBuffers()
 {
@@ -269,11 +278,11 @@ int main(int argc, char* argv[])
 		__BREAK();
 	}
 	glGetError(); //glew generates an error		
-	printf("open localhost:%d in chrome to capture profile data\n", MicroProfileWebServerPort());
 	InitGLBuffers();
 #if MICROPROFILE_ENABLED
 	MicroProfileGpuInitGL();
 #endif
+	SDL_GL_SetSwapInterval(1);
 	while(!g_nQuit)
 	{
 		MICROPROFILE_SCOPE(MAIN);
@@ -296,6 +305,14 @@ int main(int argc, char* argv[])
 		MicroProfileFlip(0);
 		MICROPROFILE_SCOPEI("MAIN", "Flip", 0xffee00);
 		SDL_GL_SwapWindow(pWindow);
+
+		static bool bOnce = false;
+		if(!bOnce)
+		{
+			bOnce = true;
+			printf("open localhost:%d in chrome to capture profile data\n", MicroProfileWebServerPort());
+		}
+	
 	}
 
 	MicroProfileShutdown();
