@@ -152,7 +152,78 @@ Esc: Exit &amp; Clear filter
 </ul>
 </div>
 <script>
-function InvertColor(hexTripletColor) {
+function ConvertRgbToHsl(hexTripletColor) //from https://gist.github.com/mjackson/5311256
+{
+	var color = hexTripletColor;
+	color = color.substring(1);
+	color = parseInt(color, 16);
+	var r = ((color >> 16) % 256)/255.0;
+	var g = ((color >> 8) % 256)/255.0;
+	var b = ((color >> 0) % 256)/255.0;
+	var max = Math.max(r, g, b), min = Math.min(r, g, b);
+	var h, s, l = (max + min) / 2;
+	if (max == min) {
+		h = s = 0; // achromatic
+	}
+	else 
+	{
+		var d = max - min;
+		s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+
+		switch (max) 
+		{
+			case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+			case g: h = (b - r) / d + 2; break;
+			case b: h = (r - g) / d + 4; break;
+		}
+		h /= 6;
+	}
+	return [ h, s, l ];
+}
+
+function ConvertHslToColor(h, s, l) //from https://gist.github.com/mjackson/5311256
+{
+	var r, g, b;
+	if (s == 0)
+	{
+		r = g = b = l; // achromatic
+	}
+	else
+	{
+		function hue2rgb(p, q, t)
+		{
+			if (t < 0) t += 1;
+			if (t > 1) t -= 1;
+			if (t < 1/6) return p + (q - p) * 6 * t;
+			if (t < 1/2) return q;
+			if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+			return p;
+		}
+		var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+		var p = 2 * l - q;
+		r = hue2rgb(p, q, h + 1/3);
+		g = hue2rgb(p, q, h);
+		b = hue2rgb(p, q, h - 1/3);
+	}
+	var color = ((r*255)<<16) | ((g*255)<<8) | (b*255);
+	return '#' + ("000000" + color.toString(16)).slice(-6);
+}
+
+
+function ConvertColorDark(hexTripletColor)
+{
+	var color = hexTripletColor;
+	color = color.substring(1); // remove #
+	color = parseInt(color, 16); // convert to integer
+	console.log(color.toString(16));
+	color = (color >> 1);
+	console.log(color.toString(16));
+	color = color & 0x7f7f7f;
+	console.log(color.toString(16));
+	return '#' + ("000000" + color.toString(16)).slice(-6);
+}
+function InvertColor(hexTripletColor) 
+{
 	var color = hexTripletColor;
 	color = color.substring(1); // remove #
 	color = parseInt(color, 16); // convert to integer
@@ -188,14 +259,16 @@ function InvertColorIndex(hexTripletColor) {
 }
 function MakeGroup(id, name, category, numtimers, isgpu, total, average, max, color)
 {
-	var group = {"id":id, "name":name, "category":category, "numtimers":numtimers, "isgpu":isgpu, "total": total, "average" : average, "max" : max, "color":color};
+	var cid = GetColorIndex(color);
+	var group = {"id":id, "name":name, "category":category, "numtimers":numtimers, "isgpu":isgpu, "total": total, "average" : average, "max" : max, "cid":cid};
 	return group;
 }
 
 function MakeTimer(id, name, group, color, colordark, average, max, min, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax)
 {
 	var spike = max <= 0 || average <= 0 ? 0 : (100 * max / average);
-	var timer = {"id":id, "name":name, "len":name.length, "color":color, "colordark":colordark,"timercolor":color, "textcolor":InvertColor(color), "group":group, "average":average, "max":max, "min":min, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "spike":spike,"total":total, "meta":meta, "textcolorindex":InvertColorIndex(color), "metaavg":metaavg, "metamax":metamax, "worst":0, "worststart":0, "worstend":0};
+	var cid = GetColorIndex(color);
+	var timer = {"id":id, "name":name, "len":name.length, "cid":cid, "timercid":cid, "group":group, "average":average, "max":max, "min":min, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "spike":spike,"total":total, "meta":meta, "metaavg":metaavg, "metamax":metamax, "worst":0, "worststart":0, "worstend":0};
 	return timer;
 }
 function MakeFrame(id, framestart, frameend, framestartgpu, frameendgpu, ts, tt, ti)
@@ -213,6 +286,46 @@ function MakeCounter(id, parent, sibling, firstchild, level, name, value, minval
 	var counter = { "id":id, "parent":parent, "sibling":sibling, "firstchild":firstchild, "level": level, "name":name, "value":value, "formatted":formatted, "limit":limit, "formattedlimit":formattedlimit, "counterprc":counterprc, "boxprc":boxprc, "counterhistory":counterhistory, "format":format, "minvalue":minvalue, "maxvalue":maxvalue};
 	return counter;
 }
+
+
+var g_ColorMap = {};
+var g_Colors = new Array();
+var g_ColorsDark = new Array();
+var g_ColorsTextIndex = new Array();
+var g_ColorH = new Array();
+var g_ColorS = new Array();
+var g_ColorL = new Array();
+
+function GetColorIndex(color)
+{
+	if(g_ColorMap[color])
+	{
+		return g_ColorMap[color];
+	}
+	else
+	{
+		console.log('adding color ' + color);
+		var idx = g_Colors.length;
+		g_ColorMap[color] = idx;
+		g_Colors.push(color);
+		g_ColorsDark.push(ConvertColorDark(color));
+		g_ColorsTextIndex.push(InvertColorIndex(color));
+		var hsl = ConvertRgbToHsl(color);
+		g_ColorH.push(hsl[0]);
+		g_ColorS.push(hsl[1]);
+		g_ColorL.push(hsl[2]);
+		return idx;
+	}
+}
+//color index 0 reserved for blinking
+var cidhovercolor = 0;
+g_Colors.push('#000000');
+g_ColorsDark.push('#000000');
+g_ColorsTextIndex.push(0);
+g_ColorH.push(0);
+g_ColorS.push(0);
+g_ColorL.push(0);
+
 
 
 ____embed____
@@ -405,6 +518,7 @@ var MetaLengthsAvg = Array();
 var MetaLengthsMax = Array();
 
 var ZoomActive = 0;
+var Timeline = {};
 
 var StrGroup = "Group";
 var StrThread = "Thread";
@@ -418,6 +532,9 @@ var StrCallAverage = "Call Average";
 var StrCount = "Count";
 var StrExclAverage = "Excl Average";
 var StrExclMax = "Excl Max";
+
+
+
 
 
 function ProfileModeClear()
@@ -925,13 +1042,12 @@ function UpdateGroupColors()
 	{
 		if(GroupColors)
 		{
-			TimerInfo[i].color = GroupInfo[TimerInfo[i].group].color;
+			TimerInfo[i].cid = GroupInfo[TimerInfo[i].group].cid;
 		}
 		else
 		{
-			TimerInfo[i].color = TimerInfo[i].timercolor;
+			TimerInfo[i].cid = TimerInfo[i].timercid;
 		}
-		TimerInfo[i].textcolorindex = InvertColorIndex(TimerInfo[i].color);
 	}
 }
 
@@ -2925,7 +3041,6 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 	}
 
 	var colors = [ '#ff0000', '#ff00ff', '#ffff00'];
-
 	var fScaleX = nWidth / fDetailedRange; 
 	var fOffsetY = -nOffsetY + BoxHeight;
 	nHoverTokenNext = -1;
@@ -2945,6 +3060,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 	var nHoverHigh = nHoverCounter.toString(16);
 	var nHoverLow = (127+255-nHoverCounter).toString(16);
 	var nHoverColor = '#' + nHoverHigh + nHoverHigh + nHoverHigh;
+	var nHoverColorIndex;
 
 	context.fillStyle = 'black';
 	context.font = Font;
@@ -2959,27 +3075,124 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 			FirstFrame = i;
 		}
 	}
+
+	// var BatchesColor = new Array();
+	// var BatchesColorColor = new Array();
+	// var BatchesColorDark = new Array();
+	var Batches = new Array(g_Colors.length+1);
+	var BatchesTxt = new Array();
+	var BatchesTxtPos = new Array();
+	var BatchesTxtColor = ['#ffffff', '#333333'];
+
+	for(var i = 0; i < 2; ++i)
+	{
+		BatchesTxt[i] = Array();
+		BatchesTxtPos[i] = Array();
+	}
+	for(var i = 0; i < Batches.length; ++i)
+	{
+		Batches[i] = Array();
+	}
+
+
+	var AddBatch = function(index, X, Y, W, Name, NameLen, Duration)
+	{
+		var B = Batches[index];
+		var txtidx = g_ColorsTextIndex[index];
+		if(txtidx < 0 || txtidx > 1)
+			debugger;
+		var BTxt = BatchesTxt[txtidx];
+		var BTxtPos = BatchesTxtPos[txtidx];
+		B.push(X);
+		B.push(Y);
+		B.push(W);
+		DebugDrawQuadCount++;
+
+		var XText = X < 0 ? 0 : X;
+		var WText = W - (XText-X);
+		if(XText + WText > nWidth)
+		{
+			WText = nWidth - XText;
+		}
+		var BarTextLen = Math.floor((WText-2)/FontWidth);
+		var TimeText = TimeToMsString(Duration);
+		var TimeTextLen = TimeText.length;
+
+		if(BarTextLen >= 2)
+		{
+			if(BarTextLen < NameLen)
+				Name = Name.substr(0, BarTextLen);
+			var YPos = Y+BoxHeight-FontAscent;
+			BTxt.push(Name);
+			BTxtPos.push(XText+2);
+
+			BTxtPos.push(YPos);
+			DebugDrawTextCount++;
+			if(BarTextLen - NameLen > TimeTextLen)
+			{
+				BTxt.push(TimeText);
+				BTxtPos.push(XText+WText-2 - TimeTextLen * FontWidth);
+				BTxtPos.push(YPos);
+				DebugDrawTextCount++;
+			}
+		}
+	};
+
+
+
+	{
+		context.fillStyle = 'white';
+		fOffsetY += BoxHeight;
+		context.fillText("Timeline", 0, fOffsetY);
+		fOffsetY += BoxHeight;
+
+
+		var Times = Timeline.Times;
+		var Colors = Timeline.Colors;
+		// var ColorsText = Timeline.ColorsText;
+		// var ColorsDark = Timeline.ColorsDark;
+		var Ends = Timeline.Ends;
+		var Positions = Timeline.Positions;
+		var Names = Timeline.Names;
+		var off = 0.7;
+		var off2 = 2*off;
+		var MaxPosition = 1;
+		for(var i = 0; i < Timeline.Positions.length; ++i)
+		{
+			var TimeStart = Times[i];
+			var TimeEnd = Ends[i];
+			var Position = Positions[i];
+			if(Position >= 0)
+			{
+				MaxPosition = Math.max(Position, MaxPosition);
+				var Color = Colors[i];
+				var Name = Names[i];
+				var P = Positions[i];
+				var X = (TimeStart - fDetailedOffset) * fScaleX;
+				var Y = fOffsetY + P * (BoxHeight+2);
+				var W = (TimeEnd-TimeStart)*fScaleX;
+
+				if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
+				{
+					RangeCpuNext.Begin = TimeStart;
+					RangeCpuNext.End = TimeEnd;
+					RangeCpuNext.Thread = -1;
+					nHoverColorIndex = Color;
+					Color = cidhovercolor;
+				}
+				AddBatch(Color, X, Y, W, Name, Name.length, TimeEnd-TimeStart);
+			}
+		}
+		fOffsetY += (1+MaxPosition) * (BoxHeight+3);
+	}
 	var nMinTimeMs = MinWidth / fScaleX;
 	{
 
-		var Batches = new Array(TimerInfo.length);
-		var BatchesTxt = Array();
-		var BatchesTxtPos = Array();
-		var BatchesTxtColor = ['#ffffff', '#333333'];
 		if(!ThreadY)
 		{
 			ThreadY = new Array(ThreadNames.length+1);
 		}
 
-		for(var i = 0; i < 2; ++i)
-		{
-			BatchesTxt[i] = Array();
-			BatchesTxtPos[i] = Array();
-		}
-		for(var i = 0; i < Batches.length; ++i)
-		{
-			Batches[i] = Array();
-		}
 		for(nLog = 0; nLog < nNumLogs; nLog++)
 		{
 			var ThreadName = ThreadNames[nLog];
@@ -3060,43 +3273,13 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 							{
 								if(bDrawEnabled || index == nHoverToken)
 								{
-									Batches[index].push(X);
-									Batches[index].push(Y);
-									Batches[index].push(W);
-									DebugDrawQuadCount++;
-
-									var XText = X < 0 ? 0 : X;
-									var WText = W - (XText-X);
-									if(XText + WText > nWidth)
+									var cid = TimerInfo[index].cid;
+									if(index == nHoverToken)
 									{
-										WText = nWidth - XText;
+										nHoverColorIndex = cid;
+										cid = cidhovercolor;
 									}
-									var Name = TimerInfo[index].name;
-									var NameLen = TimerInfo[index].len;
-									var BarTextLen = Math.floor((WText-2)/FontWidth);
-									var TimeText = TimeToMsString(timeend-timestart);
-									var TimeTextLen = TimeText.length;
-
-									if(BarTextLen >= 2)
-									{
-										if(BarTextLen < NameLen)
-											Name = Name.substr(0, BarTextLen);
-										var txtidx = TimerInfo[index].textcolorindex;
-										var YPos = Y+BoxHeight-FontAscent;
-										BatchesTxt[txtidx].push(Name);
-										BatchesTxtPos[txtidx].push(XText+2);
-
-										BatchesTxtPos[txtidx].push(YPos);
-										DebugDrawTextCount++;
-										if(BarTextLen - NameLen > TimeTextLen)
-										{
-											BatchesTxt[txtidx].push(TimeText);
-											BatchesTxtPos[txtidx].push(XText+WText-2 - TimeTextLen * FontWidth);
-											BatchesTxtPos[txtidx].push(YPos);
-											DebugDrawTextCount++;
-										}
-
-									}
+									AddBatch(cid, X, Y, W, TimerInfo[index].name, TimerInfo[index].len, timeend-timestart);
 								}
 
 								if(index == FilterSearchPassIndex)
@@ -3210,6 +3393,32 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 				fOffsetY += BoxHeight + 1;
 			}
 		}
+		var FillRects = function(a, color, colordark)
+		{
+			context.fillStyle = colordark;
+			for(var j = 0; j < a.length; j += 3)
+			{						
+				var X = a[j];
+				var Y = a[j+1];
+				var W = a[j+2];
+				if(W >= 1)
+				{
+					context.fillRect(X, Y, W, BoxHeight-1);
+				}
+			}
+
+			context.fillStyle = color;
+			for(var j = 0; j < a.length; j += 3)
+			{						
+				var X = a[j];
+				var Y = a[j+1];
+				var W = a[j+2];
+				if(W > 0)
+				{
+					context.fillRect(X+off, Y+off, W-off2, BoxHeight-1-off2);
+				}
+			}
+		}
 
 
 		{
@@ -3218,7 +3427,6 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 				var a = Batches[i];
 				if(a.length)
 				{
-					context.fillStyle = TimerInfo[i].colordark;
 					if(!DisableMerge)
 					{
 						for(var j = 0; j < a.length; j += 3)
@@ -3250,39 +3458,36 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 							}
 						}
 					}
-					var off = 0.7;
-					var off2 = 2*off;
-					context.fillStyle = TimerInfo[i].colordark;
-					for(var j = 0; j < a.length; j += 3)
-					{						
-						var X = a[j];
-						var Y = a[j+1];
-						var W = a[j+2];
-						if(W >= 1)
+					var Color = i == 0 ? nHoverColor : g_Colors[i];
+					var ColorDark = i == 0 ? nHoverColor : g_ColorsDark[i];
+					if(i == 0)
+					{
+						if(nHoverColorIndex)
 						{
-							context.fillRect(X, Y, W, BoxHeight-1);
+							var mult = nHoverCounter / 255.0;
+							var m2 =mult -0.5;
+							var m4 = m2 * 0.5;
+							var H = g_ColorH[nHoverColorIndex];
+							var S = g_ColorS[nHoverColorIndex];
+							var L = g_ColorL[nHoverColorIndex];
+							var offset = 0;
+							if(S> 0.5)
+								offset = 0.5 - S;
+							var offsetL = 0;
+							if(L > 0.75)
+								offsetL = 0.75 - L;
+							L = L + m4 + offsetL;
+							L = L > 1 ? 1 : (L < 0 ? 0 : L);
+							S = S + m2 + offset;
+							S = S > 1 ? 1 : (S < 0 ? 0 : S);
+							var ColorCV = ConvertHslToColor(H, S, L);
+							// ShowFlashMessage('S' + S + 'H' + H, 10); 
+							ColorDark = Color = ColorCV; ;
+							// console.log('hover color string ' + Color + ' ... old ' + 'hsl(' + H + ',' + S + ',' + L + ')');
 						}
 					}
-	
+					FillRects(a, Color, ColorDark);
 
-					if(i == nHoverToken)
-					{
-						context.fillStyle = nHoverColor;
-					}
-					else
-					{
-						context.fillStyle = TimerInfo[i].color;
-					}
-					for(var j = 0; j < a.length; j += 3)
-					{						
-						var X = a[j];
-						var Y = a[j+1];
-						var W = a[j+2];
-						if(W > 0)
-						{
-							context.fillRect(X+off, Y+off, W-off2, BoxHeight-1-off2);
-						}
-					}
 				}
 			}	
 		}
@@ -5339,7 +5544,179 @@ function PreprocessWidths()
 		var widthname = context.measureText(TimerInfo[i].name).width;
 		GroupNameWidth = Math.max(GroupNameWidth, widthname);
 	}
+}
 
+function PreprocessTimeline()
+{
+	Timeline.Times = TimelineArray;
+	Timeline.Ids = TimelineIdArray;
+	Timeline.Colors = new Array(TimelineArray.length);
+	// Timeline.ColorsDark = new Array(TimelineArray.length);
+	// Timeline.ColorsText = new Array(TimelineArray.length);
+	Timeline.Names = TimelineNames;
+	Timeline.Ends = new Array(TimelineArray.length);
+	Timeline.Pairs = new Array(TimelineArray.length);
+	Timeline.Tracks = new Array();
+	Timeline.Positions = new Array();
+	for(var i = 0; i < Timeline.Times.length; ++i)
+	{
+		Timeline.Positions[i] = -1;
+		Timeline.Ends[i] = -1;
+		Timeline.Pairs[i] = -1;
+		var Color = TimelineColorArray[i]
+		if(!Color || Color == '')
+		{
+			Color = '#777777'
+		}
+		Timeline.Colors[i] = GetColorIndex(Color);
+		console.log('got color ' + Timeline.Colors[i]);
+		if(null == Timeline.Colors[i])
+			debugger;
+		Timeline.Colors[i] = GetColorIndex(Color);
+		console.log('got color2 ' + Timeline.Colors[i]);
+	}
+
+
+	var LinearizeTrack = function(Track)
+	{
+		var b = new Array();
+		var e = new Array();
+		// var n = new Array();
+		var k = new Array();
+		var h = Track.h;
+		while(h != -1)
+		{
+			b.push(Track.b[h]);
+			e.push(Track.e[h]);
+			k.push(Track.k[h]);
+
+			h = Track.n[h];
+		}
+	}
+
+	var CreateTrack = function()
+	{
+		var Track = {};
+		Track.b = new Array();
+		Track.e = new Array();
+		Track.n = new Array();
+		Track.k = new Array();
+		Track.h = -1;
+		return Track;
+	}
+
+
+	var TryAddToTrack = function(Track, b, e, k)
+	{
+		var Invalid = 0;
+		var prev = -1;
+		var next = Track.h;
+		while(next != -1)
+		{
+			var B = Track.b[next];
+			var E = Track.e[next];
+			if(Math.max(B, b) < Math.min(E, e))
+			{
+				Invalid = 1;
+				break;
+			}
+			if(E < b)
+			{
+				//should be after next, continue
+			}else if(e < B)
+			{
+				//insert at this spot
+				break;
+			}
+			prev = next;
+			next = Track.n[next];
+		}
+		if(!Invalid)
+		{
+			var idx = Track.b.length;
+			Track.b.push(b);
+			Track.e.push(e);
+			Track.k.push(k);
+			Track.n.push(next);
+			if(prev == -1)
+			{
+				Track.h = idx;
+			}
+			else
+			{
+				var h = Track.n[prev];
+				if(h != next)
+				{
+					debugger;
+				}
+				Track.n[prev] = idx;
+			}
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	};
+
+
+	var AddToTrack = function(b, e, k)
+	{
+		var Tracks = Timeline.Tracks;
+
+		for(var i = 0; i < Tracks.length; ++i)
+		{
+			var Track = Tracks[i];
+			if(TryAddToTrack(Track, b, e, k))
+			{
+				return i;
+			}
+		}
+		var NewTrack = CreateTrack();
+		var i = Timeline.Tracks.length;
+		Timeline.Tracks.push(NewTrack);
+		if(!TryAddToTrack(NewTrack, b, e, k))
+		{
+			debugger;
+		}
+		return i;
+
+	};
+
+
+
+
+
+	var Matching = {};
+	var Pairs = Timeline.Pairs;
+	var Ids = Timeline.Ids;
+	var Ends = Timeline.Ends;
+	var Times = Timeline.Times;
+	if(Ids)
+	{
+		for(var i = 0; i < Ids.length; ++i)
+		{
+			Pairs[i] = -1;
+			var ID = Ids[i];
+			var match = Matching[ID];
+			if(match)
+			{
+				if(match > Ids.length || match < 0)
+					debugger;
+				Pairs[match] = i;
+				Pairs[i] = match;
+				if(match > i)
+					debugger;
+				Ends[match] = Times[i];
+				var Track = AddToTrack(Times[match], Ends[match], match);
+				Timeline.Positions[match] = Track;
+			}
+			else
+			{
+				Matching[ID] = i;
+			}
+		}
+	}
 }
 function Preprocess()
 {
@@ -5357,6 +5734,7 @@ function Preprocess()
 	ProfileModeDump();
 	ProfileMode = ProfileModeOld;
 	PreprocessWidths();
+	PreprocessTimeline();
 	Initialized = 1;
 }
 

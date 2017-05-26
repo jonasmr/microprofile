@@ -27,6 +27,9 @@ $(TARGET): $(C_OBJS) $(CPP_OBJS)
 
 -include .depend
 
+../../microprofile.o: ../../microprofile.cpp ../../microprofile.h \
+  ../../microprofile_html.h
+
 .cpp.o: 
 	$(CPP) -c $< $(CPPFLAGS) -o $@
 
@@ -44,5 +47,6 @@ embed_target:
 	cd ../../src && make
 
 embed: embed_target all
+
 	
 
