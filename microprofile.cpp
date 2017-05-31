@@ -47,18 +47,20 @@ enum EMicroProfileTokenSpecial
 };
 
 // web view:
-// turn tooltip back on
+// *turn tooltip back on
+// *move tooltip out of the way
 // *remove meta
 // *fix gpu extra data
 // remove help
 //  fix on webside.
 // timeline track
 //		*basic features
-// 		figure out length
-//		clean up dump code.
-//		clean up draw code.
+// 		*figure out length
+//		*clean up dump code.
+//		*clean up draw code.
 //		tooltip
-// 		demo
+// 		*demo
+// 		bookmarks
 //
 // custom names
 // enable/disable of threads/tracks
