@@ -3499,7 +3499,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 	uint32_t* nTimerCounter = (uint32_t*)alloca(sizeof(uint32_t)* S.nTotalTimers);
 	memset(nTimerCounter, 0, sizeof(uint32_t) * S.nTotalTimers);
 
-	{{
+	{
 		MicroProfilePrintf(CB, Handle, " //Timeline begin\n");
 		MicroProfileThreadLog* pLog = &S.TimelineLog;
 		uint32_t nFrameIndexFirst = (nFirstFrame) % MICROPROFILE_MAX_FRAME_HISTORY;
@@ -3542,6 +3542,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 				switch(nLogType)
 				{
 				case MP_LOG_ENTER:
+				case MP_LOG_PAYLOAD:
 					break;
 				case MP_LOG_LEAVE:
 					pp("%c'%d'", f++ ? ',' : ' ', "#ffffff");
@@ -3554,10 +3555,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 							MICROPROFILE_UNPACK_RED(nColor) & 0xff,
 							MICROPROFILE_UNPACK_GREEN(nColor) & 0xff,
 							MICROPROFILE_UNPACK_BLUE(nColor) & 0xff);
-					}
-					break;
-				case MP_LOG_PAYLOAD:
-					{
 					}
 					break;	
 				}
@@ -3578,26 +3575,13 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 				{
 				case MP_LOG_ENTER:
 				case MP_LOG_LEAVE:
-					fTime = MicroProfileLogTickDifference(nTickStart, v) * fToMs;
+				case MP_LOG_PAYLOAD:
 					break;
 				case MP_LOG_EXTRA_DATA:
 					if(nIndex == ETOKEN_CUSTOM_ID)
 					{
 						pp("%c%d", f++ ? ',' : ' ', (uint32_t)nTick);
 					}
-
-					break;
-				case MP_LOG_PAYLOAD:
-					{
-						// pp("%c%d", f++ ? ',' : ' ', (uint32_t)nTick);
-						// MP_ASSERT(nIndex < 1000);
-						// while(nIndex && k != nLogEnd)
-						// {
-						// 	nIndex--;
-						// 	k = (k+1) % MICROPROFILE_BUFFER_SIZE;
-						// }
-					}
-
 					break;	
 				}
 			}
@@ -3619,19 +3603,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 					pp("%c%f", f++ ? ',' : ' ', fTime);
 					break;
 				case MP_LOG_EXTRA_DATA:
-
-					break;
 				case MP_LOG_PAYLOAD:
-					{
-						// uint64_t nIndex = MicroProfileLogGetTimerIndex(v);
-						// MP_ASSERT(nIndex < 1000);
-						// while(nIndex && k != nLogEnd)
-						// {
-						// 	nIndex--;
-						// 	k = (k+1) % MICROPROFILE_BUFFER_SIZE;
-						// }
-					}
-
 					break;	
 				}
 			}
@@ -3639,53 +3611,31 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 			pp("var TimelineNames=[");
 			f = 0;
 			char String[MICROPROFILE_MAX_STRING+1];
-			int ExtPending = 0;
-			int LeavePending = 0;
 			for(uint32_t k = nLogStart; k != nLogEnd; )
 			{
 				uint64_t v = pLog->Log[k];
 				nLogType = MicroProfileLogGetType(v);
 				uint64_t nIndex = MicroProfileLogGetTimerIndex(v);
 				uint64_t nTick = MicroProfileLogGetTick(v);
-				bool bIsLeave = false;
 				(void)nTick;
 				switch(nLogType)
 				{
 				case MP_LOG_ENTER:
 				case MP_LOG_LEAVE:
-					bIsLeave = nLogType == MP_LOG_LEAVE;
-					if(nIndex == ETOKEN_CUSTOM_NAME && bIsLeave)
+					if(nIndex == ETOKEN_CUSTOM_NAME && nLogType == MP_LOG_LEAVE)
 					{
-						// LeavePending = nLogType == MP_LOG_LEAVE ? 1 : 0;
 						pp(f++ ? ",''" : "''");
-					}
-					else
-					{
-						// MP_BREAK();
 					}
 					k = (k+1) % MICROPROFILE_BUFFER_SIZE;
 					break;
 				case MP_LOG_EXTRA_DATA:
-					// if(nIndex == ETOKEN_CUSTOM_ID)
-					// {
-					// 	if(bIsLeave)
-					// 	{
-					// 				// uint64_t LEId = MicroProfileMakeLogIndex(MP_LOG_EXTRA_DATA, ETOKEN_CUSTOM_ID, id);
-					// 	}
-					// }
-
-
 					k = (k+1) % MICROPROFILE_BUFFER_SIZE;
 					break;
 				case MP_LOG_PAYLOAD:
 					{
-						// MP_ASSERT(ExtPending);
-						// MP_ASSERT(nIndex < 1000);
-						// k = (k+1) % MICROPROFILE_BUFFER_SIZE;
 						char* pDst = &String[0];
 						char* pDstEnd = &String[MICROPROFILE_MAX_STRING-7];
-
-						{{
+						{
 							while(k != nLogEnd)
 							{
 								uint64_t v = pLog->Log[k];
@@ -3700,7 +3650,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 								k = (k+1) % MICROPROFILE_BUFFER_SIZE;
 							}
 							*pDst = '\0';
-						}}
+						}
 						pDst = &String[0];
 						if(f++)
 						{
@@ -3711,8 +3661,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 							pp("'%s'", pDst);
 						}
 					}
-					LeavePending = 0;
-					ExtPending = 0;
 					break;	
 				}
 			}
@@ -3720,7 +3668,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 
 		}
 		MicroProfilePrintf(CB, Handle, " //Timeline end\n");
-	}}
+	}
 
 
 
