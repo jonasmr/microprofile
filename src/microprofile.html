@@ -368,7 +368,8 @@ var MouseButtonState = [0,0,0,0,0,0,0,0];
 var KeyShiftDown = 0;
 var MouseDragButton = 0;
 var KeyCtrlDown = 0;
-var ToolTipFlip = 0; //0: off, 1: default, 2: flipped
+var ToolTipFlip = 0; 
+var ToolTipCorner = 1;
 var DetailedViewMouseX = 0;
 var DetailedViewMouseY = 0;
 var HistoryViewMouseX = -1;
@@ -2028,11 +2029,12 @@ function DrawHoverToolTip()
 			StringArray.push("Frames");
 			StringArray.push(Frames.length);
 			StringArray.push("Time");
-			StringArray.push(DetailedTotal().toFixed(2) + "ms");
-
-
+			StringArray.push(DetailedTotal().toFixed(2) + "ms");	
 		}
-		DrawToolTip(StringArray, CanvasDetailedView, nWidth, nHeight);
+		if(ToolTipCorner)
+			DrawToolTip(StringArray, CanvasDetailedView, nWidth, nHeight);
+		else
+			DrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20)
 	}
 	else if(nHoverCSCpu >= 0)
 	{
@@ -2047,7 +2049,10 @@ function DrawHoverToolTip()
 		StringArray.push("" + RangeCpu.Begin);
 		StringArray.push("End");
 		StringArray.push("" + RangeCpu.End);
-		DrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20);
+		if(ToolTipCorner)
+			DrawToolTip(StringArray, CanvasDetailedView, nWidth, nHeight);
+		else
+			DrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20);
 	}
 	ProfileLeave();
 }
@@ -4677,6 +4682,10 @@ function KeyUp(evt)
 		{
 			MoveToNext(-1);
 		}
+		if(evt.keyCode == 90)
+		{
+			ToolTipCorner = 1-ToolTipCorner;
+		}
 		if(evt.keyCode == 32)
 		{
 			if(RangeSelect.Begin < RangeSelect.End)
@@ -4929,6 +4938,10 @@ function ReadCookie()
 		{
 			ColumnsEnabled = Obj.ColumnsEnabled;
 		}
+		if(Obj.ToolTipCorner)
+		{
+			ToolTipCorner = Obj.ToolTipCorner;
+		}
 		TimersGroups = Obj.TimersGroups?Obj.TimersGroups:0;
 	}
 	SetContextSwitch(nContextSwitchEnabled);
@@ -4950,6 +4963,7 @@ function WriteCookie()
 	Obj.TimersGroups = TimersGroups?TimersGroups:0;
 	Obj.GroupColors = GroupColors;
 	Obj.ColumnsEnabled = ColumnsEnabled;
+	Obj.ToolTipCorner = ToolTipCorner;
 	if(nHideHelp)
 	{
 		Obj.nHideHelp = 1;

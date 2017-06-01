@@ -51,14 +51,14 @@ enum EMicroProfileTokenSpecial
 // *move tooltip out of the way
 // *remove meta
 // *fix gpu extra data
-// remove help
-//  fix on webside.
+// *remove help
+//  *fix on webside.
 // timeline track
 //		*basic features
 // 		*figure out length
 //		*clean up dump code.
 //		*clean up draw code.
-//		tooltip
+//		*tooltip
 // 		*demo
 // 		bookmarks
 //

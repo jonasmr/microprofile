@@ -382,7 +382,8 @@ const char g_MicroProfileHtml_end_0[] =
 "var KeyShiftDown = 0;\n"
 "var MouseDragButton = 0;\n"
 "var KeyCtrlDown = 0;\n"
-"var ToolTipFlip = 0; //0: off, 1: default, 2: flipped\n"
+"var ToolTipFlip = 0; \n"
+"var ToolTipCorner = 1;\n"
 "var DetailedViewMouseX = 0;\n"
 "var DetailedViewMouseY = 0;\n"
 "var HistoryViewMouseX = -1;\n"
@@ -1772,14 +1773,14 @@ const char g_MicroProfileHtml_end_0[] =
 "		StringArray.push(\"Time\");\n"
 "		StringArray.push(\"\" + (Frames[FrameIndex].frameend - Frames[FrameIndex].framestart).toFixed(3));\n"
 "\n"
-"		DrawToolTip(StringArray, CanvasHistory, HistoryViewMouseX, HistoryViewMouseY+20)";
+"		DrawToolTip(StringArray, CanvasHistory, HistoryViewMouseX, HistoryViewMouseY+20);\n"
+"\n"
+"	}\n"
+"	Pr";
 
 const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
 const char g_MicroProfileHtml_end_1[] =
-";\n"
-"\n"
-"	}\n"
-"	ProfileLeave();\n"
+"ofileLeave();\n"
 "}\n"
 "function TimeToMsString(Time)\n"
 "{\n"
@@ -2046,11 +2047,12 @@ const char g_MicroProfileHtml_end_1[] =
 "			StringArray.push(\"Frames\");\n"
 "			StringArray.push(Frames.length);\n"
 "			StringArray.push(\"Time\");\n"
-"			StringArray.push(DetailedTotal().toFixed(2) + \"ms\");\n"
-"\n"
-"\n"
+"			StringArray.push(DetailedTotal().toFixed(2) + \"ms\");	\n"
 "		}\n"
-"		DrawToolTip(StringArray, CanvasDetailedView, nWidth, nHeight);\n"
+"		if(ToolTipCorner)\n"
+"			DrawToolTip(StringArray, CanvasDetailedView, nWidth, nHeight);\n"
+"		else\n"
+"			DrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20)\n"
 "	}\n"
 "	else if(nHoverCSCpu >= 0)\n"
 "	{\n"
@@ -2065,7 +2067,10 @@ const char g_MicroProfileHtml_end_1[] =
 "		StringArray.push(\"\" + RangeCpu.Begin);\n"
 "		StringArray.push(\"End\");\n"
 "		StringArray.push(\"\" + RangeCpu.End);\n"
-"		DrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20);\n"
+"		if(ToolTipCorner)\n"
+"			DrawToolTip(StringArray, CanvasDetailedView, nWidth, nHeight);\n"
+"		else\n"
+"			DrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20);\n"
 "	}\n"
 "	ProfileLeave();\n"
 "}\n"
@@ -3029,15 +3034,15 @@ const char g_MicroProfileHtml_end_1[] =
 "					}\n"
 "					context.fillRect(X, fOffsetY, W, CSwitchHeight);\n"
 "				}\n"
-"				if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < fOffsetY+CSwitchHeight && DetailedViewMouseY >= fOffsetY)\n"
-"				{\n"
-"					nHoverCSCpuNext = ActiveCpu;\n"
-"					RangeCpuNext.Begin = TimeIn;\n"
-"					RangeCpuNext.End = TimeO";
+"				if(DetailedViewMouseX >= X && Detailed";
 
 const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
 const char g_MicroProfileHtml_end_2[] =
-"ut;\n"
+"ViewMouseX <= X+W && DetailedViewMouseY < fOffsetY+CSwitchHeight && DetailedViewMouseY >= fOffsetY)\n"
+"				{\n"
+"					nHoverCSCpuNext = ActiveCpu;\n"
+"					RangeCpuNext.Begin = TimeIn;\n"
+"					RangeCpuNext.End = TimeOut;\n"
 "					RangeCpuNext.Thread = ThreadId;\n"
 "					RangeGpuNext.Begin = RangeGpuNext.End = -1;\n"
 "				}\n"
@@ -4420,7 +4425,11 @@ const char g_MicroProfileHtml_end_2[] =
 "function MouseDragReset()\n"
 "{\n"
 "	MouseDragState = MouseDragOff;\n"
-"	MouseDragTarget = 0;\n"
+"	MouseDragTa";
+
+const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
+const char g_MicroProfileHtml_end_3[] =
+"rget = 0;\n"
 "	MouseDragKeyShift = 0;\n"
 "	MouseDragKeyCtrl = 0;\n"
 "	MouseDragButton = 0;\n"
@@ -4429,11 +4438,7 @@ const char g_MicroProfileHtml_end_2[] =
 "{\n"
 "	if((MouseDragKeyShift && !KeyShiftDown) || (MouseDragKeyCtrl && !KeyCtrlDown))\n"
 "	{\n"
-"		MouseHand";
-
-const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
-const char g_MicroProfileHtml_end_3[] =
-"leDragEnd();\n"
+"		MouseHandleDragEnd();\n"
 "		MouseDragReset();\n"
 "	}\n"
 "}\n"
@@ -4703,6 +4708,10 @@ const char g_MicroProfileHtml_end_3[] =
 "		{\n"
 "			MoveToNext(-1);\n"
 "		}\n"
+"		if(evt.keyCode == 90)\n"
+"		{\n"
+"			ToolTipCorner = 1-ToolTipCorner;\n"
+"		}\n"
 "		if(evt.keyCode == 32)\n"
 "		{\n"
 "			if(RangeSelect.Begin < RangeSelect.End)\n"
@@ -4955,6 +4964,10 @@ const char g_MicroProfileHtml_end_3[] =
 "		{\n"
 "			ColumnsEnabled = Obj.ColumnsEnabled;\n"
 "		}\n"
+"		if(Obj.ToolTipCorner)\n"
+"		{\n"
+"			ToolTipCorner = Obj.ToolTipCorner;\n"
+"		}\n"
 "		TimersGroups = Obj.TimersGroups?Obj.TimersGroups:0;\n"
 "	}\n"
 "	SetContextSwitch(nContextSwitchEnabled);\n"
@@ -4976,6 +4989,7 @@ const char g_MicroProfileHtml_end_3[] =
 "	Obj.TimersGroups = TimersGroups?TimersGroups:0;\n"
 "	Obj.GroupColors = GroupColors;\n"
 "	Obj.ColumnsEnabled = ColumnsEnabled;\n"
+"	Obj.ToolTipCorner = ToolTipCorner;\n"
 "	if(nHideHelp)\n"
 "	{\n"
 "		Obj.nHideHelp = 1;\n"
