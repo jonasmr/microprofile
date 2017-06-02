@@ -3390,7 +3390,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 		}
 		var FillRects = function(a, color, colordark)
 		{
-			context.fillStyle = colordark;
+			context.fillStyle = color;
 			for(var j = 0; j < a.length; j += 3)
 			{						
 				var X = a[j];
@@ -3401,18 +3401,17 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 					context.fillRect(X, Y, W, BoxHeight-1);
 				}
 			}
-
-			context.fillStyle = color;
-			for(var j = 0; j < a.length; j += 3)
-			{						
-				var X = a[j];
-				var Y = a[j+1];
-				var W = a[j+2];
-				if(W > 0)
-				{
-					context.fillRect(X+off, Y+off, W-off2, BoxHeight-1-off2);
-				}
-			}
+			// context.fillStyle = color;
+			// for(var j = 0; j < a.length; j += 3)
+			// {						
+			// 	var X = a[j];
+			// 	var Y = a[j+1];
+			// 	var W = a[j+2];
+			// 	if(W > 0)
+			// 	{
+			// 		context.fillRect(X+off, Y+off, W-off2, BoxHeight-1-off2);
+			// 	}
+			// }
 		}
 
 
