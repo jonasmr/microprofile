@@ -60,11 +60,8 @@ enum EMicroProfileTokenSpecial
 //		*clean up draw code.
 //		*tooltip
 // 		*demo
+//		*enter/leave without tokens, but strings.
 // 		bookmarks
-//
-// custom names
-// enable/disable of threads/tracks
-// tooltip buttons
 
 // live view:
 // capture indicators.
@@ -592,6 +589,10 @@ struct MicroProfile
 
 	MicroProfileThreadLog  	TimelineLog;
 	uint32_t 				TimelineTokenFrame[MICROPROFILE_TIMELINE_MAX_TOKENS];
+	uint32_t 				TimelineToken[MICROPROFILE_TIMELINE_MAX_TOKENS];
+	const char*				TimelineTokenStaticString[MICROPROFILE_TIMELINE_MAX_TOKENS];
+
+
 	uint32_t 				nTimelineFrameMax;
 
 	uint32_t				nNumLogs;
@@ -1076,6 +1077,8 @@ void MicroProfileInit()
 		for(uint32_t i = 0; i < MICROPROFILE_TIMELINE_MAX_TOKENS; ++i)
 		{
 			S.TimelineTokenFrame[i] = MICROPROFILE_INVALID_FRAME;
+			S.TimelineTokenStaticString[i] = nullptr;
+			S.TimelineToken[i] = 0;
 		}
 	}
 	MICROPROFILE_COUNTER_CONFIG("MicroProfile/Alloc/Memory", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
@@ -1712,6 +1715,7 @@ void MicroProfileTimelineLeave(uint32_t id)
 			nFrameCurrent += MICROPROFILE_MAX_FRAME_HISTORY;
 		uint32_t nFrameDistance = (nFrameCurrent - nFrameStart) % MICROPROFILE_MAX_FRAME_HISTORY;
 		S.TimelineTokenFrame[id%MICROPROFILE_TIMELINE_MAX_TOKENS] = MICROPROFILE_INVALID_FRAME;
+		S.TimelineToken[id%MICROPROFILE_TIMELINE_MAX_TOKENS] = 0;
 		S.nTimelineFrameMax = MicroProfileMax(S.nTimelineFrameMax, nFrameDistance);
 	}
 
@@ -1730,7 +1734,23 @@ void MicroProfileTimelineLeave(uint32_t id)
 	}
 }
 
-uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, int nStrLen)
+void MicroProfileTimelineEnterStatic(uint32_t nColor, const char* pStr)
+{
+	uint32_t nToken = MicroProfileTimelineEnterInternal(nColor, pStr, strlen(pStr), true);
+	(void)nToken;	
+}
+void MicroProfileTimelineLeaveStatic(const char* pStr)
+{
+	for(uint32_t i = 0; i < MICROPROFILE_TIMELINE_MAX_TOKENS; ++i)
+	{
+		if(S.TimelineTokenStaticString[i] && 0 == MP_STRCASECMP(pStr, S.TimelineTokenStaticString[i]))
+		{
+			MicroProfileTimelineLeave(S.TimelineToken[i]);
+		}
+	}
+}
+
+uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, int nStrLen, bool bIsStaticString)
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileTimelineMutex());
 	MicroProfileThreadLog* pLog = &S.TimelineLog;
@@ -1764,6 +1784,15 @@ uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, in
 			}
 			S.TimelineTokenFrame[token%MICROPROFILE_TIMELINE_MAX_TOKENS] = S.nFrameCurrent;
 		}
+		if(bIsStaticString)
+		{
+			S.TimelineTokenStaticString[token%MICROPROFILE_TIMELINE_MAX_TOKENS] = pStr;
+		}
+		else
+		{
+			S.TimelineTokenStaticString[token%MICROPROFILE_TIMELINE_MAX_TOKENS] = nullptr;
+		}
+		S.TimelineToken[token%MICROPROFILE_TIMELINE_MAX_TOKENS] = token;
 
 		uint64_t LEEnter = MicroProfileMakeLogIndex(MP_LOG_ENTER, ETOKEN_CUSTOM_NAME, MP_TICK());
 		uint64_t LEColor = MicroProfileMakeLogIndex(MP_LOG_EXTRA_DATA, ETOKEN_CUSTOM_COLOR, nColor);
@@ -1791,7 +1820,7 @@ uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, in
 
 uint32_t MicroProfileTimelineEnter(uint32_t nColor, const char* pStr)
 {
-	return MicroProfileTimelineEnterInternal(nColor, pStr, strlen(pStr));
+	return MicroProfileTimelineEnterInternal(nColor, pStr, strlen(pStr), false);
 }
 
 uint32_t MicroProfileTimelineEnterf(uint32_t nColor, const char* pStr, ...)
@@ -1807,7 +1836,7 @@ uint32_t MicroProfileTimelineEnterf(uint32_t nColor, const char* pStr, ...)
 	va_end (args);
 	MP_ASSERT(size < sizeof(buffer));
 	buffer[size] = '\0';
-	return MicroProfileTimelineEnterInternal(nColor, buffer, size);
+	return MicroProfileTimelineEnterInternal(nColor, buffer, size, false);
 }
 
 

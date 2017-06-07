@@ -104,8 +104,6 @@ int main(int argc, char* argv[])
 	MicroProfileDumpFile("spike.html", "spike.csv", 200.f, -1.f);
 	#endif	
 
-	MICROPROFILE_TIMELINE_TOKEN(htok_one);
-	MICROPROFILE_TIMELINE_TOKEN(htok_two);
 	MICROPROFILE_TIMELINE_TOKEN(htok_three);
 	MICROPROFILE_TIMELINE_TOKEN(htok_four);
 	MICROPROFILE_TIMELINE_TOKEN(htok_five);
@@ -129,15 +127,15 @@ int main(int argc, char* argv[])
 
 		static int hest = 0;
 		hest++;
-		MICROPROFILE_TIMELINE_LEAVE(htok_one);
-		MICROPROFILE_TIMELINE_ENTERF(htok_one, MP_DARKGOLDENROD, "one");
+		MICROPROFILE_TIMELINE_LEAVE_STATIC("one");
+		MICROPROFILE_TIMELINE_ENTER_STATIC(MP_DARKGOLDENROD, "one");
 		if(0 == hest%4)
 		{
-			MICROPROFILE_TIMELINE_ENTERF(htok_two, MP_DARKGOLDENROD, "two");
+			MICROPROFILE_TIMELINE_ENTER_STATIC(MP_DARKGOLDENROD, "two");
 		}
 		else if(2 == hest%4)
 		{
-			MICROPROFILE_TIMELINE_LEAVE(htok_two);
+			MICROPROFILE_TIMELINE_LEAVE_STATIC("Two");
 		}
 
 		if(0 == hest%12)
