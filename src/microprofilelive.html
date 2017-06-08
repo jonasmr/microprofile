@@ -242,6 +242,7 @@ var WidthArray = [];
 var WidthTree = 0;
 Settings.ViewActive = 0;
 Settings.ViewCompressed = 0;
+Settings.AllowHighDPI = 1;
 var ViewNames = ["Graph", "Graph", "Bars", "Bars", "Bars", "Counters"];
 var ViewNames2 = ["[split]", "[single]", "[table]", "[all]", "[single]", ""];
 
@@ -502,7 +503,7 @@ function MeasureFont()
 }
 function ResizeCanvasDPR(w, h, c)
 {
-	DPR = window.devicePixelRatio;
+	DPR = Settings.AllowHighDPI ? window.devicePixelRatio : 0;
 	if(DPR)
 	{
 		c.style.width = w + 'px'; 
@@ -513,6 +514,7 @@ function ResizeCanvasDPR(w, h, c)
 	}
 	else
 	{
+		DPR = 1;
 		c.width = w;
 		c.height = h;
 	}
@@ -615,7 +617,7 @@ function ResizeCanvas()
 {
 	nWidth = window.innerWidth;
 	nHeight = window.innerHeight;
-	DPR = window.devicePixelRatio;
+	DPR = Settings.AllowHighDPI ? window.devicePixelRatio : 0;
 	ResizeCanvasDPR(nWidth, nHeight, CanvasDetailedView);
 	ResizeCanvasDPR(nWidth, nHeight, CanvasDetailedOffscreen);
 
@@ -1929,13 +1931,13 @@ function DrawViews()
 	var context = CanvasDetailedView.getContext('2d');
 	context.clearRect(0, 0, nWidth, nHeight);
 	ProfileEnter("BlitViews");
-	var DPR = window.devicePixelRatio;
+	// var DPR = window.devicePixelRatio;
 	for(var i = 0; i < Views.length; ++i)
 	{
 		var View = Views[i];
 		if(View.visible)
 		{
-			context.drawImage(View.Canvas[View.BackBuffer], View.x, View.y, View.w, View.h);
+			context.drawImage(View.Canvas[View.BackBuffer], Math.floor(View.x), Math.floor(View.y), View.w, View.h);
 		}
 	}
 
@@ -2866,6 +2868,13 @@ function DrawMenuSettings()
 			WSSendMessage("r");
 		}
 	}
+	if(DrawMenuElement(M, Settings.AllowHighDPI, "Allow High DPI", Settings.AllowHighDPI, 'white'))
+	{
+		Settings.AllowHighDPI = 1 - Settings.AllowHighDPI;
+		ResizeCanvas();
+	}
+
+
 	SizeInfo.h = M.y - SizeInfo.y;
 	return SizeInfo;
 

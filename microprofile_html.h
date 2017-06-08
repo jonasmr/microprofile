@@ -6098,6 +6098,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "var WidthTree = 0;\n"
 "Settings.ViewActive = 0;\n"
 "Settings.ViewCompressed = 0;\n"
+"Settings.AllowHighDPI = 1;\n"
 "var ViewNames = [\"Graph\", \"Graph\", \"Bars\", \"Bars\", \"Bars\", \"Counters\"];\n"
 "var ViewNames2 = [\"[split]\", \"[single]\", \"[table]\", \"[all]\", \"[single]\", \"\"];\n"
 "\n"
@@ -6358,7 +6359,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "}\n"
 "function ResizeCanvasDPR(w, h, c)\n"
 "{\n"
-"	DPR = window.devicePixelRatio;\n"
+"	DPR = Settings.AllowHighDPI ? window.devicePixelRatio : 0;\n"
 "	if(DPR)\n"
 "	{\n"
 "		c.style.width = w + \'px\'; \n"
@@ -6369,6 +6370,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "	}\n"
 "	else\n"
 "	{\n"
+"		DPR = 1;\n"
 "		c.width = w;\n"
 "		c.height = h;\n"
 "	}\n"
@@ -6471,7 +6473,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "{\n"
 "	nWidth = window.innerWidth;\n"
 "	nHeight = window.innerHeight;\n"
-"	DPR = window.devicePixelRatio;\n"
+"	DPR = Settings.AllowHighDPI ? window.devicePixelRatio : 0;\n"
 "	ResizeCanvasDPR(nWidth, nHeight, CanvasDetailedView);\n"
 "	ResizeCanvasDPR(nWidth, nHeight, CanvasDetailedOffscreen);\n"
 "\n"
@@ -7177,13 +7179,13 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "		{\n"
 "			var idx = GetTimer(key);\n"
 "			var T = TimerArray[idx];\n"
-"			var TimerState = TimerMap[key];\n"
-"			var Time = TimerState.Time;\n"
-"			if(Time[index] >= MouseTime &";
+"			v";
 
 const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
 const char g_MicroProfileHtmlLive_begin_1[] =
-"& (GraphBest == 0 || Time[index] <= GraphBest))\n"
+"ar TimerState = TimerMap[key];\n"
+"			var Time = TimerState.Time;\n"
+"			if(Time[index] >= MouseTime && (GraphBest == 0 || Time[index] <= GraphBest))\n"
 "			{\n"
 "				GraphKey = key;\n"
 "				GraphBest = Time[index];\n"
@@ -7789,13 +7791,13 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	var context = CanvasDetailedView.getContext(\'2d\');\n"
 "	context.clearRect(0, 0, nWidth, nHeight);\n"
 "	ProfileEnter(\"BlitViews\");\n"
-"	var DPR = window.devicePixelRatio;\n"
+"	// var DPR = window.devicePixelRatio;\n"
 "	for(var i = 0; i < Views.length; ++i)\n"
 "	{\n"
 "		var View = Views[i];\n"
 "		if(View.visible)\n"
 "		{\n"
-"			context.drawImage(View.Canvas[View.BackBuffer], View.x, View.y, View.w, View.h);\n"
+"			context.drawImage(View.Canvas[View.BackBuffer], Math.floor(View.x), Math.floor(View.y), View.w, View.h);\n"
 "		}\n"
 "	}\n"
 "\n"
@@ -8691,15 +8693,15 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	}\n"
 "}\n"
 "\n"
-"function DrawMenuSettings()\n"
-"{\n"
-"	var context = CanvasDetailedView.getContext(\'2d\');\n"
-"	var nColorIndex = 0;\n"
-"	var SizeInfo = AggregateMenuSiz";
+"function DrawMe";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-"e();\n"
+"nuSettings()\n"
+"{\n"
+"	var context = CanvasDetailedView.getContext(\'2d\');\n"
+"	var nColorIndex = 0;\n"
+"	var SizeInfo = AggregateMenuSize();\n"
 "	SizeInfo.x = MenuItems[SubMenuSettings].x;\n"
 "	SizeInfo.y = MenuItems[SubMenuSettings].y;\n"
 "\n"
@@ -8730,6 +8732,13 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "			WSSendMessage(\"r\");\n"
 "		}\n"
 "	}\n"
+"	if(DrawMenuElement(M, Settings.AllowHighDPI, \"Allow High DPI\", Settings.AllowHighDPI, \'white\'))\n"
+"	{\n"
+"		Settings.AllowHighDPI = 1 - Settings.AllowHighDPI;\n"
+"		ResizeCanvas();\n"
+"	}\n"
+"\n"
+"\n"
 "	SizeInfo.h = M.y - SizeInfo.y;\n"
 "	return SizeInfo;\n"
 "\n"
@@ -10208,7 +10217,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "			EnableMenu(-1);\n"
 "		}\n"
 "\n"
-"		MouseDragActiveXStart = MouseDragActiveXEnd = -1;\n"
+"		MouseDragActive";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+"XStart = MouseDragActiveXEnd = -1;\n"
 "		Settings.SortColumn = 0;\n"
 "		Settings.SortColumnMouseOver = \"\";\n"
 "		ShowHelp(0);\n"
@@ -10224,11 +10237,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "		KeyCtrlDown = 0;\n"
 "		MouseDragKeyUp();\n"
 "	}\n"
-"	if(evt.keyC";
-
-const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
-const char g_MicroProfileHtmlLive_begin_3[] =
-"ode == 16)\n"
+"	if(evt.keyCode == 16)\n"
 "	{\n"
 "		KeyShiftDown = 0;\n"
 "		MouseDragKeyUp();\n"
