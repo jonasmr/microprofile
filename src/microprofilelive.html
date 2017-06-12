@@ -69,9 +69,6 @@ Enter: Capture selection/Next N Frames
 <script>
 "use strict"
 
-//todo
-//strict in normal
-
 var FRAME_HISTORY_COLOR_CPU = '#ff7f27';
 var FRAME_HISTORY_COLOR_GPU = '#ffffff';
 
@@ -183,6 +180,7 @@ var ProfileRedraw0 = 0;
 var ProfileRedraw1 = 0;
 var ProfileRedraw2 = 0;
 var ProfileFps = 0;
+var ProfileMs = 0;
 var ProfileFpsAggr = 0;
 var ProfileFpsCount = 0;
 var ProfileLastTimeStamp = new Date();
@@ -387,7 +385,17 @@ function ProfileModeClear()
 {
 	if(ProfileMode)
 	{
-		ProfileData = new Object();
+
+		for(var idx in ProfileData)
+		{
+			if(idx == "Plot")
+				continue;
+			var Timer = ProfileData[idx];
+			Timer.Count = 0;
+			Timer.Time = 0;
+		}
+
+		// ProfileData = new Object();
 		ProfileStackTime = new Array();
 		ProfileStackName = new Array();
 	}
@@ -414,6 +422,9 @@ function ProfileLeave()
 			Obj.Count = 0;
 			Obj.Name = Name;
 			Obj.Time = 0;
+			Obj.AggrCount = 0;
+			Obj.AggrTime = 0;
+			Obj.AvgTime = 0;
 			ProfileData[Name] = Obj;
 		}
 		Obj.Time += Delta;
@@ -450,37 +461,55 @@ function ProfileModeDraw(Canvas)
 {
 	if(ProfileMode)
 	{
+		ProfileFpsCount ++ ;
+		var AggrFrames = 60;
 		var StringArray = [];
+		function FormatTime(f)
+		{
+			return ("         " + f.toFixed(2)).slice(-8);
+		}
+		function FormatStr(t, count, avg)
+		{
+			var str = FormatTime(t) + "ms #" + count + "" + FormatTime(avg) + "ms";
+			return str;
+		}
 		for(var idx in ProfileData)
 		{
 			if(idx == "Plot")
 				continue;
 			var Timer = ProfileData[idx];
+			Timer.AggrCount += Timer.Count;
+			Timer.AggrTime += Timer.Time;
+			if(ProfileFpsCount == AggrFrames)
+			{
+				Timer.AvgTime = Timer.AggrTime / AggrFrames;
+				Timer.AggrCount = 0;
+				Timer.AggrTime = 0;
+			}
 			StringArray.push(Timer.Name);
-			StringArray.push(Timer.Time + "ms");
-			StringArray.push("#");
-			StringArray.push("" + Timer.Count);
+			StringArray.push(FormatStr(Timer.Time, Timer.Count, Timer.AvgTime));
+			// StringArray.push("#");
+			// StringArray.push("" + Timer.Count);
 		}
-		// StringArray.push("debug");
-		// StringArray.push(Debug);
 		var Time = new Date();
 		var Delta = Time - ProfileLastTimeStamp;
 		ProfileLastTimeStamp = Time;
 		StringArray.push("Frame Delta");
 		StringArray.push(Delta + "ms");
-		if(ProfileMode == 2)
 		{
 			ProfileFpsAggr += Delta;
-			ProfileFpsCount ++ ;
-			var AggrFrames = 10;
+
 			if(ProfileFpsCount == AggrFrames)
 			{
+				ProfileMs = ProfileFpsAggr / AggrFrames;
 				ProfileFps = 1000 / (ProfileFpsAggr / AggrFrames);
 				ProfileFpsAggr = 0;
 				ProfileFpsCount = 0;
 			}
-			StringArray.push("FPS");
+			StringArray.push("Avg FPS");
 			StringArray.push("" + ProfileFps.toFixed(2));
+			StringArray.push("Avg MS");
+			StringArray.push("" + ProfileMs.toFixed(2));
 		}
 		for(var i = 0; i < ProfileData.Plot; ++i)
 		{
