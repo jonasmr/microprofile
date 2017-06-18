@@ -1138,6 +1138,7 @@ void MicroProfileThreadLogGpuReset(MicroProfileThreadLogGpu* pLog)
 	pLog->pContext = (void*)-1;
 	pLog->nStart = (uint32_t)-1;
 	pLog->nPut = 0;
+	pLog->nStackScope = 0;
 }
 
 MicroProfileThreadLogGpu* MicroProfileThreadLogGpuAllocInternal()
