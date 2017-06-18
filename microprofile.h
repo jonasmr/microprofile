@@ -405,7 +405,7 @@ MICROPROFILE_API void MicroProfileLeaveInternal(MicroProfileToken nToken, uint64
 MICROPROFILE_API void MicroProfileEnter(MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileLeave();
 MICROPROFILE_API void MicroProfileEnterGpu(MicroProfileToken nToken, struct MicroProfileThreadLogGpu* pLog);
-MICROPROFILE_API void MicroProfileLeaveGpu();
+MICROPROFILE_API void MicroProfileLeaveGpu(struct MicroProfileThreadLogGpu* pLog);
 MICROPROFILE_API uint64_t MicroProfileGpuEnterInternal(struct MicroProfileThreadLogGpu* pLog, MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileGpuLeaveInternal(struct MicroProfileThreadLogGpu* pLog, MicroProfileToken nToken, uint64_t nTick);
 MICROPROFILE_API void MicroProfileGpuBegin(void* pContext, struct MicroProfileThreadLogGpu* pLog);
