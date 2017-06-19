@@ -4354,6 +4354,13 @@ function KeyUp(evt)
 		}
 		if(k == 32)
 		{
+			if(0) //for debugging.
+			{
+				console.log("FrameData =");
+				console.log(JSON.stringify(FrameData));
+				console.log("TimerArray =");
+				console.log(JSON.stringify(TimerArray));
+			}
 			WSSendMessage("f");
 		}
 		if(k == 88)
