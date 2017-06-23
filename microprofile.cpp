@@ -10,6 +10,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <string.h>
 
 #define MICROPROFILE_MAX_COUNTERS 512
 #define MICROPROFILE_MAX_COUNTER_NAME_CHARS (MICROPROFILE_MAX_COUNTERS*16)
@@ -83,7 +84,7 @@ enum
 #ifndef MICROPROFILE_ALLOC //redefine all if overriding
 #define MICROPROFILE_ALLOC(nSize, nAlign) MicroProfileAllocAligned(nSize, nAlign);
 #define MICROPROFILE_REALLOC(p, s) realloc(p, s)
-#define MICROPROFILE_FREE(p) free(p)
+#define MICROPROFILE_FREE(p) MicroProfileFreeAligned(p)
 #endif
 
 #define MP_ALLOC(nSize, nAlign) MicroProfileAllocInternal(nSize, nAlign)
@@ -126,6 +127,7 @@ void* MicroProfileReallocInternal(void* pPtr, size_t nSize);
 
 
 void* MicroProfileAllocAligned(size_t nSize, size_t nAlign);
+void MicroProfileFreeAligned(void* pMem);
 
 #if defined(__APPLE__)
 #include <mach/mach.h>
@@ -171,6 +173,11 @@ void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 	return p;
 }
 
+void MicroProfileFreeAligned(void* pMem)
+{
+	free(pMem);
+}
+
 #elif defined(_WIN32)
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -183,6 +190,11 @@ int64_t MicroProfileGetTick();
 void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 {
 	return _aligned_malloc(nSize, nAlign);
+}
+
+void MicroProfileFreeAligned(void* pMem)
+{
+	_aligned_free(pMem);
 }
 
 #else
@@ -213,6 +225,11 @@ void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 	posix_memalign(&p, nAlign, nSize);
 	return p;
 }
+void MicroProfileFreeAligned(void* pMem)
+{
+	free(pMem);
+}
+
 #endif
 
 
@@ -1215,6 +1232,7 @@ void MicroProfileThreadLogGpuReset(MicroProfileThreadLogGpu* pLog)
 	pLog->pContext = (void*)-1;
 	pLog->nStart = (uint32_t)-1;
 	pLog->nPut = 0;
+	pLog->nStackScope = 0;
 }
 
 MicroProfileThreadLogGpu* MicroProfileThreadLogGpuAllocInternal()
@@ -2258,8 +2276,8 @@ void MicroProfileFlip(void* pContext)
 		S.nWebServerDataSent = 0;
 		if(!S.WebSocketThreadRunning)
 		{
-			MicroProfileThreadStart(&S.WebSocketSendThread, MicroProfileSocketSenderThread);
 			S.WebSocketThreadRunning = 1;
+			MicroProfileThreadStart(&S.WebSocketSendThread, MicroProfileSocketSenderThread);
 		}
 	}
 
@@ -4185,6 +4203,10 @@ void MicroProfileWebServerStart()
 
 void MicroProfileWebServerStop()
 {
+	if(S.WebSocketThreadRunning)
+	{
+		MicroProfileThreadJoin(&S.WebSocketSendThread);
+	}
 #ifdef _WIN32
 	closesocket(S.ListenerSocket);
 	WSACleanup();
@@ -5424,11 +5446,6 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 	S.WSBuf.nSendPut.store(0);
 	S.WSBuf.nSendGet.store(0);
 	S.nSocketFail = 0;
-	//if(!S.WebSocketThreadRunning)
-	//{
- //       MicroProfileThreadStart(&S.WebSocketSendThread, MicroProfileSocketSenderThread);
-	//	S.WebSocketThreadRunning = 1;
-	//}
 
 	const char* pGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 	const char* pHandShake = "HTTP/1.1 101 Switching Protocols\r\n"
@@ -7500,6 +7517,7 @@ int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu)
 #elif MICROPROFILE_GPU_TIMERS_GL
 void MicroProfileGpuInitGL()
 {
+	S.pGPU = MP_ALLOC_OBJECT(MicroProfileGpuTimerState);
 	S.pGPU->GLTimerPos = 0;
 	glGenQueries(MICROPROFILE_GL_MAX_QUERIES, &S.pGPU->GLTimers[0]);		
 }
@@ -7558,6 +7576,16 @@ int MicroProfileGetGpuTickReference(int64_t* pOutCpu, int64_t* pOutGpu)
 		return 1;
 	}
 	return 0;
+}
+uint32_t MicroProfileGpuFlip(void* pContext)
+{
+	return MicroProfileGpuInsertTimeStamp(pContext);
+}
+
+void MicroProfileGpuShutdown()
+{
+	glDeleteQueries(MICROPROFILE_GL_MAX_QUERIES, &S.pGPU->GLTimers[0]);
+	MP_FREE(S.pGPU);
 }
 
 

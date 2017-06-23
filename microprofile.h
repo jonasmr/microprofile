@@ -141,7 +141,6 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileDumpFileImmediately(html,csv,gfcontext) do{} while(0)
 #define MicroProfileWebServerPort() ((uint32_t)-1)
 #define MicroProfileStartContextSwitchTrace() do{}while(0)
-#define MicroProfileDumpFile(html,csv,cpu, gpu) do{} while(0)
 #define MicroProfileWebServerPort() ((uint32_t)-1)
 #define MicroProfileGpuInsertTimeStamp(a) 1
 #define MicroProfileGpuGetTimeStamp(a) 0
@@ -443,6 +442,7 @@ MICROPROFILE_API uint32_t MicroProfileTimelineEnterf(uint32_t nColor, const char
 MICROPROFILE_API void MicroProfileTimelineLeave(uint32_t id);
 MICROPROFILE_API void MicroProfileTimelineEnterStatic(uint32_t nColor, const char* pStr);
 MICROPROFILE_API void MicroProfileTimelineLeaveStatic(const char* pStr);
+MICROPROFILE_API void MicroProfileLeaveGpu(struct MicroProfileThreadLogGpu* pLog);
 MICROPROFILE_API uint64_t MicroProfileGpuEnterInternal(struct MicroProfileThreadLogGpu* pLog, MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileGpuLeaveInternal(struct MicroProfileThreadLogGpu* pLog, MicroProfileToken nToken, uint64_t nTick);
 MICROPROFILE_API void MicroProfileGpuBegin(void* pContext, struct MicroProfileThreadLogGpu* pLog);
