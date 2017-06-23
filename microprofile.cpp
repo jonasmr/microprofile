@@ -1793,7 +1793,7 @@ void MicroProfileTimelineLeaveStatic(const char* pStr)
 	}
 }
 
-uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, int nStrLen, bool bIsStaticString)
+uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, int nStrLen, int bIsStaticString)
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileTimelineMutex());
 	MicroProfileThreadLog* pLog = &S.TimelineLog;

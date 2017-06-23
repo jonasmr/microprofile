@@ -435,14 +435,13 @@ MICROPROFILE_API void MicroProfileLeaveInternal(MicroProfileToken nToken, uint64
 MICROPROFILE_API void MicroProfileEnter(MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileLeave();
 MICROPROFILE_API void MicroProfileEnterGpu(MicroProfileToken nToken, struct MicroProfileThreadLogGpu* pLog);
-MICROPROFILE_API void MicroProfileLeaveGpu();
-MICROPROFILE_API uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, int nStrLen, bool bIsStaticString);
+MICROPROFILE_API void MicroProfileLeaveGpu(struct MicroProfileThreadLogGpu* pLog);
+MICROPROFILE_API uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, int nStrLen, int bIsStaticString);
 MICROPROFILE_API uint32_t MicroProfileTimelineEnter(uint32_t nColor, const char* pStr);
 MICROPROFILE_API uint32_t MicroProfileTimelineEnterf(uint32_t nColor, const char* pStr, ...);
 MICROPROFILE_API void MicroProfileTimelineLeave(uint32_t id);
 MICROPROFILE_API void MicroProfileTimelineEnterStatic(uint32_t nColor, const char* pStr);
 MICROPROFILE_API void MicroProfileTimelineLeaveStatic(const char* pStr);
-MICROPROFILE_API void MicroProfileLeaveGpu(struct MicroProfileThreadLogGpu* pLog);
 MICROPROFILE_API uint64_t MicroProfileGpuEnterInternal(struct MicroProfileThreadLogGpu* pLog, MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileGpuLeaveInternal(struct MicroProfileThreadLogGpu* pLog, MicroProfileToken nToken, uint64_t nTick);
 MICROPROFILE_API void MicroProfileGpuBegin(void* pContext, struct MicroProfileThreadLogGpu* pLog);
