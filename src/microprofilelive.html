@@ -111,6 +111,8 @@ var nOffsetBarsX = 0;
 var nOffsetBarsY = 0;
 var nOffsetCountersY = 0;
 var nOffsetMenuTimers = 0;
+var nOffsetMenuGroup = 0;
+
 var nHoverCounter = -1;
 
 var MouseDragOff = 0;
@@ -1988,6 +1990,8 @@ var SubMenuMouseX = 0;
 var SubMenuMouseY = 0;
 var SubMenuTimeout = new Date();
 var MenuItems = [];
+var FilterInputTimersValue = '';
+var FilterInputGroupsValue = '';
 
 function MakeMenuItem(name, f)
 {
@@ -2003,15 +2007,33 @@ function EnableMenu(m)
 {
 	if(m != SubMenuActive)
 	{
+		if(SubMenuActive == SubMenuTimers)
+		{
+			FilterInputTimersValue = FilterInput.value;
+		}
+		else if(SubMenuActive == SubMenuGroup)
+		{
+			FilterInputGroupsValue = FilterInput.value;
+		}
 		SubMenuActive = m;
 		SubMenuTimeout = new Date();
+
+		if(SubMenuActive == SubMenuTimers)
+		{
+			FilterInput.value = FilterInputTimersValue;
+		}
+		else if(SubMenuActive == SubMenuGroup)
+		{
+			FilterInput.value = FilterInputGroupsValue;
+		}
+		FilterInputValueLast = FilterInput.value;
 	}
 	if(m == -1)
 	{
 		SubMenuTimeout = 0;
 	}
 
-	if(SubMenuActive == 1)
+	if(SubMenuActive == SubMenuTimers || SubMenuActive == SubMenuGroup)
 	{
 		FilterInputDiv.style['display'] = 'inline';
 		FilterInput.focus();
@@ -2954,7 +2976,6 @@ function DrawMenuTimer()
 	if(bMouseIn && MouseReleased)
 	{
 		WSSendMessage("x");
-		
 	}
 
 	Y += BoxHeight;
@@ -3078,6 +3099,12 @@ function DrawMenuGeneric(Elements, Active, OnClick, x, y, Elements2)
 
 function DrawMenuGroup()
 {
+	if(FilterInputValueLast != FilterInput.value)
+	{
+		nOffsetMenuGroup = 0;
+	}
+	FilterInputValueLast = FilterInput.value;
+
 	var context = CanvasDetailedView.getContext('2d');
 	var nColorIndex = 0;
 	var Selection = null;
@@ -3087,6 +3114,12 @@ function DrawMenuGroup()
 	var Y = SizeInfo.y;
 	var X = SizeInfo.x;
 	var Width = SizeInfo.w;
+	var FilterArray = CreateFilter(FilterInput.value);
+	MoveFilterInputDiv(SizeInfo.x-2, SizeInfo.y, SizeInfo.w-1);
+	var YStart = Y+20;
+	Y += 35;
+	Y -= nOffsetMenuGroup;
+
 
 	function DrawMenuElement(Selected, Name, color, Indent)
 	{
@@ -3103,7 +3136,7 @@ function DrawMenuGroup()
 		Y += BoxHeight;
 		return bMouseIn;
 	}
-	function DrawMenuRecursive(Index, Indent)
+	function DrawMenuRecursive(Index, Indent, categorymatch)
 	{
 		ProfileEnter("DrawMenuRecursive");		
 		var v = TimerArray[Index];
@@ -3111,12 +3144,34 @@ function DrawMenuGroup()
 		{
 			return;
 		}
+		if(v.idtype == TYPE_GROUP && !categorymatch)
+		{
+			if(!FilterMatch(FilterArray, v.name))
+			{
+				return;
+			}
+		}
+		var catmatch = 0;
+		if(v.idtype == TYPE_CATEGORY)
+		{
+			if(FilterMatch(FilterArray, v.name))
+			{
+				catmatch = 1;
+			}
+		}
 		var Closed = 0;
 		if(Index > 0)
 		{
-			if(DrawMenuElement(v.e, v.name, v.color, Indent))
+			if(Y > YStart)
 			{
-				Selection = v.id;
+				if(DrawMenuElement(v.e, v.name, v.color, Indent))
+				{
+					Selection = v.id;
+				}
+			}
+			else
+			{
+				Y += BoxHeight;
 			}
 		}
 
@@ -3125,7 +3180,7 @@ function DrawMenuGroup()
 			var ChildIndex = v.firstchild;
 			while(ChildIndex != -1)
 			{
-				DrawMenuRecursive(ChildIndex, Indent + 1);
+				DrawMenuRecursive(ChildIndex, Indent + 1, catmatch);
 				ChildIndex = TimerArray[ChildIndex].sibling;
 			}
 		}
@@ -3173,7 +3228,6 @@ function DrawMenu()
 		{
 			MouseMoveTime = new Date();
 		}
-
 		if(SubMenuActive == SubMenuGroup)
 		{
 			MenuRect = DrawMenuGroup();
@@ -4075,15 +4129,26 @@ function MouseHandleDrag()
 				}
 			}
 		}
-		else if(SubMenuActive == SubMenuTimers)
+		else if(SubMenuActive == SubMenuTimers || SubMenuActive == SubMenuGroup)
 		{
 			if(MouseDragKeyShift || MouseDragButton == 1)
 			{
 				var Y = MouseDragY - MouseDragYLast;
-				nOffsetMenuTimers -= Y;
-				if(nOffsetMenuTimers < 0)
+				if(SubMenuActive == SubMenuTimers)
 				{
-					nOffsetMenuTimers = 0;
+					nOffsetMenuTimers -= Y;
+					if(nOffsetMenuTimers < 0)
+					{
+						nOffsetMenuTimers = 0;
+					}
+				}
+				else
+				{
+					nOffsetMenuGroup -= Y;
+					if(nOffsetMenuGroup < 0)
+					{
+						nOffsetMenuGroup = 0;
+					}
 				}
 			}
 		}
@@ -4332,7 +4397,7 @@ function KeyUp(evt)
 {
 	var k = evt.keyCode;
 	console.log('key is ' + k);
-	var InputActive = SubMenuActive == SubMenuTimers;
+	var InputActive = SubMenuActive == SubMenuTimers || SubMenuActive == SubMenuGroup;
 	if(!InputActive)
 	{
 		if(k == 220)

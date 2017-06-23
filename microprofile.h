@@ -392,6 +392,9 @@ typedef uint64_t MicroProfileThreadIdType;
 #define MICROPROFILE_COUNTER_HISTORY 1
 #endif
 
+#ifndef MICROPROFILE_MAX_GROUPS
+#define MICROPROFILE_MAX_GROUPS 128 //must be multiple of 32
+#endif
 
 
 
