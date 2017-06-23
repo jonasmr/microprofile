@@ -329,6 +329,14 @@ const char g_MicroProfileHtml_begin_0[] =
 "g_ColorL.push(0);\n"
 "\n"
 "\n"
+"var Timeline = {};\n"
+"var TimelineArray = [];\n"
+"var TimelineIdArray = [];\n"
+"var TimelineNames = [];\n"
+"var TimelineColorArray = [];\n"
+"\n"
+"\n"
+"\n"
 "\n"
 "";
 
@@ -532,7 +540,6 @@ const char g_MicroProfileHtml_end_0[] =
 "var MetaLengthsMax = Array();\n"
 "\n"
 "var ZoomActive = 0;\n"
-"var Timeline = {};\n"
 "\n"
 "var StrGroup = \"Group\";\n"
 "var StrThread = \"Thread\";\n"
@@ -1775,13 +1782,13 @@ const char g_MicroProfileHtml_end_0[] =
 "		DrawToolTip(StringArray, CanvasHistory, HistoryViewMouseX, HistoryViewMouseY+20);\n"
 "\n"
 "	}\n"
-"	Pr";
+"	ProfileLeave();\n"
+"}\n"
+"fun";
 
 const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
 const char g_MicroProfileHtml_end_1[] =
-"ofileLeave();\n"
-"}\n"
-"function TimeToMsString(Time)\n"
+"ction TimeToMsString(Time)\n"
 "{\n"
 "	return Time.toFixed(3) + \"ms\";\n"
 "}\n"
@@ -3034,11 +3041,11 @@ const char g_MicroProfileHtml_end_1[] =
 "					}\n"
 "					context.fillRect(X, fOffsetY, W, CSwitchHeight);\n"
 "				}\n"
-"				if(DetailedViewMouseX >= X &";
+"				if(DetailedViewMouseX >= X && DetailedViewMouse";
 
 const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
 const char g_MicroProfileHtml_end_2[] =
-"& DetailedViewMouseX <= X+W && DetailedViewMouseY < fOffsetY+CSwitchHeight && DetailedViewMouseY >= fOffsetY)\n"
+"X <= X+W && DetailedViewMouseY < fOffsetY+CSwitchHeight && DetailedViewMouseY >= fOffsetY)\n"
 "				{\n"
 "					nHoverCSCpuNext = ActiveCpu;\n"
 "					RangeCpuNext.Begin = TimeIn;\n"
@@ -4424,12 +4431,12 @@ const char g_MicroProfileHtml_end_2[] =
 "	MouseDragState = MouseDragOff;\n"
 "	MouseDragTarget = 0;\n"
 "	MouseDragKeyShift = 0;\n"
-"	MouseDragKeyC";
+"	MouseDragKeyCtrl = 0;\n"
+"	MouseDrag";
 
 const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
 const char g_MicroProfileHtml_end_3[] =
-"trl = 0;\n"
-"	MouseDragButton = 0;\n"
+"Button = 0;\n"
 "}\n"
 "function MouseDragKeyUp()\n"
 "{\n"

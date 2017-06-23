@@ -3613,7 +3613,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 			float fTime;
 			int f = 0;
 
-			pp("var TimelineColorArray=[");
+			pp("TimelineColorArray=[");
 			for(uint32_t k = nLogStart; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 			{
 				uint64_t v = pLog->Log[k];
@@ -3645,7 +3645,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 
 
 			f = 0;
-			pp("var TimelineIdArray=[");
+			pp("TimelineIdArray=[");
 			for(uint32_t k = nLogStart; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 			{
 				uint64_t v = pLog->Log[k];
@@ -3672,7 +3672,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 
 			f = 0;
 
-			pp("var TimelineArray=[");
+			pp("TimelineArray=[");
 			for(uint32_t k = nLogStart; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 			{
 				uint64_t v = pLog->Log[k];
@@ -3690,7 +3690,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 				}
 			}
 			pp("];\n");
-			pp("var TimelineNames=[");
+			pp("TimelineNames=[");
 			f = 0;
 			char String[MICROPROFILE_MAX_STRING+1];
 			for(uint32_t k = nLogStart; k != nLogEnd; )
