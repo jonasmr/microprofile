@@ -3791,7 +3791,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 						if(nTimerIndex == ETOKEN_GPU_CPU_TIMESTAMP)
 						{
 							fToMs = fToMsCpu;
-							nStartTick = nStartTickBase;
+							nStartTick = nTickStart;
 							fTime = MicroProfileLogTickDifference(nStartTick, pLog->Log[k]) * fToMs;
 						}
 						else
