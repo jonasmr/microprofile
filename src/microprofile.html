@@ -3629,20 +3629,27 @@ function DrawFilterSearchRanges(context, Ranges, ColorBack, ColorFront, ThreadY)
 }
 
 
-function DrawRange(context, Range, ColorBack, ColorFront, Name)
+function DrawRange(context, Range, ColorBack, ColorFront, Name, Offset)
 {
+	if(!Offset)
+		Offset = 0;
 	var fBegin = Range.Begin;
 	var fEnd = Range.End;
 	var OffsetTop = Range.YBegin;
 	var OffsetBottom = Range.YEnd;
 	if(fBegin < fEnd)
 	{
-		var MarginTop = 0.5 * FontHeight;
-		var MarginBottom = nHeight - 1.5 * FontHeight;
+		var MarginTop = (1.0+Offset) * (FontHeight+1);
+		var MarginBottom = nHeight - (Offset+1.5) * (FontHeight+1);
 		if(OffsetTop < MarginTop)
+		{
+			Offset += 1;
 			OffsetTop = MarginTop;
+		}
 		if(OffsetBottom > MarginBottom)
+		{
 			OffsetBottom = MarginBottom;
+		}
 		var fRulerOffset = FontHeight * 0.5;
 		var fScaleX = nWidth / fDetailedRange; 
 		var X = (fBegin - fDetailedOffset) * fScaleX;
@@ -3714,7 +3721,7 @@ function DrawRange(context, Range, ColorBack, ColorFront, Name)
 		DrawTextBox(context, fEnd.toFixed(2), X + W + 2, TextPosY, 'left');
 		DrawTextBox(context, Name, X + W + 2, OffsetTop + YSpace + FontHeight, 'left');
 	}
-	return 1;
+	return Offset;
 }
 
 function DrawDetailed(Animation)
@@ -3827,9 +3834,9 @@ function DrawDetailed(Animation)
 	RangeSet(RangeCpu);
 	RangeSet(RangeGpu);
 	var Offset = 0;
-	Offset = DrawRange(context, RangeSelect, '#59d0ff', '#00ddff', "Selection");
-	Offset = DrawRange(context, RangeCpu, '#009900', '#00ff00', "Cpu");
-	Offset = DrawRange(context, RangeGpu, '#996600', '#775500', "Gpu");
+	Offset = DrawRange(context, RangeSelect, '#59d0ff', '#00ddff', "Selection", Offset);
+	Offset = DrawRange(context, RangeCpu, '#009900', '#00ff00', "Cpu", Offset);
+	Offset = DrawRange(context, RangeGpu, '#996600', '#775500', "Gpu", Offset);
 
 	DrawFilterSearchRanges(context, FilterSearchArray, '#ff9900', '#ff9900', ThreadY);
 
