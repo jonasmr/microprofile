@@ -3752,7 +3752,6 @@ const char g_MicroProfileHtml_end_2[] =
 "\n"
 "	RangeCpuNext = RangeInit();\n"
 "	RangeGpuNext = RangeInit();\n"
-"	RangeGpu = RangeInit();\n"
 "\n"
 "	var start = new Date();\n"
 "	nDrawCount++;\n"
@@ -3799,7 +3798,7 @@ const char g_MicroProfileHtml_end_2[] =
 "		ProfileRedraw2++;\n"
 "	}\n"
 "\n"
-"	if(KeyShiftDown || KeyCtrlDown || MouseDragButton || MouseDragSelectRange() || ZoomActive || FilterSearchActive)\n"
+"	if(KeyShiftDown || KeyCtrlDown || MouseDragSelectRange() || ZoomActive || FilterSearchActive)\n"
 "	{\n"
 "		nHoverToken = -1;\n"
 "		nHoverTokenIndex = -1;\n"
@@ -4432,15 +4431,15 @@ const char g_MicroProfileHtml_end_2[] =
 "	MouseDragTarget = 0;\n"
 "	MouseDragKeyShift = 0;\n"
 "	MouseDragKeyCtrl = 0;\n"
-"	MouseDrag";
-
-const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
-const char g_MicroProfileHtml_end_3[] =
-"Button = 0;\n"
+"	MouseDragButton = 0;\n"
 "}\n"
 "function MouseDragKeyUp()\n"
 "{\n"
-"	if((MouseDragKeyShift && !KeyShiftDown) || (MouseDragKeyCtrl && !KeyCtrlDown))\n"
+"	i";
+
+const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
+const char g_MicroProfileHtml_end_3[] =
+"f((MouseDragKeyShift && !KeyShiftDown) || (MouseDragKeyCtrl && !KeyCtrlDown))\n"
 "	{\n"
 "		MouseHandleDragEnd();\n"
 "		MouseDragReset();\n"

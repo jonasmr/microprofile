@@ -3730,7 +3730,6 @@ function DrawDetailed(Animation)
 
 	RangeCpuNext = RangeInit();
 	RangeGpuNext = RangeInit();
-	RangeGpu = RangeInit();
 
 	var start = new Date();
 	nDrawCount++;
@@ -3777,7 +3776,7 @@ function DrawDetailed(Animation)
 		ProfileRedraw2++;
 	}
 
-	if(KeyShiftDown || KeyCtrlDown || MouseDragButton || MouseDragSelectRange() || ZoomActive || FilterSearchActive)
+	if(KeyShiftDown || KeyCtrlDown || MouseDragSelectRange() || ZoomActive || FilterSearchActive)
 	{
 		nHoverToken = -1;
 		nHoverTokenIndex = -1;
