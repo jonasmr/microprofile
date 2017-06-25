@@ -2511,6 +2511,8 @@ void MicroProfileFlip(void* pContext)
 							if(MP_LOG_ENTER == nType)
 							{
 								int nTimer = MicroProfileLogGetTimerIndex(LE);
+								MP_ASSERT(nTimer>=0);
+								MP_ASSERT(nTimer < S.nTotalTimers);
 								uint32_t nGroup = pTimerToGroup[nTimer];
 								MP_ASSERT(nStackPos < MICROPROFILE_STACK_MAX);
 								MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
@@ -2523,6 +2525,8 @@ void MicroProfileFlip(void* pContext)
 							else if(MP_LOG_LEAVE == nType)
 							{
 								int nTimer = MicroProfileLogGetTimerIndex(LE);
+								MP_ASSERT(nTimer < S.nTotalTimers);
+								MP_ASSERT(nTimer >= 0);
 								uint32_t nGroup = pTimerToGroup[nTimer];
 								MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
 								MP_ASSERT(nStackPos);
@@ -3819,13 +3823,23 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 			MicroProfilePrintf(CB, Handle, "var ti_%d_%d = [", i, j);
 			if(nLogStart != nLogEnd)
 			{
-				uint32_t k = nLogStart;
-				MicroProfilePrintf(CB, Handle, "%d", (uint32_t)MicroProfileLogGetTimerIndex(pLog->Log[k]));
-				for(k = (k+1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
+				for(uint32_t k = nLogStart; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 				{
-					uint32_t nTimerIndex = (uint32_t)MicroProfileLogGetTimerIndex(pLog->Log[k]);
-					MicroProfilePrintf(CB, Handle, ",%d", nTimerIndex);
-					nTimerCounter[nTimerIndex]++;
+					nLogType = MicroProfileLogGetType(pLog->Log[k]);
+					const char* pFormat = k == nLogStart ? "%d" : ",%d";
+					if(nLogType == MP_LOG_ENTER || nLogType == MP_LOG_LEAVE)
+					{
+						uint32_t nTimerIndex = (uint32_t)MicroProfileLogGetTimerIndex(pLog->Log[k]);
+						if(nTimerIndex < S.nTotalTimers)
+						{
+							nTimerCounter[nTimerIndex]++;
+						}
+						MicroProfilePrintf(CB, Handle, pFormat, nTimerIndex);
+					}
+					else
+					{
+						MicroProfilePrintf(CB, Handle, pFormat, -1);
+					}
 				}
 			}
 			MicroProfilePrintf(CB, Handle, "];\n");
