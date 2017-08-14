@@ -677,6 +677,7 @@ struct MicroProfile
 
 	MicroProfileThread 			WebSocketSendThread;
 	bool 	 					WebSocketThreadRunning;
+	bool 						WebSocketThreadJoined;
 
 	uint32_t 					WSCategoriesSent;
 	uint32_t 					WSGroupsSent;
@@ -945,6 +946,7 @@ inline void MicroProfileThreadJoin(MicroProfileThread* pThread)
 
 void MicroProfileWebServerStart();
 void MicroProfileWebServerStop();
+void MicroProfileWebServerJoin();
 bool MicroProfileWebServerUpdate();
 void MicroProfileDumpToFile();
 
@@ -952,6 +954,7 @@ void MicroProfileDumpToFile();
 
 #define MicroProfileWebServerStart() do{}while(0)
 #define MicroProfileWebServerStop() do{}while(0)
+#define MicroProfileWebServerJoin() do{}while(0)
 #define MicroProfileWebServerUpdate() false
 #define MicroProfileDumpToFile() do{} while(0)
 #endif 
@@ -1116,19 +1119,30 @@ void MicroProfileInit()
 	}
 }
 
+
+void MicroProfileJoinContextSwitchTrace();
+
 void MicroProfileShutdown()
 {
-	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
-	if(S.pJsonSettings)
 	{
-		MP_FREE(S.pJsonSettings);
-		S.pJsonSettings = 0;
-		S.nJsonSettingsBufferSize = 0;
+		std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+		S.nMicroProfileShutdown = 1;
+		MicroProfileStopContextSwitchTrace();
+	
 	}
-	S.nMicroProfileShutdown = 1;
-	MicroProfileWebServerStop();
-	MicroProfileStopContextSwitchTrace();
-	MicroProfileGpuShutdown();
+	MicroProfileWebServerJoin();
+	MicroProfileJoinContextSwitchTrace();
+	{
+
+		std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
+		if(S.pJsonSettings)
+		{
+			MP_FREE(S.pJsonSettings);
+			S.pJsonSettings = 0;
+			S.nJsonSettingsBufferSize = 0;
+		}
+		MicroProfileGpuShutdown();
+	}
 }
 
 #ifdef MICROPROFILE_IOS
@@ -4215,12 +4229,18 @@ void MicroProfileWebServerStart()
 	listen(S.ListenerSocket, 8);
 }
 
-void MicroProfileWebServerStop()
+void MicroProfileWebServerJoin()
 {
 	if(S.WebSocketThreadRunning)
 	{
 		MicroProfileThreadJoin(&S.WebSocketSendThread);
 	}
+	S.WebSocketThreadJoined = 1;
+}
+
+void MicroProfileWebServerStop()
+{
+	MP_ASSERT(S.WebSocketThreadJoined);
 #ifdef _WIN32
 	closesocket(S.ListenerSocket);
 	WSACleanup();
@@ -4667,7 +4687,6 @@ void* MicroProfileSocketSenderThread(void*)
 		{
 			MicroProfileSleep(20);
 		}
-
 	}
 	return 0;
 }
@@ -6004,7 +6023,6 @@ bool MicroProfileWebServerUpdate()
 
 
 
-
 #if MICROPROFILE_CONTEXT_SWITCH_TRACE
 //functions that need to be implemented per platform.
 void* MicroProfileTraceThread(void* unused);
@@ -6013,7 +6031,7 @@ int MicroProfileIsLocalThread(uint32_t nThreadId);
 
 void MicroProfileStartContextSwitchTrace()
 {
-    if(!S.bContextSwitchRunning)
+    if(!S.bContextSwitchRunning && !S.nMicroProfileShutdown)
     {
         S.bContextSwitchRunning = true;
         S.bContextSwitchStop = false;
@@ -6021,12 +6039,19 @@ void MicroProfileStartContextSwitchTrace()
     }
 }
 
+void MicroProfileJoinContextSwitchTrace()
+{
+	if(S.bContextSwitchStop)
+	{
+        MicroProfileThreadJoin(&S.ContextSwitchThread);
+	}
+}
+
 void MicroProfileStopContextSwitchTrace()
 {
     if(S.bContextSwitchRunning)
     {
         S.bContextSwitchStop = true;
-        MicroProfileThreadJoin(&S.ContextSwitchThread);
     }
 }
 
@@ -6702,6 +6727,7 @@ uint32_t MicroProfileGetThreadInfoArray(MicroProfileThreadInfo** pThreadArray)
 	return 0;
 }
 void MicroProfileStopContextSwitchTrace(){}
+void MicroProfileJoinContextSwitchTrace(){}
 void MicroProfileStartContextSwitchTrace(){}
 
 #endif
