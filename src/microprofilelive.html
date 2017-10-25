@@ -112,6 +112,7 @@ var nOffsetBarsY = 0;
 var nOffsetCountersY = 0;
 var nOffsetMenuTimers = 0;
 var nOffsetMenuGroup = 0;
+var nOffsetMenuFunctions = 0;
 
 var nHoverCounter = -1;
 
@@ -219,6 +220,7 @@ var MSG_LOADSETTINGS = 4;
 var MSG_PRESETS = 5;
 var MSG_CURRENTSETTINGS = 6; 
 var MSG_COUNTERS = 7; 
+var MSG_FUNCTION_RESULTS = 8;
 
 var TYPE_NONE = 0;
 var TYPE_TIMER = 1;
@@ -239,6 +241,7 @@ var TimerArray = [];
 var CounterArray = [];
 var Empty = {"id":0, "w":0, "depth":0, "sibling":-1,"parent":-1,"firstchild":-1};
 var WidthArray = [];
+var FunctionQueryArray = [];
 var WidthTree = 0;
 Settings.ViewActive = 0;
 Settings.ViewCompressed = 0;
@@ -1979,11 +1982,12 @@ function DrawViews()
 }
 var SubMenuGroup = 0;
 var SubMenuTimers = 1;
-var SubMenuSettings = 2;
-var SubMenuViews = 3;
-var SubMenuPresets = 4;
-var SubMenuColumns = 5;
-var SubMenuCapture = 6;
+var SubMenuFunctions = 2;
+var SubMenuSettings = 3;
+var SubMenuViews = 4;
+var SubMenuPresets = 5;
+var SubMenuColumns = 6;
+var SubMenuCapture = 7;
 var SubMenuActive = -1;
 var SubMenuTimeoutBase = 0.7;
 var SubMenuMouseX = 0;
@@ -1992,6 +1996,7 @@ var SubMenuTimeout = new Date();
 var MenuItems = [];
 var FilterInputTimersValue = '';
 var FilterInputGroupsValue = '';
+var FilterInputFunctionsValue = '';
 
 function MakeMenuItem(name, f)
 {
@@ -2015,6 +2020,11 @@ function EnableMenu(m)
 		{
 			FilterInputGroupsValue = FilterInput.value;
 		}
+		else if(SubMenuActive == SubMenuFunctions)
+		{
+			FilterInputFunctionsValue = FilterInput.value;
+		}
+
 		SubMenuActive = m;
 		SubMenuTimeout = new Date();
 
@@ -2026,6 +2036,10 @@ function EnableMenu(m)
 		{
 			FilterInput.value = FilterInputGroupsValue;
 		}
+		else if(SubMenuActive == SubMenuFunctions)
+		{
+			FilterInput.value = FilterInputFunctionsValue;
+		}
 		FilterInputValueLast = FilterInput.value;
 	}
 	if(m == -1)
@@ -2033,7 +2047,7 @@ function EnableMenu(m)
 		SubMenuTimeout = 0;
 	}
 
-	if(SubMenuActive == SubMenuTimers || SubMenuActive == SubMenuGroup)
+	if(SubMenuActive == SubMenuTimers || SubMenuActive == SubMenuGroup || SubMenuActive == SubMenuFunctions)
 	{
 		FilterInputDiv.style['display'] = 'inline';
 		FilterInput.focus();
@@ -2069,6 +2083,7 @@ function InitMenu()
 	MenuItems = [];
 	MenuItems.push(MakeMenuItem("Control", function(){EnableMenu(SubMenuGroup); } ));
 	MenuItems.push(MakeMenuItem("Timers", function(){EnableMenu(SubMenuTimers); } ));
+	MenuItems.push(MakeMenuItem("Functions", function(){EnableMenu(SubMenuFunctions); } ));
 	MenuItems.push(MakeMenuItem("Settings", function(){ EnableMenu(SubMenuSettings); } ));
 	MenuItems.push(MakeMenuItem("Views", function(){ EnableMenu(SubMenuViews); } ));
 	MenuItems.push(MakeMenuItem("Presets", function(){ EnableMenu(SubMenuPresets); } ));
@@ -3036,6 +3051,108 @@ function DrawMenuTimer()
 	SizeInfo.h = Y-SizeInfo.y;
 	return SizeInfo;
 }
+
+
+function DrawMenuFunctions()
+{
+	if(FilterInputValueLast != FilterInput.value)
+	{
+		nOffsetMenuFunctions = 0;
+		var m = FilterInput.value.trim();
+		if(m != "")
+		{
+			WSSendMessage("q" + m);
+		}
+	}
+	var FF = FunctionQueryArray;
+
+	FilterInputValueLast = FilterInput.value;
+	var FilterArray = CreateFilter(FilterInput.value);
+	var context = CanvasDetailedView.getContext('2d');
+	var nColorIndex = 0;
+	var SizeInfo = TimerMenuSize();
+	SizeInfo.x = MenuItems[SubMenuFunctions].x;
+	SizeInfo.y = MenuItems[SubMenuFunctions].y;
+	var Y = SizeInfo.y;
+	var Width = SizeInfo.w;
+	Width = 10+ MeasureArray(Width, FF, function(s){return s.n;} );
+
+	if(Width + SizeInfo.x + 50 > nWidth)
+	{
+		Width = nWidth - (SizeInfo.x+50);
+	}
+	SizeInfo.w = Width;
+
+	var Selection = null;
+	var X = SizeInfo.x;
+	MoveFilterInputDiv(SizeInfo.x, SizeInfo.y, SizeInfo.w);
+	Y += 45;
+
+	var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+	var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+	var TextY = Y+BoxHeight-FontAscent;
+	var YClear = Y;
+	var TextYClear = TextY;
+	var bgcolorClear = bgcolor;
+	var YStart = Y-BoxHeight;
+
+	nColorIndex = 1-nColorIndex;
+
+	Y -= nOffsetMenuFunctions + 10;
+
+
+	// var FF = ["hest", "fisk", "test", "ged", "nadasdf", "Asdfadfadsf"];
+
+	for(var i = 0; i < FF.length; ++i)
+	{
+		if(true)
+		{
+			var Name = FF[i].n;
+			var E = false;
+			// var ParentName = TimerArray[v.parent].name;
+			if(true)
+			{
+
+				if(Y >= YStart)
+				{
+					// var ParentColor = TimerArray[v.parent].e ? 'white' : 'grey';
+					bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+					bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+					TextY = Y+BoxHeight-FontAscent;
+					context.fillStyle = E?'white':'grey';
+					context.fillRect(X-2, Y, Width+4, BoxHeight);
+					context.fillStyle = bgcolor;
+					context.fillRect(X, Y, Width, BoxHeight);
+					// context.fillStyle = ParentColor;
+					// context.fillText(ParentName, X + 2, TextY);
+					// context.fillStyle = v.color;
+					context.fillStyle = 'white';
+					context.textAlign = 'right';
+					context.fillText(Name, X + Width - 2, TextY);
+					context.textAlign = 'left';
+				}
+				Y += BoxHeight;
+				nColorIndex = 1-nColorIndex;
+			}
+		}
+	}
+
+	// context.fillStyle = bgcolorClear;
+	// context.fillRect(X-2, YClear, Width+4, BoxHeight);
+	// context.fillText(ParentName, X + 2, TextYClear);
+	// context.fillStyle = 'white';
+	// context.textAlign = 'center';
+	// context.fillText("[clear]", X + 2 + Width * 0.5, TextYClear);
+	context.textAlign = 'left';
+
+	// if(Selection && MouseReleased && !MouseTaken)
+	// {
+	// 	WSSendMessage("c" + Selection);
+	// }
+	SizeInfo.h = Y-SizeInfo.y;
+	return SizeInfo;
+}
+
 function DrawMenuGeneric(Elements, Active, OnClick, x, y, Elements2)
 {
 	var context = CanvasDetailedView.getContext('2d');
@@ -3235,6 +3352,10 @@ function DrawMenu()
 		else if(SubMenuActive == SubMenuTimers)
 		{
 			MenuRect = DrawMenuTimer();
+		}
+		else if(SubMenuActive == SubMenuFunctions)
+		{
+			MenuRect = DrawMenuFunctions();
 		}
 		else if(SubMenuActive == SubMenuSettings)
 		{
@@ -3952,6 +4073,7 @@ function ProcessFrame(F)
 
 function WSMessage()
 {
+	// console.log("MESSAGE " + event.data);
 	var Obj = JSON.parse(event.data);
 	WSReceive++;
 	WSReceiveBytes += event.data.length;
@@ -3983,6 +4105,10 @@ function WSMessage()
 	else if(k == MSG_COUNTERS)
 	{
 		ProcessCounters(Obj.v);
+	}
+	else if(k == MSG_FUNCTION_RESULTS)
+	{
+		FunctionQueryArray = Obj.v;
 	}
 	else
 	{
@@ -4129,7 +4255,7 @@ function MouseHandleDrag()
 				}
 			}
 		}
-		else if(SubMenuActive == SubMenuTimers || SubMenuActive == SubMenuGroup)
+		else if(SubMenuActive == SubMenuTimers || SubMenuActive == SubMenuGroup || SubMenuActive == SubMenuFunctions)
 		{
 			if(MouseDragKeyShift || MouseDragButton == 1)
 			{
@@ -4140,6 +4266,14 @@ function MouseHandleDrag()
 					if(nOffsetMenuTimers < 0)
 					{
 						nOffsetMenuTimers = 0;
+					}
+				}
+				else if(SubMenuActive == SubMenuFunctions)
+				{
+					nOffsetMenuFunctions -= Y;
+					if(nOffsetMenuFunctions < 0)
+					{
+						nOffsetMenuFunctions = 0;
 					}
 				}
 				else
@@ -4397,7 +4531,7 @@ function KeyUp(evt)
 {
 	var k = evt.keyCode;
 	console.log('key is ' + k);
-	var InputActive = SubMenuActive == SubMenuTimers || SubMenuActive == SubMenuGroup;
+	var InputActive = SubMenuActive == SubMenuTimers || SubMenuActive == SubMenuGroup || SubMenuActive == SubMenuFunctions;
 	if(!InputActive)
 	{
 		if(k == 220)

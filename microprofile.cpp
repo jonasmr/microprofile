@@ -274,6 +274,10 @@ typedef std::thread* MicroProfileThread;
 
 
 
+#if MICROPROFILE_DYNAMIC_INSTRUMENT
+void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter);
+#endif
+
 
 struct MicroProfileTimer
 {
@@ -4548,6 +4552,8 @@ enum
 	MSG_PRESETS = 5, 
 	MSG_CURRENTSETTINGS = 6, 
 	MSG_COUNTERS = 7,
+	MSG_FUNCTION_RESULTS = 8, 
+
 };
 
 enum
@@ -5460,6 +5466,10 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 			break;
 		case 'x':
 			MicroProfileWebSocketClearTimers();
+			break;
+		case 'q':
+			MicroProfileQueryFunctions(Connection, 1+(const char*)Bytes);
+			// printf("got message '%s'\n", (char*)Bytes);
 			break;
 		default:
 			printf("got unknown message size %lld: '%s'\n", (long long)nSize, Bytes);
@@ -7631,8 +7641,205 @@ void MicroProfileGpuShutdown()
 
 #endif
 
-#undef S
 
+
+#if MICROPROFILE_DYNAMIC_INSTRUMENT
+bool MicroProfileStringMatch(const char* pSymbol, const char** pPatterns, uint32_t* nPatternLength, uint32_t nNumPatterns)
+{
+	const char* p = pSymbol;
+	for(uint32_t i = 0; i < nNumPatterns; ++i)
+	{
+		p = strcasestr(p, pPatterns[i]);
+		if(p)
+		{
+			p += nPatternLength[i];
+		}
+		else
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+#if defined(__APPLE__) && defined(__MACH__)
+
+#include <unistd.h>
+#include <sys/mman.h>
+#include <mach/mach.h>
+#include <mach/mach_vm.h>
+#include <cxxabi.h>
+#include <dlfcn.h>
+// #include <distorm.h>
+// #include <mnemonics.h>
+
+void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter)
+{
+	const int MAX_FILTER = 32;
+	const char* pFilterStrings[MAX_FILTER];
+	uint32_t nPatternLength[MAX_FILTER];
+	int nMaxFilter = 0;
+	int nLen = strlen(pFilter)+1;
+	char* pBuffer = (char*)alloca(nLen);
+	memcpy(pBuffer, pFilter, nLen);
+	bool bStartString = true;
+	for(uint32_t i = 0; i < nLen; ++i)
+	{
+		char c = pBuffer[i];
+		if(c == '\0')
+		{
+			break;
+		}
+		if(isspace(c) || c == '*')
+		{
+			pBuffer[i] = '\0';
+			bStartString = true;
+		}
+		else
+		{
+			if(bStartString)
+			{
+				if(nMaxFilter < MAX_FILTER)
+				{
+					pFilterStrings[nMaxFilter++] = &pBuffer[i];
+				}
+			}
+			bStartString = false;
+		}
+	}
+	for(int i = 0; i < nMaxFilter; ++i)
+	{
+		nPatternLength[i] = strlen(pFilterStrings[i]);
+	}
+	mach_port_name_t task = mach_task_self();
+    vm_map_offset_t vmoffset = 0;
+	mach_vm_size_t vmsize = 0;
+	uint32_t nd;
+	kern_return_t kr;
+	vm_region_submap_info_64 vbr;
+	mach_msg_type_number_t vbrcount = sizeof(vbr)/4;
+	static unsigned long size = 128;
+	static char* pTempBuffer = (char*)malloc(size); // needs to be malloc because demangle function might realloc it.
+	WSPrintStart(Connection);
+	WSPrintf("{\"k\":\"%d\",\"v\":[", MSG_FUNCTION_RESULTS);
+	bool bFirst = true;
+	auto OnFunction = [&](void* addr, const char* pSymbol) -> bool
+	{
+		unsigned long len = size;
+		int ret = 0;
+		char* pBuffer = pTempBuffer;
+		pBuffer = abi::__cxa_demangle(pSymbol, pTempBuffer, &len, &ret);
+		const char* pStr = nullptr;
+		if(ret == 0)
+		{
+			if(pBuffer != pTempBuffer)
+			{
+				pTempBuffer = pBuffer;
+				if(len < size)
+					__builtin_trap();
+				size = len;
+			}
+			pStr = pTempBuffer;
+		}
+		else
+		{
+			pStr = pSymbol;
+		}
+
+		if(MicroProfileStringMatch(pStr, &pFilterStrings[0], nPatternLength, nMaxFilter))
+		{
+			if(bFirst)
+			{
+				// printf("{\"a\":\"%p\",\"n\":\"%s\"}", addr, pStr);
+				WSPrintf("{\"a\":\"%p\",\"n\":\"%s\"}", addr, pStr);
+				bFirst = false;
+			}
+			else
+			{
+				// printf(",{\"a\":\"%p\",\"n\":\"%s\"}", addr, pStr);
+				WSPrintf(",{\"a\":\"%p\",\"n\":\"%s\"}", addr, pStr);
+			}
+			return true;
+		}
+		else
+		{
+			return false;
+		}	
+
+
+
+
+	};
+	const int LIM = 40;
+	int xx = 0;
+
+	while(KERN_SUCCESS == (kr = mach_vm_region_recurse(task, &vmoffset, &vmsize, &nd, (vm_region_recurse_info_t)&vbr, &vbrcount)))
+	{
+		{
+			if(0 != (vbr.protection&VM_PROT_EXECUTE))
+			{
+				dl_info di;
+				int r = 0;
+				r = dladdr( (void*)vmoffset, &di);
+				if(r)
+				{
+					if(OnFunction(di.dli_saddr, di.dli_sname))
+					{
+						if(xx++ > LIM) break;
+					}
+				}
+				intptr_t addr = vmoffset + vmsize-1;
+				for(int i = 0; i < 10000; ++i)
+				{
+					r = dladdr( (void*)(addr), &di);
+					if(r)
+					{
+						if(!di.dli_sname)
+						{
+							break;
+						}
+						if(OnFunction(di.dli_saddr, di.dli_sname))
+						{
+							if(xx++ > LIM) break;
+						}
+
+					}	
+					else
+					{
+						break;
+					}
+					addr = (intptr_t)di.dli_saddr-1;
+				}
+			}
+		}
+		vmoffset += vmsize;
+		vbrcount = sizeof(vbr)/4;
+	}
+	WSPrintf("]}");
+	WSFlush();
+	WSPrintEnd();
+
+	// printf("querying functions END %s\n", pFilter);
+}
+
+
+
+
+#endif
+
+#endif
+
+
+
+
+
+
+
+
+
+
+
+#undef S
 #ifdef _WIN32
 #pragma warning(pop)
 #endif

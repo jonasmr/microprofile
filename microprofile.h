@@ -30,6 +30,15 @@
 #define MICROPROFILE_ENABLED 1
 #endif
 
+#ifndef MICROPROFILE_DYNAMIC_INSTRUMENT
+#if defined(__APPLE__) && defined(__MACH__)
+#define MICROPROFILE_DYNAMIC_INSTRUMENT 1
+#else
+#define MICROPROFILE_DYNAMIC_INSTRUMENT 0
+#endif
+#endif
+
+
 #ifndef MICROPROFILE_ONCE
 #define MICROPROFILE_ONCE
 
