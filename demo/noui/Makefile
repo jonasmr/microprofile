@@ -11,24 +11,37 @@ CPPFLAGS+=-stdlib=libc++ -std=c++11
 
 CPP_SOURCES = fakework.cpp demo_noui.cpp ../../microprofile.cpp
 C_SOURCES = test.c
+ASM_SOURCES = 
+
+
+#comment in the following lines to enable function instrumentation.
+#requires distorm to be present and compiled (IE distorm3.a must be present)
+CFLAGS+=-DMICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE
+LDFLAGS+=../../distorm/distorm3.a
+ASM_SOURCES+=../../patch_osx.s
+CFLAGS+= -I../../distorm/include
 
 TARGET=demo_noui
 CC=clang
 CPP=clang++
 LD=clang++
 
+ASM_OBJS = $(patsubst %.s,%.o,$(ASM_SOURCES))
 CPP_OBJS = $(patsubst %.cpp,%.o,$(CPP_SOURCES))
 C_OBJS = $(patsubst %.c,%.o,$(C_SOURCES))
 
 all: $(TARGET)
 
-$(TARGET): $(C_OBJS) $(CPP_OBJS)
-	$(LD) -o $(TARGET) $(C_OBJS) $(CPP_OBJS) $(LDFLAGS) $(CPPFLAGS)
+$(TARGET): $(C_OBJS) $(CPP_OBJS) $(ASM_OBJS)
+	$(LD) -o $(TARGET) $(C_OBJS) $(CPP_OBJS) $(ASM_OBJS) $(LDFLAGS) $(CPPFLAGS)
 
 -include .depend
 
 ../../microprofile.o: ../../microprofile.cpp ../../microprofile.h \
   ../../microprofile_html.h
+
+.s.o:
+	as $< -o $@
 
 .cpp.o: 
 	$(CPP) -c $< $(CPPFLAGS) -o $@
