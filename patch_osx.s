@@ -15,66 +15,63 @@
 .globl _microprofile_tramp_trunk
 
 _microprofile_tramp_enter:
-	mov (%rsp), %r12
+	mov r12, [rsp]
 	# mov (%rsp), %(rax)
 
-	pushq %rdi
-	pushq %rsi
-	pushq %rdx
-	pushq %rcx
-	pushq %r8
-	pushq %r9
-	sub $88h, %rsp
+	push rdi
+	push rsi
+	push rdx
+	push rcx
+	push r8
+	push r9
+	#sub $88h, %rsp
+	sub rsp, 88h
 
-	movdqu %xmm7, 70h(%rsp)
-	movdqu %xmm6, 60h(%rsp)
-	movdqu %xmm5, 50h(%rsp)
-	movdqu %xmm4, 40h(%rsp)
-	movdqu %xmm3, 30h(%rsp)
-	movdqu %xmm2, 20h(%rsp)
-	movdqu %xmm1, 10h(%rsp)
-	movdqu %xmm0, (%rsp)
+ 	movdqu 70h[rsp], xmm7
+ 	movdqu 60h[rsp], xmm6
+ 	movdqu 50h[rsp], xmm5
+	movdqu 40h[rsp], xmm4
+	movdqu 30h[rsp], xmm3
+	movdqu 20h[rsp], xmm2
+	movdqu 10h[rsp], xmm1
+	movdqu [rsp], xmm0
 
-	#call _microprofile_tramp_get_rsp_loc
-	mov %r12, %rdi
+# 	#call _microprofile_tramp_get_rsp_loc
+	mov rdi, r12
 _microprofile_tramp_call_patch_push:
-	movq $0102030405060708h, %rax
-	call *%rax
-	test %rax, %rax
-	jz _microprofile_tramp_fail  #if push fails, skip to call code, and dont patch return adress.
-	##todo check ret val
-	# movq %r12, (%rax)
+	movq rax, 0102030405060708h
+ 	call rax
+ 	test rax, rax
+ 	jz _microprofile_tramp_fail  #if push fails, skip to call code, and dont patch return adress.
+# 	##todo check ret val
+# 	# movq %r12, (%rax)
 
 _microprofile_tramp_enter_patch:
-	# PATCH 1 TRAMP EXIT
-	movq $0102030405060708h, %rax #patch to tramp_code_end
-	movq %rax, 0xb8(%rsp)
-
-
-
-
+# PATCH 1 TRAMP EXIT
+ 	movq rax, 0102030405060708h #patch to tramp_code_end
+ 	mov [rsp + 0xb8], rax
 _microprofile_tramp_arg0:
-	movq $42, %rdi  ## patch 1.5 : arg
+	mov	rdi, 42
 _microprofile_tramp_intercept0:
 #PATCH 2 INTERCEPT0
-	movq $0102030405060708h, %rax
-	call *%rax
+	movq rax, 0102030405060708h
+	call rax
 _microprofile_tramp_fail:
-	movdqu 70h(%rsp), %xmm7
-	movdqu 60h(%rsp), %xmm6
-	movdqu 50h(%rsp), %xmm5
-	movdqu 40h(%rsp), %xmm4
-	movdqu 30h(%rsp), %xmm3
-	movdqu 20h(%rsp), %xmm2
-	movdqu 10h(%rsp), %xmm1
-	movdqu (%rsp), %xmm0
-	add $88h, %rsp
-	popq %r9
-	popq %r8
-	popq %rcx
-	popq %rdx
-	popq %rsi
-	popq %rdi
+	movdqu xmm7, [rsp + 0x70]
+	movdqu xmm6, [rsp + 0x60]
+	movdqu xmm5, [rsp + 0x50]
+	movdqu xmm4, [rsp + 0x40]
+	movdqu xmm3, [rsp + 0x30]
+	movdqu xmm2, [rsp + 0x20]
+	movdqu xmm1, [rsp + 0x10]
+	movdqu xmm0, [rsp]
+	add rsp, 0x88
+	pop r9
+	pop r8
+	pop rcx
+	pop rdx
+	pop rsi
+	pop rdi
 _microprofile_tramp_code_begin:
 ##insert code here
 	nop
@@ -121,28 +118,28 @@ _microprofile_tramp_code_end:
 	nop
 	nop
 _microprofile_tramp_exit:
-	movq $117, %rdi ## patch 2.5 : arg
-	pushq %rax
-	pushq %rdx
-	sub $18h, %rsp
-	movdqu %xmm0, (%rsp)
+	mov rdi, 117
+	push rax
+	push rdx
+	sub rsp, 0x18
+	movdqu [rsp], xmm0
 
 _microprofile_tramp_leave:
 	#PATCH 3 INTERCEPT1
-	movq $0102030405060708h, %rax 
-	call *%rax #jump to proxy
+	movq rax, 0x0102030405060708
+	call rax #jump to proxy
 
 _microprofile_tramp_call_patch_pop:
-	movq $0102030405060708h, %rax
-	call *%rax
-	movq %rax, %r11
+	movq rax, 0x0102030405060708
+	call rax
+	mov r11, rax
 
-	movdqu (%rsp), %xmm0
-	add $18h, %rsp
+	movdqu xmm0, [rsp]
+	add rsp, 0x18
 
-	popq %rdx
-	popq %rax
-	jmp *%r11
+	pop rdx
+	pop rax
+	jmp r11
 
 	nop
 	nop
@@ -173,11 +170,7 @@ _microprofile_tramp_call_patch_pop:
 	nop
 	nop
 	ret
-
-	int3
-
-
-
+ 	int3
 _microprofile_tramp_trunk: #used for moved constants.
 	nop
 	nop

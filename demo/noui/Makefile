@@ -41,7 +41,7 @@ $(TARGET): $(C_OBJS) $(CPP_OBJS) $(ASM_OBJS)
   ../../microprofile_html.h
 
 .s.o:
-	as $< -o $@
+	as -masm=intel $< -o $@
 
 .cpp.o: 
 	$(CPP) -c $< $(CPPFLAGS) -o $@
