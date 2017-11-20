@@ -1813,12 +1813,12 @@ void MicroProfileTimelineLeaveStatic(const char* pStr)
 	}
 }
 
-uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, int nStrLen, int bIsStaticString)
+uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, size_t nStrLen, int bIsStaticString)
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileTimelineMutex());
 	MicroProfileThreadLog* pLog = &S.TimelineLog;
 	MP_ASSERT(pStr[nStrLen] == '\0');
-	uint32_t nStringQwords = (nStrLen + 6) / 7;
+	uint32_t nStringQwords = (uint32_t)(nStrLen + 6) / 7;
 	uint32_t nNumMessages = nStringQwords;
 
 	uint32_t nPut = pLog->nPut.load(std::memory_order_relaxed);
@@ -1864,7 +1864,7 @@ uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, in
 		pLog->Log[nPut++] = LEEnter; nPut %= MICROPROFILE_BUFFER_SIZE;
 		pLog->Log[nPut++] = LEColor; nPut %= MICROPROFILE_BUFFER_SIZE;
 		pLog->Log[nPut++] = LEId; nPut %= MICROPROFILE_BUFFER_SIZE;
-		int nCharsLeft = nStrLen;
+		int nCharsLeft = (int)nStrLen;
 		while(nCharsLeft>0)
 		{
 			int nCount = MicroProfileMin(nCharsLeft, 7);
@@ -2532,7 +2532,7 @@ void MicroProfileFlip(void* pContext)
 							{
 								int nTimer = MicroProfileLogGetTimerIndex(LE);
 								MP_ASSERT(nTimer>=0);
-								MP_ASSERT(nTimer < S.nTotalTimers);
+								MP_ASSERT(nTimer < (int)S.nTotalTimers);
 								uint32_t nGroup = pTimerToGroup[nTimer];
 								MP_ASSERT(nStackPos < MICROPROFILE_STACK_MAX);
 								MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
@@ -2545,7 +2545,7 @@ void MicroProfileFlip(void* pContext)
 							else if(MP_LOG_LEAVE == nType)
 							{
 								int nTimer = MicroProfileLogGetTimerIndex(LE);
-								MP_ASSERT(nTimer < S.nTotalTimers);
+								MP_ASSERT(nTimer < (int)S.nTotalTimers);
 								MP_ASSERT(nTimer >= 0);
 								uint32_t nGroup = pTimerToGroup[nTimer];
 								MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
@@ -5481,6 +5481,7 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 		case 'x':
 			MicroProfileWebSocketClearTimers();
 			break;
+#if MICROPROFILE_DYNAMIC_INSTRUMENT
 		case 'i':
 			{
 				printf("got Message: %s\n", (const char*)&Bytes[0]);
@@ -5498,12 +5499,14 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 
 					printf("scanning for ptr %p %x %s\n", p, nColor, pName);
 					MicroProfileInstrumentFunction(p, pName, nColor);
+
 				}
 			}
 			break;
 		case 'q':
 			MicroProfileQueryFunctions(Connection, 1+(const char*)Bytes);
 			break;
+#endif
 		default:
 			printf("got unknown message size %lld: '%s'\n", (long long)nSize, Bytes);
 	}
