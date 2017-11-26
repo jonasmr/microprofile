@@ -31,7 +31,7 @@
 #endif
 
 #ifndef MICROPROFILE_DYNAMIC_INSTRUMENT
-#if defined(__APPLE__) && defined(__MACH__)
+#if (defined(__APPLE__) && defined(__MACH__)) || defined(_WIN32)
 #ifdef MICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE
 #define MICROPROFILE_DYNAMIC_INSTRUMENT 1
 #endif

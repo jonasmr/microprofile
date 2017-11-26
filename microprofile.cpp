@@ -277,7 +277,6 @@ typedef std::thread* MicroProfileThread;
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
 void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter);
 void MicroProfileInstrumentFunction(void* pFunction, const char* pFunctionName, uint32_t nColor);
-
 #endif
 
 
@@ -5762,6 +5761,7 @@ void WSPrintf(const char* pFmt, ...)
 	uint32_t nSpace = MICROPROFILE_WEBSOCKET_BUFFER_SIZE - S.WSBuf.nPut - 1;
 	char* pPut = &S.WSBuf.Buffer[S.WSBuf.nPut];
 #ifdef _WIN32
+	//todo: this crashes when overflowing
 	int nSize = (int)vsnprintf_s(pPut, nSpace, nSpace, pFmt, args);
 #else
 	int nSize = (int)vsnprintf(pPut, nSpace, pFmt, args);
@@ -7680,12 +7680,333 @@ void MicroProfileGpuShutdown()
 
 
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
+
+///hooking:shared
+
+#ifdef _WIN32
+#include <Shlwapi.h>
+#define MP_STRCASESTR StrStrI
+#else
+#define MP_STRCASESTR strcasestr
+#endif
+
+#include <distorm.h>
+#include <mnemonics.h>
+
+
+typedef void (*_hookfunc)(int x);
+
+struct PatchError
+{
+	unsigned char Code[12];
+	unsigned char CodeBeforeJump[12];
+	char Message[256];
+	int AlreadyInstrumented;
+};
+
+
+
+#pragma optimize("", off)
+#if 1
+#define BREAK_ON_PATCH_FAIL() MP_BREAK()
+#else
+#define BREAK_ON_PATCH_FAIL() do{}while(0)
+#endif
+
+
+void* MicroProfileX64FollowJump(void* pSrc);
+bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit, const int nMaxSize, char* pTrunk, intptr_t nTrunkSize, int* nBytesDest, int* nBytesSrc, uint32_t* pRegsWritten) ;
+
+
+//
+static void* MicroProfileAllocExecutableMemory(size_t s);
+static void MicroProfileMakeMemoryExecutable(void* p, size_t s);
+static void MicroProfileMakeWriteable(void* p_, size_t size, DWORD* oldFlags);
+static void MicroProfileRestore(void* p_, size_t size, DWORD* oldFlags);
+
+
+//
+//
+extern "C" void microprofile_tramp_enter_patch();
+extern "C" void microprofile_tramp_enter();
+extern "C" void microprofile_tramp_code_begin();
+extern "C" void microprofile_tramp_code_end();
+extern "C" void microprofile_tramp_intercept0();
+extern "C" void microprofile_tramp_end();
+extern "C" void microprofile_tramp_exit();
+extern "C" void microprofile_tramp_leave(); 
+extern "C" void microprofile_tramp_trunk();
+extern "C" void microprofile_tramp_call_patch_pop();
+extern "C" void microprofile_tramp_call_patch_push();
+//
+//
+__declspec(thread) uintptr_t g_MicroProfile_TLS[17] = {16};
+
+extern "C" __declspec(noinline)
+uintptr_t MicroProfile_Patch_TLS_PUSH(uintptr_t t)
+{
+	uintptr_t* pTLS = &g_MicroProfile_TLS[0];
+
+	uintptr_t Limit = (uint32_t)pTLS[0];
+	uintptr_t Pos = (uint32_t)(pTLS[0]>>32);
+	if(Pos == Limit)
+	{
+		// printf("PUSH FAILING\n");
+		return 0;
+	}
+	else
+	{
+		pTLS[0] = (Limit) | ((Pos+1)<<32);
+	}
+	// printf("pushed %p\n", (void*)t);
+	pTLS[Pos+1] = t;
+	return 1;
+}
+extern "C" __declspec(noinline)
+uintptr_t MicroProfile_Patch_TLS_POP()
+{
+	uintptr_t* pTLS = &g_MicroProfile_TLS[0];
+	uintptr_t Limit = (uint32_t)pTLS[0];
+	uintptr_t Pos = (uint32_t)(pTLS[0]>>32);
+	if(Pos == 0)
+	{
+		__debugbreak();
+		return 0;
+	}
+	else
+	{
+		pTLS[0] = (Limit) | ((Pos-1)<<32);
+	}
+	uintptr_t t = pTLS[Pos];
+
+	return t;
+}
+
+
+bool MicroProfilePatchFunction(void* f, int Argument, _hookfunc enter, _hookfunc leave, PatchError* pError)
+{
+	char* pOriginal = (char*)f;
+
+	f = MicroProfileX64FollowJump(f);
+
+	if(pError)
+	{
+		memcpy(&pError->Code[0], f, 12);
+		memcpy(&pError->CodeBeforeJump[0], pOriginal, 12);
+	}
+
+	intptr_t t_enter =(intptr_t)microprofile_tramp_enter;
+	intptr_t t_enter_patch_offset =(intptr_t)microprofile_tramp_enter_patch - t_enter;
+	intptr_t t_code_begin_offset = (intptr_t)microprofile_tramp_code_begin - t_enter;
+	intptr_t t_code_end_offset = (intptr_t)microprofile_tramp_code_end - t_enter;
+	intptr_t t_code_intercept0_offset = (intptr_t)microprofile_tramp_intercept0 - t_enter;
+	intptr_t t_code_exit_offset = (intptr_t)microprofile_tramp_exit - t_enter;
+	intptr_t t_code_leave_offset = (intptr_t)microprofile_tramp_leave - t_enter;
+
+	intptr_t t_code_call_patch_push_offset = (intptr_t)microprofile_tramp_call_patch_push - t_enter;
+	intptr_t t_code_call_patch_pop_offset = (intptr_t)microprofile_tramp_call_patch_pop - t_enter;
+	intptr_t codemaxsize = t_code_end_offset - t_code_begin_offset;
+	intptr_t t_end_offset = (intptr_t)microprofile_tramp_end - t_enter;
+	intptr_t t_trunk_offset = (intptr_t)microprofile_tramp_trunk - t_enter;
+	int t_trunk_size = (int)((intptr_t)microprofile_tramp_end - (intptr_t)microprofile_tramp_trunk);
+
+	char* ptramp = (char*)MicroProfileAllocExecutableMemory(t_end_offset);
+	
+	memcpy(ptramp, (void*)t_enter, t_end_offset);
+
+
+	int nInstructionBytesDest = 0;
+	char* pInstructionMoveDest = ptramp + t_code_begin_offset;
+	char* pTrunk = ptramp + t_trunk_offset;
+
+
+	int nInstructionBytesSrc = 0;
+	uint32_t nRegsWritten = 0;
+	if(!MicroProfileCopyInstructionBytes(pInstructionMoveDest, f, 14, (int)codemaxsize, pTrunk, t_trunk_size, &nInstructionBytesDest, &nInstructionBytesSrc, &nRegsWritten))
+	{
+		if(pError)
+		{
+			const char* pCode = (const char*)f;
+			snprintf(pError->Message, sizeof(pError->Message), "Failed to move code bytes %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
+				pCode[0],	pCode[1], pCode[2], pCode[3],
+				pCode[4],	pCode[5], pCode[6], pCode[7],
+				pCode[8],	pCode[9], pCode[10], pCode[11]
+				);
+			printf("%s\n", pError->Message);
+		}
+		return false;
+	}
+
+	auto InsertRaxJump = [](char* pCode, intptr_t pDest)
+	{
+		unsigned char* uc = (unsigned char*)pCode;
+		*uc++ = 0x48;
+		*uc++ = 0xb8;
+		memcpy(uc, &pDest, 8);
+		uc += 8;
+		*uc++ = 0xff;
+		*uc++ = 0xe0;
+
+		return (char*)uc;
+
+	};
+	auto InsertRetJump = [](char* pCode, intptr_t pDest)
+	{
+
+		uint32_t lower = (uint32_t)pDest;
+		uint32_t upper = (uint32_t)(pDest>>32);
+		unsigned char* uc = (unsigned char*)pCode;
+		*uc++ = 0x68;
+		memcpy(uc, &lower, 4);
+		uc += 4;
+		*uc++ = 0xc7;
+		*uc++ = 0x44;
+		*uc++ = 0x24;
+		*uc++ = 0x04;
+		memcpy(uc, &upper, 4);
+		uc += 4;
+		*uc++ = 0xc3;
+
+		return (char*)uc;
+
+	};
+
+
+
+	intptr_t phome = nInstructionBytesSrc + (intptr_t)f;
+	if(1 & nRegsWritten)
+	{
+		InsertRetJump(pInstructionMoveDest + nInstructionBytesDest, phome);
+	}
+	else
+	{
+		InsertRaxJump(pInstructionMoveDest + nInstructionBytesDest, phome);
+	}
+
+
+	//PATCH 1 TRAMP EXIT
+	intptr_t microprofile_tramp_exit = (intptr_t)ptramp + t_code_exit_offset;
+	memcpy(ptramp + t_enter_patch_offset +2, (void*)&microprofile_tramp_exit, 8);
+
+
+	char* pintercept = t_code_intercept0_offset + ptramp;
+
+	//PATCH 1.5 Argument
+	memcpy(pintercept-4, (void*)&Argument, 4);
+
+	//PATCH 2 INTERCEPT0
+	intptr_t addr = (intptr_t)enter;//&intercept0;
+	memcpy(pintercept+2, (void*)&addr, 8);
+
+
+	//PATHC 2.5 argument
+	memcpy(ptramp + t_code_exit_offset + 3, (void*)&Argument, 4);
+
+	intptr_t microprofile_tramp_leave = (intptr_t)ptramp + t_code_leave_offset;
+	//PATCH 3 INTERCEPT1
+	intptr_t addr1 = (intptr_t)leave;//&intercept1;
+	memcpy((char*)microprofile_tramp_leave+2, (void*)&addr1, 8);
+
+
+
+	intptr_t patch_push_addr = (intptr_t)(&MicroProfile_Patch_TLS_PUSH);
+	intptr_t patch_pop_addr = (intptr_t)(&MicroProfile_Patch_TLS_POP);
+	memcpy((char*)ptramp + t_code_call_patch_push_offset + 2, &patch_push_addr, 8);
+	memcpy((char*)ptramp + t_code_call_patch_pop_offset + 2, &patch_pop_addr, 8);
+	MicroProfileMakeMemoryExecutable(ptramp, t_end_offset);
+
+	{
+		//PATCH 4 DEST FUNC
+
+		DWORD OldFlags[2] = {0};
+		MicroProfileMakeWriteable(f, nInstructionBytesSrc, OldFlags);
+		char* pp = (char*)f;
+		char* ppend = pp + nInstructionBytesSrc;
+		pp = InsertRaxJump(pp, (intptr_t)ptramp );
+		while(pp != ppend)
+		{
+			char c = (char)0x90;
+			MP_ASSERT((unsigned char)c == (unsigned char)0x90);
+			*pp++ = (char)0x90;
+		}
+		MicroProfileRestore(f, nInstructionBytesSrc, OldFlags);
+	}
+	return true;
+}
+
+static void MicroProfileMakeWriteable(void* p_, size_t s, DWORD* oldFlags)
+{
+	static uint64_t nPageSize = 4 << 10;
+	
+	intptr_t aligned = (intptr_t)p_;
+	aligned = (aligned & (~(nPageSize-1)));
+	intptr_t aligned_end = (intptr_t)p_;
+	aligned_end += s;
+	aligned_end = (aligned_end + nPageSize-1) & (~(nPageSize-1));
+	uint32_t nNumPages = (uint32_t)((aligned_end - aligned) / nPageSize);
+	MP_ASSERT(nNumPages >= 1 && nNumPages <= 2);
+	for(uint32_t i = 0; i < nNumPages; ++i)
+	{
+		if(!VirtualProtect((void*)(aligned + nPageSize * i), nPageSize, PAGE_EXECUTE_READWRITE, oldFlags + i))
+		{
+			__debugbreak();
+		}
+	}
+	//*(unsigned char*)p_ = 0x90; 
+}
+
+
+static void MicroProfileRestore(void* p_, size_t s, DWORD* oldFlags)
+{
+	static uint64_t nPageSize = 4 << 10;
+
+
+	intptr_t aligned = (intptr_t)p_;
+	aligned = (aligned & (~(nPageSize-1)));
+	intptr_t aligned_end = (intptr_t)p_;
+	aligned_end += s;
+	aligned_end = (aligned_end + nPageSize-1) & (~(nPageSize-1));
+	uint32_t nNumPages = (uint32_t)((aligned_end - aligned) / nPageSize);
+	DWORD Dummy;
+	for(uint32_t i = 0; i < nNumPages; ++i)
+	{
+		if(!VirtualProtect((void*)(aligned + nPageSize * i), nPageSize, oldFlags[i], &Dummy))
+		{
+			__debugbreak();
+		}
+	}
+
+}
+static void* MicroProfileAllocExecutableMemory(size_t s)
+{
+	static uint64_t nPageSize = 4 << 10;
+	s = (s + (nPageSize - 1)) & (~(nPageSize-1));
+
+	void* pMem = VirtualAlloc(0, s, MEM_COMMIT, PAGE_READWRITE);
+	MP_ASSERT(pMem);
+
+	// printf("Allocating %zu  %p\n", s, pMem);
+	return pMem;
+}
+static void MicroProfileMakeMemoryExecutable(void* p, size_t s)
+{
+	static uint64_t nPageSize = 4 << 10;
+	s = (s + (nPageSize - 1)) & (~(nPageSize-1));
+	DWORD Unused;
+	if(!VirtualProtect(p, s, PAGE_EXECUTE_READ, &Unused))
+	{
+		__debugbreak();
+	}
+
+}
+
+
 bool MicroProfileStringMatch(const char* pSymbol, const char** pPatterns, uint32_t* nPatternLength, uint32_t nNumPatterns)
 {
 	const char* p = pSymbol;
 	for(uint32_t i = 0; i < nNumPatterns; ++i)
 	{
-		p = strcasestr(p, pPatterns[i]);
+		p = MP_STRCASESTR(p, pPatterns[i]);
 		if(p)
 		{
 			p += nPatternLength[i];
@@ -7698,8 +8019,870 @@ bool MicroProfileStringMatch(const char* pSymbol, const char** pPatterns, uint32
 	return true;
 }
 
-#if defined(__APPLE__) && defined(__MACH__)
 
+
+void* MicroProfileX64FollowJump(void* pSrc)
+{
+	//printf("deref possible trampoline for %p\n", pSrc);	
+	_DecodeType dt = Decode64Bits;
+	_DInst Instructions[1];
+	unsigned int nCount = 0;
+
+	_CodeInfo ci;
+	ci.code = (uint8_t*)pSrc;
+	ci.codeLen = 15;
+	ci.codeOffset = 0;
+	ci.dt = dt;
+	ci.features = DF_NONE;
+	int r = distorm_decompose(&ci, Instructions, 1, &nCount);
+	if(!r || nCount != 1)
+	{
+		return pSrc;//fail, just return
+	}
+
+	auto& I = Instructions[0];
+	if(I.opcode == I_JMP)
+	{
+		if(I.ops[0].type == O_PC)
+		{
+			if(I.ops[0].size == 0x20)
+			{
+				intptr_t p = (intptr_t)pSrc;
+				p += I.size;
+				p += I.imm.sdword;
+				//printf("reinterpreted addres is %p\n", (void*)p);
+				return (void*)p;
+			}
+		}
+		printf("failed to interpret I_JMP %p    %d    %d\n", pSrc, I.ops[0].size, I.ops[0].type);
+		return pSrc;
+		__debugbreak();
+	}
+//	__debugbreak();
+
+
+
+	return pSrc;
+
+
+}
+
+typedef unsigned char byte;
+bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit, const int nMaxSize, char* pTrunk, intptr_t nTrunkSize, int* nBytesDest, int* nBytesSrc, uint32_t* pRegsWritten) 
+//__attribute__ ((optnone))
+{
+	int nBytes = 0;
+	const byte* p = (byte*)pSrc;
+
+	_DecodeType dt = Decode64Bits;
+	_DInst Instructions[128];
+	int rip[128] = {0};
+	uint32_t nRegsWrittenInstr[128] = {0};
+	int offsets[129] = {0};
+	unsigned int nCount = 0;
+
+	_CodeInfo ci;
+	ci.code = (uint8_t*)pSrc;
+	ci.codeLen = nLimit + 15;
+	ci.codeOffset = 0;
+	ci.dt = dt;
+	ci.features = DF_NONE;
+	int r = distorm_decompose(&ci, Instructions, 128, &nCount);
+	// printf("decomposed %d\n", nCount);
+	if(r != DECRES_SUCCESS)
+	{
+		BREAK_ON_PATCH_FAIL();
+		return false;
+	}
+	int offset = 0;
+	unsigned int i = 0;
+	unsigned nInstructions = 0;
+	int64_t nTrunkUsage = 0;
+	offsets[0] = 0;
+	uint32_t nRegsWritten = 0;
+
+
+	auto Align16 = [](intptr_t p)
+	{
+		return (p + 15) & (~15);
+	};
+
+
+	{
+
+		intptr_t iTrunk = (intptr_t)pTrunk; 
+		intptr_t iTrunkEnd = iTrunk + nTrunkSize;
+		intptr_t iTrunkAligned = (iTrunk + 15) & ~15;
+		nTrunkSize = iTrunkEnd - iTrunkAligned;		
+		pTrunk = (char*)iTrunkAligned;
+
+
+	}
+	const byte* pTrunkEnd = (byte*)(pTrunk + nTrunkSize);
+
+
+	//scratch RAX r10, r11
+	//argument RDI, RSI, RDX, RCX, R8, R9, 
+	auto RegToBit = [](int r) -> uint32_t
+	{
+		return 1ll << (r - R_RAX);
+	};
+#ifdef _WIN32
+	const uint32_t nUsableRegisters = RegToBit(R_RAX) | RegToBit(R_R10) | RegToBit(R_R11);
+#else
+#endif
+
+
+	for(; i < nCount; ++i)
+	{
+		rip[i] = 0;
+		auto& I = Instructions[i];
+		// bool bHasRipReference = false;
+		if(I.opcode == I_LEA)
+		{
+			// printf("hest\n");
+		}
+		if(I.opcode == I_CALL)
+		{
+			auto& O = I.ops[0];
+			if(O.type != O_PC || O.size != 0x20)
+			{
+				printf("unknown call encountered. cannot move\n");
+				BREAK_ON_PATCH_FAIL();
+				return false;
+			}
+			if((nRegsWritten & nUsableRegisters) == nUsableRegisters)
+			{
+				printf("call encountered, but register all regs was written to. TODO: push regs?\n");
+				BREAK_ON_PATCH_FAIL();
+				return false;
+			}
+
+		}
+
+		switch(I.ops[0].type)
+		{
+			case O_REG:
+			//case O_SMEM:
+			//case O_MEM:
+			{
+				uint32_t reg = I.ops[0].index;
+				if(reg >= R_RAX && reg <= R_R15)
+				{
+					nRegsWritten |= (1u << (reg-R_RAX));
+				}
+				else
+				if(reg >= R_EAX && reg <= R_R15D)
+				{
+					nRegsWritten |= (1u << (reg-R_EAX));
+				}
+				else
+				if(reg >= R_AX && reg <= R_R15W)
+				{
+					nRegsWritten |= (1u << (reg-R_AX));
+				}
+				else
+				if(reg >= R_AL && reg <= R_R15B)
+				{
+					nRegsWritten |= (1u << (reg-R_AL));
+				}
+
+			}
+		}
+		nRegsWrittenInstr[i] = nRegsWritten;
+		for(int j = 0; j < 4; ++j)
+		{
+			auto& O = I.ops[j];
+
+			switch(O.type)
+			{
+				case O_REG:
+				case O_SMEM:
+				case O_MEM:
+				{
+					if(O.index == R_RIP)
+					{
+						if(j != 1)
+						{
+							printf("found non base reference of rip. fail\n");
+							BREAK_ON_PATCH_FAIL();
+							return false;
+						}
+						if(I.dispSize != 0x20 && I.dispSize != 0x10)
+						{
+							printf("found offset size != 32 && != 16 bit. not implemented\n");
+							BREAK_ON_PATCH_FAIL();
+							return false;
+						}
+						rip[i] = 1;
+						nTrunkUsage += Align16(O.size/8);
+						if(nTrunkUsage > nTrunkSize)
+						{
+							printf("overuse of trunk %lld\n", nTrunkUsage);
+							BREAK_ON_PATCH_FAIL();
+							return false;
+						}
+					}
+					break;
+				}
+			}
+		}
+		if(rip[i])
+		{
+			if(I.ops[0].type != O_REG)
+			{
+				printf("arg 0 should be O_REG, fail\n");
+				BREAK_ON_PATCH_FAIL();
+				return false;
+			}
+			if(I.ops[1].type != O_SMEM)
+			{
+				printf("arg 1 should be O_SMEM, fail was %d\n", O_SMEM);
+				BREAK_ON_PATCH_FAIL();
+				return false;
+			}
+
+
+		}
+		int fc = META_GET_FC(Instructions[i].meta);
+		switch(fc)
+		{
+		case FC_CALL:
+		{
+			break;
+
+		}
+		case FC_RET:
+		case FC_SYS:
+		case FC_UNC_BRANCH:
+		case FC_CND_BRANCH:
+			printf("found branch inst %d :: %d\n", fc, offset);
+			BREAK_ON_PATCH_FAIL();
+			return false;
+
+		}
+		offset += Instructions[i].size;
+		offsets[i+1] = offset;
+		if(offset >= nLimit)
+		{
+			nInstructions = i + 1;
+			break;
+		}
+	}
+	if(nTrunkUsage > nTrunkSize)
+	{
+		printf("function using too much trunk space\n");
+		BREAK_ON_PATCH_FAIL();
+		return false;
+	}
+	if(offset < nLimit)
+	{
+		printf("function only had %d bytes of %d\n", offset, nLimit);
+		BREAK_ON_PATCH_FAIL();
+		return false;
+	}
+
+
+	// __debugbreak();
+	*pRegsWritten = nRegsWritten;
+	byte* d = (byte*)pDest;
+	byte* dend = d + nMaxSize;
+	const byte* s = (const byte*)pSrc;
+
+	auto InsertMov = [](byte* p, byte* pend, int r, intptr_t value) -> byte*
+	{
+		int Large = r >= R_R8 ? 1 : 0;
+		int RegIndex = Large ? (r - R_R8) : (r - R_RAX);
+		*p++ = Large ? 0x49 : 0x48;
+		*p++ = 0xb8 + RegIndex;// + (reg - (large?(R_R8-R_RAX):0));
+		intptr_t* pAddress = (intptr_t*)p;
+		pAddress[0] = value;
+		p = (byte*)(pAddress + 1);
+		MP_ASSERT(p < pend);
+		return p;
+	};
+	auto InsertCall = [](byte* p, byte* pend, int r) -> byte*
+	{
+		int Large = r >= R_R8 ? 1 : 0;
+		int RegIndex = Large ? (r - R_R8) : (r - R_RAX);
+		if(Large)
+		{
+			*p++ = 0x41;
+		}
+		*p++ = 0xff;
+		*p++ = 0xd0 + RegIndex;
+		MP_ASSERT(p<pend);
+		return p;
+
+	};
+
+
+	
+	nTrunkUsage = 0;
+
+	for(i = 0; i < nInstructions; ++i)
+	{
+		auto& I = Instructions[i];
+		unsigned size = Instructions[i].size;
+		if(I.opcode == I_CALL)
+		{
+			//find reg
+			uint32_t nRegsWritten = nRegsWrittenInstr[i];
+			uint32_t nUsable = nUsableRegisters & ~nRegsWritten;
+			MP_ASSERT(nUsable);
+			int r = R_RAX;
+			while(0 == (1&nUsable))			
+			{
+				nUsable >>= 1;
+				r++;
+			}
+
+
+
+			intptr_t p = offsets[i+1];
+			p += (intptr_t)pSrc;
+			p += I.imm.sdword;
+			int reg = R_RAX;
+			d = InsertMov(d, dend, r, p);
+			d = InsertCall(d, dend, r);
+
+			s += size;
+
+			////int large = I.ops[0].index >= R_R8?1:0;
+			//int large = 0;
+			//
+			//printf("CALL DEST %p    :: code %p\n",(void*) p, d);
+
+			//*d++ = 0x48;//large ? 0x49 : 0x48;
+			//*d++ = 0xb8;// + (reg - (large?(R_R8-R_RAX):0));
+			//intptr_t* pAddress = (intptr_t*)d;
+			//pAddress[0] = p;
+			//d = (unsigned char*)(pAddress + 1);
+			//*d++ = 0xff;
+			//*d++ = 0xd0;
+
+
+
+
+		}
+		else if(rip[i])
+		{
+			if(I.opcode == I_LEA)
+			{
+				if(I.ops[0].type != O_REG)
+				{
+					__debugbreak();
+				}
+				if(I.ops[1].index != R_RIP)
+				{
+					__debugbreak();
+				}
+				int reg = I.ops[0].index - R_RAX;
+				int large = I.ops[0].index >= R_R8?1:0;
+				*d++ = large ? 0x49 : 0x48;
+				*d++ = 0xb8 + (reg - (large?(R_R8-R_RAX):0));
+				//calculate the offset
+				int64_t offset = offsets[i+1] + I.disp;
+				intptr_t base = (intptr_t)pSrc;
+
+				intptr_t sum = base + offset;
+				// printf("patching lea, b %lx o %llx s %lx\n", base, offset, sum);
+				intptr_t* pAddress = (intptr_t*)d;
+				pAddress[0] = sum;			
+				s += size;
+				d += 10;
+				d = (byte*)(pAddress + 1);
+			}
+			else
+			{
+				if(15&(intptr_t)pTrunk)
+				{
+					__debugbreak();
+				}
+				intptr_t t = (intptr_t)pTrunk;
+				t = (t+15) &~15;
+				pTrunk = (char*)t;
+				auto& O = I.ops[1];
+				uint32_t Op1Size = O.size / 8;
+				uint32_t DispSize = I.dispSize / 8;
+
+				memcpy(d, s, size);
+				int32_t DispOriginal = (int32_t)I.disp;
+				const byte* pOriginal = (s + size) + DispOriginal;
+
+				intptr_t DispNew = ((byte*)pTrunk - (d + size));
+				if(!((intptr_t)pTrunk + Op1Size <= (intptr_t)pTrunkEnd))
+				{
+					__debugbreak();
+				}
+				memcpy(pTrunk, pOriginal, Op1Size);
+				pTrunk += Align16(Op1Size);
+				if(I.dispSize == 32)
+				{
+					int32_t off = (int32_t)DispNew;
+					if(DispNew > 0x7fffffff || DispNew < 0)
+					{
+						__debugbreak();
+					}
+					memcpy(d + size - 4, &off, 4);
+
+				}else if(I.dispSize == 16)
+				{
+					int16_t off = (int16_t)DispNew;
+					if(DispNew > 0x7fff || DispNew < 0)
+					{
+						__debugbreak();
+					}
+					memcpy(d + size - 2, &off, 2);
+				}
+
+				d += size;
+				s += size;
+
+			}
+		}
+		else
+		{
+			memcpy(d, s, size);
+			d += size;
+			s += size;
+		}
+	}
+
+
+	*nBytesDest = (int)(d - (byte*)pDest);
+	*nBytesSrc = (int)(s - (byte*)pSrc);
+
+	return true;
+}
+
+
+
+//todo:move to struct.
+int DynamicTokenIndex = 0;
+MicroProfileToken DynamicTokens[2048]= {0};
+
+
+
+extern "C"
+void MicroProfileInterceptEnter(int a)
+{
+	MicroProfileToken T = DynamicTokens[a];
+	MicroProfileThreadLog* pLog = MicroProfileGetThreadLog2();
+	MP_ASSERT(pLog->nStackScope < MICROPROFILE_STACK_MAX); // if youre hitting this assert your instrumenting a deeply nested function
+	MicroProfileScopeStateC* pScopeState = &pLog->ScopeState[pLog->nStackScope++];
+	pScopeState->Token = T;
+	if(T)
+	{
+		pScopeState->nTick = MicroProfileEnterInternal(T);
+	}
+	else
+	{
+		pScopeState->nTick = MICROPROFILE_INVALID_TICK;
+	}
+}
+extern "C"
+void MicroProfileInterceptLeave(int a)
+{
+	MicroProfileThreadLog* pLog = MicroProfileGetThreadLog2();
+	MP_ASSERT(pLog->nStackScope > 0); // if youre hitting this assert you probably have mismatched _ENTER/_LEAVE markers
+	MicroProfileScopeStateC* pScopeState = &pLog->ScopeState[--pLog->nStackScope];
+	MicroProfileLeaveInternal(pScopeState->Token, pScopeState->nTick);
+}
+
+
+
+
+void MicroProfileInstrumentFunction(void* pFunction, const char* pFunctionName, uint32_t nColor)
+{
+
+	MicroProfileScopeLock L(MicroProfileMutex());
+	PatchError Err;
+	if(MicroProfilePatchFunction(pFunction, DynamicTokenIndex, MicroProfileInterceptEnter, MicroProfileInterceptLeave, &Err))
+	{
+		MicroProfileToken Tok = DynamicTokens[DynamicTokenIndex] = MicroProfileGetToken("INSTRUMENTS", pFunctionName, nColor, MicroProfileTokenTypeCpu);
+		DynamicTokenIndex++;
+
+		printf("interception success!!\n");
+		MicroProfileToggleWebSocketToggleTimer(MicroProfileGetTimerIndex(Tok));
+	}
+	else
+	{
+		printf("interception fail!!\n");
+	}
+
+}
+
+
+
+
+#if defined (_WIN32)
+
+
+FILE* FF = 0;
+
+int MicroProfileTrimFunctionName(const char* pStr, char* pOutBegin, char* pOutEnd)
+{
+	const char* pStart = pOutBegin;
+	int l = (int)strlen(pStr)-1;
+	int sz = 0;
+	pOutEnd--;
+	if(l < 1024 && pOutBegin != pOutEnd)
+	{
+		const char* p = pStr;
+		const char* pEnd = pStr + l + 1;
+		int in = 0;
+		while(p != pEnd && pOutBegin != pOutEnd)
+		{
+			char c = *p++;
+			if(c == '(' || c == '<')
+			{
+				in++;
+			}
+			else if(c == ')' || c == '>')
+			{
+				in--;
+				continue;
+			}
+
+			if(in == 0)
+			{
+				*pOutBegin++ = c;
+				sz++;
+			}
+		}
+
+		*pOutBegin++ = '\0';
+		fprintf(FF, "%s\n%s\n\n",pStart, pStr);
+	}
+	return sz;
+}
+
+
+int MicroProfileFindFunctionName(const char* pStr, const char** ppStart)
+{
+	int l = (int)strlen(pStr)-1;
+	if(l < 1024)
+	{
+		char b[1024] = {0};
+		char* put = &b[0];
+
+		const char* p = pStr;
+		const char* pEnd = pStr + l + 1;
+		int in = 0;
+		while(p != pEnd)
+		{
+			char c = *p++;
+			if(c == '(' || c == '<')
+			{
+				in++;
+			}
+			else if(c == ')' || c == '>')
+			{
+				in--;
+				continue;
+			}
+
+			if(in == 0)
+			{
+				*put++ = c;
+			}
+		}
+
+		*put++ = '\0';
+		printf("trimmed %s\n", b);
+
+
+	}
+
+	// int nFirstParen = l;
+	int nNumParen = 0;
+	int c = 0;
+
+	while(l >= 0 && pStr[l] != ')' && c++ < sizeof(" const")-1)		
+	{
+		l--;
+	}
+	if(pStr[l] == ')')
+	{
+		do
+		{
+			if(pStr[l] == ')')
+			{
+				nNumParen++;
+			}
+			else if(pStr[l] == '(')
+			{
+				nNumParen--;
+			}
+			l--;
+		}while(nNumParen > 0 && l >= 0);
+	}
+	else
+	{
+		*ppStart = pStr;
+		return 0;
+	}
+	while(l>=0 && isspace(pStr[l]))
+	{
+		--l;
+	}
+	int nLast = l;
+	while(l >= 0 && !isspace(pStr[l]))
+	{
+		l--;
+	}
+	int nFirst = l;
+	if(nFirst == nLast)
+		return 0;
+	int nCount = nLast - nFirst + 1;
+	*ppStart = pStr + nFirst;
+	return nCount;
+}
+#pragma warning(disable: 4091)
+
+#include <dbghelp.h>
+#include <winternl.h>
+#include <psapi.h>
+#include <tlhelp32.h>
+struct MicroProfileQueryContext
+{
+	static const int MAX_FILTER = 32;
+	const char* pFilterStrings[MAX_FILTER];
+	uint32_t nPatternLength[MAX_FILTER];
+	int nMaxFilter = 0;
+	char TempBuffer[128];
+	uint32_t size = 0;
+	bool bFirst = false;
+};
+
+bool MicroProfileQueryFunctionsOnFunction(void* addr, const char* pSymbol, MicroProfileQueryContext* pQ)
+{
+	char FunctionName[1024];
+	unsigned long len = sizeof(pQ->TempBuffer);
+	int ret = 0;
+	char* pBuffer = pQ->TempBuffer;
+	int l = MicroProfileTrimFunctionName(pSymbol, &FunctionName[0], &FunctionName[1024]);
+	if(MicroProfileStringMatch(l ? &FunctionName[0] : pSymbol, &pQ->pFilterStrings[0], pQ->nPatternLength, pQ->nMaxFilter))
+	{
+		const char* pShortName = l ? &FunctionName[0] :"";
+		if(pQ->bFirst)
+		{
+			printf("{\"a\":\"%p\",\"n\":\"%s\"}", addr, pSymbol);
+			WSPrintf("{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", addr, pSymbol, pShortName);
+			pQ->bFirst = false;
+		}
+		else
+		{
+			printf(",{\"a\":\"%p\",\"n\":\"%s\"}", addr, pSymbol);
+			WSPrintf(",{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", addr, pSymbol, pShortName);
+		}
+		return true;
+	}
+	else
+	{
+		return false;
+	}	
+};
+
+
+
+BOOL MicroProfileQueryContextEnumSymbols (
+  _In_     PSYMBOL_INFO pSymInfo,
+  _In_     ULONG        SymbolSize,
+  _In_opt_ PVOID        UserContext
+	)
+	{
+	//	if(pSymInfo->Flags & SYMFLAG_FUNCTION)
+		 static intptr_t foo = -1;
+		 if(foo == pSymInfo->Address)
+		 {
+		 	int a = 0;
+		 }
+		 if(pSymInfo->Tag == 10)
+		 {
+		 	int a = 0;
+		 }
+		 if(pSymInfo->Tag == 5)
+
+		 {
+		 	intptr_t b = pSymInfo->ModBase;
+		 	//const char* pModule = "?";
+		 	//for(int i = 0; i < g_NumMods; ++i)
+		 	//{
+		 	//	if(g_Mods[i].base == b)
+		 	//	{
+		 	//		pModule = g_Mods[i].Name;
+		 	//	}
+		 	//}
+			MicroProfileQueryFunctionsOnFunction((void*)pSymInfo->Address, pSymInfo->Name, (MicroProfileQueryContext*)UserContext);
+		 	//printf("Symbol %5d %p %08x %s/%s\n",g_NumSymbols++, , pSymInfo->Flags, , pModule);
+		 }
+
+		return TRUE;
+	};
+
+
+
+void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter)
+{
+	FF = fopen("symbols.txt", "w");
+	MicroProfileQueryContext Context;
+
+	int nLen = (int)strlen(pFilter)+1;
+	char* pBuffer = (char*)alloca(nLen);
+	memcpy(pBuffer, pFilter, nLen);
+	bool bStartString = true;
+	for(int i = 0; i < nLen; ++i)
+	{
+		char c = pBuffer[i];
+		if(c == '\0')
+		{
+			break;
+		}
+		if(isspace(c) || c == '*')
+		{
+			pBuffer[i] = '\0';
+			bStartString = true;
+		}
+		else
+		{
+			if(bStartString)
+			{
+				if(Context.nMaxFilter < MicroProfileQueryContext::MAX_FILTER)
+				{
+					Context.pFilterStrings[Context.nMaxFilter++] = &pBuffer[i];
+				}
+			}
+			bStartString = false;
+		}
+	}
+	for(int i = 0; i < Context.nMaxFilter; ++i)
+	{
+		Context.nPatternLength[i] = (uint32_t)strlen(Context.pFilterStrings[i]);
+	}
+
+	WSPrintStart(Connection);
+	WSPrintf("{\"k\":\"%d\",\"v\":[", MSG_FUNCTION_RESULTS);
+
+	Context.bFirst = true;
+
+	const int LIM = 40;
+	if(SymInitialize(GetCurrentProcess(), NULL, TRUE))
+	{
+		printf("symbols loaded!\n");
+		// API_VERSION* pv = ImagehlpApiVersion();
+		// printf("VERSION %d.%d.%d\n", pv->MajorVersion, pv->MinorVersion, pv->Revision);
+
+		// if (SymEnumerateModules64(GetCurrentProcess(), (PSYM_ENUMMODULES_CALLBACK64)EnumModules, NULL))
+		// {
+				// printf("symbols loaded!\n");
+		// }
+		// SymSetOptions(SYMOPT_DEBUG|SYMOPT_DEFERRED_LOADS);
+
+		if(SymEnumSymbols(GetCurrentProcess(), 0, "*!*", MicroProfileQueryContextEnumSymbols, &Context))
+		{
+			printf("Symbols enumerated\n");
+		}
+		SymCleanup(GetCurrentProcess());
+	}
+
+
+
+
+
+
+
+
+
+	//int xx = 0;
+	//vm_offset_t addr_prev = 0;
+
+	//while(KERN_SUCCESS == (kr = mach_vm_region_recurse(task, &vmoffset, &vmsize, &nd, (vm_region_recurse_info_t)&vbr, &vbrcount)))
+	//{
+	//	{
+	//		addr_prev = vmoffset + vmsize;
+	//		if(0 != (vbr.protection&VM_PROT_EXECUTE))
+	//		{
+	//			// printf("checking region [%p-%p]\n", (void*)vmoffset, (void*)(vmoffset + vmsize));
+	//			dl_info di;
+	//			int r = 0;
+	//			r = dladdr( (void*)vmoffset, &di);
+	//			if(r)
+	//			{
+
+	//				if(OnFunction(di.dli_saddr, di.dli_sname))
+	//				{
+	//					// printf("match [%p-%p] %s\n", di.dli_saddr, (void*)addr_prev, di.dli_sname);
+	//					if(xx++ > LIM) break;
+	//				}
+	//			}
+	//			intptr_t addr = vmoffset + vmsize-1;
+	//			for(int i = 0; i < 10000; ++i)
+	//			{
+	//				r = dladdr( (void*)(addr), &di);
+	//				if(r)
+	//				{
+	//					if(!di.dli_sname)
+	//					{
+	//						break;
+	//					}
+	//					if(OnFunction(di.dli_saddr, di.dli_sname))
+	//					{
+	//						// printf("match [%p-%p] %s\n", di.dli_saddr, (void*)addr_prev, di.dli_sname);
+	//						if(xx++ > LIM) break;
+	//					}
+
+	//				}	
+	//				else
+	//				{
+	//					break;
+	//				}
+	//				addr_prev = (vm_offset_t)di.dli_saddr;
+	//				addr = (intptr_t)di.dli_saddr-1;
+	//				if(di.dli_saddr<(void*)vmoffset)
+	//				{
+	//					break;
+	//				}
+
+	//			}
+	//		}
+	//	}
+	//	vmoffset += vmsize;
+	//	vbrcount = sizeof(vbr)/4;
+	//}
+	WSPrintf("]}");
+	WSFlush();
+	WSPrintEnd();
+	fclose(FF);
+	FF = 0;
+
+	// printf("querying functions END %s\n", pFilter);
+}
+
+
+
+#endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if defined(__APPLE__) && defined(__MACH__)
+///hooking:mach
 #include <unistd.h>
 #include <sys/mman.h>
 #include <mach/mach.h>
@@ -7709,15 +8892,6 @@ bool MicroProfileStringMatch(const char* pSymbol, const char** pPatterns, uint32
 #include <distorm.h>
 #include <mnemonics.h>
 
-
-typedef void (*_hookfunc)(int x);
-
-struct PatchError
-{
-	unsigned char Code[12];
-	char Message[256];
-	int AlreadyInstrumented;
-};
 
 
 static void* MicroProfileAllocExecutableMemory(size_t s);
@@ -7779,9 +8953,6 @@ uintptr_t MicroProfile_Patch_TLS_POP()
 
 bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit, const int nMaxSize, char* pTrunk, intptr_t nTrunkSize, int* nBytesDest, int* nBytesSrc, uint32_t* pRegsWritten) __attribute__ ((optnone))
 {
-	// int nBytes = 0;
-	// const unsigned char* p = (unsigned char*)pSrc;
-
 	_DecodeType dt = Decode64Bits;
 	_DInst Instructions[128];
 	int rip[128] = {0};
@@ -7795,7 +8966,6 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 	ci.dt = dt;
 	ci.features = DF_NONE;
 	int r = distorm_decompose(&ci, Instructions, 128, &nCount);
-	// printf("decomposed %d\n", nCount);
 	if(r != DECRES_SUCCESS)
 	{
 		return false;
@@ -7943,7 +9113,6 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 	}
 
 
-	// __builtin_trap();
 	*pRegsWritten = nRegsWritten;
 	char* d = pDest;
 	const char* s = (const char*)pSrc;
@@ -7971,12 +9140,10 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 				int large = I.ops[0].index >= R_R8?1:0;
 				*d++ = large ? 0x49 : 0x48;
 				*d++ = 0xb8 + (reg - (large?(R_R8-R_RAX):0));
-				//calculate the offset
 				int64_t offset = offsets[i+1] + I.disp;
 				intptr_t base = (intptr_t)pSrc;
 
 				intptr_t sum = base + offset;
-				// printf("patching lea, b %lx o %llx s %lx\n", base, offset, sum);
 				intptr_t* pAddress = (intptr_t*)d;
 				pAddress[0] = sum;			
 				s += size;
@@ -7994,7 +9161,7 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 				pTrunk = (char*)t;
 				auto& O = I.ops[1];
 				uint32_t Op1Size = O.size / 8;
-				// uint32_t DispSize = I.dispSize / 8;
+
 
 				memcpy(d, s, size);
 				int32_t DispOriginal = I.disp;
@@ -8049,7 +9216,7 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 
 bool MicroProfilePatchFunction(void* f, int Argument, _hookfunc enter, _hookfunc leave, PatchError* pError) __attribute__((optnone))
 {
-	// char* fisk = (char*)f;
+
 
 	if(pError)
 	{
@@ -8273,63 +9440,6 @@ static void MicroProfileMakeWriteable(void* p_)
 
 
 
-//todo:move to struct.
-int DynamicTokenIndex = 0;
-MicroProfileToken DynamicTokens[2048]= {0};
-
-
-
-extern "C"
-void MicroProfileInterceptEnter(int a)
-{
-	MicroProfileToken T = DynamicTokens[a];
-	MicroProfileThreadLog* pLog = MicroProfileGetThreadLog2();
-	MP_ASSERT(pLog->nStackScope < MICROPROFILE_STACK_MAX); // if youre hitting this assert your instrumenting a deeply nested function
-	MicroProfileScopeStateC* pScopeState = &pLog->ScopeState[pLog->nStackScope++];
-	pScopeState->Token = T;
-	if(T)
-	{
-		pScopeState->nTick = MicroProfileEnterInternal(T);
-	}
-	else
-	{
-		pScopeState->nTick = MICROPROFILE_INVALID_TICK;
-	}
-}
-extern "C"
-void MicroProfileInterceptLeave(int a)
-{
-	MicroProfileThreadLog* pLog = MicroProfileGetThreadLog2();
-	MP_ASSERT(pLog->nStackScope > 0); // if youre hitting this assert you probably have mismatched _ENTER/_LEAVE markers
-	MicroProfileScopeStateC* pScopeState = &pLog->ScopeState[--pLog->nStackScope];
-	MicroProfileLeaveInternal(pScopeState->Token, pScopeState->nTick);
-}
-
-
-
-
-void MicroProfileInstrumentFunction(void* pFunction, const char* pFunctionName, uint32_t nColor)
-{
-
-	MicroProfileScopeLock L(MicroProfileMutex());
-	PatchError Err;
-	if(MicroProfilePatchFunction(pFunction, DynamicTokenIndex, MicroProfileInterceptEnter, MicroProfileInterceptLeave, &Err))
-	{
-		MicroProfileToken Tok = DynamicTokens[DynamicTokenIndex] = MicroProfileGetToken("INSTRUMENTS", pFunctionName, nColor, MicroProfileTokenTypeCpu);
-		DynamicTokenIndex++;
-
-		printf("interception success!!\n");
-		MicroProfileToggleWebSocketToggleTimer(MicroProfileGetTimerIndex(Tok));
-	}
-	else
-	{
-		printf("interception fail!!\n");
-	}
-
-}
-
-
-
 FILE* FF = 0;
 
 int MicroProfileTrimFunctionName(const char* pStr, char* pOutBegin, char* pOutEnd)
@@ -8338,7 +9448,7 @@ int MicroProfileTrimFunctionName(const char* pStr, char* pOutBegin, char* pOutEn
 	int l = strlen(pStr)-1;
 	int sz = 0;
 	pOutEnd--;
-	if(l < 1024 && pOutBegin != pOutEnd)
+	if(l < pOutEnd - pOutBegin && pOutBegin != pOutEnd)
 	{
 		const char* p = pStr;
 		const char* pEnd = pStr + l + 1;
@@ -8637,9 +9747,7 @@ static void* MicroProfileAllocExecutableMemory(size_t s)
 	// printf("Allocating %zu  %p\n", s, pMem);
 	return pMem;
 }
-
 #endif
-
 #endif
 
 
@@ -8673,9 +9781,11 @@ static void* MicroProfileAllocExecutableMemory(size_t s)
 
 //instrument todo:
 // 		WINDOWS
+//       support for calls to __chkstk
 //
 //		Send instrumented functions
 //		Only parse debug info once. cache symbol lookup
-//
+//		cleanup so symbol stuff is shared
+//      fix so patch code is copy pastable
 
 

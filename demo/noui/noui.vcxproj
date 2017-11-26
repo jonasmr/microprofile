@@ -53,6 +53,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.props" />
   </ImportGroup>
   <ImportGroup Label="Shared">
   </ImportGroup>
@@ -106,14 +107,14 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>MICROPROFILE_ENABLED=1;MICROPROFILE_GPU_TIMERS=0;_CRT_SECURE_NO_WARNINGS;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE;MICROPROFILE_ENABLED=1;MICROPROFILE_GPU_TIMERS=0;_CRT_SECURE_NO_WARNINGS;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>../..</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../..;..\..\distorm\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>Advapi32.lib;ws2_32.lib;winmm.lib;Shell32.lib</AdditionalDependencies>
+      <AdditionalDependencies>DbgHelp.lib;Shlwapi.lib;../../distorm/distorm.lib;Advapi32.lib;ws2_32.lib;winmm.lib;Shell32.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy ..\..\bin\microprofile-win32-cswitch_$(PlatformTarget).exe $(ProjectDir)</Command>
@@ -178,7 +179,11 @@
     <ClInclude Include="..\..\microprofile.h" />
     <ClInclude Include="..\..\microprofile_html.h" />
   </ItemGroup>
+  <ItemGroup>
+    <MASM Include="..\..\patch_win32.asm" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.targets" />
   </ImportGroup>
 </Project>
