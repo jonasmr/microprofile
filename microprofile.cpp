@@ -193,7 +193,7 @@ void MicroProfileFreeAligned(void* pMem)
 #include <Shlwapi.h>
 int64_t MicroProfileGetTick();
 #define MP_TICK() MicroProfileGetTick()
-#define MP_BREAK() MP_BREAK()
+#define MP_BREAK() __debugbreak()
 #define MP_THREAD_LOCAL __declspec(thread)
 #define MP_STRCASECMP _stricmp
 #define MP_GETCURRENTTHREADID() GetCurrentThreadId()
@@ -1817,7 +1817,7 @@ void MicroProfileTimelineLeave(uint32_t id)
 
 void MicroProfileTimelineEnterStatic(uint32_t nColor, const char* pStr)
 {
-	uint32_t nToken = MicroProfileTimelineEnterInternal(nColor, pStr, strlen(pStr), true);
+	uint32_t nToken = MicroProfileTimelineEnterInternal(nColor, pStr, (uint32_t)strlen(pStr), true);
 	(void)nToken;	
 }
 void MicroProfileTimelineLeaveStatic(const char* pStr)
@@ -1901,7 +1901,7 @@ uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, ui
 
 uint32_t MicroProfileTimelineEnter(uint32_t nColor, const char* pStr)
 {
-	return MicroProfileTimelineEnterInternal(nColor, pStr, strlen(pStr), false);
+	return MicroProfileTimelineEnterInternal(nColor, pStr, (uint32_t)strlen(pStr), false);
 }
 
 uint32_t MicroProfileTimelineEnterf(uint32_t nColor, const char* pStr, ...)
@@ -1917,7 +1917,7 @@ uint32_t MicroProfileTimelineEnterf(uint32_t nColor, const char* pStr, ...)
 	va_end (args);
 	MP_ASSERT(size < sizeof(buffer));
 	buffer[size] = '\0';
-	return MicroProfileTimelineEnterInternal(nColor, buffer, size, false);
+	return MicroProfileTimelineEnterInternal(nColor, buffer, (uint32_t)size, false);
 }
 
 
@@ -8448,7 +8448,7 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 		MicroProfileMakeWriteable(f, nInstructionBytesSrc, OldFlags);
 		char* pp = (char*)f;
 		char* ppend = pp + nInstructionBytesSrc;
-		pp = InsertRaxJump(pp, (intptr_t)ptramp );
+		pp = MicroProfileInsertRaxJump(pp, (intptr_t)ptramp );
 		while(pp != ppend)
 		{
 			char c = (char)0x90;
@@ -8698,6 +8698,18 @@ bool MicroProfileQueryFunctionsOnFunction(void* addr, const char* pSymbol, Micro
 	}	
 };
 
+uint32_t g_NumSymbols = 0;
+
+BOOL CALLBACK EnumModules(
+  _In_     PCTSTR  ModuleName,
+  _In_     DWORD64 BaseOfDll,
+  _In_opt_ PVOID   UserContext
+)
+{
+	printf("module %p :: %s\n", (void*)BaseOfDll, ModuleName);
+	return true;
+}
+
 
 
 BOOL MicroProfileQueryContextEnumSymbols (
@@ -8729,9 +8741,13 @@ BOOL MicroProfileQueryContextEnumSymbols (
 		 	//	}
 		 	//}
 			MicroProfileQueryFunctionsOnFunction((void*)pSymInfo->Address, pSymInfo->Name, (MicroProfileQueryContext*)UserContext);
-		 	//printf("Symbol %5d %p %08x %s/%s\n",g_NumSymbols++, , pSymInfo->Flags, , pModule);
+//		 	printf("Symbol %5d %p %08x %s/%s\n",g_NumSymbols++, , pSymInfo->Flags, , pModule);
 		 }
-
+		 printf("Symbol %d %s\n", g_NumSymbols++, pSymInfo->Name);
+		 if (strstr(pSymInfo->Name, "Micro") != 0)
+		 {
+			 int a = 0;
+		 }
 		return TRUE;
 	};
 
@@ -8784,14 +8800,15 @@ void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter)
 	if(SymInitialize(GetCurrentProcess(), NULL, TRUE))
 	{
 		printf("symbols loaded!\n");
-		// API_VERSION* pv = ImagehlpApiVersion();
-		// printf("VERSION %d.%d.%d\n", pv->MajorVersion, pv->MinorVersion, pv->Revision);
+		API_VERSION* pv = ImagehlpApiVersion();
+		printf("VERSION %d.%d.%d\n", pv->MajorVersion, pv->MinorVersion, pv->Revision);
 
-		// if (SymEnumerateModules64(GetCurrentProcess(), (PSYM_ENUMMODULES_CALLBACK64)EnumModules, NULL))
-		// {
-				// printf("symbols loaded!\n");
-		// }
-		// SymSetOptions(SYMOPT_DEBUG|SYMOPT_DEFERRED_LOADS);
+
+		if (SymEnumerateModules64(GetCurrentProcess(), (PSYM_ENUMMODULES_CALLBACK64)EnumModules, NULL))
+		{
+				printf("symbols loaded!\n");
+		}
+		SymSetOptions(SYMOPT_DEBUG|SYMOPT_DEFERRED_LOADS);
 
 		if(SymEnumSymbols(GetCurrentProcess(), 0, "*!*", MicroProfileQueryContextEnumSymbols, &Context))
 		{

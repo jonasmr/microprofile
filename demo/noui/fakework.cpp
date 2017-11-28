@@ -247,24 +247,24 @@ std::thread tlong;
 void StartFakeWork()
 {
 	t0 = std::thread(WorkerThread, 0);
-	t1 = std::thread(WorkerThread, 1);
-	t2 = std::thread(WorkerThread, 2);
-	t3 = std::thread(WorkerThread, 3);
-	t42 = std::thread(WorkerThread, 42);
-	t43 = std::thread(WorkerThread, 43);
-	t44 = std::thread(WorkerThread, 44);
-	t45 = std::thread(WorkerThread, 45);
-	tlong = std::thread(WorkerThreadLong, 0);
+	//t1 = std::thread(WorkerThread, 1);
+	//t2 = std::thread(WorkerThread, 2);
+	//t3 = std::thread(WorkerThread, 3);
+	//t42 = std::thread(WorkerThread, 42);
+	//t43 = std::thread(WorkerThread, 43);
+	//t44 = std::thread(WorkerThread, 44);
+	//t45 = std::thread(WorkerThread, 45);
+	//tlong = std::thread(WorkerThreadLong, 0);
 }
 void StopFakeWork()
 {
 	t0.join();
-	t1.join();
-	t2.join();
-	t3.join();
-	t42.join();
-	t43.join();
-	t44.join();
-	t45.join();
-	tlong.join();
+	//t1.join();
+	//t2.join();
+	//t3.join();
+	//t42.join();
+	//t43.join();
+	//t44.join();
+	//t45.join();
+	//tlong.join();
 }
