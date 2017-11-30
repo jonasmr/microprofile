@@ -264,7 +264,7 @@ int main(int argc, char* argv[])
 	RegisterGroups();
 #endif
 
-	StartFakeWork();
+	//StartFakeWork();
 	while(!g_nQuit)
 	{
 		MICROPROFILE_SCOPE(MAIN);
@@ -383,7 +383,7 @@ int main(int argc, char* argv[])
 
 	}
 
-	StopFakeWork();
+	//StopFakeWork();
 	
 	MicroProfileShutdown();
 

@@ -7742,6 +7742,36 @@ struct PatchError
 void* MicroProfileX64FollowJump(void* pSrc);
 bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit, const int nMaxSize, char* pTrunk, intptr_t nTrunkSize, int* nBytesDest, int* nBytesSrc, uint32_t* pRegsWritten) ;
 bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter, MicroProfileHookFunc leave, PatchError* pError);
+template<typename Callback>
+void MicroProfileIterateSymbols(Callback CB);
+
+
+struct MicroProfileSymbolDesc
+{
+	const char* pName;
+	const char* pShortName;
+	intptr_t nAddress;
+};
+struct MicroProfileSymbolBlock
+{
+	MicroProfileSymbolBlock* pNext;
+	uint32_t nNumSymbols;
+	uint32_t nNumChars;
+	enum
+	{
+		ESIZE = 64<<10,
+	};
+	union
+	{
+		MicroProfileSymbolDesc Symbols[ ESIZE / sizeof(MicroProfileSymbolDesc) ];
+		char Chars[ ESIZE ];
+	};
+
+};
+
+static MicroProfileSymbolBlock* g_pSymbolBlock = nullptr;
+typedef void (*MicroProfileOnSymbolCallback)(const char* pSymbolName, intptr_t nAddress);
+
 
 
 MP_THREAD_LOCAL uintptr_t g_MicroProfile_TLS[17] = {16};
@@ -8312,6 +8342,153 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pFunctionName, 
 
 
 
+
+void MicroProfileInitializeSymbols()
+{
+	if(g_pSymbolBlock)
+	{
+		return;
+	}
+	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileInitializeSymbols", MP_CYAN);
+	auto AllocBlock = []() -> MicroProfileSymbolBlock*
+	{
+
+		MicroProfileSymbolBlock* pBlock = MP_ALLOC_OBJECT(MicroProfileSymbolBlock);
+		MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Allocs", 1);
+		MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Memory", sizeof(MicroProfileSymbolBlock));
+		MICROPROFILE_COUNTER_CONFIG_ONCE("/MicroProfile/Symbols/Memory", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, 0);
+		memset(pBlock, 0, sizeof(MicroProfileSymbolBlock));
+		return pBlock;
+	};
+
+
+	MicroProfileSymbolBlock* pActiveBlock = AllocBlock();
+	g_pSymbolBlock = pActiveBlock;
+
+
+	auto SymbolCallback = [&](const char* pName, const char* pShortName, intptr_t nAddress)
+	{
+		if(pName == pShortName)
+		{
+			pShortName = 0;
+		}
+		uint32_t nLen = (uint32_t)strlen(pName) + 1;
+		uint32_t nLenShort = (uint32_t)(pShortName?strlen(pShortName):0);
+		uint32_t S0 = sizeof(MicroProfileSymbolDesc) * pActiveBlock->nNumSymbols;
+		uint32_t S1 = pActiveBlock->nNumChars;
+		uint32_t S3 = nLenShort+nLen + sizeof(MicroProfileSymbolDesc);
+		if(S0 + S1 + S3 > MicroProfileSymbolBlock::ESIZE)
+		{
+			MicroProfileSymbolBlock* pNewBlock = AllocBlock();
+			pActiveBlock->pNext = pNewBlock;
+			pActiveBlock = pNewBlock;
+		}
+		pActiveBlock->nNumChars += nLen;
+		char* pStr = &pActiveBlock->Chars[MicroProfileSymbolBlock::ESIZE - pActiveBlock->nNumChars];
+		memcpy(pStr, pName, nLen);
+		MicroProfileSymbolDesc& E = pActiveBlock->Symbols[pActiveBlock->nNumSymbols++];
+		E.pName = pStr;
+		E.nAddress = nAddress;
+		if(pShortName && strlen(pShortName))
+		{
+			pActiveBlock->nNumChars += nLenShort;
+			char* pStrShort = &pActiveBlock->Chars[MicroProfileSymbolBlock::ESIZE - pActiveBlock->nNumChars];
+			memcpy(pStrShort, pShortName, nLenShort);
+			E.pShortName = pStrShort;
+		}
+		else
+		{
+			E.pShortName = E.pName;
+		}
+			MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Count", 1);
+
+		MP_ASSERT((intptr_t)E.pShortName >= (intptr_t)&E); //assert pointer arithmetic is correct.
+
+	};
+	MicroProfileIterateSymbols(SymbolCallback);
+}
+
+
+void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter)
+{
+	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileQueryFunctions", MP_WHEAT);
+	MicroProfileInitializeSymbols();
+	const int MAX_FILTER = 32;
+	const char* pFilterStrings[MAX_FILTER];
+	uint32_t nPatternLength[MAX_FILTER];
+	int nMaxFilter = 0;
+	uint32_t nLen = (uint32_t)strlen(pFilter)+1;
+	char* pBuffer = (char*)alloca(nLen);
+	memcpy(pBuffer, pFilter, nLen);	
+	bool bStartString = true;
+	for(uint32_t i = 0; i < nLen; ++i)
+	{
+		char c = pBuffer[i];
+		if(c == '\0')
+		{
+			break;
+		}
+		if(isspace(c) || c == '*')
+		{
+			pBuffer[i] = '\0';
+			bStartString = true;
+		}
+		else
+		{
+			if(bStartString)
+			{
+				if(nMaxFilter < MAX_FILTER)
+				{
+					pFilterStrings[nMaxFilter++] = &pBuffer[i];
+				}
+			}
+			bStartString = false;
+		}
+	}
+	for(int i = 0; i < nMaxFilter; ++i)
+	{
+		nPatternLength[i] = (uint32_t)strlen(pFilterStrings[i]);
+	}
+	const int LIM = 25;
+	int xx = 0;
+
+	WSPrintStart(Connection);
+	WSPrintf("{\"k\":\"%d\",\"v\":[", MSG_FUNCTION_RESULTS);	
+	bool bFirst = true;
+	MicroProfileSymbolBlock* pSymbols = g_pSymbolBlock;
+	while(pSymbols&&xx < LIM)
+	{
+		{
+			for(uint32_t i = 0; i < pSymbols->nNumSymbols && xx < LIM; ++i)
+			{
+				MicroProfileSymbolDesc& E = pSymbols->Symbols[i];
+				if(MicroProfileStringMatch(E.pShortName, &pFilterStrings[0], nPatternLength, nMaxFilter))
+				{
+					xx++;
+					if(bFirst)
+					{
+						WSPrintf("{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", E.nAddress, E.pName, E.pShortName);
+						bFirst = false;
+					}
+					else
+					{
+						WSPrintf(",{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", E.nAddress, E.pName, E.pShortName);
+					}
+				}
+			}
+		}
+		pSymbols = pSymbols->pNext;
+	}
+
+	WSPrintf("]}");
+	WSFlush();
+	WSPrintEnd();
+}
+
+
+
+
+
 #if defined (_WIN32)
 // '##::::'##::'#######:::'#######::'##:::'##::::'##:::::'##:'####:'##::: ##::'#######:::'#######::
 //  ##:::: ##:'##.... ##:'##.... ##: ##::'##::::: ##:'##: ##:. ##:: ###:: ##:'##.... ##:'##.... ##:
@@ -8533,9 +8710,6 @@ static void MicroProfileMakeMemoryExecutable(void* p, size_t s)
 
 
 
-
-FILE* FF = 0;
-
 int MicroProfileTrimFunctionName(const char* pStr, char* pOutBegin, char* pOutEnd)
 {
 	const char* pStart = pOutBegin;
@@ -8568,7 +8742,6 @@ int MicroProfileTrimFunctionName(const char* pStr, char* pOutBegin, char* pOutEn
 		}
 
 		*pOutBegin++ = '\0';
-		fprintf(FF, "%s\n%s\n\n",pStart, pStr);
 	}
 	return sz;
 }
@@ -8671,34 +8844,6 @@ struct MicroProfileQueryContext
 	bool bFirst = false;
 };
 
-bool MicroProfileQueryFunctionsOnFunction(void* addr, const char* pSymbol, MicroProfileQueryContext* pQ)
-{
-	char FunctionName[1024];
-	unsigned long len = sizeof(pQ->TempBuffer);
-	int ret = 0;
-	char* pBuffer = pQ->TempBuffer;
-	int l = MicroProfileTrimFunctionName(pSymbol, &FunctionName[0], &FunctionName[1024]);
-	if(MicroProfileStringMatch(l ? &FunctionName[0] : pSymbol, &pQ->pFilterStrings[0], pQ->nPatternLength, pQ->nMaxFilter))
-	{
-		const char* pShortName = l ? &FunctionName[0] :"";
-		if(pQ->bFirst)
-		{
-			printf("{\"a\":\"%p\",\"n\":\"%s\"}", addr, pSymbol);
-			WSPrintf("{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", addr, pSymbol, pShortName);
-			pQ->bFirst = false;
-		}
-		else
-		{
-			printf(",{\"a\":\"%p\",\"n\":\"%s\"}", addr, pSymbol);
-			WSPrintf(",{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", addr, pSymbol, pShortName);
-		}
-		return true;
-	}
-	else
-	{
-		return false;
-	}	
-};
 
 uint32_t g_NumSymbols = 0;
 
@@ -8712,123 +8857,111 @@ BOOL CALLBACK EnumModules(
 	return true;
 }
 
+namespace
+{
+	struct QueryCallbackBase // fucking c++, this is a pain in the ass
+	{
+		virtual void CB(const char* pName, const char* pShortName, intptr_t addr) = 0;
+	};
+	template<typename T>
+	struct QueryCallbackImpl : public QueryCallbackBase
+	{
+		T t;
+		QueryCallbackImpl(T t):t(t){}
+		virtual void CB(const char* pName, const char* pShortName, intptr_t addr)
+		{
+			t(pName, pShortName, addr);
+		}
 
+	};
+}
 
 BOOL MicroProfileQueryContextEnumSymbols (
   _In_     PSYMBOL_INFO pSymInfo,
   _In_     ULONG        SymbolSize,
-  _In_opt_ PVOID        UserContext
-	)
-	{
-	//	if(pSymInfo->Flags & SYMFLAG_FUNCTION)
-		 static intptr_t foo = -1;
-		 if(foo == pSymInfo->Address)
-		 {
-		 	int a = 0;
-		 }
-		 if(pSymInfo->Tag == 10)
-		 {
-		 	int a = 0;
-		 }
-		 if(pSymInfo->Tag == 5)
-
-		 {
-		 	intptr_t b = pSymInfo->ModBase;
-		 	//const char* pModule = "?";
-		 	//for(int i = 0; i < g_NumMods; ++i)
-		 	//{
-		 	//	if(g_Mods[i].base == b)
-		 	//	{
-		 	//		pModule = g_Mods[i].Name;
-		 	//	}
-		 	//}
-			MicroProfileQueryFunctionsOnFunction((void*)pSymInfo->Address, pSymInfo->Name, (MicroProfileQueryContext*)UserContext);
-//		 	printf("Symbol %5d %p %08x %s/%s\n",g_NumSymbols++, , pSymInfo->Flags, , pModule);
-		 }
-		 printf("Symbol %d %s\n", g_NumSymbols++, pSymInfo->Name);
-		 if (strstr(pSymInfo->Name, "Micro") != 0)
-		 {
-			 int a = 0;
-		 }
-		return TRUE;
-	};
-
-
-
-void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter)
+  _In_opt_ PVOID        UserContext)
 {
+	 if(pSymInfo->Tag == 5)
+	 {
 
-	FF = fopen("symbols.txt", "w");
-	MicroProfileQueryContext Context;
+		char FunctionName[1024];
+		int ret = 0;
+		//char* pBuffer = pQ->TempBuffer;
+		int l = MicroProfileTrimFunctionName(pSymInfo->Name, &FunctionName[0], &FunctionName[1024]);
+		QueryCallbackBase* pCB = (QueryCallbackBase*)UserContext;
+		pCB->CB(pSymInfo->Name, l ? &FunctionName[0] : 0, (intptr_t)pSymInfo->Address);
+	 }
+	return TRUE;
+};
 
-	int nLen = (int)strlen(pFilter)+1;
-	char* pBuffer = (char*)alloca(nLen);
-	memcpy(pBuffer, pFilter, nLen);
-	bool bStartString = true;
-	for(int i = 0; i < nLen; ++i)
-	{
-		char c = pBuffer[i];
-		if(c == '\0')
-		{
-			break;
-		}
-		if(isspace(c) || c == '*')
-		{
-			pBuffer[i] = '\0';
-			bStartString = true;
-		}
-		else
-		{
-			if(bStartString)
-			{
-				if(Context.nMaxFilter < MicroProfileQueryContext::MAX_FILTER)
-				{
-					Context.pFilterStrings[Context.nMaxFilter++] = &pBuffer[i];
-				}
-			}
-			bStartString = false;
-		}
-	}
-	for(int i = 0; i < Context.nMaxFilter; ++i)
-	{
-		Context.nPatternLength[i] = (uint32_t)strlen(Context.pFilterStrings[i]);
-	}
+// bool MicroProfileQueryFunctionsOnFunction(void* addr, const char* pSymbol, MicroProfileQueryContext* pQ)
+// {
+// 	char FunctionName[1024];
+// 	unsigned long len = sizeof(pQ->TempBuffer);
+// 	int ret = 0;
+// 	char* pBuffer = pQ->TempBuffer;
+// 	int l = MicroProfileTrimFunctionName(pSymbol, &FunctionName[0], &FunctionName[1024]);
+// 	if(MicroProfileStringMatch(l ? &FunctionName[0] : pSymbol, &pQ->pFilterStrings[0], pQ->nPatternLength, pQ->nMaxFilter))
+// 	{
+// 		const char* pShortName = l ? &FunctionName[0] :"";
+// 		if(pQ->bFirst)
+// 		{
+// 			printf("{\"a\":\"%p\",\"n\":\"%s\"}", addr, pSymbol);
+// 			WSPrintf("{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", addr, pSymbol, pShortName);
+// 			pQ->bFirst = false;
+// 		}
+// 		else
+// 		{
+// 			printf(",{\"a\":\"%p\",\"n\":\"%s\"}", addr, pSymbol);
+// 			WSPrintf(",{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", addr, pSymbol, pShortName);
+// 		}
+// 		return true;
+// 	}
+// 	else
+// 	{
+// 		return false;
+// 	}	
+// };
 
-	WSPrintStart(Connection);
-	WSPrintf("{\"k\":\"%d\",\"v\":[", MSG_FUNCTION_RESULTS);
 
-	Context.bFirst = true;
 
-	const int LIM = 40;
+template<typename Callback>
+void MicroProfileIterateSymbols(Callback CB)
+{
+	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileIterateSymbols", MP_PINK3);
+	QueryCallbackImpl<Callback> Context(CB);
 	if(SymInitialize(GetCurrentProcess(), NULL, TRUE))
 	{
-		printf("symbols loaded!\n");
-		API_VERSION* pv = ImagehlpApiVersion();
-		printf("VERSION %d.%d.%d\n", pv->MajorVersion, pv->MinorVersion, pv->Revision);
+		// printf("symbols loaded!\n");
+		// API_VERSION* pv = ImagehlpApiVersion();
+		// printf("VERSION %d.%d.%d\n", pv->MajorVersion, pv->MinorVersion, pv->Revision);
 
 
-		if (SymEnumerateModules64(GetCurrentProcess(), (PSYM_ENUMMODULES_CALLBACK64)EnumModules, NULL))
+		// if (SymEnumerateModules64(GetCurrentProcess(), (PSYM_ENUMMODULES_CALLBACK64)EnumModules, NULL))
+		// {
+		// 		printf("symbols loaded!\n");
+		// }
+		// SymSetOptions(SYMOPT_DEBUG|SYMOPT_DEFERRED_LOADS);
+		QueryCallbackBase* pBase = &Context;
+		if(SymEnumSymbols(GetCurrentProcess(), 0, "*!*", MicroProfileQueryContextEnumSymbols, pBase))
 		{
-				printf("symbols loaded!\n");
-		}
-		SymSetOptions(SYMOPT_DEBUG|SYMOPT_DEFERRED_LOADS);
 
-		if(SymEnumSymbols(GetCurrentProcess(), 0, "*!*", MicroProfileQueryContextEnumSymbols, &Context))
-		{
-			printf("Symbols enumerated\n");
 		}
 		SymCleanup(GetCurrentProcess());
 	}
 
+}
 
-	WSPrintf("]}");
-	WSFlush();
-	WSPrintEnd();
-	fclose(FF);
-	FF = 0;
+
+#if 0
+void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter)
+{
+
+
 
 	// printf("querying functions END %s\n", pFilter);
 }
+#endif
 
 
 
@@ -9099,11 +9232,8 @@ static void MicroProfileMakeWriteable(void* p_)
 
 
 
-FILE* FF = 0;
-
 int MicroProfileTrimFunctionName(const char* pStr, char* pOutBegin, char* pOutEnd)
 {
-	const char* pStart = pOutBegin;
 	int l = strlen(pStr)-1;
 	int sz = 0;
 	pOutEnd--;
@@ -9133,7 +9263,6 @@ int MicroProfileTrimFunctionName(const char* pStr, char* pOutBegin, char* pOutEn
 		}
 
 		*pOutBegin++ = '\0';
-		fprintf(FF, "%s\n%s\n\n",pStart, pStr);
 	}
 	return sz;
 }
@@ -9219,31 +9348,7 @@ int MicroProfileFindFunctionName(const char* pStr, const char** ppStart)
 	*ppStart = pStr + nFirst;
 	return nCount;
 }
-struct MicroProfileSymbolDesc
-{
-	const char* pName;
-	const char* pShortName;
-	intptr_t nAddress;
-};
-struct MicroProfileSymbolBlock
-{
-	MicroProfileSymbolBlock* pNext;
-	uint32_t nNumSymbols;
-	uint32_t nNumChars;
-	enum
-	{
-		ESIZE = 64<<10,
-	};
-	union
-	{
-		MicroProfileSymbolDesc Symbols[ ESIZE / sizeof(MicroProfileSymbolDesc) ];
-		char Chars[ ESIZE ];
-	};
 
-};
-
-static MicroProfileSymbolBlock* g_pSymbolBlock = nullptr;
-typedef void (*MicroProfileOnSymbolCallback)(const char* pSymbolName, intptr_t nAddress);
 
 template<typename Callback>
 void MicroProfileIterateSymbols(Callback CB)
@@ -9335,155 +9440,6 @@ void MicroProfileIterateSymbols(Callback CB)
 		vmoffset += vmsize;
 		vbrcount = sizeof(vbr)/4;
 	}
-}
-
-void MicroProfileInitializeSymbols()
-{
-	if(g_pSymbolBlock)
-	{
-		return;
-	}
-	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileInitializeSymbols", MP_CYAN);
-	auto AllocBlock = []() -> MicroProfileSymbolBlock*
-	{
-
-		MicroProfileSymbolBlock* pBlock = MP_ALLOC_OBJECT(MicroProfileSymbolBlock);
-		MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Allocs", 1);
-		MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Memory", sizeof(MicroProfileSymbolBlock));
-		MICROPROFILE_COUNTER_CONFIG_ONCE("/MicroProfile/Symbols/Memory", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, 0);
-		memset(pBlock, 0, sizeof(MicroProfileSymbolBlock));
-		return pBlock;
-	};
-
-
-	MicroProfileSymbolBlock* pActiveBlock = AllocBlock();
-	g_pSymbolBlock = pActiveBlock;
-
-
-	auto SymbolCallback = [&](const char* pName, const char* pShortName, intptr_t nAddress)
-	{
-		if(pName == pShortName)
-		{
-			pShortName = 0;
-		}
-		uint32_t nLen = strlen(pName) + 1;
-		uint32_t nLenShort = pShortName?strlen(pShortName):0;
-		uint32_t S0 = sizeof(MicroProfileSymbolDesc) * pActiveBlock->nNumSymbols;
-		uint32_t S1 = pActiveBlock->nNumChars;
-		uint32_t S3 = nLenShort+nLen + sizeof(MicroProfileSymbolDesc);
-		if(S0 + S1 + S3 > MicroProfileSymbolBlock::ESIZE)
-		{
-			MicroProfileSymbolBlock* pNewBlock = AllocBlock();
-			pActiveBlock->pNext = pNewBlock;
-			pActiveBlock = pNewBlock;
-		}
-		pActiveBlock->nNumChars += nLen;
-		char* pStr = &pActiveBlock->Chars[MicroProfileSymbolBlock::ESIZE - pActiveBlock->nNumChars];
-		memcpy(pStr, pName, nLen);
-		MicroProfileSymbolDesc& E = pActiveBlock->Symbols[pActiveBlock->nNumSymbols++];
-		E.pName = pStr;
-		E.nAddress = nAddress;
-		if(pShortName && strlen(pShortName))
-		{
-			pActiveBlock->nNumChars += nLenShort;
-			char* pStrShort = &pActiveBlock->Chars[MicroProfileSymbolBlock::ESIZE - pActiveBlock->nNumChars];
-			memcpy(pStrShort, pShortName, nLenShort);
-			E.pShortName = pStrShort;
-		}
-		else
-		{
-			E.pShortName = E.pName;
-		}
-			MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Count", 1);
-
-		MP_ASSERT((intptr_t)E.pShortName >= (intptr_t)&E); //assert pointer arithmetic is correct.
-
-	};
-	MicroProfileIterateSymbols(SymbolCallback);
-}
-
-
-
-
-void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter)
-{
-	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileQueryFunctions", MP_WHEAT);
-	FF = fopen("symbols.txt", "w");
-	MicroProfileInitializeSymbols();
-	const int MAX_FILTER = 32;
-	const char* pFilterStrings[MAX_FILTER];
-	uint32_t nPatternLength[MAX_FILTER];
-	int nMaxFilter = 0;
-	int nLen = strlen(pFilter)+1;
-	char* pBuffer = (char*)alloca(nLen);
-	memcpy(pBuffer, pFilter, nLen);	
-	bool bStartString = true;
-	for(uint32_t i = 0; i < nLen; ++i)
-	{
-		char c = pBuffer[i];
-		if(c == '\0')
-		{
-			break;
-		}
-		if(isspace(c) || c == '*')
-		{
-			pBuffer[i] = '\0';
-			bStartString = true;
-		}
-		else
-		{
-			if(bStartString)
-			{
-				if(nMaxFilter < MAX_FILTER)
-				{
-					pFilterStrings[nMaxFilter++] = &pBuffer[i];
-				}
-			}
-			bStartString = false;
-		}
-	}
-	for(int i = 0; i < nMaxFilter; ++i)
-	{
-		nPatternLength[i] = strlen(pFilterStrings[i]);
-	}
-	const int LIM = 25;
-	int xx = 0;
-
-	WSPrintStart(Connection);
-	WSPrintf("{\"k\":\"%d\",\"v\":[", MSG_FUNCTION_RESULTS);	
-	bool bFirst = true;
-	MicroProfileSymbolBlock* pSymbols = g_pSymbolBlock;
-	while(pSymbols&&xx < LIM)
-	{
-		{
-			for(uint32_t i = 0; i < pSymbols->nNumSymbols && xx < LIM; ++i)
-			{
-				MicroProfileSymbolDesc& E = pSymbols->Symbols[i];
-				if(MicroProfileStringMatch(E.pShortName, &pFilterStrings[0], nPatternLength, nMaxFilter))
-				{
-					xx++;
-					if(bFirst)
-					{
-						WSPrintf("{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", E.nAddress, E.pName, E.pShortName);
-						bFirst = false;
-					}
-					else
-					{
-						WSPrintf(",{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", E.nAddress, E.pName, E.pShortName);
-					}
-				}
-			}
-		}
-		pSymbols = pSymbols->pNext;
-	}
-
-	WSPrintf("]}");
-	WSFlush();
-	WSPrintEnd();
-	fclose(FF);
-	FF = 0;
-
-	// printf("querying functions END %s\n", pFilter);
 }
 
 
