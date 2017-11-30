@@ -406,6 +406,13 @@ typedef uint64_t MicroProfileThreadIdType;
 #define MICROPROFILE_MAX_GROUPS 128 //must be multiple of 32
 #endif
 
+#ifndef MICROPROFILE_BREAK_ON_PATCH_FAIL
+#define MICROPROFILE_BREAK_ON_PATCH_FAIL 0
+#endif
+
+#ifndef MICROPROFILE_MAX_DYNAMIC_TOKENS
+#define MICROPROFILE_MAX_DYNAMIC_TOKENS 2048
+#endif
 
 
 typedef enum MicroProfileTokenType_t

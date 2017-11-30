@@ -73,6 +73,15 @@ enum EMicroProfileTokenSpecial
 // counters i graph view?
 // call count i graph view?
 
+//instrument todo:
+// 		** WINDOWS
+//       ** support for calls to __chkstk
+//
+//		Send instrumented functions
+//		Only parse debug info once. cache symbol lookup
+//		cleanup so symbol stuff is shared
+//      fix so patch code is copy pastable
+
 
 enum
 {
@@ -7699,9 +7708,14 @@ void MicroProfileGpuShutdown()
 
 
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
-
-///hooking:shared
-
+// '##::::'##::'#######:::'#######::'##:::'##:::::'######::'##::::'##::::'###::::'########::'########:'########::
+//  ##:::: ##:'##.... ##:'##.... ##: ##::'##:::::'##... ##: ##:::: ##:::'## ##::: ##.... ##: ##.....:: ##.... ##:
+//  ##:::: ##: ##:::: ##: ##:::: ##: ##:'##:::::: ##:::..:: ##:::: ##::'##:. ##:: ##:::: ##: ##::::::: ##:::: ##:
+//  #########: ##:::: ##: ##:::: ##: #####:::::::. ######:: #########:'##:::. ##: ########:: ######::: ##:::: ##:
+//  ##.... ##: ##:::: ##: ##:::: ##: ##. ##:::::::..... ##: ##.... ##: #########: ##.. ##::: ##...:::: ##:::: ##:
+//  ##:::: ##: ##:::: ##: ##:::: ##: ##:. ##:::::'##::: ##: ##:::: ##: ##.... ##: ##::. ##:: ##::::::: ##:::: ##:
+//  ##:::: ##:. #######::. #######:: ##::. ##::::. ######:: ##:::: ##: ##:::: ##: ##:::. ##: ########: ########::
+// ..:::::..:::.......::::.......:::..::::..::::::......:::..:::::..::..:::::..::..:::::..::........::........:::
 
 #include <distorm.h>
 #include <mnemonics.h>
@@ -7718,7 +7732,7 @@ struct PatchError
 };
 
 
-#if 1
+#if MICROPROFILE_BREAK_ON_PATCH_FAIL
 #define BREAK_ON_PATCH_FAIL() MP_BREAK()
 #else
 #define BREAK_ON_PATCH_FAIL() do{}while(0)
@@ -8137,32 +8151,12 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 				r++;
 			}
 
-
-
 			intptr_t p = offsets[i+1];
 			p += (intptr_t)pSrc;
 			p += I.imm.sdword;
-			// int reg = R_RAX;
 			d = MicroProfileInsertMov(d, dend, r, p);
 			d = MicroProfileInsertCall(d, dend, r);
-
 			s += size;
-
-			////int large = I.ops[0].index >= R_R8?1:0;
-			//int large = 0;
-			//
-			//printf("CALL DEST %p    :: code %p\n",(void*) p, d);
-
-			//*d++ = 0x48;//large ? 0x49 : 0x48;
-			//*d++ = 0xb8;// + (reg - (large?(R_R8-R_RAX):0));
-			//intptr_t* pAddress = (intptr_t*)d;
-			//pAddress[0] = p;
-			//d = (unsigned char*)(pAddress + 1);
-			//*d++ = 0xff;
-			//*d++ = 0xd0;
-
-
-
 
 		}
 		else if(rip[i])
@@ -8186,7 +8180,6 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 				intptr_t base = (intptr_t)pSrc;
 
 				intptr_t sum = base + offset;
-				// printf("patching lea, b %lx o %llx s %lx\n", base, offset, sum);
 				intptr_t* pAddress = (intptr_t*)d;
 				pAddress[0] = sum;			
 				s += size;
@@ -8204,7 +8197,6 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 				pTrunk = (char*)t;
 				auto& O = I.ops[1];
 				uint32_t Op1Size = O.size / 8;
-				// uint32_t DispSize = I.dispSize / 8;
 
 				memcpy(d, s, size);
 				int32_t DispOriginal = (int32_t)I.disp;
@@ -8260,7 +8252,7 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 
 //todo:move to struct.
 int DynamicTokenIndex = 0;
-MicroProfileToken DynamicTokens[2048]= {0};
+MicroProfileToken DynamicTokens[MICROPROFILE_MAX_DYNAMIC_TOKENS]= {0};
 
 
 
@@ -8298,6 +8290,10 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pFunctionName, 
 
 	MicroProfileScopeLock L(MicroProfileMutex());
 	PatchError Err;
+	if(DynamicTokenIndex == MICROPROFILE_MAX_DYNAMIC_TOKENS)
+	{
+		printf("instrument failing, out of dynamic tokens %d\n", DynamicTokenIndex);
+	}
 	if(MicroProfilePatchFunction(pFunction, DynamicTokenIndex, MicroProfileInterceptEnter, MicroProfileInterceptLeave, &Err))
 	{
 		MicroProfileToken Tok = DynamicTokens[DynamicTokenIndex] = MicroProfileGetToken("INSTRUMENTS", pFunctionName, nColor, MicroProfileTokenTypeCpu);
@@ -8317,8 +8313,14 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pFunctionName, 
 
 
 #if defined (_WIN32)
-
-
+// '##::::'##::'#######:::'#######::'##:::'##::::'##:::::'##:'####:'##::: ##::'#######:::'#######::
+//  ##:::: ##:'##.... ##:'##.... ##: ##::'##::::: ##:'##: ##:. ##:: ###:: ##:'##.... ##:'##.... ##:
+//  ##:::: ##: ##:::: ##: ##:::: ##: ##:'##:::::: ##: ##: ##:: ##:: ####: ##:..::::: ##:..::::: ##:
+//  #########: ##:::: ##: ##:::: ##: #####::::::: ##: ##: ##:: ##:: ## ## ##::'#######:::'#######::
+//  ##.... ##: ##:::: ##: ##:::: ##: ##. ##:::::: ##: ##: ##:: ##:: ##. ####::...... ##:'##::::::::
+//  ##:::: ##: ##:::: ##: ##:::: ##: ##:. ##::::: ##: ##: ##:: ##:: ##:. ###:'##:::: ##: ##::::::::
+//  ##:::: ##:. #######::. #######:: ##::. ##::::. ###. ###::'####: ##::. ##:. #######:: #########:
+// ..:::::..:::.......::::.......:::..::::..::::::...::...:::....::..::::..:::.......:::.........::
 
 
 
@@ -8755,6 +8757,7 @@ BOOL MicroProfileQueryContextEnumSymbols (
 
 void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter)
 {
+
 	FF = fopen("symbols.txt", "w");
 	MicroProfileQueryContext Context;
 
@@ -8818,69 +8821,6 @@ void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter)
 	}
 
 
-
-
-
-
-
-
-
-	//int xx = 0;
-	//vm_offset_t addr_prev = 0;
-
-	//while(KERN_SUCCESS == (kr = mach_vm_region_recurse(task, &vmoffset, &vmsize, &nd, (vm_region_recurse_info_t)&vbr, &vbrcount)))
-	//{
-	//	{
-	//		addr_prev = vmoffset + vmsize;
-	//		if(0 != (vbr.protection&VM_PROT_EXECUTE))
-	//		{
-	//			// printf("checking region [%p-%p]\n", (void*)vmoffset, (void*)(vmoffset + vmsize));
-	//			dl_info di;
-	//			int r = 0;
-	//			r = dladdr( (void*)vmoffset, &di);
-	//			if(r)
-	//			{
-
-	//				if(OnFunction(di.dli_saddr, di.dli_sname))
-	//				{
-	//					// printf("match [%p-%p] %s\n", di.dli_saddr, (void*)addr_prev, di.dli_sname);
-	//					if(xx++ > LIM) break;
-	//				}
-	//			}
-	//			intptr_t addr = vmoffset + vmsize-1;
-	//			for(int i = 0; i < 10000; ++i)
-	//			{
-	//				r = dladdr( (void*)(addr), &di);
-	//				if(r)
-	//				{
-	//					if(!di.dli_sname)
-	//					{
-	//						break;
-	//					}
-	//					if(OnFunction(di.dli_saddr, di.dli_sname))
-	//					{
-	//						// printf("match [%p-%p] %s\n", di.dli_saddr, (void*)addr_prev, di.dli_sname);
-	//						if(xx++ > LIM) break;
-	//					}
-
-	//				}	
-	//				else
-	//				{
-	//					break;
-	//				}
-	//				addr_prev = (vm_offset_t)di.dli_saddr;
-	//				addr = (intptr_t)di.dli_saddr-1;
-	//				if(di.dli_saddr<(void*)vmoffset)
-	//				{
-	//					break;
-	//				}
-
-	//			}
-	//		}
-	//	}
-	//	vmoffset += vmsize;
-	//	vbrcount = sizeof(vbr)/4;
-	//}
 	WSPrintf("]}");
 	WSFlush();
 	WSPrintEnd();
@@ -8895,24 +8835,17 @@ void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter)
 #endif
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #if defined(__APPLE__) && defined(__MACH__)
-///hooking:mach
+// '##::::'##::'#######:::'#######::'##:::'##:::::'#######:::'######::'##::::'##:
+//  ##:::: ##:'##.... ##:'##.... ##: ##::'##:::::'##.... ##:'##... ##:. ##::'##::
+//  ##:::: ##: ##:::: ##: ##:::: ##: ##:'##:::::: ##:::: ##: ##:::..:::. ##'##:::
+//  #########: ##:::: ##: ##:::: ##: #####::::::: ##:::: ##:. ######::::. ###::::
+//  ##.... ##: ##:::: ##: ##:::: ##: ##. ##:::::: ##:::: ##::..... ##::: ## ##:::
+//  ##:::: ##: ##:::: ##: ##:::: ##: ##:. ##::::: ##:::: ##:'##::: ##:: ##:. ##::
+//  ##:::: ##:. #######::. #######:: ##::. ##::::. #######::. ######:: ##:::. ##:
+// ..:::::..:::.......::::.......:::..::::..::::::.......::::......:::..:::::..::
+
+
 #include <unistd.h>
 #include <sys/mman.h>
 #include <mach/mach.h>
@@ -8940,314 +8873,10 @@ extern "C" void microprofile_tramp_call_patch_pop();
 extern "C" void microprofile_tramp_call_patch_push();
 
 
-// __thread uintptr_t g_MicroProfile_TLS[17] = {16};
-
-// extern "C" __attribute__((__noinline__))
-// uintptr_t MicroProfile_Patch_TLS_PUSH(uintptr_t t)
-// {
-// 	uintptr_t* pTLS = &g_MicroProfile_TLS[0];
-
-// 	uintptr_t Limit = (uint32_t)pTLS[0];
-// 	uintptr_t Pos = (uint32_t)(pTLS[0]>>32);
-// 	if(Pos == Limit)
-// 	{
-// 		return 0;
-// 	}
-// 	else
-// 	{
-// 		pTLS[0] = (Limit) | ((Pos+1)<<32);
-// 	}
-// 	pTLS[Pos+1] = t;
-// 	return 1;
-// }
-// extern "C" __attribute__((__noinline__))
-// uintptr_t MicroProfile_Patch_TLS_POP()
-// {
-// 	uintptr_t* pTLS = &g_MicroProfile_TLS[0];
-// 	uintptr_t Limit = (uint32_t)pTLS[0];
-// 	uintptr_t Pos = (uint32_t)(pTLS[0]>>32);
-// 	if(Pos == 0)
-// 	{
-// 		__builtin_trap();
-// 		return 0;
-// 	}
-// 	else
-// 	{
-// 		pTLS[0] = (Limit) | ((Pos-1)<<32);
-// 	}
-// 	uintptr_t t = pTLS[Pos];
-
-// 	return t;
-// }
-
-
-// bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit, const int nMaxSize, char* pTrunk, intptr_t nTrunkSize, int* nBytesDest, int* nBytesSrc, uint32_t* pRegsWritten) __attribute__ ((optnone))
-// {
-// 	_DecodeType dt = Decode64Bits;
-// 	_DInst Instructions[128];
-// 	int rip[128] = {0};
-// 	int offsets[129] = {0};
-// 	unsigned int nCount = 0;
-
-// 	_CodeInfo ci;
-// 	ci.code = (uint8_t*)pSrc;
-// 	ci.codeLen = nLimit + 15;
-// 	ci.codeOffset = 0;
-// 	ci.dt = dt;
-// 	ci.features = DF_NONE;
-// 	int r = distorm_decompose(&ci, Instructions, 128, &nCount);
-// 	if(r != DECRES_SUCCESS)
-// 	{
-// 		return false;
-// 	}
-// 	int offset = 0;
-// 	unsigned int i = 0;
-// 	unsigned nInstructions = 0;
-// 	int nTrunkUsage = 0;
-// 	offsets[0] = 0;
-// 	uint32_t nRegsWritten = 0;
-
-
-// 	auto Align16 = [](intptr_t p)
-// 	{
-// 		return (p + 15) & (~15);
-// 	};
-
-
-// 	{
-
-// 		intptr_t iTrunk = (intptr_t)pTrunk; 
-// 		intptr_t iTrunkEnd = iTrunk + nTrunkSize;
-// 		intptr_t iTrunkAligned = (iTrunk + 15) & ~15;
-// 		nTrunkSize = iTrunkEnd - iTrunkAligned;		
-// 		pTrunk = (char*)iTrunkAligned;
-
-
-// 	}
-// 	const char* pTrunkEnd = pTrunk + nTrunkSize;
-
-
-
-// 	for(; i < nCount; ++i)
-// 	{
-// 		rip[i] = 0;
-// 		auto& I = Instructions[i];
-// 		switch(I.ops[0].type)
-// 		{
-// 			case O_REG:
-// 			case O_SMEM:
-// 			case O_MEM:
-// 				{
-// 					uint32_t reg = I.ops[0].index;
-// 					if(reg >= R_RAX && reg <= R_R15)
-// 					{
-// 						nRegsWritten |= (1u << (reg-R_RAX));
-// 					}
-// 					else
-// 					if(reg >= R_EAX && reg <= R_R15D)
-// 					{
-// 						nRegsWritten |= (1u << (reg-R_EAX));
-// 					}
-// 					else
-// 					if(reg >= R_AX && reg <= R_R15W)
-// 					{
-// 						nRegsWritten |= (1u << (reg-R_AX));
-// 					}
-// 					else
-// 					if(reg >= R_AL && reg <= R_R15B)
-// 					{
-// 						nRegsWritten |= (1u << (reg-R_AL));
-// 					}
-
-// 				}
-// 		}
-// 		for(int j = 0; j < 4; ++j)
-// 		{
-// 			auto& O = I.ops[j];
-
-// 			switch(O.type)
-// 			{
-// 				case O_REG:
-// 				case O_SMEM:
-// 				case O_MEM:
-// 				{
-// 					if(O.index == R_RIP)
-// 					{
-// 						if(j != 1)
-// 						{
-// 							printf("found non base reference of rip. fail\n");
-// 							return false;
-// 						}
-// 						if(I.dispSize != 0x20 && I.dispSize != 0x10)
-// 						{
-// 							printf("found offset size != 32 && != 16 bit. not implemented\n");
-// 							return false;
-// 						}
-// 						rip[i] = 1;
-// 						nTrunkUsage += Align16(O.size/8);
-// 						if(nTrunkUsage > nTrunkSize)
-// 						{
-// 							printf("overuse of trunk %d\n", nTrunkUsage);
-// 							return false;
-// 						}
-// 					}
-// 					break;
-// 				}
-// 			}
-// 		}
-// 		if(rip[i])
-// 		{
-// 			if(I.ops[0].type != O_REG)
-// 			{
-// 				printf("arg 0 should be O_REG, fail\n");
-// 				return false;
-// 			}
-// 			if(I.ops[1].type != O_SMEM)
-// 			{
-// 				printf("arg 1 should be O_SMEM, fail was %d\n", O_SMEM);
-// 				return false;
-// 			}
-
-
-// 		}
-// 		int fc = META_GET_FC(Instructions[i].meta);
-// 		switch(fc)
-// 		{
-// 		case FC_CALL:
-// 		case FC_RET:
-// 		case FC_SYS:
-// 		case FC_UNC_BRANCH:
-// 		case FC_CND_BRANCH:
-// 			printf("found branch inst %d :: %d\n", fc, offset);
-// 			return false;
-
-// 		}
-// 		offset += Instructions[i].size;
-// 		offsets[i+1] = offset;
-// 		if(offset >= nLimit)
-// 		{
-// 			nInstructions = i + 1;
-// 			break;
-// 		}
-// 	}
-// 	if(nTrunkUsage > nTrunkSize)
-// 	{
-// 		printf("function using too much trunk space\n");
-// 		__builtin_trap();
-// 	}
-// 	if(offset < nLimit)
-// 	{
-// 		printf("function only had %d bytes of %d\n", offset, nLimit);
-// 		__builtin_trap();
-// 		return false;
-// 	}
-
-
-// 	*pRegsWritten = nRegsWritten;
-// 	char* d = pDest;
-// 	const char* s = (const char*)pSrc;
-	
-// 	nTrunkUsage = 0;
-
-// 	for(i = 0; i < nInstructions; ++i)
-// 	{
-// 		auto& I = Instructions[i];
-// 		unsigned size = Instructions[i].size;
-
-// 		if(rip[i])
-// 		{
-// 			if(I.opcode == I_LEA)
-// 			{
-// 				if(I.ops[0].type != O_REG)
-// 				{
-// 					__builtin_trap();
-// 				}
-// 				if(I.ops[1].index != R_RIP)
-// 				{
-// 					__builtin_trap();
-// 				}
-// 				int reg = I.ops[0].index - R_RAX;
-// 				int large = I.ops[0].index >= R_R8?1:0;
-// 				*d++ = large ? 0x49 : 0x48;
-// 				*d++ = 0xb8 + (reg - (large?(R_R8-R_RAX):0));
-// 				int64_t offset = offsets[i+1] + I.disp;
-// 				intptr_t base = (intptr_t)pSrc;
-
-// 				intptr_t sum = base + offset;
-// 				intptr_t* pAddress = (intptr_t*)d;
-// 				pAddress[0] = sum;			
-// 				s += size;
-// 				d += 10;
-// 				d = (char*)(pAddress + 1);
-// 			}
-// 			else
-// 			{
-// 				if(15&(intptr_t)pTrunk)
-// 				{
-// 					__builtin_trap();
-// 				}
-// 				intptr_t t = (intptr_t)pTrunk;
-// 				t = (t+15) &~15;
-// 				pTrunk = (char*)t;
-// 				auto& O = I.ops[1];
-// 				uint32_t Op1Size = O.size / 8;
-
-
-// 				memcpy(d, s, size);
-// 				int32_t DispOriginal = I.disp;
-// 				const char* pOriginal = (s + size) + DispOriginal;
-
-// 				intptr_t DispNew = (pTrunk - (d + size));
-// 				if(!((intptr_t)pTrunk + Op1Size <= (intptr_t)pTrunkEnd))
-// 				{
-// 					__builtin_trap();
-// 				}
-// 				memcpy(pTrunk, pOriginal, Op1Size);
-// 				pTrunk += Align16(Op1Size);
-// 				if(I.dispSize == 32)
-// 				{
-// 					int32_t off = (int32_t)DispNew;
-// 					if(DispNew > 0x7fffffff || DispNew < 0)
-// 					{
-// 						__builtin_trap();
-// 					}
-// 					memcpy(d + size - 4, &off, 4);
-
-// 				}else if(I.dispSize == 16)
-// 				{
-// 					int16_t off = (int16_t)DispNew;
-// 					if(DispNew > 0x7fff || DispNew < 0)
-// 					{
-// 						__builtin_trap();
-// 					}
-// 					memcpy(d + size - 2, &off, 2);
-// 				}
-
-// 				d += size;
-// 				s += size;
-
-// 			}
-// 		}
-// 		else
-// 		{
-// 			memcpy(d, s, size);
-// 			d += size;
-// 			s += size;
-// 		}
-// 	}
-
-
-// 	*nBytesDest = d - pDest;
-// 	*nBytesSrc = s - (char*)pSrc;
-
-// 	return true;
-// }
 
 
 bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter, MicroProfileHookFunc leave, PatchError* pError) __attribute__((optnone))
 {
-
-
 	if(pError)
 	{
 		memcpy(&pError->Code[0], f, 12);
@@ -9590,20 +9219,204 @@ int MicroProfileFindFunctionName(const char* pStr, const char** ppStart)
 	*ppStart = pStr + nFirst;
 	return nCount;
 }
+struct MicroProfileSymbolDesc
+{
+	const char* pName;
+	const char* pShortName;
+	intptr_t nAddress;
+};
+struct MicroProfileSymbolBlock
+{
+	MicroProfileSymbolBlock* pNext;
+	uint32_t nNumSymbols;
+	uint32_t nNumChars;
+	enum
+	{
+		ESIZE = 64<<10,
+	};
+	union
+	{
+		MicroProfileSymbolDesc Symbols[ ESIZE / sizeof(MicroProfileSymbolDesc) ];
+		char Chars[ ESIZE ];
+	};
+
+};
+
+static MicroProfileSymbolBlock* g_pSymbolBlock = nullptr;
+typedef void (*MicroProfileOnSymbolCallback)(const char* pSymbolName, intptr_t nAddress);
+
+template<typename Callback>
+void MicroProfileIterateSymbols(Callback CB)
+{
+	char FunctionName[1024];
+	(void)FunctionName;
+	mach_port_name_t task = mach_task_self();
+    vm_map_offset_t vmoffset = 0;
+	mach_vm_size_t vmsize = 0;
+	uint32_t nd;
+	kern_return_t kr;
+	vm_region_submap_info_64 vbr;
+	mach_msg_type_number_t vbrcount = sizeof(vbr)/4;
+	static unsigned long size = 128;
+	static char* pTempBuffer = (char*)malloc(size); // needs to be malloc because demangle function might realloc it.
+	auto OnFunction = [&](void* addr, const char* pSymbol) -> bool
+	{
+		unsigned long len = size;
+		int ret = 0;
+		char* pBuffer = pTempBuffer;
+		pBuffer = abi::__cxa_demangle(pSymbol, pTempBuffer, &len, &ret);
+		const char* pStr = nullptr;
+		if(ret == 0)
+		{
+			if(pBuffer != pTempBuffer)
+			{
+				pTempBuffer = pBuffer;
+				if(len < size)
+					__builtin_trap();
+				size = len;
+			}
+			pStr = pTempBuffer;
+		}
+		else
+		{
+			pStr = pSymbol;
+		}
+		int l = MicroProfileTrimFunctionName(pStr, &FunctionName[0], &FunctionName[1024]);
+		CB(l ? &FunctionName[0] : pStr, l ? &FunctionName[0] : 0, (intptr_t)addr);
+		return true;
+	};
+	vm_offset_t addr_prev = 0;
+
+	while(KERN_SUCCESS == (kr = mach_vm_region_recurse(task, &vmoffset, &vmsize, &nd, (vm_region_recurse_info_t)&vbr, &vbrcount)))
+	{
+		{
+			addr_prev = vmoffset + vmsize;
+			if(0 != (vbr.protection&VM_PROT_EXECUTE))
+			{
+				dl_info di;
+				int r = 0;
+				r = dladdr( (void*)vmoffset, &di);
+				if(r)
+				{
+
+					if(OnFunction(di.dli_saddr, di.dli_sname))
+					{
+					}
+				}
+				intptr_t addr = vmoffset + vmsize-1;
+				for(int i = 0; i < 10000; ++i)
+				{
+					r = dladdr( (void*)(addr), &di);
+					if(r)
+					{
+						if(!di.dli_sname)
+						{
+							break;
+						}
+						if(OnFunction(di.dli_saddr, di.dli_sname))
+						{
+						}
+
+					}	
+					else
+					{
+						break;
+					}
+					addr_prev = (vm_offset_t)di.dli_saddr;
+					addr = (intptr_t)di.dli_saddr-1;
+					if(di.dli_saddr<(void*)vmoffset)
+					{
+						break;
+					}
+
+				}
+			}
+		}
+		vmoffset += vmsize;
+		vbrcount = sizeof(vbr)/4;
+	}
+}
+
+void MicroProfileInitializeSymbols()
+{
+	if(g_pSymbolBlock)
+	{
+		return;
+	}
+	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileInitializeSymbols", MP_CYAN);
+	auto AllocBlock = []() -> MicroProfileSymbolBlock*
+	{
+
+		MicroProfileSymbolBlock* pBlock = MP_ALLOC_OBJECT(MicroProfileSymbolBlock);
+		MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Allocs", 1);
+		MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Memory", sizeof(MicroProfileSymbolBlock));
+		MICROPROFILE_COUNTER_CONFIG_ONCE("/MicroProfile/Symbols/Memory", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, 0);
+		memset(pBlock, 0, sizeof(MicroProfileSymbolBlock));
+		return pBlock;
+	};
+
+
+	MicroProfileSymbolBlock* pActiveBlock = AllocBlock();
+	g_pSymbolBlock = pActiveBlock;
+
+
+	auto SymbolCallback = [&](const char* pName, const char* pShortName, intptr_t nAddress)
+	{
+		if(pName == pShortName)
+		{
+			pShortName = 0;
+		}
+		uint32_t nLen = strlen(pName) + 1;
+		uint32_t nLenShort = pShortName?strlen(pShortName):0;
+		uint32_t S0 = sizeof(MicroProfileSymbolDesc) * pActiveBlock->nNumSymbols;
+		uint32_t S1 = pActiveBlock->nNumChars;
+		uint32_t S3 = nLenShort+nLen + sizeof(MicroProfileSymbolDesc);
+		if(S0 + S1 + S3 > MicroProfileSymbolBlock::ESIZE)
+		{
+			MicroProfileSymbolBlock* pNewBlock = AllocBlock();
+			pActiveBlock->pNext = pNewBlock;
+			pActiveBlock = pNewBlock;
+		}
+		pActiveBlock->nNumChars += nLen;
+		char* pStr = &pActiveBlock->Chars[MicroProfileSymbolBlock::ESIZE - pActiveBlock->nNumChars];
+		memcpy(pStr, pName, nLen);
+		MicroProfileSymbolDesc& E = pActiveBlock->Symbols[pActiveBlock->nNumSymbols++];
+		E.pName = pStr;
+		E.nAddress = nAddress;
+		if(pShortName && strlen(pShortName))
+		{
+			pActiveBlock->nNumChars += nLenShort;
+			char* pStrShort = &pActiveBlock->Chars[MicroProfileSymbolBlock::ESIZE - pActiveBlock->nNumChars];
+			memcpy(pStrShort, pShortName, nLenShort);
+			E.pShortName = pStrShort;
+		}
+		else
+		{
+			E.pShortName = E.pName;
+		}
+			MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Count", 1);
+
+		MP_ASSERT((intptr_t)E.pShortName >= (intptr_t)&E); //assert pointer arithmetic is correct.
+
+	};
+	MicroProfileIterateSymbols(SymbolCallback);
+}
 
 
 
 
 void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter)
 {
+	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileQueryFunctions", MP_WHEAT);
 	FF = fopen("symbols.txt", "w");
+	MicroProfileInitializeSymbols();
 	const int MAX_FILTER = 32;
 	const char* pFilterStrings[MAX_FILTER];
 	uint32_t nPatternLength[MAX_FILTER];
 	int nMaxFilter = 0;
 	int nLen = strlen(pFilter)+1;
 	char* pBuffer = (char*)alloca(nLen);
-	memcpy(pBuffer, pFilter, nLen);
+	memcpy(pBuffer, pFilter, nLen);	
 	bool bStartString = true;
 	for(uint32_t i = 0; i < nLen; ++i)
 	{
@@ -9633,126 +9446,37 @@ void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter)
 	{
 		nPatternLength[i] = strlen(pFilterStrings[i]);
 	}
-	char FunctionName[1024];
-	mach_port_name_t task = mach_task_self();
-    vm_map_offset_t vmoffset = 0;
-	mach_vm_size_t vmsize = 0;
-	uint32_t nd;
-	kern_return_t kr;
-	vm_region_submap_info_64 vbr;
-	mach_msg_type_number_t vbrcount = sizeof(vbr)/4;
-	static unsigned long size = 128;
-	static char* pTempBuffer = (char*)malloc(size); // needs to be malloc because demangle function might realloc it.
-	WSPrintStart(Connection);
-	WSPrintf("{\"k\":\"%d\",\"v\":[", MSG_FUNCTION_RESULTS);
-	bool bFirst = true;
-	auto OnFunction = [&](void* addr, const char* pSymbol) -> bool
-	{
-		unsigned long len = size;
-		int ret = 0;
-		char* pBuffer = pTempBuffer;
-		pBuffer = abi::__cxa_demangle(pSymbol, pTempBuffer, &len, &ret);
-		const char* pStr = nullptr;
-		if(ret == 0)
-		{
-			if(pBuffer != pTempBuffer)
-			{
-				pTempBuffer = pBuffer;
-				if(len < size)
-					__builtin_trap();
-				size = len;
-			}
-			pStr = pTempBuffer;
-		}
-		else
-		{
-			pStr = pSymbol;
-		}
-		int l = MicroProfileTrimFunctionName(pStr, &FunctionName[0], &FunctionName[1024]);
-		if(MicroProfileStringMatch(l ? &FunctionName[0] : pStr, &pFilterStrings[0], nPatternLength, nMaxFilter))
-		{
-			const char* pShortName = l ? &FunctionName[0] :"";
-
-
-			if(bFirst)
-			{
-				// printf("{\"a\":\"%p\",\"n\":\"%s\"}", addr, pStr);
-				WSPrintf("{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", addr, pStr, pShortName);
-				bFirst = false;
-			}
-			else
-			{
-				// printf(",{\"a\":\"%p\",\"n\":\"%s\"}", addr, pStr);
-				WSPrintf(",{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", addr, pStr, pShortName);
-			}
-			return true;
-		}
-		else
-		{
-			return false;
-		}	
-
-
-
-
-	};
-	const int LIM = 40;
+	const int LIM = 25;
 	int xx = 0;
-	vm_offset_t addr_prev = 0;
 
-	while(KERN_SUCCESS == (kr = mach_vm_region_recurse(task, &vmoffset, &vmsize, &nd, (vm_region_recurse_info_t)&vbr, &vbrcount)))
+	WSPrintStart(Connection);
+	WSPrintf("{\"k\":\"%d\",\"v\":[", MSG_FUNCTION_RESULTS);	
+	bool bFirst = true;
+	MicroProfileSymbolBlock* pSymbols = g_pSymbolBlock;
+	while(pSymbols&&xx < LIM)
 	{
 		{
-			addr_prev = vmoffset + vmsize;
-			if(0 != (vbr.protection&VM_PROT_EXECUTE))
+			for(uint32_t i = 0; i < pSymbols->nNumSymbols && xx < LIM; ++i)
 			{
-				// printf("checking region [%p-%p]\n", (void*)vmoffset, (void*)(vmoffset + vmsize));
-				dl_info di;
-				int r = 0;
-				r = dladdr( (void*)vmoffset, &di);
-				if(r)
+				MicroProfileSymbolDesc& E = pSymbols->Symbols[i];
+				if(MicroProfileStringMatch(E.pShortName, &pFilterStrings[0], nPatternLength, nMaxFilter))
 				{
-
-					if(OnFunction(di.dli_saddr, di.dli_sname))
+					xx++;
+					if(bFirst)
 					{
-						// printf("match [%p-%p] %s\n", di.dli_saddr, (void*)addr_prev, di.dli_sname);
-						if(xx++ > LIM) break;
+						WSPrintf("{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", E.nAddress, E.pName, E.pShortName);
+						bFirst = false;
 					}
-				}
-				intptr_t addr = vmoffset + vmsize-1;
-				for(int i = 0; i < 10000; ++i)
-				{
-					r = dladdr( (void*)(addr), &di);
-					if(r)
-					{
-						if(!di.dli_sname)
-						{
-							break;
-						}
-						if(OnFunction(di.dli_saddr, di.dli_sname))
-						{
-							// printf("match [%p-%p] %s\n", di.dli_saddr, (void*)addr_prev, di.dli_sname);
-							if(xx++ > LIM) break;
-						}
-
-					}	
 					else
 					{
-						break;
+						WSPrintf(",{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", E.nAddress, E.pName, E.pShortName);
 					}
-					addr_prev = (vm_offset_t)di.dli_saddr;
-					addr = (intptr_t)di.dli_saddr-1;
-					if(di.dli_saddr<(void*)vmoffset)
-					{
-						break;
-					}
-
 				}
 			}
 		}
-		vmoffset += vmsize;
-		vbrcount = sizeof(vbr)/4;
+		pSymbols = pSymbols->pNext;
 	}
+
 	WSPrintf("]}");
 	WSFlush();
 	WSPrintEnd();
@@ -9808,14 +9532,5 @@ static void* MicroProfileAllocExecutableMemory(size_t s)
 
 #include "microprofile_html.h"
 
-
-//instrument todo:
-// 		WINDOWS
-//       **support for calls to __chkstk
-//
-//		Send instrumented functions
-//		Only parse debug info once. cache symbol lookup
-//		cleanup so symbol stuff is shared
-//      fix so patch code is copy pastable
 
 
