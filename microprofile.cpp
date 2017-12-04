@@ -8373,7 +8373,7 @@ void MicroProfileInitializeSymbols()
 			pShortName = 0;
 		}
 		uint32_t nLen = (uint32_t)strlen(pName) + 1;
-		uint32_t nLenShort = (uint32_t)(pShortName?strlen(pShortName):0);
+		uint32_t nLenShort = (uint32_t)(pShortName?1+strlen(pShortName):0);
 		uint32_t S0 = sizeof(MicroProfileSymbolDesc) * pActiveBlock->nNumSymbols;
 		uint32_t S1 = pActiveBlock->nNumChars;
 		uint32_t S3 = nLenShort+nLen + sizeof(MicroProfileSymbolDesc);
