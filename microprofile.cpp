@@ -4569,10 +4569,10 @@ void MicroProfile_SHA1_Final(unsigned char digest[20], MicroProfile_SHA1_CTX *co
 
 void MicroProfileWebSocketSendState(MpSocket C);
 void MicroProfileWebSocketSendEnabled(MpSocket C);
-void WSPrintStart(MpSocket C);
-void WSPrintf(const char* pFmt, ...);
-void WSPrintEnd();
-void WSFlush();
+void MicroProfileWSPrintStart(MpSocket C);
+void MicroProfileWSPrintf(const char* pFmt, ...);
+void MicroProfileWSPrintEnd();
+void MicroProfileWSFlush();
 bool MicroProfileWebSocketReceive(MpSocket C);
 
 
@@ -5323,29 +5323,31 @@ bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSetting
 void MicroProfileWebSocketSendPresets(MpSocket Connection)
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileGetMutex());
-	WSPrintStart(Connection);
-	WSPrintf("{\"k\":\"%d\",\"v\":{", MSG_PRESETS);
-	WSPrintf("\"p\":[\"Default\"");
+	MicroProfileWSPrintStart(Connection);
+	MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{", MSG_PRESETS);
+	MicroProfileWSPrintf("\"p\":[\"Default\"");
 	MicroProfileParseSettings(MICROPROFILE_SETTINGS_FILE,
 		[](const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJsonLen)
+
+
 		{
-			WSPrintf(",\"%s\"", pName);
+			MicroProfileWSPrintf(",\"%s\"", pName);
 			return true;
 		}
 	);
-	WSPrintf("],\"r\":[");
+	MicroProfileWSPrintf("],\"r\":[");
 	bool bFirst = true;
 	MicroProfileParseSettings(MICROPROFILE_SETTINGS_FILE_BUILTIN,
 		[&bFirst](const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJsonLen)
 		{
-			WSPrintf("%c\"%s\"", bFirst ? ' ': ',', pName);
+			MicroProfileWSPrintf("%c\"%s\"", bFirst ? ' ': ',', pName);
 			bFirst = false;
 			return true;
 		}
 	);
-	WSPrintf("]}}");
-	WSFlush();
-	WSPrintEnd();
+	MicroProfileWSPrintf("]}}");
+	MicroProfileWSFlush();
+	MicroProfileWSPrintEnd();
 }
 
 void MicroProfileLoadPresets(const char* pSettingsName, bool bReadOnlyPreset)
@@ -5606,11 +5608,13 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 	{
 		if(S.pJsonSettings)
 		{
-			WSPrintStart(Connection);
-			WSPrintf("{\"k\":\"%d\",\"ro\":%d,\"v\":%s}", MSG_CURRENTSETTINGS, S.bJsonSettingsReadOnly ? 1 : 0, S.pJsonSettings);
-			WSFlush();
-			WSPrintEnd();
+			MicroProfileWSPrintStart(Connection);
+			MicroProfileWSPrintf("{\"k\":\"%d\",\"ro\":%d,\"v\":%s}", MSG_CURRENTSETTINGS, S.bJsonSettingsReadOnly ? 1 : 0, S.pJsonSettings);
+			MicroProfileWSFlush();
+			MicroProfileWSPrintEnd();
 		}
+
+
 	}
 
 }
@@ -5620,14 +5624,14 @@ void MicroProfileWebSocketSendCounters()
 	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileWebSocketSendCounters", MP_GREEN4);
 	if(S.nWSViewMode == VIEW_COUNTERS)
 	{
-		WSPrintf("{\"k\":\"%d\",\"v\":[", MSG_COUNTERS);
+		MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":[", MSG_COUNTERS);
 		for(uint32_t i = 0; i < S.nNumCounters; ++i)
 		{
 			uint64_t nCounter = S.Counters[i].load();
-			WSPrintf("%c%lld", i == 0 ? ' ' : ',', nCounter);
+			MicroProfileWSPrintf("%c%lld", i == 0 ? ' ' : ',', nCounter);
 		}
-		WSPrintf("]}");
-		WSFlush();
+		MicroProfileWSPrintf("]}");
+		MicroProfileWSFlush();
 	}
 }
 
@@ -5637,19 +5641,21 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 	{
 		MicroProfileWebSocketSendState(Connection);
 		MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileWebSocketSendFrame", MP_GREEN4);
-		WSPrintStart(Connection);
+		MicroProfileWSPrintStart(Connection);
 		float fTickToMsCpu = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
 		float fTickToMsGpu = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondGpu());
 		MicroProfileFrameState* pFrameCurrent = &S.Frames[S.nFrameCurrent];
 		MicroProfileFrameState* pFrameNext = &S.Frames[S.nFrameNext];
 
+
+
 		uint64_t nFrameTicks = pFrameNext->nFrameStartCpu - pFrameCurrent->nFrameStartCpu;
 		uint64_t nFrame = pFrameCurrent->nFrameId;
 		double fTime = nFrameTicks * fTickToMsCpu;
-		WSPrintf("{\"k\":\"%d\",\"v\":{\"t\":%f,\"f\":%lld,\"a\":%d,\"fr\":%d,\"m\":%d", MSG_FRAME, fTime, nFrame, MicroProfileGetCurrentAggregateFrames(), S.nFrozen, S.nWSViewMode);
+		MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{\"t\":%f,\"f\":%lld,\"a\":%d,\"fr\":%d,\"m\":%d", MSG_FRAME, fTime, nFrame, MicroProfileGetCurrentAggregateFrames(), S.nFrozen, S.nWSViewMode);
 		if(S.nFrameCurrent != S.WebSocketFrameLast[0])
 		{
-			WSPrintf(",\"x\":{");
+			MicroProfileWSPrintf(",\"x\":{");
 			int nTimer = S.WebSocketTimers;
 			while(-1 != nTimer)
 			{
@@ -5664,14 +5670,14 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 					fTime = fCount = fTimeExcl = 0.f;
 				}
 				nTimer = TI.nWSNext;
-				WSPrintf("\"%d\":[%f,%f,%f]%c", id, fTime, fTimeExcl, fCount, nTimer == -1 ? ' ' : ',');
+				MicroProfileWSPrintf("\"%d\":[%f,%f,%f]%c", id, fTime, fTimeExcl, fCount, nTimer == -1 ? ' ' : ',');
 			}
-			WSPrintf("}");
+			MicroProfileWSPrintf("}");
 		}
-		WSPrintf("}}");
-		WSFlush();
+		MicroProfileWSPrintf("}}");
+		MicroProfileWSFlush();
 		MicroProfileWebSocketSendCounters();
-		WSPrintEnd();
+		MicroProfileWSPrintEnd();
 		S.WebSocketFrameLast[0] = S.nFrameCurrent;
 	}
 }
@@ -5723,11 +5729,13 @@ void MicroProfileWebSocketFrame()
 		{
 			if(S.nJsonSettingsPending)
 			{
-				WSPrintStart(s);
-				WSPrintf("{\"k\":\"%d\",\"ro\":%d,\"v\":%s}", MSG_LOADSETTINGS, S.bJsonSettingsReadOnly ? 1 : 0, S.pJsonSettings);
-				WSFlush();
-				WSPrintEnd();
+				MicroProfileWSPrintStart(s);
+				MicroProfileWSPrintf("{\"k\":\"%d\",\"ro\":%d,\"v\":%s}", MSG_LOADSETTINGS, S.bJsonSettingsReadOnly ? 1 : 0, S.pJsonSettings);
+				MicroProfileWSFlush();
+				MicroProfileWSPrintEnd();
 				S.nJsonSettingsPending = 0;
+
+
 			}
 			if(S.nWebSocketDirty)
 			{
@@ -5783,14 +5791,15 @@ void MicroProfileWebSocketFrame()
 	}
 }
 
-void WSPrintStart(MpSocket C)
+void MicroProfileWSPrintStart(MpSocket C)
 {
 	MP_ASSERT(S.WSBuf.Socket == 0);
 	MP_ASSERT(S.WSBuf.nPut == 0);
 	S.WSBuf.Socket = C;
+
 }
 
-void WSPrintf(const char* pFmt, ...) 
+void MicroProfileWSPrintf(const char* pFmt, ...) 
 {
 	va_list args;
 	va_start (args, pFmt);
@@ -5800,7 +5809,6 @@ void WSPrintf(const char* pFmt, ...)
 
 
 #ifdef _WIN32
-	//todo: this crashes when overflowing
 	nRequiredSize = (int)vsnprintf_s(0, 0, 0, pFmt, args);
 #else
 	nRequiredSize = (int)vsnprintf(0, 0, pFmt, args);
@@ -5812,17 +5820,14 @@ void WSPrintf(const char* pFmt, ...)
 		S.WSBuf.pBufferAllocation = (char*)MICROPROFILE_REALLOC(S.WSBuf.pBufferAllocation, nNewSize);
 		S.WSBuf.pBuffer = S.WSBuf.pBufferAllocation + 20;
 		S.WSBuf.nBufferSize = nNewSize - 20;
-		printf("Did buffer realloc %d\n", nNewSize);
 	}
 
-//	va_end(args);
 	va_start (args, pFmt);
 
 	uint32_t nSpace = S.WSBuf.nBufferSize - S.WSBuf.nPut - 1;
 	MP_ASSERT(nSpace > nRequiredSize);
 	char* pPut = &S.WSBuf.pBuffer[S.WSBuf.nPut];
 #ifdef _WIN32
-	//todo: this crashes when overflowing
 	int nSize = (int)vsnprintf_s(pPut, nSpace, nSpace, pFmt, args);
 #else
 	int nSize = (int)vsnprintf(pPut, nSpace, pFmt, args);
@@ -5833,13 +5838,13 @@ void WSPrintf(const char* pFmt, ...)
 }
 
 
-void WSPrintEnd()
+void MicroProfileWSPrintEnd()
 {
 	MP_ASSERT(S.WSBuf.nPut == 0);
 	S.WSBuf.Socket = 0;
 }
 
-void WSFlush()
+void MicroProfileWSFlush()
 {
 	MP_ASSERT(S.WSBuf.Socket != 0);
 	MP_ASSERT(S.WSBuf.nPut != 0);
@@ -5848,18 +5853,19 @@ void WSFlush()
 }
 void MicroProfileWebSocketSendEnabledMessage(uint32_t id, int bEnabled)
 {
-	WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"e\":%d}}", MSG_ENABLED, id, bEnabled?1:0);
-	WSFlush();
+	MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"e\":%d}}", MSG_ENABLED, id, bEnabled?1:0);
+	MicroProfileWSFlush();
 
 }
 void MicroProfileWebSocketSendEnabled(MpSocket C)
 {
 	MICROPROFILE_SCOPEI("MicroProfile", "Websocket-SendEnabled", MP_GREEN4);
-	WSPrintStart(C);
+	MicroProfileWSPrintStart(C);
 	for(uint32_t i = 0; i < S.nCategoryCount; ++i)
 	{
 		MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_CATEGORY, i), MicroProfileCategoryEnabled(i));
 	}
+
 
 	for(uint32_t i = 0; i < S.nGroupCount; ++i)
 	{
@@ -5874,37 +5880,39 @@ void MicroProfileWebSocketSendEnabled(MpSocket C)
 	MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_PLATFORM_MARKERS), MicroProfilePlatformMarkersGetEnabled());
 
 
-	WSPrintEnd();
+	MicroProfileWSPrintEnd();
 }
 void MicroProfileWebSocketSendEntry(uint32_t id, uint32_t parent, const char* pName, int nEnabled, uint32_t nColor)
 {
-	WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
-	WSPrintf("\"name\":\"%s\",", pName);
-	WSPrintf("\"e\":%d,", nEnabled);	
-	WSPrintf("\"color\":\"#%02x%02x%02x\"", MICROPROFILE_UNPACK_RED(nColor) & 0xff, MICROPROFILE_UNPACK_GREEN(nColor) & 0xff, MICROPROFILE_UNPACK_BLUE(nColor) & 0xff);
-	WSPrintf("}}");
-	WSFlush();
+	MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
+	MicroProfileWSPrintf("\"name\":\"%s\",", pName);
+	MicroProfileWSPrintf("\"e\":%d,", nEnabled);	
+	MicroProfileWSPrintf("\"color\":\"#%02x%02x%02x\"", MICROPROFILE_UNPACK_RED(nColor) & 0xff, MICROPROFILE_UNPACK_GREEN(nColor) & 0xff, MICROPROFILE_UNPACK_BLUE(nColor) & 0xff);
+	MicroProfileWSPrintf("}}");
+	MicroProfileWSFlush();
 }
 
 void MicroProfileWebSocketSendCounterEntry(uint32_t id, uint32_t parent, const char* pName, int64_t nLimit, int nFormat)
 {
-	WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
-	WSPrintf("\"name\":\"%s\",", pName);
-	WSPrintf("\"limit\":%d,", nLimit);	
-	WSPrintf("\"format\":%d", nFormat);	
-	WSPrintf("}}");
-	WSFlush();
+	MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
+	MicroProfileWSPrintf("\"name\":\"%s\",", pName);
+	MicroProfileWSPrintf("\"limit\":%d,", nLimit);	
+	MicroProfileWSPrintf("\"format\":%d", nFormat);	
+	MicroProfileWSPrintf("}}");
+	MicroProfileWSFlush();
 }
 
 void MicroProfileWebSocketSendState(MpSocket C)
 {
 	if(S.WSCategoriesSent != S.nCategoryCount || S.WSGroupsSent != S.nGroupCount || S.WSTimersSent != S.nTotalTimers || S.WSCountersSent != S.nNumCounters)
 	{
-		WSPrintStart(C);
+		MicroProfileWSPrintStart(C);
 		uint32_t root = MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_FORCE_ENABLE);
 		MicroProfileWebSocketSendEntry(root, 0, "All", MicroProfileGetEnableAllGroups(), (uint32_t)-1);
 		for(uint32_t i = S.WSCategoriesSent; i < S.nCategoryCount; ++i)
 		{
+
+
 			MicroProfileCategory& CI = S.CategoryInfo[i];
 			uint32_t id = MicroProfileWebSocketIdPack(TYPE_CATEGORY, i);
 			uint32_t parent = root;
@@ -5940,7 +5948,7 @@ void MicroProfileWebSocketSendState(MpSocket C)
 #if MICROPROFILE_PLATFORM_MARKERS
 		MicroProfileWebSocketSendEntry(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_PLATFORM_MARKERS), 0, "Platform Markers", S.bContextSwitchRunning, (uint32_t)-1);
 #endif
-		WSPrintEnd();
+		MicroProfileWSPrintEnd();
 
 		S.WSCategoriesSent = S.nCategoryCount;
 		S.WSGroupsSent = S.nGroupCount;
@@ -8478,18 +8486,25 @@ void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter)
 			bStartString = false;
 		}
 	}
+	#if 1
+	printf("query ::");
 	for(int i = 0; i < nMaxFilter; ++i)
 	{
 		nPatternLength[i] = (uint32_t)strlen(pFilterStrings[i]);
+		printf("'%s' ", pFilterStrings[i]);
 	}
+	printf("\n");
+	#endif
 	const int LIM = 25;
 	int xx = 0;
 
-	WSPrintStart(Connection);
-	WSPrintf("{\"k\":\"%d\",\"v\":[", MSG_FUNCTION_RESULTS);	
+	MicroProfileWSPrintStart(Connection);
+	MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":[", MSG_FUNCTION_RESULTS);	
 	bool bFirst = true;
 	MicroProfileSymbolBlock* pSymbols = g_pSymbolBlock;
 	while(pSymbols&&xx < LIM)
+
+
 	{
 		{
 			for(uint32_t i = 0; i < pSymbols->nNumSymbols && xx < LIM; ++i)
@@ -8500,12 +8515,12 @@ void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter)
 					xx++;
 					if(bFirst)
 					{
-						WSPrintf("{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", E.nAddress, E.pName, E.pShortName);
+						MicroProfileWSPrintf("{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", E.nAddress, E.pName, E.pShortName);
 						bFirst = false;
 					}
 					else
 					{
-						WSPrintf(",{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", E.nAddress, E.pName, E.pShortName);
+						MicroProfileWSPrintf(",{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", E.nAddress, E.pName, E.pShortName);
 					}
 				}
 			}
@@ -8513,9 +8528,9 @@ void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter)
 		pSymbols = pSymbols->pNext;
 	}
 
-	WSPrintf("]}");
-	WSFlush();
-	WSPrintEnd();
+	MicroProfileWSPrintf("]}");
+	MicroProfileWSFlush();
+	MicroProfileWSPrintEnd();
 }
 
 
@@ -8940,13 +8955,13 @@ BOOL MicroProfileQueryContextEnumSymbols (
 // 		if(pQ->bFirst)
 // 		{
 // 			printf("{\"a\":\"%p\",\"n\":\"%s\"}", addr, pSymbol);
-// 			WSPrintf("{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", addr, pSymbol, pShortName);
+// 			MicroProfileWSPrintf("{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", addr, pSymbol, pShortName);
 // 			pQ->bFirst = false;
 // 		}
 // 		else
 // 		{
 // 			printf(",{\"a\":\"%p\",\"n\":\"%s\"}", addr, pSymbol);
-// 			WSPrintf(",{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", addr, pSymbol, pShortName);
+// 			MicroProfileWSPrintf(",{\"a\":\"%p\",\"n\":\"%s\",\"sn\":\"%s\"}", addr, pSymbol, pShortName);
 // 		}
 // 		return true;
 // 	}
