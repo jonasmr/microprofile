@@ -81,6 +81,8 @@ enum EMicroProfileTokenSpecial
 //		Only parse debug info once. cache symbol lookup
 //		cleanup so symbol stuff is shared
 //      fix so patch code is copy pastable
+//		Log fail instrumentations
+//		***fix buffer size for ws
 
 
 enum
@@ -439,8 +441,9 @@ struct MicroProfileThreadLog
 
 struct MicroProfileWebSocketBuffer
 {
-	char Header[20];
-	char Buffer[MICROPROFILE_WEBSOCKET_BUFFER_SIZE];
+	char* pBufferAllocation;
+	char* pBuffer;
+	uint32_t nBufferSize;
 	uint32_t nPut;
 	MpSocket Socket;
 
@@ -1134,6 +1137,9 @@ void MicroProfileInit()
 		S.nJsonSettingsPending = 0;
 		S.nJsonSettingsBufferSize = 0;
 		S.nWSWasConnected = 0;
+		S.WSBuf.pBufferAllocation = (char*)MICROPROFILE_ALLOC(MICROPROFILE_WEBSOCKET_BUFFER_SIZE, 8);
+		S.WSBuf.pBuffer = S.WSBuf.pBufferAllocation + 20;
+		S.WSBuf.nBufferSize = MICROPROFILE_WEBSOCKET_BUFFER_SIZE - 20;
 
 		for(uint32_t i = 0; i < MICROPROFILE_TIMELINE_MAX_TOKENS; ++i)
 		{
@@ -1175,7 +1181,10 @@ void MicroProfileShutdown()
 			S.nJsonSettingsBufferSize = 0;
 		}
 		MicroProfileGpuShutdown();
+		MICROPROFILE_FREE(S.WSBuf.pBufferAllocation);
+
 	}
+
 }
 
 #ifdef MICROPROFILE_IOS
@@ -4903,7 +4912,8 @@ bool MicroProfileWebSocketSend(MpSocket Connection, const char* pMessage, uint64
 	{
 		h1.payload = nLen;
 	}
-	MP_ASSERT(pMessage == &S.WSBuf.Buffer[0]); //space for header is preallocated here
+	MP_ASSERT(pMessage == S.WSBuf.pBuffer); //space for header is preallocated here
+	MP_ASSERT(pMessage == S.WSBuf.pBufferAllocation + 20); //space for header is preallocated here
 	MP_ASSERT(nExtraSizeBytes < 18);
 	char* pTmp = (char*)(pMessage - nExtraSizeBytes - 2);
 	memcpy(pTmp+2, &nExtraSize[0], nExtraSizeBytes);
@@ -5785,9 +5795,32 @@ void WSPrintf(const char* pFmt, ...)
 	va_list args;
 	va_start (args, pFmt);
 
-	MP_ASSERT(S.WSBuf.nPut < MICROPROFILE_WEBSOCKET_BUFFER_SIZE);
-	uint32_t nSpace = MICROPROFILE_WEBSOCKET_BUFFER_SIZE - S.WSBuf.nPut - 1;
-	char* pPut = &S.WSBuf.Buffer[S.WSBuf.nPut];
+	int nRequiredSize = 0;
+	MP_ASSERT(S.WSBuf.nPut < S.WSBuf.nBufferSize);
+
+
+#ifdef _WIN32
+	//todo: this crashes when overflowing
+	nRequiredSize = (int)vsnprintf_s(0, 0, 0, pFmt, args);
+#else
+	nRequiredSize = (int)vsnprintf(0, 0, pFmt, args);
+#endif
+
+	if(S.WSBuf.nPut + nRequiredSize + 2 > S.WSBuf.nBufferSize)
+	{
+		uint32_t nNewSize = MicroProfileMax(S.WSBuf.nPut + 2 * (nRequiredSize + 2 + 20), S.WSBuf.nBufferSize * 3 / 2);
+		S.WSBuf.pBufferAllocation = (char*)MICROPROFILE_REALLOC(S.WSBuf.pBufferAllocation, nNewSize);
+		S.WSBuf.pBuffer = S.WSBuf.pBufferAllocation + 20;
+		S.WSBuf.nBufferSize = nNewSize - 20;
+		printf("Did buffer realloc %d\n", nNewSize);
+	}
+
+//	va_end(args);
+	va_start (args, pFmt);
+
+	uint32_t nSpace = S.WSBuf.nBufferSize - S.WSBuf.nPut - 1;
+	MP_ASSERT(nSpace > nRequiredSize);
+	char* pPut = &S.WSBuf.pBuffer[S.WSBuf.nPut];
 #ifdef _WIN32
 	//todo: this crashes when overflowing
 	int nSize = (int)vsnprintf_s(pPut, nSpace, nSpace, pFmt, args);
@@ -5810,7 +5843,7 @@ void WSFlush()
 {
 	MP_ASSERT(S.WSBuf.Socket != 0);
 	MP_ASSERT(S.WSBuf.nPut != 0);
-	MicroProfileWebSocketSend(S.WSBuf.Socket, &S.WSBuf.Buffer[0], S.WSBuf.nPut);
+	MicroProfileWebSocketSend(S.WSBuf.Socket, &S.WSBuf.pBuffer[0], S.WSBuf.nPut);
 	S.WSBuf.nPut = 0;
 }
 void MicroProfileWebSocketSendEnabledMessage(uint32_t id, int bEnabled)
