@@ -330,6 +330,12 @@ var BarColumnNamesTable = [StrAverage, StrMax, StrTotal, StrMin, StrSpike, StrCa
 var BarColumnNamesMulti = [StrTime, StrAverage, StrMax, StrMin, StrExclAverage, StrExclMax, StrExclMin];
 var BarColumnNamesSingle = [StrAverage, StrMax, StrMin, StrExclAverage, StrExclMax, StrExclMin, StrCallAverage];
 
+var SYMBOLSTATE_DEFAULT = 0;
+var SYMBOLSTATE_LOADING = 1;
+var SYMBOLSTATE_DONE = 2;
+
+
+var SymbolState;
 
 function ConvertHslToRGB(h, s, l) //from https://gist.github.com/mjackson/5311256
 {
@@ -3122,6 +3128,7 @@ function DrawMenuFunctions()
 	SizeInfo.y = MenuItems[SubMenuFunctions].y;
 	var Y = SizeInfo.y;
 	var Width = SizeInfo.w;
+	Width = Math.max(300, Width);
 	Width = 10+ MeasureArray(Width, FF, function(s){return s.n;} );
 
 	if(Width + SizeInfo.x + 50 > nWidth)
@@ -3133,10 +3140,55 @@ function DrawMenuFunctions()
 
 	var Selection = null;
 	var X = SizeInfo.x;
-	MoveFilterInputDiv(SizeInfo.x, SizeInfo.y, SizeInfo.w);
+	context.fillStyle = nBackColors[0];
+	TextY = Y+BoxHeight-FontAscent;
+	context.fillRect(X+100, Y, Width-100, BoxHeight);
+	var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight && MouseX-X < 100;
+	if(bMouseIn)
+	{
+		context.fillStyle = nBackColorOffset;
+	}
+	context.fillRect(X, Y, 99, BoxHeight);
+	
+	var NumSymbols = 0;
+	var SymbolStateString = "Load";
+	var SymbolButtonActive = 1;
+	if(SymbolState)
+	{
+		var s = SymbolState.s;
+		NumSymbols = SymbolState.l;
+		if(s == SYMBOLSTATE_DONE)
+		{
+			SymbolStateString = "Reload"
+		}
+		else if(s == SYMBOLSTATE_LOADING)
+		{
+			SymbolStateString = "Loading";
+			SymbolButtonActive = 0;
+		}
+	}
+	context.textAlign = 'right';
+	context.fillStyle = 'white';
+	context.fillText(NumSymbols + " symbols loaded", X+Width-2, TextY);
+	context.textAlign = 'center';
+	if(SymbolButtonActive)
+	{
+		if(bMouseIn && MouseReleased)
+		{
+			WSSendMessage("S"); //load symbols
+		}
+		context.fillText(SymbolStateString, X + 50, TextY);
+	}
+	else
+	{
+		context.fillStyle = 'grey';
+		context.fillText(SymbolStateString, X + 50, TextY);
+	}
+	Y += BoxHeight;
+	MoveFilterInputDiv(SizeInfo.x, Y, SizeInfo.w-6);
 	Y += 45;
 
-	var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+	bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
 	var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
 	var TextY = Y+BoxHeight-FontAscent;
 	var YClear = Y;
@@ -3921,6 +3973,10 @@ function ProcessCounters(C)
 
 function ProcessFrame(F)
 {
+	if(F.s)
+	{
+		SymbolState = F.s;
+	}
 	if(F.fr)
 	{
 		IsFrozen = 10;//allow it to stabilize after freezing

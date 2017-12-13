@@ -6199,6 +6199,12 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "var BarColumnNamesMulti = [StrTime, StrAverage, StrMax, StrMin, StrExclAverage, StrExclMax, StrExclMin];\n"
 "var BarColumnNamesSingle = [StrAverage, StrMax, StrMin, StrExclAverage, StrExclMax, StrExclMin, StrCallAverage];\n"
 "\n"
+"var SYMBOLSTATE_DEFAULT = 0;\n"
+"var SYMBOLSTATE_LOADING = 1;\n"
+"var SYMBOLSTATE_DONE = 2;\n"
+"\n"
+"\n"
+"var SymbolState;\n"
 "\n"
 "function ConvertHslToRGB(h, s, l) //from https://gist.github.com/mjackson/5311256\n"
 "{\n"
@@ -7198,16 +7204,16 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "	context.fillRect(0, 0, Width, Height);\n"
 "	context.fillStyle = \'white\';\n"
 "	SortColumnMouseOverNext = null;\n"
-"	X = NameWidth + XBase;\n"
+"	X = NameWidth";
+
+const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
+const char g_MicroProfileHtmlLive_begin_1[] =
+" + XBase;\n"
 "	R = 0;\n"
 "	DrawHeaderSplit(StrAverage);\n"
 "	DrawHeaderSplit(StrMax);\n"
 "	DrawHeaderSplit(StrTotal);\n"
-"	";
-
-const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
-const char g_MicroProfileHtmlLive_begin_1[] =
-"DrawHeaderSplit(StrMin);\n"
+"	DrawHeaderSplit(StrMin);\n"
 "	DrawHeaderSplitSingle(StrSpike);\n"
 "	DrawHeaderSplit(StrCallAverage);\n"
 "	DrawHeaderSplitSingle(StrCount);\n"
@@ -8704,18 +8710,18 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	M.cidx = 1-M.cidx;\n"
 "\n"
 "	M.y += BoxHeight;\n"
-"	if(Type && MouseReleased && bMouseIn && !MouseReleasedUsed)\n"
+"	if(Type && MouseReleased && bMouseIn && !MouseRe";
+
+const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
+const char g_MicroProfileHtmlLive_begin_2[] =
+"leasedUsed)\n"
 "	{\n"
 "		var V = ShowPrompt(Name, RollValue, Type);\n"
 "		RollFunction(0,0,V);\n"
 "	}\n"
 "	return Tweak;\n"
 "\n"
-"}";
-
-const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
-const char g_MicroProfileHtmlLive_begin_2[] =
-"\n"
+"}\n"
 "\n"
 "\n"
 "\n"
@@ -8999,6 +9005,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	SizeInfo.y = MenuItems[SubMenuFunctions].y;\n"
 "	var Y = SizeInfo.y;\n"
 "	var Width = SizeInfo.w;\n"
+"	Width = Math.max(300, Width);\n"
 "	Width = 10+ MeasureArray(Width, FF, function(s){return s.n;} );\n"
 "\n"
 "	if(Width + SizeInfo.x + 50 > nWidth)\n"
@@ -9010,10 +9017,55 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "\n"
 "	var Selection = null;\n"
 "	var X = SizeInfo.x;\n"
-"	MoveFilterInputDiv(SizeInfo.x, SizeInfo.y, SizeInfo.w);\n"
+"	context.fillStyle = nBackColors[0];\n"
+"	TextY = Y+BoxHeight-FontAscent;\n"
+"	context.fillRect(X+100, Y, Width-100, BoxHeight);\n"
+"	var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight && MouseX-X < 100;\n"
+"	if(bMouseIn)\n"
+"	{\n"
+"		context.fillStyle = nBackColorOffset;\n"
+"	}\n"
+"	context.fillRect(X, Y, 99, BoxHeight);\n"
+"	\n"
+"	var NumSymbols = 0;\n"
+"	var SymbolStateString = \"Load\";\n"
+"	var SymbolButtonActive = 1;\n"
+"	if(SymbolState)\n"
+"	{\n"
+"		var s = SymbolState.s;\n"
+"		NumSymbols = SymbolState.l;\n"
+"		if(s == SYMBOLSTATE_DONE)\n"
+"		{\n"
+"			SymbolStateString = \"Reload\"\n"
+"		}\n"
+"		else if(s == SYMBOLSTATE_LOADING)\n"
+"		{\n"
+"			SymbolStateString = \"Loading\";\n"
+"			SymbolButtonActive = 0;\n"
+"		}\n"
+"	}\n"
+"	context.textAlign = \'right\';\n"
+"	context.fillStyle = \'white\';\n"
+"	context.fillText(NumSymbols + \" symbols loaded\", X+Width-2, TextY);\n"
+"	context.textAlign = \'center\';\n"
+"	if(SymbolButtonActive)\n"
+"	{\n"
+"		if(bMouseIn && MouseReleased)\n"
+"		{\n"
+"			WSSendMessage(\"S\"); //load symbols\n"
+"		}\n"
+"		context.fillText(SymbolStateString, X + 50, TextY);\n"
+"	}\n"
+"	else\n"
+"	{\n"
+"		context.fillStyle = \'grey\';\n"
+"		context.fillText(SymbolStateString, X + 50, TextY);\n"
+"	}\n"
+"	Y += BoxHeight;\n"
+"	MoveFilterInputDiv(SizeInfo.x, Y, SizeInfo.w-6);\n"
 "	Y += 45;\n"
 "\n"
-"	var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;\n"
+"	bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;\n"
 "	var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];\n"
 "	var TextY = Y+BoxHeight-FontAscent;\n"
 "	var YClear = Y;\n"
@@ -9798,6 +9850,10 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "\n"
 "function ProcessFrame(F)\n"
 "{\n"
+"	if(F.s)\n"
+"	{\n"
+"		SymbolState = F.s;\n"
+"	}\n"
 "	if(F.fr)\n"
 "	{\n"
 "		IsFrozen = 10;//allow it to stabilize after freezing\n"
@@ -10108,7 +10164,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "		}\n"
 "		else\n"
 "		{\n"
-"			WSFail++;\n"
+"			WSFail+";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+"+;\n"
 "		}\n"
 "	}\n"
 "	RequestDraw();\n"
@@ -10166,11 +10226,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "					nOffsetBarsX -= X;\n"
 "					if(nOffsetBarsY < 0)\n"
 "					{\n"
-"						nOffsetBarsY =";
-
-const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
-const char g_MicroProfileHtmlLive_begin_3[] =
-" 0;\n"
+"						nOffsetBarsY = 0;\n"
 "					}\n"
 "					if(nOffsetBarsX < 0)\n"
 "					{\n"

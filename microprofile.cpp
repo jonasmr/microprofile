@@ -85,6 +85,9 @@ enum EMicroProfileTokenSpecial
 //		***fix buffer size for ws
 //		clear function list on disconnect/reconnect
 //		
+//		blackout mode for expensive stuff
+//		Query loop on thread?
+//		MouseX is fucked when over the input field
 
 
 enum
@@ -309,6 +312,7 @@ typedef std::thread* MicroProfileThread;
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
 void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter);
 void MicroProfileInstrumentFunction(void* pFunction, const char* pFunctionName, uint32_t nColor);
+bool MicroProfileInitializeSymbols(bool bStartLoad);
 #endif
 
 
@@ -562,11 +566,9 @@ struct MicroProfileGpuTimerState
 
 
 enum {
-
 	MICROPROFILE_SYMBOLSTATE_DEFAULT = 0,
-	MICROPROFILE_SYMBOLSTATE_LOADING,
-	MICROPROFILE_SYMBOLSTATE_LOADED,
-	MICROPROFILE_SYMBOLSTATE_DONE,
+	MICROPROFILE_SYMBOLSTATE_LOADING = 1,
+	MICROPROFILE_SYMBOLSTATE_DONE = 2,
 };
 struct MicroProfileSymbolState
 {
@@ -771,7 +773,7 @@ struct MicroProfile
 	struct MicroProfileSymbolBlock* pSymbolBlock = nullptr;
 
 
-
+	int 						SymbolThreadRunning = 0;
 	MicroProfileThread 			SymbolThread;
 
 };
@@ -5570,6 +5572,10 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 				}
 			}
 			break;
+		case 'S':
+			printf("loading symbols...\n");
+			MicroProfileInitializeSymbols(true);
+			break;
 		case 'q':
 			MicroProfileQueryFunctions(Connection, 1+(const char*)Bytes);
 			break;
@@ -5681,6 +5687,7 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 		uint64_t nFrame = pFrameCurrent->nFrameId;
 		double fTime = nFrameTicks * fTickToMsCpu;
 		MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{\"t\":%f,\"f\":%lld,\"a\":%d,\"fr\":%d,\"m\":%d", MSG_FRAME, fTime, nFrame, MicroProfileGetCurrentAggregateFrames(), S.nFrozen, S.nWSViewMode);
+		MicroProfileWSPrintf(",\"s\":{\"s\":%d,\"l\":%d}", S.SymbolState.nState.load(), S.SymbolState.nSymbolsLoaded.load());
 		if(S.nFrameCurrent != S.WebSocketFrameLast[0])
 		{
 			MicroProfileWSPrintf(",\"x\":{");
@@ -8410,25 +8417,62 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pFunctionName, 
 }
 
 void* MicroProfileInitializeSymbolsInternal(void* pArg);
+void MicroProfileFreeSymbolDataInternal();
 
-bool MicroProfileInitializeSymbols()
+bool MicroProfileInitializeSymbols(bool bStartLoad)
 {
 	if(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_DEFAULT)
 	{
+		if(!bStartLoad)
+			return false;
 		S.SymbolState.nState = MICROPROFILE_SYMBOLSTATE_LOADING;
 		S.SymbolState.nSymbolsLoaded.store(0);
+		S.SymbolThreadRunning = 1;
 		MicroProfileThreadStart(&S.SymbolThread, MicroProfileInitializeSymbolsInternal);
 
 		return false;
 	}
-	if(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_LOADED)
+	if(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_DONE)
 	{
-		MicroProfileThreadJoin(&S.SymbolThread);
-		S.SymbolState.nState = MICROPROFILE_SYMBOLSTATE_DONE;
+		if(S.SymbolThreadRunning)
+		{
+			S.SymbolThreadRunning = 0;
+			MicroProfileThreadJoin(&S.SymbolThread);
+		}
 	}
-	return S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_DONE;
+	if(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_DONE && bStartLoad)
+	{
+
+		MicroProfileFreeSymbolDataInternal();
+		S.SymbolState.nState = MICROPROFILE_SYMBOLSTATE_LOADING;
+		//free symbol state...	
+		S.SymbolState.nSymbolsLoaded.store(0);
+		S.SymbolThreadRunning = 1;		
+		MicroProfileThreadStart(&S.SymbolThread, MicroProfileInitializeSymbolsInternal);
+		return false;
+
+	}
+	else
+	{
+		return S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_DONE;
+	}
 }
 
+void MicroProfileFreeSymbolDataInternal()
+{
+	if(S.pSymbolBlock)
+	{
+		MP_ASSERT(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_DONE);
+		while(S.pSymbolBlock)
+		{
+			MicroProfileSymbolBlock* pBlock = S.pSymbolBlock;
+			S.pSymbolBlock = pBlock->pNext;
+			MP_FREE(pBlock);
+			MICROPROFILE_COUNTER_SUB("/MicroProfile/Symbols/Allocs", 1);
+			MICROPROFILE_COUNTER_SUB("/MicroProfile/Symbols/Memory", sizeof(MicroProfileSymbolBlock));
+		}
+	}
+}
 
 
 void* MicroProfileInitializeSymbolsInternal(void* pArg)
@@ -8488,13 +8532,14 @@ void* MicroProfileInitializeSymbolsInternal(void* pArg)
 			E.pShortName = E.pName;
 		}
 		MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Count", 1);
+		usleep(5000);
 		S.SymbolState.nSymbolsLoaded.fetch_add(1);
 		MP_ASSERT((intptr_t)E.pShortName >= (intptr_t)&E); //assert pointer arithmetic is correct.
 
 	};
 	MicroProfileIterateSymbols(SymbolCallback);
 	printf("Finished loading...\n");
-	S.SymbolState.nState.store(MICROPROFILE_SYMBOLSTATE_LOADED);
+	S.SymbolState.nState.store(MICROPROFILE_SYMBOLSTATE_DONE);
 	return nullptr;
 }
 
@@ -8503,7 +8548,7 @@ void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter)
 {
 	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileQueryFunctions", MP_WHEAT);
 
-	if(!MicroProfileInitializeSymbols())
+	if(!MicroProfileInitializeSymbols(false))
 	{
 		return;
 	}
