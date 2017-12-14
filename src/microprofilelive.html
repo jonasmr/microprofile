@@ -242,6 +242,7 @@ var CounterArray = [];
 var Empty = {"id":0, "w":0, "depth":0, "sibling":-1,"parent":-1,"firstchild":-1};
 var WidthArray = [];
 var FunctionQueryArray = [];
+var FunctionQueryPending = null;
 var WidthTree = 0;
 Settings.ViewActive = 0;
 Settings.ViewCompressed = 0;
@@ -1901,7 +1902,7 @@ function DrawMessage()
 		}
 		if(TimersEnabled == 0 && Settings.ViewActive != VIEW_COUNTERS)
 		{
-			MSG("Select Timers in 'Timers' menu");
+			MSG("Enable Timers or Functions");
 		}
 	}
 	context.textAlign = 'left';
@@ -3114,12 +3115,20 @@ function DrawMenuFunctions()
 		var m = FilterInput.value.trim();
 		if(m != "")
 		{
-			WSSendMessage("q" + m);
+			if(SymbolState && SymbolState.s == SYMBOLSTATE_DONE)
+			{
+				WSSendMessage("q" + m);
+				FunctionQueryPending = null;
+			}
+			else
+			{
+				FunctionQueryPending = "q" + m; 
+			}
 		}
 	}
-	var FF = FunctionQueryArray;
 
 	FilterInputValueLast = FilterInput.value;
+	var FF = FunctionQueryArray;
 	var FilterArray = CreateFilter(FilterInput.value);
 	var context = CanvasDetailedView.getContext('2d');
 	var nColorIndex = 0;
@@ -3629,14 +3638,15 @@ function Draw()
 	if(WSConnected && WS && WS.readyState == 1)
 	{
 		DrawViews();
+		DrawMessage();	
 		DrawMenu();
 	}
 	else
 	{
 		var context = CanvasDetailedView.getContext('2d');
 		context.clearRect(0, 0, nWidth, nHeight);
+		DrawMessage();
 	}
-	DrawMessage();
 
 	DrawConnectionStatus();
 	DrawPlotf(CanvasDetailedView);
@@ -3681,6 +3691,13 @@ function WSOpen()
 	WidthArray[TYPE_GROUP] = 0;
 	WidthArray[TYPE_CATEGORY] = 0;
 	WidthTree = FontWidth;
+	SymbolState = null;
+
+	FilterInputTimersValue = "";
+	FilterInputGroupsValue = "";
+	FilterInputFunctionsValue = "";
+	FilterInput.value = "";
+	FunctionQueryArray = [];
 
 	ResetFrameData();
 
@@ -3975,6 +3992,14 @@ function ProcessFrame(F)
 {
 	if(F.s)
 	{
+		if(F.s.s == SYMBOLSTATE_DONE && (SymbolState == null || SymbolState.s != SYMBOLSTATE_DONE))
+		{
+			if(FunctionQueryPending)
+			{
+				WSSendMessage(FunctionQueryPending);
+				FunctionQueryPending = null;
+			}
+		}
 		SymbolState = F.s;
 	}
 	if(F.fr)
@@ -4219,6 +4244,7 @@ function WSMessage()
 	}
 	else if(k == MSG_FUNCTION_RESULTS)
 	{
+		FunctionQueryPending = null;
 		FunctionQueryArray = Obj.v;
 	}
 	else
