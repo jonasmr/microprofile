@@ -3106,6 +3106,36 @@ function DrawMenuTimer()
 	return SizeInfo;
 }
 
+var LoadSymbolAnim = -1;
+function LoadSymbolAnimRestart()
+{
+	if(LoadSymbolAnim > 0)
+	{
+		LoadSymbolAnim += 1;
+	}
+	else
+	{
+		LoadSymbolAnim = 1;
+	}
+}
+function LoadSymbolAnimUpdateAndGet()
+{
+	if(LoadSymbolAnim>=0)
+	{
+		LoadSymbolAnim -= 0.03;
+		if(LoadSymbolAnim < 0)
+		{
+			LoadSymbolAnim = -1;
+		}
+		else
+		{
+			return Math.sin(3.14  * LoadSymbolAnim);
+		}
+
+	}
+	return -1;
+}
+
 
 function DrawMenuFunctions()
 {
@@ -3123,6 +3153,10 @@ function DrawMenuFunctions()
 			else
 			{
 				FunctionQueryPending = "q" + m; 
+				if(SymbolState && SymbolState.s == SYMBOLSTATE_DEFAULT)
+				{
+					LoadSymbolAnimRestart();
+				}
 			}
 		}
 	}
@@ -3157,6 +3191,7 @@ function DrawMenuFunctions()
 	{
 		context.fillStyle = nBackColorOffset;
 	}
+
 	context.fillRect(X, Y, 99, BoxHeight);
 	
 	var NumSymbols = 0;
@@ -3176,10 +3211,19 @@ function DrawMenuFunctions()
 			SymbolButtonActive = 0;
 		}
 	}
+
+	var LoadButtonAnimation  = LoadSymbolAnimUpdateAndGet();
+
 	context.textAlign = 'right';
 	context.fillStyle = 'white';
 	context.fillText(NumSymbols + " symbols loaded", X+Width-2, TextY);
 	context.textAlign = 'center';
+
+	if(LoadButtonAnimation>0)
+	{ 
+		var c = "hsl(0,0%," + (LoadButtonAnimation * 100)+"%)";
+		context.fillStyle = c;
+	}
 	if(SymbolButtonActive)
 	{
 		if(bMouseIn && MouseReleased)
@@ -3260,10 +3304,9 @@ function DrawMenuFunctions()
 	}
 
 	context.textAlign = 'left';
-
 	if(Selection != -1 && MouseReleased)
 	{
-		WSSendMessage("i" + FF[Selection].a + ' ' + FF[Selection].rgb + ' ' + FF[Selection].n);
+		WSSendMessage("i" + FF[Selection].a + ' ' + FF[Selection].rgb + ' ' + FF[Selection].n);		
 	}
 	SizeInfo.h = Y-SizeInfo.y;
 	return SizeInfo;
