@@ -78,17 +78,23 @@ enum EMicroProfileTokenSpecial
 //       ** support for calls to __chkstk
 //
 //		Send instrumented functions
-//		Only parse debug info once. cache symbol lookup
-//		cleanup so symbol stuff is shared
+//		**Only parse debug info once. cache symbol lookup
+//		**cleanup so symbol stuff is shared
 //      fix so patch code is copy pastable
 //		Log fail instrumentations
 //		***fix buffer size for ws
-//		clear function list on disconnect/reconnect
+//		**clear function list on disconnect/reconnect
 //		
 //		blackout mode for expensive stuff
 //		Query loop on thread?
 //		MouseX is fucked when over the input field
+//		
+//		Instrument child functions
+//		Instrumented functions in a separate view
+//		
 
+
+//support for multiple flip sites
 
 enum
 {

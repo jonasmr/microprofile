@@ -212,6 +212,8 @@ var CaptureButtonY = 0;
 var GroupsEnabled = 0;
 var TimersEnabled = 0;
 
+var TimersActiveOnly = 0;
+
 
 var MSG_TIMER_TREE = 1;
 var MSG_ENABLED = 2;
@@ -3034,18 +3036,14 @@ function DrawMenuTimer()
 	Y += 35;
 
 	var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+	var bMouseInClear =  MouseY >= Y && MouseY < Y + BoxHeight;
 	var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
 	var TextY = Y+BoxHeight-FontAscent;
 	var YClear = Y;
 	var TextYClear = TextY;
-	var bgcolorClear = bgcolor;
 	var YStart = Y;
 
 	var MouseTaken = bMouseIn;
-	if(bMouseIn && MouseReleased)
-	{
-		WSSendMessage("x");
-	}
 
 	Y += BoxHeight;
 	nColorIndex = 1-nColorIndex;
@@ -3059,7 +3057,7 @@ function DrawMenuTimer()
 		{
 			var Name = v.name;
 			var ParentName = TimerArray[v.parent].name;
-			if(FilterMatch(FilterArray, ParentName + " " + Name))
+			if(FilterMatch(FilterArray, ParentName + " " + Name) && (0 == TimersActiveOnly || v.e))
 			{
 				if(Y > YStart)
 				{
@@ -3088,16 +3086,41 @@ function DrawMenuTimer()
 		}
 	}
 
-	context.fillStyle = bgcolorClear;
-	context.fillRect(X-2, YClear, Width+4, BoxHeight);
-	context.fillText(ParentName, X + 2, TextYClear);
-	context.fillStyle = 'white';
-	context.textAlign = 'center';
-	context.fillText("[clear]", X + 2 + Width * 0.5, TextYClear);
+	{
+
+		var c0 = nBackColorOffset;
+		var c1 = nBackColors[1];
+		var W = Width + 4;
+		var WHalf = W / 2;
+		var InsideClear = bMouseInClear && MouseX-X< WHalf-1;
+		var InsideActive =  bMouseInClear && MouseX-X > WHalf+1;
+		context.fillStyle = nBackColors[0];
+		context.fillRect(X-2, YClear, W, BoxHeight);
+
+		context.fillStyle = InsideClear ? c0 :c1;
+		context.fillRect(X-2, YClear, WHalf-1, BoxHeight);
+		context.fillStyle = InsideActive ? c0 :c1;
+		context.fillRect(X-2 + WHalf + 1, YClear, WHalf-1, BoxHeight);
+
+
+		context.fillStyle = 'white';
+		context.textAlign = 'center';
+		context.fillText("[clear] ", X + 2 + Width * 0.25, TextYClear);
+		context.fillStyle = TimersActiveOnly ? 'white' : 'grey';
+		context.fillText("[active only]", X + 2 + Width * 0.75, TextYClear);
+		if(MouseReleased)
+		{
+			if(InsideActive)
+			{
+				TimersActiveOnly = 1-TimersActiveOnly;
+			}
+			if(InsideClear)
+			{
+				WSSendMessage("x");
+			}
+		}
+	}
 	context.textAlign = 'left';
-
-
-
 	if(Selection && MouseReleased && !MouseTaken)
 	{
 		WSSendMessage("c" + Selection);
