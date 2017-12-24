@@ -5877,7 +5877,7 @@ void MicroProfileWSPrintf(const char* pFmt, ...)
 	va_start (args, pFmt);
 
 	uint32_t nSpace = S.WSBuf.nBufferSize - S.WSBuf.nPut - 1;
-	MP_ASSERT(nSpace > nRequiredSize);
+	MP_ASSERT((int)nSpace > nRequiredSize);
 	char* pPut = &S.WSBuf.pBuffer[S.WSBuf.nPut];
 #ifdef _WIN32
 	int nSize = (int)vsnprintf_s(pPut, nSpace, nSpace, pFmt, args);
@@ -8387,7 +8387,7 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 
 
 //todo:move to struct.
-int DynamicTokenIndex = 0;
+uint32_t DynamicTokenIndex = 0;
 MicroProfileToken DynamicTokens[MICROPROFILE_MAX_DYNAMIC_TOKENS]= {0};
 void* FunctionsInstrumented[MICROPROFILE_MAX_DYNAMIC_TOKENS] = {0};
 
@@ -8444,7 +8444,7 @@ void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pFunctio
 	MicroProfileSymbolDesc* pDesc = MicroProfileFindFuction(pFunction);
 	if(pDesc)
 	{
-		printf("instrumenting child functions %lx %lx :: %s :: %s\n", pDesc->nAddress, pDesc->nAddressEnd, pDesc->pName, pDesc->pShortName);
+		printf("instrumenting child functions %p %p :: %s :: %s\n", (void*)pDesc->nAddress, (void*)pDesc->nAddressEnd, pDesc->pName, pDesc->pShortName);
 		int a = 0;
 		(void)a;
 	}
@@ -8486,13 +8486,13 @@ void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pFunctio
 			break;
 		}
 		// printf("instructions decoded %d      %p ::\n", nCount, pFunction);
-		for(int i = 0; i < nCount; ++i)
+		for(int i = 0; i < (int)nCount; ++i)
 		{
 			// rip[i] = 0;
 			auto& I = Instructions[i];
 			// bool bHasRipReference = false;
 			if(I.addr < nOffsetNext)
-				__builtin_trap();
+				MP_BREAK();
 			nOffsetNext = I.addr + I.size;
 			if(I.opcode == I_CALL)
 			{
@@ -9190,16 +9190,16 @@ namespace
 {
 	struct QueryCallbackBase // fucking c++, this is a pain in the ass
 	{
-		virtual void CB(const char* pName, const char* pShortName, intptr_t addr) = 0;
+		virtual void CB(const char* pName, const char* pShortName, intptr_t addr, intptr_t addrend) = 0;
 	};
 	template<typename T>
 	struct QueryCallbackImpl : public QueryCallbackBase
 	{
 		T t;
 		QueryCallbackImpl(T t):t(t){}
-		virtual void CB(const char* pName, const char* pShortName, intptr_t addr)
+		virtual void CB(const char* pName, const char* pShortName, intptr_t addr, intptr_t addrend)
 		{
-			t(pName, pShortName, addr);
+			t(pName, pShortName, addr, addrend);
 		}
 
 	};
@@ -9218,7 +9218,7 @@ BOOL MicroProfileQueryContextEnumSymbols (
 		//char* pBuffer = pQ->TempBuffer;
 		int l = MicroProfileTrimFunctionName(pSymInfo->Name, &FunctionName[0], &FunctionName[1024]);
 		QueryCallbackBase* pCB = (QueryCallbackBase*)UserContext;
-		pCB->CB(pSymInfo->Name, l ? &FunctionName[0] : 0, (intptr_t)pSymInfo->Address);
+		pCB->CB(pSymInfo->Name, l ? &FunctionName[0] : 0, (intptr_t)pSymInfo->Address, pSymInfo->Size + (intptr_t)pSymInfo->Address);
 	 }
 	return TRUE;
 };
