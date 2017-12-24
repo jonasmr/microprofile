@@ -203,6 +203,7 @@ void t3()
 
 #endif	
 
+void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pFunctionName);
 
 #define DUMP_SPIKE_TEST 0
 
@@ -253,6 +254,14 @@ int main(int argc, char* argv[])
 	#if DUMP_SPIKE_TEST
 	MicroProfileDumpFile("spike.html", "spike.csv", 200.f, -1.f);
 	#endif	
+
+
+	// MicroProfileInstrumentFunctionsCalled((void*)&MicroProfileFlip, "fisk");
+
+	// printf("done\n");
+	// __builtin_trap();
+	// exit(0);
+
 
 	MICROPROFILE_TIMELINE_TOKEN(htok_three);
 	MICROPROFILE_TIMELINE_TOKEN(htok_four);

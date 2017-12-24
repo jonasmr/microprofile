@@ -316,9 +316,13 @@ typedef std::thread* MicroProfileThread;
 
 
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
+struct MicroProfileSymbolDesc;
 void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter);
 void MicroProfileInstrumentFunction(void* pFunction, const char* pFunctionName, uint32_t nColor);
 bool MicroProfileInitializeSymbols(bool bStartLoad);
+MicroProfileSymbolDesc* MicroProfileFindFuction(void* pAddress);
+void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pFunctionName);
+
 #endif
 
 
@@ -5557,6 +5561,7 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 			MicroProfileWebSocketClearTimers();
 			break;
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
+		case 'I':
 		case 'i':
 			{
 				printf("got Message: %s\n", (const char*)&Bytes[0]);
@@ -5573,8 +5578,14 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 						;
 
 					printf("scanning for ptr %p %x %s\n", p, nColor, pName);
-					MicroProfileInstrumentFunction(p, pName, nColor);
-
+					if(Bytes[0] == 'I')
+					{
+						MicroProfileInstrumentFunctionsCalled(p, pName);
+					}
+					else
+					{
+						MicroProfileInstrumentFunction(p, pName, nColor);
+					}
 				}
 			}
 			break;
@@ -7833,7 +7844,9 @@ struct MicroProfileSymbolDesc
 	const char* pName;
 	const char* pShortName;
 	intptr_t nAddress;
+	intptr_t nAddressEnd;
 };
+
 struct MicroProfileSymbolBlock
 {
 	MicroProfileSymbolBlock* pNext;
@@ -8008,8 +8021,18 @@ void* MicroProfileX64FollowJump(void* pSrc)
 				intptr_t p = (intptr_t)pSrc;
 				p += I.size;
 				p += I.imm.sdword;
-				//printf("reinterpreted addres is %p\n", (void*)p);
 				return (void*)p;
+			}
+		}
+		else if(I.ops[0].type == O_SMEM)
+		{
+			if(I.ops[0].index == R_RIP)
+			{
+				intptr_t p = (intptr_t)pSrc;
+				p += I.size;
+				p += I.disp;
+				void* pHest = *(void**)p;
+				return pHest;
 			}
 		}
 		printf("failed to interpret I_JMP %p    %d    %d\n", pSrc, I.ops[0].size, I.ops[0].type);
@@ -8366,6 +8389,7 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 //todo:move to struct.
 int DynamicTokenIndex = 0;
 MicroProfileToken DynamicTokens[MICROPROFILE_MAX_DYNAMIC_TOKENS]= {0};
+void* FunctionsInstrumented[MICROPROFILE_MAX_DYNAMIC_TOKENS] = {0};
 
 
 
@@ -8396,23 +8420,156 @@ void MicroProfileInterceptLeave(int a)
 }
 
 
+void MicroProfileInstrumentFromAddressOnly(void* pFunction)
+{
+	// const char* pName= "??";
+	// const char* pShortName = "??"; 
+	MicroProfileSymbolDesc* pDesc = MicroProfileFindFuction(pFunction);
+	if(pDesc)
+	{
+		printf("Found function %p :: %s %s\n", (void*)pDesc->nAddress, pDesc->pName, pDesc->pShortName);
+		MicroProfileInstrumentFunction(pFunction, pDesc->pName, 0xff00ffff);
+	}
+	else
+	{
+		printf("No Function Found %p\n", pFunction);
+	}
+}
+
+void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pFunctionName)
+{
+	pFunction = MicroProfileX64FollowJump(pFunction);
+
+
+	MicroProfileSymbolDesc* pDesc = MicroProfileFindFuction(pFunction);
+	if(pDesc)
+	{
+		printf("instrumenting child functions %lx %lx :: %s :: %s\n", pDesc->nAddress, pDesc->nAddressEnd, pDesc->pName, pDesc->pShortName);
+		int a = 0;
+		(void)a;
+	}
+
+	const intptr_t nCodeLen = (intptr_t)pDesc->nAddressEnd - (intptr_t)pDesc->nAddress;
+	const uint32_t nMaxInstructions = 15;
+	intptr_t nOffset = 0;
+	_DecodeType dt = Decode64Bits;
+	_DInst Instructions[15];
+
+	int cc = 0;
+
+	_CodeInfo ci;
+	do
+	{
+		if( cc++ > 100)
+		{
+			int a = 0;
+			(void)a;
+		}
+		ci.code = nOffset + (uint8_t*)pFunction;
+		ci.codeLen = nCodeLen - nOffset;
+		ci.codeOffset = 0;
+		ci.dt = dt;
+		ci.features = DF_RETURN_FC_ONLY;
+		uint32_t nCount = 0;
+		uint32_t nOffsetNext = 0;
+
+		int r = distorm_decompose(&ci, Instructions, nMaxInstructions, &nCount);
+		// printf("decomposed %d\n", nCount);
+		if(r != DECRES_SUCCESS && r != DECRES_MEMORYERR)
+		{
+			BREAK_ON_PATCH_FAIL();
+			return;
+		}
+		if(nCount == 0)
+		{
+			//no instructions left
+			break;
+		}
+		// printf("instructions decoded %d      %p ::\n", nCount, pFunction);
+		for(int i = 0; i < nCount; ++i)
+		{
+			// rip[i] = 0;
+			auto& I = Instructions[i];
+			// bool bHasRipReference = false;
+			if(I.addr < nOffsetNext)
+				__builtin_trap();
+			nOffsetNext = I.addr + I.size;
+			if(I.opcode == I_CALL)
+			{
+				auto& O = I.ops[0];
+				if(O.type != O_PC || O.size != 0x20)
+				{
+					printf("non immediate call encountered. cannot follow\n");
+					BREAK_ON_PATCH_FAIL();
+					continue;
+				}
+				intptr_t pDst = nOffset + (intptr_t)pFunction;
+				pDst += I.addr;
+				pDst += I.size;
+				pDst += I.imm.sdword;
+
+				void* fFun1 = MicroProfileX64FollowJump((void*)pDst);
+
+
+				MicroProfileInstrumentFromAddressOnly(fFun1);
+
+
+				// printf("%d Call          %ld :: jump dst %p   : %p\n", i, (intptr_t)I.addr, (void*)pDst, fFun1);
+
+			}
+			else if(I.opcode == I_JMP)
+			{
+
+				// printf("%d JMP          %p\n", i, (void*)I.addr);
+				// I_JMP
+			}
+			else if(I.opcode == I_JNZ)
+			{
+
+				// printf("%d JNZ          %p\n", i, (void*)I.addr);
+				// I_JMP
+			}
+			else if(I.opcode == I_JZ)
+			{
+
+				// printf("%d JZ          %p\n", i, (void*)I.addr);
+				// I_JMP
+			}
+			else
+			{
+				// printf("%d ?? %d           %p\n", i, I.opcode, (void*)I.addr);
+			}
+		}
+		nOffset += nOffsetNext;
+	}while(nOffset < nCodeLen);
+	// printf("total bytes processed %ld\n", nOffset);
+}
 
 
 void MicroProfileInstrumentFunction(void* pFunction, const char* pFunctionName, uint32_t nColor)
 {
-
 	MicroProfileScopeLock L(MicroProfileMutex());
 	PatchError Err;
 	if(DynamicTokenIndex == MICROPROFILE_MAX_DYNAMIC_TOKENS)
 	{
 		printf("instrument failing, out of dynamic tokens %d\n", DynamicTokenIndex);
+		return;
+	}
+	for(uint32_t i = 0; i < DynamicTokenIndex; ++i)
+	{
+		if(FunctionsInstrumented[i] == pFunction)
+		{
+			printf("function %p already instrumented\n", pFunction);
+			return;
+		}
 	}
 	if(MicroProfilePatchFunction(pFunction, DynamicTokenIndex, MicroProfileInterceptEnter, MicroProfileInterceptLeave, &Err))
 	{
 		MicroProfileToken Tok = DynamicTokens[DynamicTokenIndex] = MicroProfileGetToken("INSTRUMENTS", pFunctionName, nColor, MicroProfileTokenTypeCpu);
+		FunctionsInstrumented[DynamicTokenIndex] = pFunction;
 		DynamicTokenIndex++;
 
-		printf("interception success!!\n");
+		// printf("interception success!!\n");
 		MicroProfileToggleWebSocketToggleTimer(MicroProfileGetTimerIndex(Tok));
 	}
 	else
@@ -8503,7 +8660,7 @@ void* MicroProfileInitializeSymbolsInternal(void* pArg)
 	S.pSymbolBlock = pActiveBlock;
 
 
-	auto SymbolCallback = [&](const char* pName, const char* pShortName, intptr_t nAddress)
+	auto SymbolCallback = [&](const char* pName, const char* pShortName, intptr_t nAddress, intptr_t nAddressEnd)
 	{
 		if(pName == pShortName)
 		{
@@ -8526,6 +8683,7 @@ void* MicroProfileInitializeSymbolsInternal(void* pArg)
 		MicroProfileSymbolDesc& E = pActiveBlock->Symbols[pActiveBlock->nNumSymbols++];
 		E.pName = pStr;
 		E.nAddress = nAddress;
+		E.nAddressEnd = nAddressEnd;
 		if(pShortName && strlen(pShortName))
 		{
 			pActiveBlock->nNumChars += nLenShort;
@@ -8538,7 +8696,7 @@ void* MicroProfileInitializeSymbolsInternal(void* pArg)
 			E.pShortName = E.pName;
 		}
 		MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Count", 1);
-		usleep(5000);
+		// usleep(5000);
 		S.SymbolState.nSymbolsLoaded.fetch_add(1);
 		MP_ASSERT((intptr_t)E.pShortName >= (intptr_t)&E); //assert pointer arithmetic is correct.
 
@@ -8549,6 +8707,25 @@ void* MicroProfileInitializeSymbolsInternal(void* pArg)
 	return nullptr;
 }
 
+
+MicroProfileSymbolDesc* MicroProfileFindFuction(void* pAddress)
+{
+	MicroProfileSymbolBlock* pSymbols = S.pSymbolBlock;
+	while(pSymbols)
+	{
+		for(uint32_t i = 0; i < pSymbols->nNumSymbols; ++i)
+		{
+			MicroProfileSymbolDesc& E = pSymbols->Symbols[i];
+			if(E.nAddress == (intptr_t)pAddress)
+			{
+				return &E;
+			}
+
+		}
+		pSymbols = pSymbols->pNext;
+	}
+	return nullptr;
+}
 
 void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter)
 {
@@ -9477,7 +9654,7 @@ void MicroProfileIterateSymbols(Callback CB)
 	mach_msg_type_number_t vbrcount = sizeof(vbr)/4;
 	static unsigned long size = 128;
 	static char* pTempBuffer = (char*)malloc(size); // needs to be malloc because demangle function might realloc it.
-	auto OnFunction = [&](void* addr, const char* pSymbol) -> bool
+	auto OnFunction = [&](void* addr, void* addrend, const char* pSymbol) -> bool
 	{
 		unsigned long len = size;
 		int ret = 0;
@@ -9500,7 +9677,7 @@ void MicroProfileIterateSymbols(Callback CB)
 			pStr = pSymbol;
 		}
 		int l = MicroProfileTrimFunctionName(pStr, &FunctionName[0], &FunctionName[1024]);
-		CB(l ? &FunctionName[0] : pStr, l ? &FunctionName[0] : 0, (intptr_t)addr);
+		CB(l ? &FunctionName[0] : pStr, l ? &FunctionName[0] : 0, (intptr_t)addr, (intptr_t)addrend);
 		return true;
 	};
 	vm_offset_t addr_prev = 0;
@@ -9516,10 +9693,7 @@ void MicroProfileIterateSymbols(Callback CB)
 				r = dladdr( (void*)vmoffset, &di);
 				if(r)
 				{
-
-					if(OnFunction(di.dli_saddr, di.dli_sname))
-					{
-					}
+					OnFunction(di.dli_saddr, (void*)addr_prev, di.dli_sname);
 				}
 				intptr_t addr = vmoffset + vmsize-1;
 				for(int i = 0; i < 10000; ++i)
@@ -9531,9 +9705,7 @@ void MicroProfileIterateSymbols(Callback CB)
 						{
 							break;
 						}
-						if(OnFunction(di.dli_saddr, di.dli_sname))
-						{
-						}
+						OnFunction(di.dli_saddr, (void*)addr_prev, di.dli_sname);
 
 					}	
 					else

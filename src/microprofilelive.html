@@ -3329,7 +3329,14 @@ function DrawMenuFunctions()
 	context.textAlign = 'left';
 	if(Selection != -1 && MouseReleased)
 	{
-		WSSendMessage("i" + FF[Selection].a + ' ' + FF[Selection].rgb + ' ' + FF[Selection].n);		
+		if(KeyShiftDown)
+		{
+			WSSendMessage("I" + FF[Selection].a + ' ' + FF[Selection].rgb + ' ' + FF[Selection].n);		
+		}
+		else
+		{
+			WSSendMessage("i" + FF[Selection].a + ' ' + FF[Selection].rgb + ' ' + FF[Selection].n);		
+		}
 	}
 	SizeInfo.h = Y-SizeInfo.y;
 	return SizeInfo;

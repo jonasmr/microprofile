@@ -9206,7 +9206,14 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	context.textAlign = \'left\';\n"
 "	if(Selection != -1 && MouseReleased)\n"
 "	{\n"
-"		WSSendMessage(\"i\" + FF[Selection].a + \' \' + FF[Selection].rgb + \' \' + FF[Selection].n);		\n"
+"		if(KeyShiftDown)\n"
+"		{\n"
+"			WSSendMessage(\"I\" + FF[Selection].a + \' \' + FF[Selection].rgb + \' \' + FF[Selection].n);		\n"
+"		}\n"
+"		else\n"
+"		{\n"
+"			WSSendMessage(\"i\" + FF[Selection].a + \' \' + FF[Selection].rgb + \' \' + FF[Selection].n);		\n"
+"		}\n"
 "	}\n"
 "	SizeInfo.h = Y-SizeInfo.y;\n"
 "	return SizeInfo;\n"
@@ -10125,7 +10132,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "			FD.EmptyFrames = 0;\n"
 "		}\n"
 "		FD.FrameTime = FD.Time[FD.Time.length-1];\n"
-"		FD.AggregateTime = FD.Time[FD.Time.length-1];\n"
+"		FD.AggregateTime = FD.Tim";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+"e[FD.Time.length-1];\n"
 "\n"
 "		if(FD.EmptyFrames == FD.Time.length)\n"
 "		{\n"
@@ -10133,10 +10144,6 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "		}\n"
 "	}\n"
 "	for(var i = 0; i < ToDelete.length; ++i)\n"
-"";
-
-const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
-const char g_MicroProfileHtmlLive_begin_3[] =
 "	{\n"
 "		delete FrameData.TimerMap[ToDelete[i]];\n"
 "	}\n"
