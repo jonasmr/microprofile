@@ -771,20 +771,19 @@ struct MicroProfile
 	int64_t 					nCounterMin[MICROPROFILE_MAX_COUNTERS];
 #endif
 
+	uint32_t DynamicTokenIndex;
+	MicroProfileToken DynamicTokens[MICROPROFILE_MAX_DYNAMIC_TOKENS];
+	void* FunctionsInstrumented[MICROPROFILE_MAX_DYNAMIC_TOKENS];
+	MicroProfileSymbolState 	SymbolState;
+	struct MicroProfileSymbolBlock* pSymbolBlock;
+	int 						SymbolThreadRunning;
+	MicroProfileThread 			SymbolThread;
+
+
+
 	int							GpuQueue;
 	MicroProfileThreadLogGpu* 	pGpuGlobal;
-
 	MicroProfileGpuTimerState* 	pGPU;
-
-
-
-
-	MicroProfileSymbolState 	SymbolState;
-	struct MicroProfileSymbolBlock* pSymbolBlock = nullptr;
-
-
-	int 						SymbolThreadRunning = 0;
-	MicroProfileThread 			SymbolThread;
 
 };
 
@@ -8386,18 +8385,10 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 }
 
 
-
-//todo:move to struct.
-uint32_t DynamicTokenIndex = 0;
-MicroProfileToken DynamicTokens[MICROPROFILE_MAX_DYNAMIC_TOKENS]= {0};
-void* FunctionsInstrumented[MICROPROFILE_MAX_DYNAMIC_TOKENS] = {0};
-
-
-
 extern "C"
 void MicroProfileInterceptEnter(int a)
 {
-	MicroProfileToken T = DynamicTokens[a];
+	MicroProfileToken T = S.DynamicTokens[a];
 	MicroProfileThreadLog* pLog = MicroProfileGetThreadLog2();
 	MP_ASSERT(pLog->nStackScope < MICROPROFILE_STACK_MAX); // if youre hitting this assert your instrumenting a deeply nested function
 	MicroProfileScopeStateC* pScopeState = &pLog->ScopeState[pLog->nStackScope++];
@@ -8551,24 +8542,24 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pFunctionName, 
 {
 	MicroProfileScopeLock L(MicroProfileMutex());
 	PatchError Err;
-	if(DynamicTokenIndex == MICROPROFILE_MAX_DYNAMIC_TOKENS)
+	if(S.DynamicTokenIndex == MICROPROFILE_MAX_DYNAMIC_TOKENS)
 	{
-		printf("instrument failing, out of dynamic tokens %d\n", DynamicTokenIndex);
+		printf("instrument failing, out of dynamic tokens %d\n", S.DynamicTokenIndex);
 		return;
 	}
-	for(uint32_t i = 0; i < DynamicTokenIndex; ++i)
+	for(uint32_t i = 0; i < S.DynamicTokenIndex; ++i)
 	{
-		if(FunctionsInstrumented[i] == pFunction)
+		if(S.FunctionsInstrumented[i] == pFunction)
 		{
 			printf("function %p already instrumented\n", pFunction);
 			return;
 		}
 	}
-	if(MicroProfilePatchFunction(pFunction, DynamicTokenIndex, MicroProfileInterceptEnter, MicroProfileInterceptLeave, &Err))
+	if(MicroProfilePatchFunction(pFunction, S.DynamicTokenIndex, MicroProfileInterceptEnter, MicroProfileInterceptLeave, &Err))
 	{
-		MicroProfileToken Tok = DynamicTokens[DynamicTokenIndex] = MicroProfileGetToken("INSTRUMENTS", pFunctionName, nColor, MicroProfileTokenTypeCpu);
-		FunctionsInstrumented[DynamicTokenIndex] = pFunction;
-		DynamicTokenIndex++;
+		MicroProfileToken Tok = S.DynamicTokens[S.DynamicTokenIndex] = MicroProfileGetToken("INSTRUMENTS", pFunctionName, nColor, MicroProfileTokenTypeCpu);
+		S.FunctionsInstrumented[S.DynamicTokenIndex] = pFunction;
+		S.DynamicTokenIndex++;
 
 		// printf("interception success!!\n");
 		MicroProfileToggleWebSocketToggleTimer(MicroProfileGetTimerIndex(Tok));
