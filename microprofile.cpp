@@ -7845,6 +7845,7 @@ struct MicroProfileSymbolDesc
 	const char* pShortName;
 	intptr_t nAddress;
 	intptr_t nAddressEnd;
+	int nIgnoreSymbol;
 };
 
 struct MicroProfileSymbolBlock
@@ -8662,6 +8663,13 @@ void* MicroProfileInitializeSymbolsInternal(void* pArg)
 
 	auto SymbolCallback = [&](const char* pName, const char* pShortName, intptr_t nAddress, intptr_t nAddressEnd)
 	{
+		int nIgnoreSymbol = 0;
+#if MICROPROFILE_INSTRUMENT_MICROPROFILE == 0
+		if(strstr(pName, "MicroProfile"))
+		{
+			nIgnoreSymbol = 1;
+		}
+#endif
 		if(pName == pShortName)
 		{
 			pShortName = 0;
@@ -8684,6 +8692,7 @@ void* MicroProfileInitializeSymbolsInternal(void* pArg)
 		E.pName = pStr;
 		E.nAddress = nAddress;
 		E.nAddressEnd = nAddressEnd;
+		E.nIgnoreSymbol = nIgnoreSymbol;
 		if(pShortName && strlen(pShortName))
 		{
 			pActiveBlock->nNumChars += nLenShort;
@@ -8696,6 +8705,10 @@ void* MicroProfileInitializeSymbolsInternal(void* pArg)
 			E.pShortName = E.pName;
 		}
 		MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Count", 1);
+		if(nIgnoreSymbol)
+		{
+			MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Ignored", 1);
+		}
 		// usleep(5000);
 		S.SymbolState.nSymbolsLoaded.fetch_add(1);
 		MP_ASSERT((intptr_t)E.pShortName >= (intptr_t)&E); //assert pointer arithmetic is correct.
@@ -8791,7 +8804,7 @@ void MicroProfileQueryFunctions(MpSocket Connection, const char* pFilter)
 			for(uint32_t i = 0; i < pSymbols->nNumSymbols && xx < LIM; ++i)
 			{
 				MicroProfileSymbolDesc& E = pSymbols->Symbols[i];
-				if(MicroProfileStringMatch(E.pShortName, &pFilterStrings[0], nPatternLength, nMaxFilter))
+				if(0 == E.nIgnoreSymbol && MicroProfileStringMatch(E.pShortName, &pFilterStrings[0], nPatternLength, nMaxFilter))
 				{
 					xx++;
 					if(bFirst)
