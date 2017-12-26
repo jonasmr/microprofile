@@ -72,25 +72,29 @@ enum EMicroProfileTokenSpecial
 // longer stats
 // counters i graph view?
 // call count i graph view?
+// thread view
+// split graph is broken
+// zoom in graph views
+// scrolling in multi graph view
 
 //instrument todo:
 // 		** WINDOWS
 //       ** support for calls to __chkstk
 //
-//		Send instrumented functions
+//		**Send instrumented functions ((Sent as markers))
 //		**Only parse debug info once. cache symbol lookup
 //		**cleanup so symbol stuff is shared
 //      fix so patch code is copy pastable
 //		Log fail instrumentations
-//		***fix buffer size for ws
+//		***fix buffer sipze for ws
 //		**clear function list on disconnect/reconnect
 //		
 //		blackout mode for expensive stuff
 //		Query loop on thread?
 //		MouseX is fucked when over the input field
 //		
-//		Instrument child functions
-//		Instrumented functions in a separate view
+//		**Instrument child functions
+//		**(instrumented only option in timers) Instrumented functions in a separate view
 //		
 
 
@@ -8412,15 +8416,85 @@ void MicroProfileInterceptLeave(int a)
 }
 
 
+uint32_t MicroProfileStringHash(const char* pString) //note matching: code in javascript: microprofilelive.html: function StringHash(s)
+{
+	uint32_t h = 0xfeedba3e;
+	char c;
+	while(0 != (c = *pString++))
+	{
+		h = c + ((h<<5) - h);
+	}
+	return h;
+}
+
+uint32_t MicroProfileColorFromString(const char* pString) //note matching code/constants in javascript: microprofilelive.html: function StringToColor(s)
+{
+	// 	var h = StringHash(s);
+	// var cidx = h % 360;
+	// return "hsl(" + cidx + ",50%, 70%)"; //note: matching code constants in microprofile.cpp: MicroProfileColorFromString
+
+	float h = MicroProfileStringHash(pString) % 360;
+	float s = 0.5f;
+	float l = 0.7f;
+	//from https://www.rapidtables.com/convert/color/hsl-to-rgb.html
+	float c = (1 - fabsf(2*l - 1)) * s;
+	float x = c * (1 - fabsf( fmodf(h/60, 2.f) - 1));
+	float m = l - c / 2.f;
+	float r = 0.f, g = 0.f , b = 0.f;
+	if(h<60)
+	{
+		r = c;
+		g = x;
+	}
+	else if(h < 120.f)
+	{
+		r = x;
+		g = c;
+	}
+	else if(h < 180.f)
+	{
+		g = c;
+		b = x;
+	}
+	else if(h < 240.f)
+	{
+		g = x;
+		b = c;
+	}
+	else if(h < 300.f)
+	{
+		r = x;
+		b = c;
+	}
+	else
+	{
+		r = c;
+		b = x;
+	}
+	r += m;
+	g += m;
+	b += m;
+
+	r *= 255.f;
+	g *= 255.f;
+	b *= 255.f;
+
+	uint32_t R = MicroProfileMin(0xffu, (uint32_t)r);
+	uint32_t G = MicroProfileMin(0xffu, (uint32_t)g);
+	uint32_t B = MicroProfileMin(0xffu, (uint32_t)b);
+
+	return (R<<16)|(G<<8)|B;
+}
+
+
 void MicroProfileInstrumentFromAddressOnly(void* pFunction)
 {
-	// const char* pName= "??";
-	// const char* pShortName = "??"; 
 	MicroProfileSymbolDesc* pDesc = MicroProfileFindFuction(pFunction);
 	if(pDesc)
 	{
 		printf("Found function %p :: %s %s\n", (void*)pDesc->nAddress, pDesc->pName, pDesc->pShortName);
-		MicroProfileInstrumentFunction(pFunction, pDesc->pName, 0xff00ffff);
+		uint32_t nColor = MicroProfileColorFromString(pDesc->pName);
+		MicroProfileInstrumentFunction(pFunction, pDesc->pName, nColor);
 	}
 	else
 	{
@@ -8431,7 +8505,6 @@ void MicroProfileInstrumentFromAddressOnly(void* pFunction)
 void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pFunctionName)
 {
 	pFunction = MicroProfileX64FollowJump(pFunction);
-
 
 	MicroProfileSymbolDesc* pDesc = MicroProfileFindFuction(pFunction);
 	if(pDesc)
@@ -8447,6 +8520,7 @@ void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pFunctio
 	_DecodeType dt = Decode64Bits;
 	_DInst Instructions[15];
 
+	// int xx = 0;
 	int cc = 0;
 
 	_CodeInfo ci;
@@ -8504,7 +8578,10 @@ void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pFunctio
 
 
 				MicroProfileInstrumentFromAddressOnly(fFun1);
-
+// #if 1
+// 				if(xx++ > 5)
+// 					return;
+// #endif
 
 				// printf("%d Call          %ld :: jump dst %p   : %p\n", i, (intptr_t)I.addr, (void*)pDst, fFun1);
 

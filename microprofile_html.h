@@ -7494,8 +7494,8 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	ProfileLeave();\n"
 "}\n"
 "\n"
-"function StringHash(s)\n"
-"{\n"
+"function StringHash(s) //note: matching code in microprofile.cpp: uint32_t MicroProfileStringHash(const char* pString)\n"
+"{ \n"
 "	var h = 0xfeedba3e;\n"
 "	for(var i = 0; i < s.length; ++i)\n"
 "	{\n"
@@ -7508,7 +7508,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "{\n"
 "	var h = StringHash(s);\n"
 "	var cidx = h % 360;\n"
-"	return \"hsl(\" + cidx + \",50%, 70%)\";\n"
+"	return \"hsl(\" + cidx + \",50%, 70%)\"; //note: matching code constants in microprofile.cpp: MicroProfileColorFromString\n"
 "}\n"
 "\n"
 "function LerpColor(v)\n"
@@ -8702,7 +8702,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	context.fillText(\'-\', XTemp, YText);\n"
 "	XTemp -= SizeMinus + 3;\n"
 "	var RollText = \'\'+RollValue + RollExt;\n"
-"	var RollWidth = context.measureText(RollText).width;\n"
+"	var RollWidth = context.measureText";
+
+const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
+const char g_MicroProfileHtmlLive_begin_2[] =
+"(RollText).width;\n"
 "	context.fillStyle = \'white\';\n"
 "\n"
 "	context.fillText(RollText, XTemp, YText);\n"
@@ -8712,11 +8716,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "\n"
 "	M.cidx = 1-M.cidx;\n"
 "\n"
-"	M.y += BoxH";
-
-const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
-const char g_MicroProfileHtmlLive_begin_2[] =
-"eight;\n"
+"	M.y += BoxHeight;\n"
 "	if(Type && MouseReleased && bMouseIn && !MouseReleasedUsed)\n"
 "	{\n"
 "		var V = ShowPrompt(Name, RollValue, Type);\n"
@@ -10123,7 +10123,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "		{\n"
 "			PushIntoArray(FD.Time,0.0);\n"
 "			PushIntoArray(FD.TimeExcl, 0.0);\n"
-"			PushIntoArray(FD.Count, 0);\n"
+"			PushIntoA";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+"rray(FD.Count, 0);\n"
 "			FindMaxTime(FD.Time);\n"
 "			FD.EmptyFrames++;\n"
 "		}\n"
@@ -10132,11 +10136,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "			FD.EmptyFrames = 0;\n"
 "		}\n"
 "		FD.FrameTime = FD.Time[FD.Time.length-1];\n"
-"		FD.AggregateTime = FD.Tim";
-
-const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
-const char g_MicroProfileHtmlLive_begin_3[] =
-"e[FD.Time.length-1];\n"
+"		FD.AggregateTime = FD.Time[FD.Time.length-1];\n"
 "\n"
 "		if(FD.EmptyFrames == FD.Time.length)\n"
 "		{\n"

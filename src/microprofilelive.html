@@ -1621,8 +1621,8 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 	ProfileLeave();
 }
 
-function StringHash(s)
-{
+function StringHash(s) //note: matching code in microprofile.cpp: uint32_t MicroProfileStringHash(const char* pString)
+{ 
 	var h = 0xfeedba3e;
 	for(var i = 0; i < s.length; ++i)
 	{
@@ -1635,7 +1635,7 @@ function StringToColor(s)
 {
 	var h = StringHash(s);
 	var cidx = h % 360;
-	return "hsl(" + cidx + ",50%, 70%)";
+	return "hsl(" + cidx + ",50%, 70%)"; //note: matching code constants in microprofile.cpp: MicroProfileColorFromString
 }
 
 function LerpColor(v)
