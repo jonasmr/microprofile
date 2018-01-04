@@ -8867,23 +8867,23 @@ MicroProfileSymbolDesc* MicroProfileSymbolFindFuction(void* pAddress)
 }
 
 
-#define MAX_FILTER 32
-#define MAX_QUERY_RESULTS 32
-#define MAX_FILTER_STRING 1024
+#define MICROPROFILE_MAX_FILTER 32
+#define MICROPROFILE_MAX_QUERY_RESULTS 32
+#define MICROPROFILE_MAX_FILTER_STRING 1024
 
 struct MicroProfileFunctionQuery
 {
 	MicroProfileFunctionQuery* pNext;
 	uint32_t nState;
-	const char* pFilterStrings[MAX_FILTER];
-	uint32_t nPatternLength[MAX_FILTER];
+	const char* pFilterStrings[MICROPROFILE_MAX_FILTER];
+	uint32_t nPatternLength[MICROPROFILE_MAX_FILTER];
 	int nMaxFilter;
 
 
 
-	MicroProfileSymbolDesc* Results[MAX_QUERY_RESULTS];
+	MicroProfileSymbolDesc* Results[MICROPROFILE_MAX_QUERY_RESULTS];
 	uint32_t nNumResults;
-	char FilterString[MAX_FILTER_STRING];
+	char FilterString[MICROPROFILE_MAX_FILTER_STRING];
 };
 
 MicroProfileFunctionQuery* MicroProfileAllocFunctionQuery()
@@ -8943,11 +8943,11 @@ void* MicroProfileQueryThread(void* p)
 		int nCnt = 0;
 		printf("\n%05d :: %08d", 0, nCnt);
 
-		while(pSymbols && pQuery->nNumResults < MAX_QUERY_RESULTS && 0 == S.pPendingQuery)
+		while(pSymbols && pQuery->nNumResults < MICROPROFILE_MAX_QUERY_RESULTS && 0 == S.pPendingQuery)
 		{
 			MICROPROFILE_SCOPEI("MicroProfile", "SymbolQueryLoop", MP_YELLOW);
 			{
-				for(uint32_t i = 0; i < pSymbols->nNumSymbols && Q.nNumResults < MAX_QUERY_RESULTS && 0 == S.pPendingQuery; ++i)
+				for(uint32_t i = 0; i < pSymbols->nNumSymbols && Q.nNumResults < MICROPROFILE_MAX_QUERY_RESULTS && 0 == S.pPendingQuery; ++i)
 				{
 					MICROPROFILE_SCOPEI("MicroProfile", "SymbolQueryLoop22", MP_YELLOW);
 					MicroProfileSymbolDesc& E = pSymbols->Symbols[i];
@@ -9064,8 +9064,8 @@ void MicroProfileSymbolQueryFunctions(MpSocket Connection, const char* pFilter)
 	S.SymbolMutex.lock();
 	MicroProfileFunctionQuery& Q = *MicroProfileAllocFunctionQuery();
 	uint32_t nLen = (uint32_t)strlen(pFilter)+1;
-	if(nLen >= MAX_FILTER_STRING)
-		nLen = MAX_FILTER_STRING-1;
+	if(nLen >= MICROPROFILE_MAX_FILTER_STRING)
+		nLen = MICROPROFILE_MAX_FILTER_STRING-1;
 
 	memcpy(Q.FilterString, pFilter, nLen);	
 	char* pBuffer = Q.FilterString;
@@ -9086,7 +9086,7 @@ void MicroProfileSymbolQueryFunctions(MpSocket Connection, const char* pFilter)
 		{
 			if(bStartString)
 			{
-				if(Q.nMaxFilter < MAX_FILTER)
+				if(Q.nMaxFilter < MICROPROFILE_MAX_FILTER)
 				{
 					Q.pFilterStrings[Q.nMaxFilter++] = &pBuffer[i];
 				}
@@ -9461,9 +9461,9 @@ int MicroProfileFindFunctionName(const char* pStr, const char** ppStart)
 #include <tlhelp32.h>
 struct MicroProfileQueryContext
 {
-	static const int MAX_FILTER = 32;
-	const char* pFilterStrings[MAX_FILTER];
-	uint32_t nPatternLength[MAX_FILTER];
+
+	const char* pFilterStrings[MICROPROFILE_MAX_FILTER];
+	uint32_t nPatternLength[MICROPROFILE_MAX_FILTER];
 	int nMaxFilter = 0;
 	char TempBuffer[128];
 	uint32_t size = 0;
