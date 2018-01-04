@@ -90,7 +90,7 @@ enum EMicroProfileTokenSpecial
 //		**clear function list on disconnect/reconnect
 //		
 //		blackout mode for expensive stuff
-//		Query loop on thread?
+//		**Query loop on thread?
 //		MouseX is fucked when over the input field
 //		
 //		**Instrument child functions
@@ -1295,9 +1295,35 @@ struct MicroProfileScopeLock
 	}
 };
 
+void MicroProfileLogReset(MicroProfileThreadLog* pLog);
+
+
 MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 {
 	MicroProfileScopeLock L(MicroProfileMutex());
+ 
+ 	if(S.nNumLogs == MICROPROFILE_MAX_THREADS)
+	{
+		//reuse the oldest.
+		MicroProfileThreadLog* pOldest = 0;
+		uint32_t nIdleFrames = 0;
+		for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
+		{
+			MicroProfileThreadLog* pLog = S.Pool[i];
+			if(pLog->nActive == 2)
+			{
+				if(pLog->nIdleFrames > nIdleFrames)
+				{
+					nIdleFrames = pLog->nIdleFrames;
+					pOldest = pLog;
+				}
+			}
+		}
+		MP_ASSERT(pOldest);
+		MicroProfileLogReset(pOldest);
+	}
+
+
 	MicroProfileThreadLog* pLog = 0;
 	if(S.nFreeListHead != -1)
 	{
