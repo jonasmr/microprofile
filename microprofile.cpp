@@ -791,7 +791,6 @@ struct MicroProfile
 	MicroProfileFunctionQuery*  	pQueryFreeList;
 	uint32_t 						nNumQueryFree;
 	uint32_t 						nNumQueryAllocated;
-	std::recursive_mutex 			SymbolMutex;
 
 	int 							SymbolThreadRunning;
 	int 							SymbolThreadFinished;
@@ -1282,16 +1281,29 @@ MicroProfileThreadLog* MicroProfileGetThreadLog2()
 struct MicroProfileScopeLock
 {
 	bool bUseLock;
+	int nUnlock;
 	std::recursive_mutex& m;
-	MicroProfileScopeLock(std::recursive_mutex& m) : bUseLock(g_bUseLock), m(m)
+	MicroProfileScopeLock(std::recursive_mutex& m) : bUseLock(g_bUseLock), m(m), nUnlock(0)
 	{
 		if(bUseLock)
 			m.lock();
 	}
 	~MicroProfileScopeLock()
 	{
+		MP_ASSERT(nUnlock == 0);
 		if(bUseLock)
 			m.unlock();
+	}
+	void Unlock()
+	{
+		MP_ASSERT(bUseLock);
+		m.unlock();
+		nUnlock++;
+	}
+	void Lock()
+	{
+		m.lock();
+		nUnlock--;
 	}
 };
 
@@ -8721,10 +8733,11 @@ bool MicroProfileSymbolInitialize(bool bStartLoad)
 	{
 		if(!bStartLoad)
 			return false;
-		S.SymbolMutex.lock();
-		S.SymbolState.nState.store(MICROPROFILE_SYMBOLSTATE_LOADING);
-		S.SymbolState.nSymbolsLoaded.store(0);
-		S.SymbolMutex.unlock();
+		{
+			MicroProfileScopeLock L(MicroProfileMutex());
+			S.SymbolState.nState.store(MICROPROFILE_SYMBOLSTATE_LOADING);
+			S.SymbolState.nSymbolsLoaded.store(0);
+		}
 		MicroProfileSymbolKickThread();
 		return false;
 	}
@@ -8735,10 +8748,11 @@ bool MicroProfileSymbolInitialize(bool bStartLoad)
 	if(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_DONE && bStartLoad)
 	{
 		MicroProfileSymbolFreeDataInternal();
-		S.SymbolMutex.lock();
-		S.SymbolState.nState.store(MICROPROFILE_SYMBOLSTATE_LOADING);	
-		S.SymbolState.nSymbolsLoaded.store(0);
-		S.SymbolMutex.unlock();
+		{
+			MicroProfileScopeLock L(MicroProfileMutex());
+			S.SymbolState.nState.store(MICROPROFILE_SYMBOLSTATE_LOADING);	
+			S.SymbolState.nSymbolsLoaded.store(0);
+		}
 		MicroProfileSymbolKickThread();
 		return false;
 
@@ -8917,64 +8931,64 @@ void* MicroProfileQueryThread(void* p)
 {
 	printf("query thread start\n");
 	MicroProfileOnThreadCreate("MicroProfileSymbolThread");
+	{	
+		MicroProfileScopeLock L(MicroProfileMutex());
 
-
-	S.SymbolMutex.lock();
-	while(S.pPendingQuery != nullptr || S.SymbolState.nState.load() == MICROPROFILE_SYMBOLSTATE_LOADING)
-	{
-		if(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_LOADING)
+		while(S.pPendingQuery != nullptr || S.SymbolState.nState.load() == MICROPROFILE_SYMBOLSTATE_LOADING)
 		{
-
-			MicroProfileSymbolInitializeInternal();
-			continue;
-		}
-
-
-
-
-		MICROPROFILE_SCOPEI("MicroProfile", "SymbolQuery", MP_WHEAT);
-		printf("proc q\n");
-		MicroProfileFunctionQuery* pQuery = S.pPendingQuery;
-		MicroProfileFunctionQuery& Q = *pQuery;
-		S.pPendingQuery = Q.pNext;
-		Q.pNext = 0;
-		S.SymbolMutex.unlock();
-		MicroProfileSymbolBlock* pSymbols = S.pSymbolBlock;
-		int nCnt = 0;
-		printf("\n%05d :: %08d", 0, nCnt);
-
-		while(pSymbols && pQuery->nNumResults < MICROPROFILE_MAX_QUERY_RESULTS && 0 == S.pPendingQuery)
-		{
-			MICROPROFILE_SCOPEI("MicroProfile", "SymbolQueryLoop", MP_YELLOW);
+			if(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_LOADING)
 			{
-				for(uint32_t i = 0; i < pSymbols->nNumSymbols && Q.nNumResults < MICROPROFILE_MAX_QUERY_RESULTS && 0 == S.pPendingQuery; ++i)
-				{
-					MICROPROFILE_SCOPEI("MicroProfile", "SymbolQueryLoop22", MP_YELLOW);
-					MicroProfileSymbolDesc& E = pSymbols->Symbols[i];
-					if(0 == E.nIgnoreSymbol && MicroProfileStringMatch(E.pShortName, &Q.pFilterStrings[0], Q.nPatternLength, Q.nMaxFilter))
-					{
-						Q.Results[Q.nNumResults++] = &E;
-					}
-					printf("\r%05d :: %08d", Q.nNumResults, nCnt++);
-					fflush(stdout);
-					for(uint64_t i = 0; i < 1000000; ++i)
-					{
-					}
-				}
-				
+
+				MicroProfileSymbolInitializeInternal();
+				continue;
 			}
-			pSymbols = pSymbols->pNext;
+
+
+
+
+			MICROPROFILE_SCOPEI("MicroProfile", "SymbolQuery", MP_WHEAT);
+			printf("proc q\n");
+			MicroProfileFunctionQuery* pQuery = S.pPendingQuery;
+			MicroProfileFunctionQuery& Q = *pQuery;
+			S.pPendingQuery = Q.pNext;
+			Q.pNext = 0;
+			L.Unlock();
+			MicroProfileSymbolBlock* pSymbols = S.pSymbolBlock;
+			int nCnt = 0;
+			printf("\n%05d :: %08d", 0, nCnt);
+
+			while(pSymbols && pQuery->nNumResults < MICROPROFILE_MAX_QUERY_RESULTS && 0 == S.pPendingQuery)
+			{
+				MICROPROFILE_SCOPEI("MicroProfile", "SymbolQueryLoop", MP_YELLOW);
+				{
+					for(uint32_t i = 0; i < pSymbols->nNumSymbols && Q.nNumResults < MICROPROFILE_MAX_QUERY_RESULTS && 0 == S.pPendingQuery; ++i)
+					{
+						MICROPROFILE_SCOPEI("MicroProfile", "SymbolQueryLoop22", MP_YELLOW);
+						MicroProfileSymbolDesc& E = pSymbols->Symbols[i];
+						if(0 == E.nIgnoreSymbol && MicroProfileStringMatch(E.pShortName, &Q.pFilterStrings[0], Q.nPatternLength, Q.nMaxFilter))
+						{
+							Q.Results[Q.nNumResults++] = &E;
+						}
+						printf("\r%05d :: %08d", Q.nNumResults, nCnt++);
+						fflush(stdout);
+						for(uint64_t i = 0; i < 1000000; ++i)
+						{
+						}
+					}
+				
+				}
+				pSymbols = pSymbols->pNext;
+			}
+			L.Lock();
+			printf("query done.. %d\n", Q.nNumResults);
+			pQuery->pNext = S.pFinishedQuery;
+			S.pFinishedQuery = pQuery;
+
 		}
-		S.SymbolMutex.lock();
-		printf("query done.. %d\n", Q.nNumResults);
-		pQuery->pNext = S.pFinishedQuery;
-		S.pFinishedQuery = pQuery;
 
+		S.SymbolThreadFinished = 1;
+		printf("query thread stopped\n");
 	}
-
-	S.SymbolThreadFinished = 1;
-	S.SymbolMutex.unlock();
-	printf("query thread stopped\n");
 	MicroProfileOnThreadExit();
 	return 0;
 }
@@ -9001,25 +9015,26 @@ void MicroProfileSymbolKickThread()
 void MicroProfileSymbolQuerySendResult(MpSocket Connection)
 {
 	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSymbolQuerySendResult", MP_PINK2);
-	S.SymbolMutex.lock();
-	
 	MicroProfileFunctionQuery* pQuery = 0;
-	while(S.pFinishedQuery != nullptr)
 	{
-		if(!pQuery)
+		MicroProfileScopeLock L(MicroProfileMutex());
+	
+		while(S.pFinishedQuery != nullptr)
 		{
-			pQuery = S.pFinishedQuery;
-			S.pFinishedQuery = pQuery->pNext;
-		}
-		else
-		{
-			//only send most reecent.
-			MicroProfileFunctionQuery* pQ = S.pFinishedQuery;
-			S.pFinishedQuery = pQ->pNext;
-			MicroProfileFreeFunctionQuery(pQ);
+			if(!pQuery)
+			{
+				pQuery = S.pFinishedQuery;
+				S.pFinishedQuery = pQuery->pNext;
+			}
+			else
+			{
+				//only send most reecent.
+				MicroProfileFunctionQuery* pQ = S.pFinishedQuery;
+				S.pFinishedQuery = pQ->pNext;
+				MicroProfileFreeFunctionQuery(pQ);
+			}
 		}
 	}
-	S.SymbolMutex.unlock();
 
 	if(pQuery)
 	{
@@ -9044,9 +9059,8 @@ void MicroProfileSymbolQuerySendResult(MpSocket Connection)
 		MicroProfileWSFlush();
 		MicroProfileWSPrintEnd();
 
-		S.SymbolMutex.lock();
+		MicroProfileScopeLock L(MicroProfileMutex());
 		MicroProfileFreeFunctionQuery(pQuery);
-		S.SymbolMutex.unlock();
 	}
 
 
@@ -9060,53 +9074,54 @@ void MicroProfileSymbolQueryFunctions(MpSocket Connection, const char* pFilter)
 	{
 		return;
 	}
-
-	S.SymbolMutex.lock();
-	MicroProfileFunctionQuery& Q = *MicroProfileAllocFunctionQuery();
-	uint32_t nLen = (uint32_t)strlen(pFilter)+1;
-	if(nLen >= MICROPROFILE_MAX_FILTER_STRING)
-		nLen = MICROPROFILE_MAX_FILTER_STRING-1;
-
-	memcpy(Q.FilterString, pFilter, nLen);	
-	char* pBuffer = Q.FilterString;
-	bool bStartString = true;
-	for(uint32_t i = 0; i < nLen; ++i)
 	{
-		char c = pBuffer[i];
-		if(c == '\0')
+		MicroProfileScopeLock L(MicroProfileMutex());
+		MicroProfileFunctionQuery* pQuery = 0;
+		MicroProfileFunctionQuery& Q = *MicroProfileAllocFunctionQuery();
+		uint32_t nLen = (uint32_t)strlen(pFilter)+1;
+		if(nLen >= MICROPROFILE_MAX_FILTER_STRING)
+			nLen = MICROPROFILE_MAX_FILTER_STRING-1;
+
+		memcpy(Q.FilterString, pFilter, nLen);	
+		char* pBuffer = Q.FilterString;
+		bool bStartString = true;
+		for(uint32_t i = 0; i < nLen; ++i)
 		{
-			break;
-		}
-		if(isspace(c) || c == '*')
-		{
-			pBuffer[i] = '\0';
-			bStartString = true;
-		}
-		else
-		{
-			if(bStartString)
+			char c = pBuffer[i];
+			if(c == '\0')
 			{
-				if(Q.nMaxFilter < MICROPROFILE_MAX_FILTER)
-				{
-					Q.pFilterStrings[Q.nMaxFilter++] = &pBuffer[i];
-				}
+				break;
 			}
-			bStartString = false;
+			if(isspace(c) || c == '*')
+			{
+				pBuffer[i] = '\0';
+				bStartString = true;
+			}
+			else
+			{
+				if(bStartString)
+				{
+					if(Q.nMaxFilter < MICROPROFILE_MAX_FILTER)
+					{
+						Q.pFilterStrings[Q.nMaxFilter++] = &pBuffer[i];
+					}
+				}
+				bStartString = false;
+			}
 		}
-	}
-	#if 1
-	printf("query ::");
-	for(int i = 0; i < Q.nMaxFilter; ++i)
-	{
-		Q.nPatternLength[i] = (uint32_t)strlen(Q.pFilterStrings[i]);
-		printf("'%s' ", Q.pFilterStrings[i]);
-	}
-	printf("\n");
-	#endif
+		#if 1
+		printf("query ::");
+		for(int i = 0; i < Q.nMaxFilter; ++i)
+		{
+			Q.nPatternLength[i] = (uint32_t)strlen(Q.pFilterStrings[i]);
+			printf("'%s' ", Q.pFilterStrings[i]);
+		}
+		printf("\n");
+		#endif
 
-	Q.pNext = S.pPendingQuery;
-	S.pPendingQuery = &Q;
-	S.SymbolMutex.unlock();
+		Q.pNext = S.pPendingQuery;
+		S.pPendingQuery = &Q;
+	}
 	MicroProfileSymbolKickThread();
 
 }
