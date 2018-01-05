@@ -10084,9 +10084,10 @@ void MicroProfileIterateSymbols(Callback CB)
 {
 	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileIterateSymbols", MP_PINK3);
 	QueryCallbackImpl<Callback> Context(CB);
-	SymCleanup(GetCurrentProcess());
-	SymSetOptions(SYMOPT_UNDNAME);
-	if(SymInitialize(GetCurrentProcess(), NULL, TRUE))
+	HANDLE h = GetCurrentProcess();
+	SymCleanup(h);
+	SymSetOptions(0);
+	if(SymInitialize(h, NULL, TRUE))
 	{
 		// printf("symbols loaded!\n");
 		// API_VERSION* pv = ImagehlpApiVersion();
