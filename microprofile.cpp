@@ -1283,7 +1283,7 @@ struct MicroProfileScopeLock
 	bool bUseLock;
 	int nUnlock;
 	std::recursive_mutex& m;
-	MicroProfileScopeLock(std::recursive_mutex& m) : bUseLock(g_bUseLock), m(m), nUnlock(0)
+	MicroProfileScopeLock(std::recursive_mutex& m) : bUseLock(g_bUseLock), nUnlock(0), m(m) 
 	{
 		if(bUseLock)
 			m.lock();
@@ -9076,7 +9076,6 @@ void MicroProfileSymbolQueryFunctions(MpSocket Connection, const char* pFilter)
 	}
 	{
 		MicroProfileScopeLock L(MicroProfileMutex());
-		MicroProfileFunctionQuery* pQuery = 0;
 		MicroProfileFunctionQuery& Q = *MicroProfileAllocFunctionQuery();
 		uint32_t nLen = (uint32_t)strlen(pFilter)+1;
 		if(nLen >= MICROPROFILE_MAX_FILTER_STRING)
