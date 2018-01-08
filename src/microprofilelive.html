@@ -223,6 +223,7 @@ var MSG_PRESETS = 5;
 var MSG_CURRENTSETTINGS = 6; 
 var MSG_COUNTERS = 7; 
 var MSG_FUNCTION_RESULTS = 8;
+var MSG_INACTIVE_FRAME = 9;
 
 var TYPE_NONE = 0;
 var TYPE_TIMER = 1;
@@ -4061,7 +4062,7 @@ function ProcessCounters(C)
 }
 
 
-function ProcessFrame(F)
+function ProcessFrame(F, Inactive)
 {
 	if(F.s)
 	{
@@ -4084,195 +4085,198 @@ function ProcessFrame(F)
 	{
 		IsFrozen--;
 	}
-	var TriggerAutoCapture = 0;
-	PushIntoArray(FrameData.Time, F.t);
-	PushIntoArray(FrameData.Ids, F.f);
-	PushIntoArray(FrameData.Frozen, IsFrozen ? 1 : 0);
-	var CaptureId = null;
-	var AutoCapture = AutoCaptureEnabled && !IsFrozen;
-	AggregateCurrent = F.a;
-	if(F.m != Settings.ViewActive)
+	if(!Inactive)
 	{
-		WSSendMessage("v" + Settings.ViewActive);
-	}
-	if(AutoCapture)
-	{
-		if(AutoCaptureSourceIndex == -1 && F.t > Settings.AutoCaptureTheshold)
+		var TriggerAutoCapture = 0;
+		PushIntoArray(FrameData.Time, F.t);
+		PushIntoArray(FrameData.Ids, F.f);
+		PushIntoArray(FrameData.Frozen, IsFrozen ? 1 : 0);
+		var CaptureId = null;
+		var AutoCapture = AutoCaptureEnabled && !IsFrozen;
+		AggregateCurrent = F.a;
+		if(F.m != Settings.ViewActive)
 		{
-			TriggerAutoCapture = 1;
-			console.log('trigger capture! ', F.t, ' ', Settings.AutoCaptureTheshold);
+			WSSendMessage("v" + Settings.ViewActive);
 		}
-		else if(AutoCaptureSourceIndex >= 0 && AutoCaptureSourceIndex < EnabledArray.length)
+		if(AutoCapture)
 		{
-			var id = TimerArray[EnabledArray[AutoCaptureSourceIndex]].id;
-			var Data = F.x[id];
-			if(Data && Data[0])
+			if(AutoCaptureSourceIndex == -1 && F.t > Settings.AutoCaptureTheshold)
 			{
-			 	if(Data[0] > Settings.AutoCaptureTheshold)
-			 	{
-			 		TriggerAutoCapture = 1;
-					console.log('trigger capture! ', Data[0], ' ', Settings.AutoCaptureTheshold);
-			 	}
+				TriggerAutoCapture = 1;
+				console.log('trigger capture! ', F.t, ' ', Settings.AutoCaptureTheshold);
+			}
+			else if(AutoCaptureSourceIndex >= 0 && AutoCaptureSourceIndex < EnabledArray.length)
+			{
+				var id = TimerArray[EnabledArray[AutoCaptureSourceIndex]].id;
+				var Data = F.x[id];
+				if(Data && Data[0])
+				{
+				 	if(Data[0] > Settings.AutoCaptureTheshold)
+				 	{
+				 		TriggerAutoCapture = 1;
+						console.log('trigger capture! ', Data[0], ' ', Settings.AutoCaptureTheshold);
+				 	}
+				}
 			}
 		}
-	}
 
-	var GraphTimeMax = 0;
-	var HistoryTimeMax = 0;
+		var GraphTimeMax = 0;
+		var HistoryTimeMax = 0;
 
-	for(var i = 0; i < FrameData.Time.length; ++i)
-	{
-		if(0 == FrameData.Frozen[i])
-		{
-			HistoryTimeMax = HistoryTimeMax > FrameData.Time[i] ? HistoryTimeMax : FrameData.Time[i];
-		}
-	}
-	var FindMaxTime = function(A)
-	{
-		var MaxTime = 0;
-		for(var i = 0; i < A.length; ++i)
+		for(var i = 0; i < FrameData.Time.length; ++i)
 		{
 			if(0 == FrameData.Frozen[i])
 			{
-				MaxTime = MaxTime > A[i] ? MaxTime : A[i];
+				HistoryTimeMax = HistoryTimeMax > FrameData.Time[i] ? HistoryTimeMax : FrameData.Time[i];
 			}
 		}
-		GraphTimeMax = MaxTime > GraphTimeMax ? MaxTime : GraphTimeMax;
-		return MaxTime;
-	}
-	function SetTimersInArray(FD, id)
-	{
-		var idx = GetTimer(id);
-		var Pos = AggregateHistorySize-1;
-		var T = TimerArray[idx];
-		T.average = FD.TimeAvg[Pos];
-		T.max = FD.TimeMax[Pos];
-		T.total = FD.TimeTotal[Pos];
-		T.min = FD.TimeMin[Pos];
-		T.spike = (T.average == 0 || T.max == 0) ? 0 : (100*T.max/T.average);
-		T.callaverage = FD.TimeCallAvg[Pos];
-		T.callcount = FD.CallCount[Pos];
-		T.exclaverage = FD.TimeExclAvg[Pos];
-		T.exclmax = FD.TimeExclMax[Pos];
-		T.exclmin = FD.TimeExclMin[Pos];
-	}
-	for(var id in F.x)
-	{
-		var FD = GetFrameData(id);
-		var Data = F.x[id];
-		var Time = Data[0];
-		var TimeExcl = Data[1];
-		var Count = Data[2];
-		PushIntoArray(FD.Time, Time);
-		PushIntoArray(FD.TimeExcl, TimeExcl);
-		PushIntoArray(FD.Count, Count);
-		FD.historymax = FindMaxTime(FD.Time);
-
-		if(FD.Aggregate > Settings.AggregateFrames && Settings.AggregateFrames > 0)
+		var FindMaxTime = function(A)
 		{
-			SetTimersInArray(FD, id);
-			FD.Aggregate = 0;
-			FD.AggregateSum = 0;
-			FD.AggregateMax = 0;
-			FD.AggregateMin = C_HUGE;
-			FD.AggregateExclSum = 0;
-			FD.AggregateExclMax = 0;
-			FD.AggregateExclMin = C_HUGE;
-			FD.AggregateCount = 0;
-			
-			FD.TimeMax.shift();
-			FD.TimeMax.push(0);
-			
-			FD.TimeMin.shift();
-			FD.TimeMin.push(0);
+			var MaxTime = 0;
+			for(var i = 0; i < A.length; ++i)
+			{
+				if(0 == FrameData.Frozen[i])
+				{
+					MaxTime = MaxTime > A[i] ? MaxTime : A[i];
+				}
+			}
+			GraphTimeMax = MaxTime > GraphTimeMax ? MaxTime : GraphTimeMax;
+			return MaxTime;
+		}
+		function SetTimersInArray(FD, id)
+		{
+			var idx = GetTimer(id);
+			var Pos = AggregateHistorySize-1;
+			var T = TimerArray[idx];
+			T.average = FD.TimeAvg[Pos];
+			T.max = FD.TimeMax[Pos];
+			T.total = FD.TimeTotal[Pos];
+			T.min = FD.TimeMin[Pos];
+			T.spike = (T.average == 0 || T.max == 0) ? 0 : (100*T.max/T.average);
+			T.callaverage = FD.TimeCallAvg[Pos];
+			T.callcount = FD.CallCount[Pos];
+			T.exclaverage = FD.TimeExclAvg[Pos];
+			T.exclmax = FD.TimeExclMax[Pos];
+			T.exclmin = FD.TimeExclMin[Pos];
+		}
+		for(var id in F.x)
+		{
+			var FD = GetFrameData(id);
+			var Data = F.x[id];
+			var Time = Data[0];
+			var TimeExcl = Data[1];
+			var Count = Data[2];
+			PushIntoArray(FD.Time, Time);
+			PushIntoArray(FD.TimeExcl, TimeExcl);
+			PushIntoArray(FD.Count, Count);
+			FD.historymax = FindMaxTime(FD.Time);
 
-			FD.TimeAvg.shift();
-			FD.TimeAvg.push(0);
-			
-			FD.TimeCallAvg.shift();
-			FD.TimeCallAvg.push(0);
+			if(FD.Aggregate > Settings.AggregateFrames && Settings.AggregateFrames > 0)
+			{
+				SetTimersInArray(FD, id);
+				FD.Aggregate = 0;
+				FD.AggregateSum = 0;
+				FD.AggregateMax = 0;
+				FD.AggregateMin = C_HUGE;
+				FD.AggregateExclSum = 0;
+				FD.AggregateExclMax = 0;
+				FD.AggregateExclMin = C_HUGE;
+				FD.AggregateCount = 0;
+				
+				FD.TimeMax.shift();
+				FD.TimeMax.push(0);
+				
+				FD.TimeMin.shift();
+				FD.TimeMin.push(0);
 
-			FD.CallCount.shift();
-			FD.CallCount.push(0);
+				FD.TimeAvg.shift();
+				FD.TimeAvg.push(0);
+				
+				FD.TimeCallAvg.shift();
+				FD.TimeCallAvg.push(0);
 
-			FD.TimeTotal.shift();
-			FD.TimeTotal.push(0);
+				FD.CallCount.shift();
+				FD.CallCount.push(0);
 
-			FD.TimeExclMax.shift();
-			FD.TimeExclMax.push(0);
+				FD.TimeTotal.shift();
+				FD.TimeTotal.push(0);
 
-			FD.TimeExclMin.shift();
-			FD.TimeExclMin.push(0);
+				FD.TimeExclMax.shift();
+				FD.TimeExclMax.push(0);
 
-			FD.TimeExclAvg.shift();
-			FD.TimeExclAvg.push(0);
+				FD.TimeExclMin.shift();
+				FD.TimeExclMin.push(0);
+
+				FD.TimeExclAvg.shift();
+				FD.TimeExclAvg.push(0);
+			}
+
+			FD.Aggregate += 1;
+			FD.AggregateSum += Time;
+			FD.AggregateMax = FD.AggregateMax > Time ? FD.AggregateMax : Time;
+			FD.AggregateMin = FD.AggregateMin < Time ? FD.AggregateMin : Time;
+			FD.AggregateExclSum += TimeExcl;
+			FD.AggregateExclMax = FD.AggregateExclMax > TimeExcl ? FD.AggregateExclMax : TimeExcl;
+			FD.AggregateExclMin = FD.AggregateExclMin < TimeExcl ? FD.AggregateExclMin : TimeExcl;
+			FD.AggregateCount += Count;
+			var UpdatePos = AggregateHistorySize-1;
+			if(UpdatePos != FD.TimeMax.length - 1)
+			{
+				debugger;
+			}
+
+			FD.TimeMax[UpdatePos] = FD.AggregateMax;
+			FD.TimeMin[UpdatePos] = FD.AggregateMin;
+			FD.TimeAvg[UpdatePos] = FD.AggregateSum / FD.Aggregate;
+			FD.TimeCallAvg[UpdatePos] = FD.AggregateCount ? FD.AggregateSum / FD.AggregateCount : 0;
+			FD.TimeTotal[UpdatePos] = FD.AggregateSum;
+			FD.CallCount[UpdatePos] = FD.AggregateCount;
+			FD.TimeExclAvg[UpdatePos] = FD.AggregateCount ? FD.AggregateExclSum / FD.AggregateCount : 0;
+			FD.TimeExclMax[UpdatePos] = FD.AggregateExclMax;
+			FD.TimeExclMin[UpdatePos] = FD.AggregateExclMin;
+
+			if(Settings.AggregateFrames <= 0)
+			{
+				SetTimersInArray(FD, id);
+			}
 		}
 
-		FD.Aggregate += 1;
-		FD.AggregateSum += Time;
-		FD.AggregateMax = FD.AggregateMax > Time ? FD.AggregateMax : Time;
-		FD.AggregateMin = FD.AggregateMin < Time ? FD.AggregateMin : Time;
-		FD.AggregateExclSum += TimeExcl;
-		FD.AggregateExclMax = FD.AggregateExclMax > TimeExcl ? FD.AggregateExclMax : TimeExcl;
-		FD.AggregateExclMin = FD.AggregateExclMin < TimeExcl ? FD.AggregateExclMin : TimeExcl;
-		FD.AggregateCount += Count;
-		var UpdatePos = AggregateHistorySize-1;
-		if(UpdatePos != FD.TimeMax.length - 1)
+		var ToDelete = new Array();
+		for(var id in FrameData.TimerMap)
 		{
-			debugger;
+			FD = FrameData.TimerMap[id];
+			if(!F.x[id])
+			{
+				PushIntoArray(FD.Time,0.0);
+				PushIntoArray(FD.TimeExcl, 0.0);
+				PushIntoArray(FD.Count, 0);
+				FindMaxTime(FD.Time);
+				FD.EmptyFrames++;
+			}
+			else
+			{
+				FD.EmptyFrames = 0;
+			}
+			FD.FrameTime = FD.Time[FD.Time.length-1];
+			FD.AggregateTime = FD.Time[FD.Time.length-1];
+
+			if(FD.EmptyFrames == FD.Time.length)
+			{
+				ToDelete.push(id);
+			}
 		}
-
-		FD.TimeMax[UpdatePos] = FD.AggregateMax;
-		FD.TimeMin[UpdatePos] = FD.AggregateMin;
-		FD.TimeAvg[UpdatePos] = FD.AggregateSum / FD.Aggregate;
-		FD.TimeCallAvg[UpdatePos] = FD.AggregateCount ? FD.AggregateSum / FD.AggregateCount : 0;
-		FD.TimeTotal[UpdatePos] = FD.AggregateSum;
-		FD.CallCount[UpdatePos] = FD.AggregateCount;
-		FD.TimeExclAvg[UpdatePos] = FD.AggregateCount ? FD.AggregateExclSum / FD.AggregateCount : 0;
-		FD.TimeExclMax[UpdatePos] = FD.AggregateExclMax;
-		FD.TimeExclMin[UpdatePos] = FD.AggregateExclMin;
-
-		if(Settings.AggregateFrames <= 0)
+		for(var i = 0; i < ToDelete.length; ++i)
 		{
-			SetTimersInArray(FD, id);
+			delete FrameData.TimerMap[ToDelete[i]];
 		}
-	}
+		FramePending++;
 
-	var ToDelete = new Array();
-	for(var id in FrameData.TimerMap)
-	{
-		FD = FrameData.TimerMap[id];
-		if(!F.x[id])
+
+		if(TriggerAutoCapture)
 		{
-			PushIntoArray(FD.Time,0.0);
-			PushIntoArray(FD.TimeExcl, 0.0);
-			PushIntoArray(FD.Count, 0);
-			FindMaxTime(FD.Time);
-			FD.EmptyFrames++;
+			Capture();
+			AutoCaptureEnabled = 0;
 		}
-		else
-		{
-			FD.EmptyFrames = 0;
-		}
-		FD.FrameTime = FD.Time[FD.Time.length-1];
-		FD.AggregateTime = FD.Time[FD.Time.length-1];
-
-		if(FD.EmptyFrames == FD.Time.length)
-		{
-			ToDelete.push(id);
-		}
-	}
-	for(var i = 0; i < ToDelete.length; ++i)
-	{
-		delete FrameData.TimerMap[ToDelete[i]];
-	}
-	FramePending++;
-
-
-	if(TriggerAutoCapture)
-	{
-		Capture();
-		AutoCaptureEnabled = 0;
 	}
 
 	ReferenceGraphAutomatic = 1.05 * GraphTimeMax;
@@ -4319,6 +4323,10 @@ function WSMessage()
 	{
 		FunctionQueryPending = null;
 		FunctionQueryArray = Obj.v;
+	}
+	else if(k == MSG_INACTIVE_FRAME)
+	{
+		ProcessFrame(Obj.v, 1)
 	}
 	else
 	{

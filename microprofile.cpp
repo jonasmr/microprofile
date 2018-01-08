@@ -4717,6 +4717,7 @@ enum
 	MSG_CURRENTSETTINGS = 6, 
 	MSG_COUNTERS = 7,
 	MSG_FUNCTION_RESULTS = 8, 
+	MSG_INACTIVE_FRAME = 9
 
 };
 
@@ -5805,10 +5806,18 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 		MicroProfileWebSocketSendCounters();
 		MicroProfileWSPrintEnd();
 		S.WebSocketFrameLast[0] = S.nFrameCurrent;
-
-
-		MicroProfileSymbolQuerySendResult(Connection);
 	}
+	else
+	{
+		MicroProfileWSPrintStart(Connection);
+		MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{\"fr\":%d,\"m\":%d", MSG_INACTIVE_FRAME, S.nFrozen, S.nWSViewMode);
+		MicroProfileWSPrintf(",\"s\":{\"s\":%d,\"l\":%d}", S.SymbolState.nState.load(), S.SymbolState.nSymbolsLoaded.load());
+		MicroProfileWSPrintf("}}");
+		MicroProfileWSFlush();
+		MicroProfileWSPrintEnd();
+
+	}
+	MicroProfileSymbolQuerySendResult(Connection);
 }
 
 
@@ -8712,7 +8721,11 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pFunctionName, 
 		S.FunctionsInstrumented[S.DynamicTokenIndex] = pFunction;
 		S.DynamicTokenIndex++;
 
-		// printf("interception success!!\n");
+		uint16_t nGroup = MicroProfileGetGroupIndex(Tok);
+		if(!MicroProfileGroupActive(nGroup))
+		{
+			MicroProfileToggleGroup(nGroup);
+		}
 		MicroProfileToggleWebSocketToggleTimer(MicroProfileGetTimerIndex(Tok));
 	}
 	else
@@ -8850,7 +8863,7 @@ void MicroProfileSymbolInitializeInternal()
 		{
 			MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Ignored", 1);
 		}
-		// usleep(5000);
+		//usleep(10000);
 		S.SymbolState.nSymbolsLoaded.fetch_add(1);
 		MP_ASSERT((intptr_t)E.pShortName >= (intptr_t)&E); //assert pointer arithmetic is correct.
 
@@ -8938,8 +8951,9 @@ void* MicroProfileQueryThread(void* p)
 		{
 			if(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_LOADING)
 			{
-
+				L.Unlock();
 				MicroProfileSymbolInitializeInternal();
+				L.Lock();
 				continue;
 			}
 
