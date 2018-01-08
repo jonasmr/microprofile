@@ -5814,8 +5814,8 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 		MicroProfileWSPrintf(",\"s\":{\"s\":%d,\"l\":%d}", S.SymbolState.nState.load(), S.SymbolState.nSymbolsLoaded.load());
 		MicroProfileWSPrintf("}}");
 		MicroProfileWSFlush();
+		MicroProfileWebSocketSendCounters();
 		MicroProfileWSPrintEnd();
-
 	}
 	MicroProfileSymbolQuerySendResult(Connection);
 }
