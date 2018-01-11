@@ -7932,6 +7932,7 @@ struct MicroProfileSymbolDesc
 	intptr_t nAddress;
 	intptr_t nAddressEnd;
 	int nIgnoreSymbol;
+	uint32_t nMask;
 };
 
 struct MicroProfileSymbolBlock
@@ -7951,8 +7952,6 @@ struct MicroProfileSymbolBlock
 
 };
 
-// static MicroProfileSymbolState S.SymbolState;
-// static MicroProfileSymbolBlock* S.pSymbolBlock = nullptr;
 typedef void (*MicroProfileOnSymbolCallback)(const char* pSymbolName, intptr_t nAddress);
 
 
@@ -8792,6 +8791,66 @@ void MicroProfileSymbolFreeDataInternal()
 	}
 }
 
+uint32_t MicroProfileCharacterMaskChar(char c)
+{
+	if(c >= 'A' && c <= 'Z')
+		c = 'a' + (c - 'A');
+	//abcdefghijklmnopqrstuvwxyz
+	if(c >= 'a' && c <= 'z')
+	{
+		int b = c - 'a';
+		b = MicroProfileMin(20, b);//squish the last together 
+		static int once = 0;
+		if(0 == once)
+		{
+			for(int i = 20; i < 28; ++i)
+			{
+				printf("char %d is %c\n", i, (char)('a' + i));
+			}
+			once = 1;
+		}
+		uint32_t v = 1;
+		return v << b;
+	}
+	if(c >= '0' && c <= '9')
+	{
+		int b = c - '0';
+		b += 21;
+		if(b <21 || b>30) 
+			MP_BREAK();
+		return b << b;
+	}
+	switch(c)
+	{
+	case ':':
+	case ';':
+	case '\\':
+	case '\'':
+	case '\"':
+	case '/':
+	case '{':
+	case '}':
+	case '(':
+	case ')':
+	case '[':
+	case ']':
+		return 1 << 31; // special characters
+	}
+	return 0;
+}
+
+uint32_t MicroProfileCharacterMaskString(const char* pStr)
+{
+	uint32_t nMask = 0;
+	char c = 0;
+	while(0 != (c = *pStr++))
+	{
+		nMask |= MicroProfileCharacterMaskChar(c);
+	}
+	return nMask;
+	
+}
+
 
 void MicroProfileSymbolInitializeInternal()
 {
@@ -8858,6 +8917,8 @@ void MicroProfileSymbolInitializeInternal()
 		{
 			E.pShortName = E.pName;
 		}
+		E.nMask = MicroProfileCharacterMaskString(E.pShortName);
+		pActiveBlock->nMask |= E.nMask;
 		MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Count", 1);
 		if(nIgnoreSymbol)
 		{
@@ -8871,6 +8932,27 @@ void MicroProfileSymbolInitializeInternal()
 	MicroProfileIterateSymbols(SymbolCallback);
 	printf("Finished loading...\n");
 	S.SymbolState.nState.store(MICROPROFILE_SYMBOLSTATE_DONE);
+
+	uint32_t nNumBits[32] = {0};
+	MicroProfileSymbolBlock* pSymbols = S.pSymbolBlock;
+	while(pSymbols)
+	{
+		uint32_t nBits = 0;
+		uint32_t nMask = pSymbols->nMask;
+		while(nMask)
+		{
+			nBits++;
+			nMask &= (nMask-1);
+		}
+		if(nBits>31)
+			MP_BREAK();
+		nNumBits[nBits]++;
+		pSymbols = pSymbols->pNext;
+	}
+	for(int i = 0; i < 32; ++i)
+	{
+		printf("BIT COUNT %d :: %3d\n", i, nNumBits[i]);
+	}
 }
 
 
