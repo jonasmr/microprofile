@@ -2,3 +2,4 @@
 #define MICROPROFILE_IMPL
 #define MICROPROFILE_WIN32_COLLECTOR
 #include "../../microprofile.h"
+#include "../../microprofile.cpp"
