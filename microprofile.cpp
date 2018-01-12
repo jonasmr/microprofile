@@ -7924,10 +7924,18 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 template<typename Callback>
 void MicroProfileIterateSymbols(Callback CB);
 
+#if 1
+#define STRING_MATCH_SIZE 64
+typedef uint64_t uint_string_match;
+#else
+#define STRING_MATCH_SIZE 32
+typedef uint32_t uint_string_match;
+#endif
+
 struct MicroProfileStringMatchMask
 {
-	uint32_t nMask;
-	uint32_t M[32];
+	uint_string_match nMask;
+	uint_string_match M[64];
 };
 
 
@@ -7937,8 +7945,8 @@ struct MicroProfileSymbolDesc
 	const char* pShortName;
 	intptr_t nAddress;
 	intptr_t nAddressEnd;
+	uint_string_match nMask;
 	int nIgnoreSymbol;
-	uint32_t nMask;
 };
 
 struct MicroProfileSymbolBlock
@@ -7946,7 +7954,7 @@ struct MicroProfileSymbolBlock
 	MicroProfileSymbolBlock* pNext;
 	uint32_t nNumSymbols;
 	uint32_t nNumChars;
-	uint32_t nMask;
+	uint_string_match nMask;
 	MicroProfileStringMatchMask MatchMask;
 	enum
 	{
@@ -8798,7 +8806,52 @@ void MicroProfileSymbolFreeDataInternal()
 		}
 	}
 }
+#if STRING_MATCH_SIZE == 64
+int MicroProfileCharacterMaskCharIndex(char c)
+{
+	if(c >= 'A' && c <= 'Z')
+		c = 'a' + (c - 'A');
+	//abcdefghijklmnopqrstuvwxyz
+	if(c >= 'a' && c <= 'z')
+	{
+		int b = c - 'a';
+		return b;
+	}
+	if(c >= '0' && c <= '9')
+	{
+		int b = c - '0';
+		return b + 26;
+	}
+	switch(c)
+	{
+	case ':': return 37;
+	case ';': return 38;
+	case '\\': return 39;
+	case '\'': return 40;
+	case '\"': return 41;
+	case '/': return 42;
+	case '{': return 43;
+	case '}': return 44;
+	case '(': return 45;
+	case ')': return 46;
+	case '[': return 47;
+	case ']': return 48;
+	case '<': return 49;
+	case '>': return 50;
+	case '.': return 51;
+	case ',': return 52; // special characters
+	}
+	return 63;
+}
 
+uint64_t MicroProfileCharacterMaskChar(char c)
+{
+	uint64_t nMask = 1;
+	int nIndex = MicroProfileCharacterMaskCharIndex(c);
+	return nMask << nIndex;
+}
+
+#else
 uint32_t MicroProfileCharacterMaskChar(char c)
 {
 	if(c >= 'A' && c <= 'Z')
@@ -8846,7 +8899,6 @@ uint32_t MicroProfileCharacterMaskChar(char c)
 	}
 	return 0;
 }
-
 int MicroProfileCharacterMaskCharIndex(char c)
 {
 	if(c >= 'A' && c <= 'Z')
@@ -8893,11 +8945,12 @@ int MicroProfileCharacterMaskCharIndex(char c)
 	}
 	return 1;
 }
+#endif
 
 
-uint32_t MicroProfileCharacterMaskString(const char* pStr)
+uint_string_match MicroProfileCharacterMaskString(const char* pStr)
 {
-	uint32_t nMask = 0;
+	uint_string_match nMask = 0;
 	char c = 0;
 	while(0 != (c = *pStr++))
 	{
@@ -8910,7 +8963,7 @@ uint32_t MicroProfileCharacterMaskString(const char* pStr)
 
 void MicroProfileCharacterMaskString2(const char* pStr, MicroProfileStringMatchMask& M)
 {
-	uint32_t nMask = 0;
+	uint_string_match nMask = 0;
 	char c = 0;
 	int nLast = -1;
 	while(0 != (c = *pStr++))
@@ -8919,8 +8972,8 @@ void MicroProfileCharacterMaskString2(const char* pStr, MicroProfileStringMatchM
 		int nIndex = MicroProfileCharacterMaskCharIndex(c);
 		if(nIndex >= 0 && nLast >= 0)
 		{
-			MP_ASSERT(nIndex < 32);
-			M.M[nLast] |= 1u << nIndex;
+			MP_ASSERT(nIndex < STRING_MATCH_SIZE);
+			M.M[nLast] |= 1llu << nIndex;
 		}
 		nLast = nIndex;
 
@@ -8932,7 +8985,7 @@ bool MicroProfileCharacterMatch(const MicroProfileStringMatchMask& Block, const 
 {
 	if(String.nMask != (Block.nMask & String.nMask))
 		return false;
-	for(uint32_t i = 0; i < 32; ++i)
+	for(uint32_t i = 0; i < STRING_MATCH_SIZE; ++i)
 	{
 		if(String.M[i] != (Block.M[i] & String.M[i]))
 			return false;
