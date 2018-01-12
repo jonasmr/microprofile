@@ -7924,6 +7924,12 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 template<typename Callback>
 void MicroProfileIterateSymbols(Callback CB);
 
+struct MicroProfileStringMatchMask
+{
+	uint32_t nMask;
+	uint32_t M[32];
+};
+
 
 struct MicroProfileSymbolDesc
 {
@@ -7940,9 +7946,11 @@ struct MicroProfileSymbolBlock
 	MicroProfileSymbolBlock* pNext;
 	uint32_t nNumSymbols;
 	uint32_t nNumChars;
+	uint32_t nMask;
+	MicroProfileStringMatchMask MatchMask;
 	enum
 	{
-		ESIZE = 64<<10,
+		ESIZE = 1<<10,
 	};
 	union
 	{
@@ -8818,7 +8826,7 @@ uint32_t MicroProfileCharacterMaskChar(char c)
 		b += 21;
 		if(b <21 || b>30) 
 			MP_BREAK();
-		return b << b;
+		return 1 << b;
 	}
 	switch(c)
 	{
@@ -8839,6 +8847,54 @@ uint32_t MicroProfileCharacterMaskChar(char c)
 	return 0;
 }
 
+int MicroProfileCharacterMaskCharIndex(char c)
+{
+	if(c >= 'A' && c <= 'Z')
+		c = 'a' + (c - 'A');
+	//abcdefghijklmnopqrstuvwxyz
+	if(c >= 'a' && c <= 'z')
+	{
+		int b = c - 'a';
+		b = MicroProfileMin(20, b);//squish the last together 
+		static int once = 0;
+		if(0 == once)
+		{
+			for(int i = 20; i < 28; ++i)
+			{
+				printf("char %d is %c\n", i, (char)('a' + i));
+			}
+			once = 1;
+		}
+		return b;
+	}
+	if(c >= '0' && c <= '9')
+	{
+		int b = c - '0';
+		b += 21;
+		if(b <21 || b>30) 
+			MP_BREAK();
+		return b;
+	}
+	switch(c)
+	{
+	case ':':
+	case ';':
+	case '\\':
+	case '\'':
+	case '\"':
+	case '/':
+	case '{':
+	case '}':
+	case '(':
+	case ')':
+	case '[':
+	case ']':
+		return 31; // special characters
+	}
+	return 1;
+}
+
+
 uint32_t MicroProfileCharacterMaskString(const char* pStr)
 {
 	uint32_t nMask = 0;
@@ -8846,10 +8902,47 @@ uint32_t MicroProfileCharacterMaskString(const char* pStr)
 	while(0 != (c = *pStr++))
 	{
 		nMask |= MicroProfileCharacterMaskChar(c);
+
 	}
 	return nMask;
 	
 }
+
+void MicroProfileCharacterMaskString2(const char* pStr, MicroProfileStringMatchMask& M)
+{
+	uint32_t nMask = 0;
+	char c = 0;
+	int nLast = -1;
+	while(0 != (c = *pStr++))
+	{
+		nMask |= MicroProfileCharacterMaskChar(c);
+		int nIndex = MicroProfileCharacterMaskCharIndex(c);
+		if(nIndex >= 0 && nLast >= 0)
+		{
+			MP_ASSERT(nIndex < 32);
+			M.M[nLast] |= 1u << nIndex;
+		}
+		nLast = nIndex;
+
+	}
+	M.nMask = nMask;
+}
+
+bool MicroProfileCharacterMatch(const MicroProfileStringMatchMask& Block, const MicroProfileStringMatchMask& String)
+{
+	if(String.nMask != (Block.nMask & String.nMask))
+		return false;
+	for(uint32_t i = 0; i < 32; ++i)
+	{
+		if(String.M[i] != (Block.M[i] & String.M[i]))
+			return false;
+	}
+	return true;
+}
+
+
+
+
 
 
 void MicroProfileSymbolInitializeInternal()
@@ -8918,6 +9011,8 @@ void MicroProfileSymbolInitializeInternal()
 			E.pShortName = E.pName;
 		}
 		E.nMask = MicroProfileCharacterMaskString(E.pShortName);
+		MicroProfileCharacterMaskString2(E.pShortName, pActiveBlock->MatchMask);
+
 		pActiveBlock->nMask |= E.nMask;
 		MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Count", 1);
 		if(nIgnoreSymbol)
@@ -8987,6 +9082,8 @@ struct MicroProfileFunctionQuery
 	const char* pFilterStrings[MICROPROFILE_MAX_FILTER];
 	uint32_t nPatternLength[MICROPROFILE_MAX_FILTER];
 	int nMaxFilter;
+	uint32_t nMask;
+	MicroProfileStringMatchMask MatchMask;
 
 
 
@@ -9051,30 +9148,61 @@ void* MicroProfileQueryThread(void* p)
 			L.Unlock();
 			MicroProfileSymbolBlock* pSymbols = S.pSymbolBlock;
 			int nCnt = 0;
-			printf("\n%05d :: %08d", 0, nCnt);
+			(void)nCnt;
 
-			while(pSymbols && pQuery->nNumResults < MICROPROFILE_MAX_QUERY_RESULTS && 0 == S.pPendingQuery)
+			int nBlocksTested = 0, nSymbolsTested = 0, nStringsTested = 0;
+			int nBlocks = 0;
+
+			int64_t t = MP_TICK();
+			while(pSymbols && 0 == S.pPendingQuery)
 			{
 				MICROPROFILE_SCOPEI("MicroProfile", "SymbolQueryLoop", MP_YELLOW);
+				static int USE_CHARACTER_MASK = 1;
+				nBlocks++;
+				bool bTest = USE_CHARACTER_MASK ? MicroProfileCharacterMatch(pSymbols->MatchMask, Q.MatchMask) : Q.nMask == (Q.nMask & pSymbols->nMask);
+				if(bTest)
 				{
-					for(uint32_t i = 0; i < pSymbols->nNumSymbols && Q.nNumResults < MICROPROFILE_MAX_QUERY_RESULTS && 0 == S.pPendingQuery; ++i)
+					nBlocksTested++;
+					for(uint32_t i = 0; i < pSymbols->nNumSymbols && 0 == S.pPendingQuery; ++i)
 					{
 						MICROPROFILE_SCOPEI("MicroProfile", "SymbolQueryLoop22", MP_YELLOW);
 						MicroProfileSymbolDesc& E = pSymbols->Symbols[i];
-						if(0 == E.nIgnoreSymbol && MicroProfileStringMatch(E.pShortName, &Q.pFilterStrings[0], Q.nPatternLength, Q.nMaxFilter))
+						if(0 == E.nIgnoreSymbol)
 						{
-							Q.Results[Q.nNumResults++] = &E;
+							nSymbolsTested++;
+							bool bTest = Q.nMask == (Q.nMask & E.nMask);
+							// if(0 != MP_STRCASESTR(E.pShortName, "microprofile"))
+							// {
+							// 	int a = 0;(void)a;
+
+							// }
+							if(bTest)
+							{
+								nStringsTested++;
+								if(MicroProfileStringMatch(E.pShortName, &Q.pFilterStrings[0], Q.nPatternLength, Q.nMaxFilter))
+								{
+									if(Q.nNumResults < MICROPROFILE_MAX_QUERY_RESULTS)
+									{
+										Q.Results[Q.nNumResults++] = &E;
+									}
+								}
+							}
 						}
-						printf("\r%05d :: %08d", Q.nNumResults, nCnt++);
-						fflush(stdout);
-						for(uint64_t i = 0; i < 1000000; ++i)
-						{
-						}
+						// printf("\r%05d :: %08d", Q.nNumResults, nCnt++);
+						// fflush(stdout);
+						// for(uint64_t i = 0; i < 1000000; ++i)
+						// {
+						// }
 					}
 				
 				}
 				pSymbols = pSymbols->pNext;
 			}
+			int64_t tend = MP_TICK();
+			float ToMS = MicroProfileTickToMsMultiplierCpu();
+			float TIME = (tend - t) * ToMS;
+			printf("QUERY TIME %6.3fms\n", TIME);
+			printf("Symbol Query done :: %5d/%5d blocks tested. %5d symbols %5d string compares\n", nBlocksTested, nBlocks, nSymbolsTested, nStringsTested);
 			L.Lock();
 			printf("query done.. %d\n", Q.nNumResults);
 			pQuery->pNext = S.pFinishedQuery;
@@ -9178,6 +9306,10 @@ void MicroProfileSymbolQueryFunctions(MpSocket Connection, const char* pFilter)
 			nLen = MICROPROFILE_MAX_FILTER_STRING-1;
 
 		memcpy(Q.FilterString, pFilter, nLen);	
+		Q.FilterString[nLen] = '\0';
+		Q.nMask = MicroProfileCharacterMaskString(Q.FilterString);
+		MicroProfileCharacterMaskString2(Q.FilterString, Q.MatchMask);
+
 		char* pBuffer = Q.FilterString;
 		bool bStartString = true;
 		for(uint32_t i = 0; i < nLen; ++i)
