@@ -131,6 +131,7 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileOnThreadCreate(foo) do{}while(0)
 #define MicroProfileOnThreadExit() do{}while(0)
 #define MicroProfileFlip(pContext) do{}while(0)
+#define MicroProfileFlip_CB(pContext, FreezeCB) do{}while(0)
 #define MicroProfileSetAggregateFrames(a) do{}while(0)
 #define MicroProfileGetAggregateFrames() 0
 #define MicroProfileGetCurrentAggregateFrames() 0
@@ -197,6 +198,7 @@ typedef uint64_t MicroProfileThreadIdType;
 #endif
 #endif
 
+typedef void (*MicroProfileOnFreeze)(int nFrozen);
 
 #define MICROPROFILE_DECLARE(var) extern MicroProfileToken g_mp_##var
 #define MICROPROFILE_DEFINE(var, group, name, color) MicroProfileToken g_mp_##var = MicroProfileGetToken(group, name, color, MicroProfileTokenTypeCpu)
@@ -421,6 +423,10 @@ typedef uint64_t MicroProfileThreadIdType;
 #define MICROPROFILE_MAX_DYNAMIC_TOKENS 2048
 #endif
 
+#ifndef MICROPROFILE_INSTRUMENT_SYMBOLNAME_MAXLEN 
+#define MICROPROFILE_INSTRUMENT_SYMBOLNAME_MAXLEN 128
+#endif
+
 
 typedef enum MicroProfileTokenType_t
 {
@@ -477,6 +483,7 @@ MICROPROFILE_API void MicroProfileGpuSubmit(int nQueue, uint64_t nWork);
 MICROPROFILE_API int MicroProfileInitGpuQueue(const char* pQueueName);
 MICROPROFILE_API int MicroProfileGetGpuQueue(const char* pQueueName);
 MICROPROFILE_API void MicroProfileFlip(void* pGpuContext); //! call once per frame.
+MICROPROFILE_API void MicroProfileFlip_CB(void* pGpuContext, MicroProfileOnFreeze FreezeCB); //! call once per frame.
 MICROPROFILE_API void MicroProfileToggleFrozen();
 MICROPROFILE_API int MicroProfileIsFrozen();
 MICROPROFILE_API int MicroProfileEnabled();
