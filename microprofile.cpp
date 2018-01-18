@@ -9355,7 +9355,6 @@ void* MicroProfileQueryThread(void* p)
 				{
 
 					MICROPROFILE_SCOPEI("MicroProfile","SymbolQueryLoop",MP_YELLOW);
-					static int USE_CHARACTER_MASK = 1;
 					nBlocks++;
 					{
 						nBlocksTested++;
