@@ -246,6 +246,8 @@ var Empty = {"id":0, "w":0, "depth":0, "sibling":-1,"parent":-1,"firstchild":-1}
 var WidthArray = [];
 var FunctionQueryArray = [];
 var FunctionQueryPending = null;
+var FunctionQueryLastRequest = 0;
+var FunctionQueryReceived = 0;
 var WidthTree = 0;
 Settings.ViewActive = 0;
 Settings.ViewCompressed = 0;
@@ -3161,6 +3163,163 @@ function LoadSymbolAnimUpdateAndGet()
 }
 
 
+var CircleSteps = 15;
+var CircleX = Array(CircleSteps);
+var CircleY = Array(CircleSteps);
+function InitCircle()
+{
+	var twopi = 2 * Math.PI;
+	for(var i = 0; i < CircleSteps; ++i)
+	{
+		var s = (1.0*i) / CircleSteps;
+
+		var f = (1.0 * s) * twopi;
+		CircleX[i] = Math.sin(f);
+		CircleY[i] = Math.cos(f);
+	}
+}
+function SpinnerResize(Spinner, w, h)
+{
+	if(h != Spinner.CanvasH || w != Spinner.CanvasW || DPR != Spinner.CanvasDPR)
+	{
+		Spinner.Canvas.style.width = w + 'px';
+		Spinner.Canvas.style.height = h + 'px';
+		Spinner.Canvas.width = w;
+		Spinner.Canvas.height = h;
+		Spinner.Canvas.getContext('2d').scale(1, 1);
+		Spinner.CanvasBack.style.width = w + 'px';
+		Spinner.CanvasBack.style.height = h + 'px';
+		Spinner.CanvasBack.width = w;
+		Spinner.CanvasBack.height = h;
+		Spinner.CanvasBack.getContext('2d').scale(1, 1);
+		Spinner.CanvasH = h;
+		Spinner.CanvasW = w;
+		Spinner.CanvasDPR = DPR;
+	}
+}
+function SpinnerCircle(Phase0, Shift0, Phase1, Shift1, Phase2, Shift2)
+{
+	return {"Phase0" : Phase0, "Shift0": Shift0, "Phase1":Phase1, "Shift1":Shift1, "Phase2": Phase2, "Shift2": Shift2, "Q": 0, "QQ": 0, "A0":0, "A1":0, "A2":0};
+}
+
+function SpinnerInit()
+{
+	var Spinner = {};
+	Spinner.x = 0;
+	Spinner.y = 0;
+	Spinner.Canvas = document.createElement('canvas');
+	Spinner.CanvasBack = document.createElement('canvas');
+	Spinner.CanvasOffscreenData;
+	Spinner.CanvasW = -1;
+	Spinner.CanvasH = -1;
+	Spinner.CanvasDPR = -1;
+	Spinner.Circles = [];
+	Spinner.Circles.push(SpinnerCircle(1 / 4, 0, 0, 0, 0 / 1.13, 0));
+	Spinner.Fade = 0;
+	return Spinner;
+}
+
+var SpinnerLarge = SpinnerInit();
+var SpinnerLarge2 = SpinnerInit();
+var SpinnerSmall = SpinnerInit();
+var SpinnerSmall2 = SpinnerInit();
+function SpinnerShow()
+{
+	return SymbolState != null && (SymbolState.q == 1 || SymbolState.s == SYMBOLSTATE_LOADING || FunctionQueryLastRequest != FunctionQueryReceived);
+}
+
+function SpinnerDraw(Enable, context, Spinner, X, Y, w, h)
+{
+	SpinnerResize(Spinner, w, h);
+	var ContextSpinner = Spinner.Canvas.getContext('2d');
+
+
+	var now = Date.now();
+	if(!ContextSpinner.last)
+	{
+		ContextSpinner.last = now;
+	}
+	var DT = now - ContextSpinner.last;
+	ContextSpinner.last = now;
+	if(Enable)
+	{
+		Spinner.Fade += DT / 200;
+	}
+	else
+	{
+		Spinner.Fade -= DT / 1000;
+	}
+	Spinner.Fade = Math.max(0, Spinner.Fade);
+	Spinner.Fade = Math.min(1, Spinner.Fade)
+	var F = Spinner.Fade * Spinner.Fade;
+
+	if(Spinner.Fade <= 0)
+		return;
+	ContextSpinner.clearRect(0, 0, 400, 400);
+	ContextSpinner.globalAlpha = 0.90;
+	ContextSpinner.drawImage(Spinner.CanvasBack, 0, 0);
+	ContextSpinner.globalAlpha = 1.0;
+	var twopi = 2 * Math.PI;
+	for(var i = 0; i < Spinner.Circles.length; ++i)
+	{
+		var C = Spinner.Circles[i];
+		InitCircle();
+		var xs = CircleX;
+		var ys = CircleY;
+		var scale = (w-2) / 2;
+		var offset = (w) / 2;
+		var SPEED = 100.0;
+
+		var angle = (C.Q / SPEED) * twopi;
+
+		var QQSPEED = 1000;
+
+		C.A0 += (twopi * DT / 1000.0) * C.Phase0;
+		if(C.A0 > twopi)
+			C.A0 -= twopi;
+		C.A1 += (twopi * DT / 1000.0) * C.Phase1;
+		if(C.A1 > twopi)
+			C.A1 -= twopi;
+		C.A2 += (twopi * DT / 1000.0) * C.Phase2;
+		if(C.A2 > twopi)
+			C.A2 -= twopi;
+
+		var A0 = C.A0 + twopi * C.Shift0;
+		var A1 = C.A1 + twopi * C.Shift1;
+		var A2 = C.A2 + twopi * C.Shift2;
+		var m = Math.cos(A0);
+		var m0 = Math.cos(A2);
+		var cs = Math.cos(A1);
+		var ss = Math.sin(A1);
+		for(var i = 0; i < xs.length; ++i)
+		{
+			var x = xs[i] * m;
+			var y = ys[i] * m0;
+			xs[i] = cs * scale * x - ss * scale * y;
+			ys[i] = ss * scale * x + cs * scale * y;
+			xs[i] += offset;
+			ys[i] += offset;
+		}
+		ContextSpinner.strokeStyle = 'white';
+		ContextSpinner.beginPath();		
+		ContextSpinner.moveTo(xs[0], ys[0]);
+		for(var i = 1; i < CircleSteps; ++i)
+		{
+			ContextSpinner.lineTo(xs[i], ys[i]);
+		}
+		ContextSpinner.lineTo(xs[0], ys[0]);
+		ContextSpinner.stroke();
+
+
+	}
+	context.globalAlpha = F;
+	context.drawImage(Spinner.Canvas, X, Y);
+	context.globalAlpha = 1;
+	var tmp = Spinner.CanvasBack;
+	Spinner.CanvasBack = Spinner.Canvas;
+	Spinner.Canvas = tmp;
+}
+
 function DrawMenuFunctions()
 {
 	if(FilterInputValueLast != FilterInput.value)
@@ -3171,12 +3330,14 @@ function DrawMenuFunctions()
 		{
 			if(SymbolState && SymbolState.s == SYMBOLSTATE_DONE)
 			{
-				WSSendMessage("q" + m);
+				var Req = ++FunctionQueryLastRequest;
+				var Q = "q" + Req + "x" + m;
+				WSSendMessage(Q);
 				FunctionQueryPending = null;
 			}
 			else
 			{
-				FunctionQueryPending = "q" + m; 
+				FunctionQueryPending = m; 
 				if(SymbolState && SymbolState.s == SYMBOLSTATE_DEFAULT)
 				{
 					LoadSymbolAnimRestart();
@@ -3225,7 +3386,12 @@ function DrawMenuFunctions()
 	{
 		var s = SymbolState.s;
 		NumSymbols = SymbolState.l;
-		if(s == SYMBOLSTATE_DONE)
+		if(SymbolState.q == 1 || FunctionQueryLastRequest != FunctionQueryReceived)
+		{
+			SymbolStateString = "Querying";
+			SymbolButtonActive = 0;
+		}
+		else if(s == SYMBOLSTATE_DONE)
 		{
 			SymbolStateString = "Reload"
 		}
@@ -3235,7 +3401,6 @@ function DrawMenuFunctions()
 			SymbolButtonActive = 0;
 		}
 	}
-
 	var LoadButtonAnimation  = LoadSymbolAnimUpdateAndGet();
 
 	context.textAlign = 'right';
@@ -3261,6 +3426,8 @@ function DrawMenuFunctions()
 		context.fillStyle = 'grey';
 		context.fillText(SymbolStateString, X + 50, TextY);
 	}
+	SpinnerDraw(0 == SymbolButtonActive, context, SpinnerSmall2, X+2, Y,  FontHeight, FontHeight );
+
 	Y += BoxHeight;
 	MoveFilterInputDiv(SizeInfo.x, Y, SizeInfo.w-6);
 	Y += 45;
@@ -3602,6 +3769,17 @@ function DrawMenu()
 			// context.closePath();
 			context.stroke();
 		}
+		// SpinnerDraw(context, SpinnerLarge, 0, 0,  400, 400 );
+		// SpinnerDraw(context, SpinnerLarge2, 400, 0,  400, 400 );
+		// SpinnerDraw(context, SpinnerSmall, 450, 450,  20, 20 );
+		SpinnerDraw(SpinnerShow(), context, SpinnerSmall, 0, nHeight-20,  20, 20);
+		// if(SymbolState)
+		// {
+		// 	var s = SymbolState.s;
+		// 	if()
+		// 	{
+		// 	}
+		// }
 		ProfileLeave();
 	}
 }
@@ -3665,6 +3843,10 @@ function UpdateSettings()
 			RequestDraw();
 		}
 		ReferenceGraph = 0.9 * ReferenceGraph + 0.1 * ReferenceGraphAutomatic;
+		if((!ReferenceGraph <= 0) && (!ReferenceGraph>=0))
+		{
+			debugger;
+		}
 		ReferenceHistory = 0.9 * ReferenceHistory + 0.1 * ReferenceHistoryAutomatic;
 		ReferenceBar = 0.9 * ReferenceBar + 0.1 * ReferenceBarAutomatic;
 		var TimerMap = FrameData.TimerMap;
@@ -4070,7 +4252,9 @@ function ProcessFrame(F, Inactive)
 		{
 			if(FunctionQueryPending)
 			{
-				WSSendMessage(FunctionQueryPending);
+				var Req = ++FunctionQueryLastRequest;
+				var Q = "q" + Req + "x" + FunctionQueryPending;
+				WSSendMessage(Q);
 				FunctionQueryPending = null;
 			}
 		}
@@ -4277,16 +4461,15 @@ function ProcessFrame(F, Inactive)
 			Capture();
 			AutoCaptureEnabled = 0;
 		}
+		ReferenceGraphAutomatic = 1.05 * GraphTimeMax;
+		ReferenceHistoryAutomatic = 1.05 * HistoryTimeMax;
 	}
-
-	ReferenceGraphAutomatic = 1.05 * GraphTimeMax;
-	ReferenceHistoryAutomatic = 1.05 * HistoryTimeMax;
 	RequestDraw();
 }
 
 function WSMessage()
 {
-	// console.log("MESSAGE " + event.data);
+	console.log("MESSAGE " + event.data);
 	var Obj = JSON.parse(event.data);
 	WSReceive++;
 	WSReceiveBytes += event.data.length;
@@ -4323,6 +4506,9 @@ function WSMessage()
 	{
 		FunctionQueryPending = null;
 		FunctionQueryArray = Obj.v;
+		FunctionQueryReceived = Obj.q;
+		console.log('got result from query ' + Obj.q);
+
 	}
 	else if(k == MSG_INACTIVE_FRAME)
 	{
