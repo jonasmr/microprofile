@@ -3184,14 +3184,15 @@ function SpinnerResize(Spinner, w, h)
 	{
 		Spinner.Canvas.style.width = w + 'px';
 		Spinner.Canvas.style.height = h + 'px';
-		Spinner.Canvas.width = w;
-		Spinner.Canvas.height = h;
-		Spinner.Canvas.getContext('2d').scale(1, 1);
+		Spinner.Canvas.width = w * DPR;
+		Spinner.Canvas.height = h * DPR;
+		Spinner.Canvas.getContext('2d').scale(DPR, DPR);
 		Spinner.CanvasBack.style.width = w + 'px';
 		Spinner.CanvasBack.style.height = h + 'px';
-		Spinner.CanvasBack.width = w;
-		Spinner.CanvasBack.height = h;
-		Spinner.CanvasBack.getContext('2d').scale(1, 1);
+		Spinner.CanvasBack.width = w * DPR;
+		Spinner.CanvasBack.height = h * DPR;
+
+		Spinner.CanvasBack.getContext('2d').scale(DPR, DPR);
 		Spinner.CanvasH = h;
 		Spinner.CanvasW = w;
 		Spinner.CanvasDPR = DPR;
@@ -3214,7 +3215,7 @@ function SpinnerInit()
 	Spinner.CanvasH = -1;
 	Spinner.CanvasDPR = -1;
 	Spinner.Circles = [];
-	Spinner.Circles.push(SpinnerCircle(1 / 4, 0, 0, 0, 0 / 1.13, 0));
+	Spinner.Circles.push(SpinnerCircle(1 / 4, 0, 0.07, 0, 0.0, 0.25));
 	Spinner.Fade = 0;
 	return Spinner;
 }
@@ -3255,9 +3256,9 @@ function SpinnerDraw(Enable, context, Spinner, X, Y, w, h)
 
 	if(Spinner.Fade <= 0)
 		return;
-	ContextSpinner.clearRect(0, 0, 400, 400);
+	ContextSpinner.clearRect(0, 0, w, h);
 	ContextSpinner.globalAlpha = 0.90;
-	ContextSpinner.drawImage(Spinner.CanvasBack, 0, 0);
+	ContextSpinner.drawImage(Spinner.CanvasBack, 0, 0, w, h);
 	ContextSpinner.globalAlpha = 1.0;
 	var twopi = 2 * Math.PI;
 	for(var i = 0; i < Spinner.Circles.length; ++i)
@@ -3288,7 +3289,7 @@ function SpinnerDraw(Enable, context, Spinner, X, Y, w, h)
 		var A1 = C.A1 + twopi * C.Shift1;
 		var A2 = C.A2 + twopi * C.Shift2;
 		var m = Math.cos(A0);
-		var m0 = Math.cos(A2);
+		var m0 = Math.sin(A2);
 		var cs = Math.cos(A1);
 		var ss = Math.sin(A1);
 		for(var i = 0; i < xs.length; ++i)
@@ -3313,7 +3314,7 @@ function SpinnerDraw(Enable, context, Spinner, X, Y, w, h)
 
 	}
 	context.globalAlpha = F;
-	context.drawImage(Spinner.Canvas, X, Y);
+	context.drawImage(Spinner.Canvas, X, Y, w, h);
 	context.globalAlpha = 1;
 	var tmp = Spinner.CanvasBack;
 	Spinner.CanvasBack = Spinner.Canvas;
@@ -3766,20 +3767,9 @@ function DrawMenu()
 			context.lineTo(MenuRect.x + MenuRect.w,MenuRect.y+MenuRect.h);
 			context.lineTo(MenuRect.x,MenuRect.y+MenuRect.h);
 			context.lineTo(MenuRect.x,MenuRect.y);
-			// context.closePath();
 			context.stroke();
 		}
-		// SpinnerDraw(context, SpinnerLarge, 0, 0,  400, 400 );
-		// SpinnerDraw(context, SpinnerLarge2, 400, 0,  400, 400 );
-		// SpinnerDraw(context, SpinnerSmall, 450, 450,  20, 20 );
 		SpinnerDraw(SpinnerShow(), context, SpinnerSmall, 0, nHeight-20,  20, 20);
-		// if(SymbolState)
-		// {
-		// 	var s = SymbolState.s;
-		// 	if()
-		// 	{
-		// 	}
-		// }
 		ProfileLeave();
 	}
 }
@@ -4469,7 +4459,7 @@ function ProcessFrame(F, Inactive)
 
 function WSMessage()
 {
-	console.log("MESSAGE " + event.data);
+	// console.log("MESSAGE " + event.data);
 	var Obj = JSON.parse(event.data);
 	WSReceive++;
 	WSReceiveBytes += event.data.length;
