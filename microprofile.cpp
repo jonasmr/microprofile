@@ -95,8 +95,8 @@ enum EMicroProfileTokenSpecial
 //		
 //		**Instrument child functions
 //		**(instrumented only option in timers) Instrumented functions in a separate view
-//		
-
+//		create dirty list of microprofile functions to never instr
+//		Fix microprofilegpuend failing to instrument
 
 //support for multiple flip sites
 
@@ -1316,12 +1316,14 @@ MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
  
  	if(S.nNumLogs == MICROPROFILE_MAX_THREADS)
 	{
+		printf("recycling thread logs\n");
 		//reuse the oldest.
 		MicroProfileThreadLog* pOldest = 0;
 		uint32_t nIdleFrames = 0;
 		for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
 		{
 			MicroProfileThreadLog* pLog = S.Pool[i];
+			printf("tlactive %p, %d.  idle:%d\n", pLog, pLog->nActive, pLog->nIdleFrames); 
 			if(pLog->nActive == 2)
 			{
 				if(pLog->nIdleFrames > nIdleFrames)
@@ -7927,7 +7929,7 @@ struct PatchError
 
 
 void* MicroProfileX64FollowJump(void* pSrc);
-bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit, const int nMaxSize, char* pTrunk, intptr_t nTrunkSize, int* nBytesDest, int* nBytesSrc, uint32_t* pRegsWritten) ;
+bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit, const int nMaxSize, char* pTrunk, intptr_t nTrunkSize, uint32_t nUsableJumpRegs, int* nBytesDest, int* nBytesSrc, uint32_t* pRegsWritten, uint32_t* nRetSafe) ;
 bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter, MicroProfileHookFunc leave, PatchError* pError);
 template<typename Callback>
 void MicroProfileIterateSymbols(Callback CB);
@@ -8019,19 +8021,55 @@ uintptr_t MicroProfile_Patch_TLS_POP()
 	return t;
 }
 
-char* MicroProfileInsertRaxJump(char* pCode, intptr_t pDest)
+char* MicroProfileInsertRegisterJump(char* pCode, intptr_t pDest, int reg)
 {
+	MP_ASSERT(reg >= R_RAX && reg <= R_R15);
+	int large = reg >= R_R8 ? 1 : 0;
+	int offset = large ? (reg - R_R8) : (reg - R_RAX);
 	unsigned char* uc = (unsigned char*)pCode;
-	*uc++ = 0x48;
-	*uc++ = 0xb8;
+	*uc++ = large ? 0x49 : 0x48;
+	*uc++ = 0xb8 + offset;
 	memcpy(uc, &pDest, 8);
 	uc += 8;
+	if(large)
+		*uc++ = 0x41;
 	*uc++ = 0xff;
-	*uc++ = 0xe0;
-
+	*uc++ = 0xe0 + offset;
 	return (char*)uc;
+     // 164:	48 b8 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rax
+     // 16e:	48 b9 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rcx
+     // 178:	48 ba 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rdx
+     // 182:	48 bb 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rbx
+     // 18c:	48 bc 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rsp
+     // 196:	48 bd 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rbp
+     // 1a0:	48 be 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rsi
+     // 1aa:	48 bf 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rdi
+     // 1b4:	49 b8 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r8
+     // 1be:	49 b9 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r9
+     // 1c8:	49 ba 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r10
+     // 1d2:	49 bb 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r11
+     // 1dc:	49 bc 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r12
+     // 1e6:	49 bd 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r13
+     // 1f0:	49 be 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r14
+     // 1fa:	49 bf 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r15
+     // 204:	ff e0 	jmpq	*%rax
+     // 206:	ff e1 	jmpq	*%rcx
+     // 208:	ff e2 	jmpq	*%rdx
+     // 20a:	ff e3 	jmpq	*%rbx
+     // 20c:	ff e4 	jmpq	*%rsp
+     // 20e:	ff e5 	jmpq	*%rbp
+     // 210:	ff e6 	jmpq	*%rsi
+     // 212:	ff e7 	jmpq	*%rdi
+     // 214:	41 ff e0 	jmpq	*%r8
+     // 217:	41 ff e1 	jmpq	*%r9
+     // 21a:	41 ff e2 	jmpq	*%r10
+     // 21d:	41 ff e3 	jmpq	*%r11
+     // 220:	41 ff e4 	jmpq	*%r12
+     // 223:	41 ff e5 	jmpq	*%r13
+     // 226:	41 ff e6 	jmpq	*%r14
+     // 229:	41 ff e7 	jmpq	*%r15
+}
 
-};
 char* MicroProfileInsertRetJump(char* pCode, intptr_t pDest)
 {
 
@@ -8048,9 +8086,7 @@ char* MicroProfileInsertRetJump(char* pCode, intptr_t pDest)
 	memcpy(uc, &upper, 4);
 	uc += 4;
 	*uc++ = 0xc3;
-
 	return (char*)uc;
-
 }
 
 uint8_t* MicroProfileInsertMov(uint8_t* p, uint8_t* pend, int r, intptr_t value)
@@ -8154,11 +8190,8 @@ void* MicroProfileX64FollowJump(void* pSrc)
 
 }
 
-bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit, const int nMaxSize, char* pTrunk, intptr_t nTrunkSize, int* nBytesDest, int* nBytesSrc, uint32_t* pRegsWritten) 
-//__attribute__ ((optnone))
+bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit, const int nMaxSize, char* pTrunk, intptr_t nTrunkSize, const uint32_t nUsableJumpRegs, int* nBytesDest, int* nBytesSrc, uint32_t* pRegsWritten, uint32_t* pRetSafe) 
 {
-	// int nBytes = 0;
-	// const uint8_t* p = (uint8_t*)pSrc;
 
 	_DecodeType dt = Decode64Bits;
 	_DInst Instructions[128];
@@ -8174,7 +8207,6 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 	ci.dt = dt;
 	ci.features = DF_NONE;
 	int r = distorm_decompose(&ci, Instructions, 128, &nCount);
-	// printf("decomposed %d\n", nCount);
 	if(r != DECRES_SUCCESS)
 	{
 		BREAK_ON_PATCH_FAIL();
@@ -8209,7 +8241,27 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 
 	auto RegToBit = [](int r) -> uint32_t
 	{
-		return 1ll << (r - R_RAX);
+		if(r >= R_RAX && r <= R_R15)
+		{
+			return (1u << (r-R_RAX));
+		}
+		else
+		if(r >= R_EAX && r <= R_R15D)
+		{
+			return (1u << (r-R_EAX));
+		}
+		else
+		if(r >= R_AX && r <= R_R15W)
+		{
+			return (1u << (r-R_AX));
+		}
+		else
+		if(r >= R_AL && r <= R_R15B)
+		{
+			return (1u << (r-R_AL));
+		}
+		return 0; //might hit on registers like RIP
+		MP_BREAK();
 	};
 #ifdef _WIN32
 	const uint32_t nUsableRegisters = RegToBit(R_RAX) | RegToBit(R_R10) | RegToBit(R_R11);
@@ -8217,6 +8269,8 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 	const uint32_t nUsableRegisters = RegToBit(R_RAX) | RegToBit(R_R10) | RegToBit(R_R11);
 #endif
 
+	uint32_t nRspMask = RegToBit(R_RSP);
+	*pRetSafe = 1;
 
 	for(; i < nCount; ++i)
 	{
@@ -8225,7 +8279,6 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 		// bool bHasRipReference = false;
 		if(I.opcode == I_LEA)
 		{
-			// printf("hest\n");
 		}
 		if(I.opcode == I_CALL)
 		{
@@ -8248,30 +8301,37 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 		switch(I.ops[0].type)
 		{
 			case O_REG:
-			//case O_SMEM:
-			//case O_MEM:
 			{
 				uint32_t reg = I.ops[0].index;
-				if(reg >= R_RAX && reg <= R_R15)
+				nRegsWritten |= RegToBit(reg);
+				auto& O2 = I.ops[1];
+				switch(O2.type)
 				{
-					nRegsWritten |= (1u << (reg-R_RAX));
+					case O_REG:
+					case O_MEM:
+					case O_SMEM:
+					{
+						//if register is RSP 'contaminated', it prevents us from using that to do retjmps
+						uint32_t nMask = RegToBit(O2.index);
+						if(nRspMask & nMask)
+						{
+							nRspMask |= RegToBit(reg);
+						}
+					}
+					default: break;
 				}
-				else
-				if(reg >= R_EAX && reg <= R_R15D)
+				break;
+			}
+			case O_MEM:
+			case O_SMEM:
+			{
+				uint32_t reg = I.ops[0].index;
+				if(nRspMask & RegToBit(reg))
 				{
-					nRegsWritten |= (1u << (reg-R_EAX));
+					printf("found contaminated reg at +%lld\n", I.addr);
+					*pRetSafe = 0;
 				}
-				else
-				if(reg >= R_AX && reg <= R_R15W)
-				{
-					nRegsWritten |= (1u << (reg-R_AX));
-				}
-				else
-				if(reg >= R_AL && reg <= R_R15B)
-				{
-					nRegsWritten |= (1u << (reg-R_AL));
-				}
-
+				break;
 			}
 		}
 		nRegsWrittenInstr[i] = nRegsWritten;
@@ -8367,6 +8427,15 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 		return false;
 	}
 
+	if(0 == *pRetSafe && 0 == (nUsableJumpRegs & ~nRegsWritten))
+	{
+		//if ret jump is unsafe all of the usable jump regs are taken, fail.
+		printf("cannot patch function without breaking code]\n");
+		BREAK_ON_PATCH_FAIL();
+		MP_BREAK();
+		return false;
+
+	}
 
 	// MP_BREAK();
 	*pRegsWritten = nRegsWritten;
@@ -8619,13 +8688,19 @@ void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pFunctio
 		int a = 0;
 		(void)a;
 	}
+	else
+	{
+		printf("could not find symbol info\n");
+		return;
+	}
 
 	const intptr_t nCodeLen = (intptr_t)pDesc->nAddressEnd - (intptr_t)pDesc->nAddress;
 	const uint32_t nMaxInstructions = 15;
 	intptr_t nOffset = 0;
 	_DecodeType dt = Decode64Bits;
 	_DInst Instructions[15];
-
+	int nMaxFunctions = 11;
+	int nNumFunctions = 0;
 	// int xx = 0;
 	int cc = 0;
 
@@ -8680,17 +8755,14 @@ void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pFunctio
 				pDst += I.size;
 				pDst += I.imm.sdword;
 
+
 				void* fFun1 = MicroProfileX64FollowJump((void*)pDst);
-
-
-				MicroProfileInstrumentFromAddressOnly(fFun1);
-// #if 1
-// 				if(xx++ > 5)
-// 					return;
-// #endif
-
-				// printf("%d Call          %ld :: jump dst %p   : %p\n", i, (intptr_t)I.addr, (void*)pDst, fFun1);
-
+				printf("Found call %d at +%lld ... dst %p :: JumpDst %p\n", nNumFunctions++, I.addr + nOffset, (void*)pDst, fFun1);
+				(void)fFun1;
+				if(nNumFunctions < nMaxFunctions)
+				{
+					MicroProfileInstrumentFromAddressOnly(fFun1);
+				}
 			}
 			else if(I.opcode == I_JMP)
 			{
@@ -9102,29 +9174,7 @@ void MicroProfileSymbolInitializeInternal()
 
 	};
 	MicroProfileIterateSymbols(SymbolCallback);
-	printf("Finished loading...\n");
 	S.SymbolState.nState.store(MICROPROFILE_SYMBOLSTATE_DONE);
-
-	//uint_string_match nNumBits[STRING_MATCH_SIZE+1] = {0};
-	//MicroProfileSymbolBlock* pSymbols = S.pSymbolBlock;
-	//while(pSymbols)
-	//{
-	//	uint_string_match nBits = 0;
-	//	uint_string_match nMask = pSymbols->nMask;
-	//	while(nMask)
-	//	{
-	//		nBits++;
-	//		nMask &= (nMask-1);
-	//	}
-	//	if(nBits>STRING_MATCH_SIZE)
-	//		MP_BREAK();
-	//	nNumBits[nBits]++;
-	//	pSymbols = pSymbols->pNext;
-	//}
-	//for(int i = 0; i <= STRING_MATCH_SIZE; ++i)
-	//{
-	//	printf("BIT COUNT %d :: %3d\n", i, nNumBits[i]);
-	//}
 }
 
 
@@ -9136,7 +9186,7 @@ MicroProfileSymbolDesc* MicroProfileSymbolFindFuction(void* pAddress)
 		for(uint32_t i = 0; i < pSymbols->nNumSymbols; ++i)
 		{
 			MicroProfileSymbolDesc& E = pSymbols->Symbols[i];
-			if(E.nAddress == (intptr_t)pAddress)
+			if(E.nAddress == (intptr_t)pAddress && 0 == E.nIgnoreSymbol)
 			{
 				return &E;
 			}
@@ -9582,7 +9632,10 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 
 	int nInstructionBytesSrc = 0;
 	uint32_t nRegsWritten = 0;
-	if(!MicroProfileCopyInstructionBytes(pInstructionMoveDest, f, 14, (int)codemaxsize, pTrunk, t_trunk_size, &nInstructionBytesDest, &nInstructionBytesSrc, &nRegsWritten))
+	uint32_t nRetSafe = 1;
+	uint32_t nUsableJumpRegs = (1<<R_RAX) | (1 << R_R10) | (1 << R_11);
+	static_assert(R_RAX == 0, "R_RAX must be 0");
+	if(!MicroProfileCopyInstructionBytes(pInstructionMoveDest, f, 14, (int)codemaxsize, pTrunk, t_trunk_size, nUsableJumpRegs, &nInstructionBytesDest, &nInstructionBytesSrc, &nRegsWritten, &nRetSafe))
 	{
 		if(pError)
 		{
@@ -9597,18 +9650,23 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 		return false;
 	}
 
-
-
-
-
 	intptr_t phome = nInstructionBytesSrc + (intptr_t)f;
-	if(1 & nRegsWritten)
+	uint32_t reg = nUsableJumpRegs & ~nRegsWritten;
+	if(0 == reg)
 	{
+		if(0 == nRetSafe)
+			MP_BREAK(); // should be caught earlier
 		MicroProfileInsertRetJump(pInstructionMoveDest + nInstructionBytesDest, phome);
 	}
 	else
 	{
-		MicroProfileInsertRaxJump(pInstructionMoveDest + nInstructionBytesDest, phome);
+		int r = R_RAX;
+		while((reg & 1) == 0)
+		{
+			reg >>= 1;
+			r++;
+		}
+		MicroProfileInsertRegisterJump(pInstructionMoveDest + nInstructionBytesDest, phome, r);
 	}
 
 
@@ -9650,7 +9708,7 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 		MicroProfileMakeWriteable(f, nInstructionBytesSrc, OldFlags);
 		char* pp = (char*)f;
 		char* ppend = pp + nInstructionBytesSrc;
-		pp = MicroProfileInsertRaxJump((char*)pp, (intptr_t)ptramp );
+		pp = MicroProfileInsertRegisterJump((char*)pp, (intptr_t)ptramp, R_RAX);
 		while(pp != ppend)
 		{
 			char c = (unsigned char)0x90;
@@ -10027,8 +10085,12 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 
 
 	int nInstructionBytesSrc = 0;
+
+
 	uint32_t nRegsWritten = 0;
-	if(!MicroProfileCopyInstructionBytes(pInstructionMoveDest, f, 14, codemaxsize, pTrunk, t_trunk_size, &nInstructionBytesDest, &nInstructionBytesSrc, &nRegsWritten))
+	uint32_t nRetSafe = 0;
+	uint32_t nUsableJumpRegs = (1 << R_RAX) | (1 << R_R10) | (1 << R_R11); //scratch && !parameter register
+	if(!MicroProfileCopyInstructionBytes(pInstructionMoveDest, f, 14, codemaxsize, pTrunk, t_trunk_size, nUsableJumpRegs, &nInstructionBytesDest, &nInstructionBytesSrc, &nRegsWritten, &nRetSafe))
 	{
 		if(pError)
 		{
@@ -10043,50 +10105,162 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 		return false;
 	}
 
-	auto InsertRaxJump = [](char* pCode, intptr_t pDest)
-	{
-		unsigned char* uc = (unsigned char*)pCode;
-		*uc++ = 0x48;
-		*uc++ = 0xb8;
-		memcpy(uc, &pDest, 8);
-		uc += 8;
-		*uc++ = 0xff;
-		*uc++ = 0xe0;
+	// auto InsertRegisterJump = [](char* pCode, intptr_t pDest, int reg)
+	// {
+	// 	MP_ASSERT(reg >= R_RAX && reg <= R_R15);
+	// 	int large = reg >= R_R8 ? 1 : 0;
+	// 	int offset = large ? (reg - R_RAX) : (reg - R_R8);
+	// 	unsigned char* uc = (unsigned char*)pCode;
+	// 	*uc++ = large ? 0x49 : 0x48;
+	// 	*uc++ = 0xb8 + offset;
+	// 	memcpy(uc, &pDest, 8);
+	// 	uc += 8;
+	// 	if(large)
+	// 		*uc++ = 0x41;
+	// 	*uc++ = 0xff;
+	// 	*uc++ = 0xe0 + offset;
 
-		return (char*)uc;
+	// 	return (char*)uc;
 
-	};
-	auto InsertRetJump = [](char* pCode, intptr_t pDest)
-	{
 
-		uint32_t lower = (uint32_t)pDest;
-		uint32_t upper = (uint32_t)(pDest>>32);
-		unsigned char* uc = (unsigned char*)pCode;
-		*uc++ = 0x68;
-		memcpy(uc, &lower, 4);
-		uc += 4;
-		*uc++ = 0xc7;
-		*uc++ = 0x44;
-		*uc++ = 0x24;
-		*uc++ = 0x04;
-		memcpy(uc, &upper, 4);
-		uc += 4;
-		*uc++ = 0xc3;
 
-		return (char*)uc;
 
-	};
+
+
+
+
+     // 164:	48 b8 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rax
+     // 16e:	48 b9 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rcx
+     // 178:	48 ba 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rdx
+     // 182:	48 bb 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rbx
+     // 18c:	48 bc 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rsp
+     // 196:	48 bd 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rbp
+     // 1a0:	48 be 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rsi
+     // 1aa:	48 bf 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rdi
+     // 1b4:	49 b8 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r8
+     // 1be:	49 b9 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r9
+     // 1c8:	49 ba 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r10
+     // 1d2:	49 bb 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r11
+     // 1dc:	49 bc 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r12
+     // 1e6:	49 bd 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r13
+     // 1f0:	49 be 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r14
+     // 1fa:	49 bf 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r15
+     // 204:	ff e0 	jmpq	*%rax
+     // 206:	ff e1 	jmpq	*%rcx
+     // 208:	ff e2 	jmpq	*%rdx
+     // 20a:	ff e3 	jmpq	*%rbx
+     // 20c:	ff e4 	jmpq	*%rsp
+     // 20e:	ff e5 	jmpq	*%rbp
+     // 210:	ff e6 	jmpq	*%rsi
+     // 212:	ff e7 	jmpq	*%rdi
+     // 214:	41 ff e0 	jmpq	*%r8
+     // 217:	41 ff e1 	jmpq	*%r9
+     // 21a:	41 ff e2 	jmpq	*%r10
+     // 21d:	41 ff e3 	jmpq	*%r11
+     // 220:	41 ff e4 	jmpq	*%r12
+     // 223:	41 ff e5 	jmpq	*%r13
+     // 226:	41 ff e6 	jmpq	*%r14
+     // 229:	41 ff e7 	jmpq	*%r15
+
+
+ // 	movq rax, 0102030405060708h #patch to tramp_code_end
+ // 	movq rcx, 0102030405060708h #patch to tramp_code_end
+ // 	movq rdx, 0102030405060708h #patch to tramp_code_end	
+ // 	movq rbx, 0102030405060708h #patch to tramp_code_end
+ // 	movq rsp, 0102030405060708h #patch to tramp_code_end
+ // 	movq rbp, 0102030405060708h #patch to tramp_code_end
+ // 	movq rsi, 0102030405060708h #patch to tramp_code_end
+ // 	movq rdi, 0102030405060708h #patch to tramp_code_end
+ // 	movq r8, 0102030405060708h #patch to tramp_code_end
+ // 	movq r9, 0102030405060708h #patch to tramp_code_end
+ // 	movq r10, 0102030405060708h #patch to tramp_code_end
+ // 	movq r11, 0102030405060708h #patch to tramp_code_end
+ // 	movq r12, 0102030405060708h #patch to tramp_code_end
+ // 	movq r13, 0102030405060708h #patch to tramp_code_end
+ // 	movq r14, 0102030405060708h #patch to tramp_code_end
+ // 	movq r15, 0102030405060708h #patch to tramp_code_end
+ // 	jmp rax
+	// jmp rcx
+ // 	jmp rdx
+	// jmp rbx
+ // 	jmp rsp
+	// jmp rbp
+ // 	jmp rsi
+	// jmp rdi
+ // 	jmp r8
+	// jmp r9
+ // 	jmp r10
+	// jmp r11
+ // 	jmp r12
+	// jmp r13
+ // 	jmp r14
+	// jmp r15
+
+
+
+
+
+	// };
+	// auto InsertRetJump = [](char* pCode, intptr_t pDest)
+	// {
+
+	// 	uint32_t lower = (uint32_t)pDest;
+	// 	uint32_t upper = (uint32_t)(pDest>>32);
+	// 	unsigned char* uc = (unsigned char*)pCode;
+	// 	*uc++ = 0x68;
+	// 	memcpy(uc, &lower, 4);
+	// 	uc += 4;
+	// 	*uc++ = 0xc7;
+	// 	*uc++ = 0x44;
+	// 	*uc++ = 0x24;
+	// 	*uc++ = 0x04;
+	// 	memcpy(uc, &upper, 4);
+	// 	uc += 4;
+	// 	*uc++ = 0xc3;
+
+	// 	return (char*)uc;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	// };
 
 
 
 	intptr_t phome = nInstructionBytesSrc + (intptr_t)f;
-	if(1 & nRegsWritten)
+	uint32_t reg = nUsableJumpRegs & ~nRegsWritten;
+	static_assert(R_RAX == 0, "R_RAX must be 0");
+	if(0 == reg)
 	{
-		InsertRetJump(pInstructionMoveDest + nInstructionBytesDest, phome);
+		if(nRetSafe == 0)
+		{
+			MP_BREAK(); //shout fail earlier
+		}
+		MicroProfileInsertRetJump(pInstructionMoveDest + nInstructionBytesDest, phome);
 	}
 	else
 	{
-		InsertRaxJump(pInstructionMoveDest + nInstructionBytesDest, phome);
+		int r = R_RAX;
+		while((reg & 1) == 0)
+		{
+			reg >>= 1;
+			r++;
+		}
+		MicroProfileInsertRegisterJump(pInstructionMoveDest + nInstructionBytesDest, phome, r);
 	}
 
 
@@ -10127,7 +10301,7 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 		MicroProfileMakeWriteable(f);
 		char* pp = (char*)f;
 		char* ppend = pp + nInstructionBytesSrc;
-		pp = InsertRaxJump(pp, (intptr_t)ptramp );
+		pp = MicroProfileInsertRegisterJump(pp, (intptr_t)ptramp, R_RAX );
 		while(pp != ppend)
 		{
 			*pp++ = 0x90;
