@@ -8699,7 +8699,7 @@ void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pFunctio
 	intptr_t nOffset = 0;
 	_DecodeType dt = Decode64Bits;
 	_DInst Instructions[15];
-	int nMaxFunctions = 11;
+	// int nMaxFunctions = 21000;
 	int nNumFunctions = 0;
 	// int xx = 0;
 	int cc = 0;
@@ -8758,11 +8758,9 @@ void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pFunctio
 
 				void* fFun1 = MicroProfileX64FollowJump((void*)pDst);
 				printf("Found call %d at +%lld ... dst %p :: JumpDst %p\n", nNumFunctions++, I.addr + nOffset, (void*)pDst, fFun1);
-				(void)fFun1;
-				if(nNumFunctions < nMaxFunctions)
-				{
-					MicroProfileInstrumentFromAddressOnly(fFun1);
-				}
+				// (void)fFun1;
+				// if(nNumFunctions < nMaxFunctions)
+				MicroProfileInstrumentFromAddressOnly(fFun1);
 			}
 			else if(I.opcode == I_JMP)
 			{
@@ -9108,12 +9106,18 @@ void MicroProfileSymbolInitializeInternal()
 	auto SymbolCallback = [&](const char* pName, const char* pShortName, intptr_t nAddress, intptr_t nAddressEnd)
 	{
 		int nIgnoreSymbol = 0;
-#if MICROPROFILE_INSTRUMENT_MICROPROFILE == 0
 		if(strstr(pName, "MicroProfile"))
 		{
+#if MICROPROFILE_INSTRUMENT_MICROPROFILE == 0
 			nIgnoreSymbol = 1;
-		}
+#else
+			if(strstr(pName, "Log") || strstr(pName, "Scope") || strstr(pName, "Tick")) // just for debugging: skip these so we can play around with the sample projects
+			{
+				nIgnoreSymbol = 1;
+			}
 #endif
+
+		}
 		if(pName == pShortName)
 		{
 			pShortName = 0;
@@ -10104,142 +10108,6 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 		}
 		return false;
 	}
-
-	// auto InsertRegisterJump = [](char* pCode, intptr_t pDest, int reg)
-	// {
-	// 	MP_ASSERT(reg >= R_RAX && reg <= R_R15);
-	// 	int large = reg >= R_R8 ? 1 : 0;
-	// 	int offset = large ? (reg - R_RAX) : (reg - R_R8);
-	// 	unsigned char* uc = (unsigned char*)pCode;
-	// 	*uc++ = large ? 0x49 : 0x48;
-	// 	*uc++ = 0xb8 + offset;
-	// 	memcpy(uc, &pDest, 8);
-	// 	uc += 8;
-	// 	if(large)
-	// 		*uc++ = 0x41;
-	// 	*uc++ = 0xff;
-	// 	*uc++ = 0xe0 + offset;
-
-	// 	return (char*)uc;
-
-
-
-
-
-
-
-
-     // 164:	48 b8 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rax
-     // 16e:	48 b9 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rcx
-     // 178:	48 ba 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rdx
-     // 182:	48 bb 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rbx
-     // 18c:	48 bc 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rsp
-     // 196:	48 bd 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rbp
-     // 1a0:	48 be 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rsi
-     // 1aa:	48 bf 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %rdi
-     // 1b4:	49 b8 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r8
-     // 1be:	49 b9 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r9
-     // 1c8:	49 ba 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r10
-     // 1d2:	49 bb 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r11
-     // 1dc:	49 bc 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r12
-     // 1e6:	49 bd 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r13
-     // 1f0:	49 be 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r14
-     // 1fa:	49 bf 08 07 06 05 04 03 02 01 	movabsq	$72623859790382856, %r15
-     // 204:	ff e0 	jmpq	*%rax
-     // 206:	ff e1 	jmpq	*%rcx
-     // 208:	ff e2 	jmpq	*%rdx
-     // 20a:	ff e3 	jmpq	*%rbx
-     // 20c:	ff e4 	jmpq	*%rsp
-     // 20e:	ff e5 	jmpq	*%rbp
-     // 210:	ff e6 	jmpq	*%rsi
-     // 212:	ff e7 	jmpq	*%rdi
-     // 214:	41 ff e0 	jmpq	*%r8
-     // 217:	41 ff e1 	jmpq	*%r9
-     // 21a:	41 ff e2 	jmpq	*%r10
-     // 21d:	41 ff e3 	jmpq	*%r11
-     // 220:	41 ff e4 	jmpq	*%r12
-     // 223:	41 ff e5 	jmpq	*%r13
-     // 226:	41 ff e6 	jmpq	*%r14
-     // 229:	41 ff e7 	jmpq	*%r15
-
-
- // 	movq rax, 0102030405060708h #patch to tramp_code_end
- // 	movq rcx, 0102030405060708h #patch to tramp_code_end
- // 	movq rdx, 0102030405060708h #patch to tramp_code_end	
- // 	movq rbx, 0102030405060708h #patch to tramp_code_end
- // 	movq rsp, 0102030405060708h #patch to tramp_code_end
- // 	movq rbp, 0102030405060708h #patch to tramp_code_end
- // 	movq rsi, 0102030405060708h #patch to tramp_code_end
- // 	movq rdi, 0102030405060708h #patch to tramp_code_end
- // 	movq r8, 0102030405060708h #patch to tramp_code_end
- // 	movq r9, 0102030405060708h #patch to tramp_code_end
- // 	movq r10, 0102030405060708h #patch to tramp_code_end
- // 	movq r11, 0102030405060708h #patch to tramp_code_end
- // 	movq r12, 0102030405060708h #patch to tramp_code_end
- // 	movq r13, 0102030405060708h #patch to tramp_code_end
- // 	movq r14, 0102030405060708h #patch to tramp_code_end
- // 	movq r15, 0102030405060708h #patch to tramp_code_end
- // 	jmp rax
-	// jmp rcx
- // 	jmp rdx
-	// jmp rbx
- // 	jmp rsp
-	// jmp rbp
- // 	jmp rsi
-	// jmp rdi
- // 	jmp r8
-	// jmp r9
- // 	jmp r10
-	// jmp r11
- // 	jmp r12
-	// jmp r13
- // 	jmp r14
-	// jmp r15
-
-
-
-
-
-	// };
-	// auto InsertRetJump = [](char* pCode, intptr_t pDest)
-	// {
-
-	// 	uint32_t lower = (uint32_t)pDest;
-	// 	uint32_t upper = (uint32_t)(pDest>>32);
-	// 	unsigned char* uc = (unsigned char*)pCode;
-	// 	*uc++ = 0x68;
-	// 	memcpy(uc, &lower, 4);
-	// 	uc += 4;
-	// 	*uc++ = 0xc7;
-	// 	*uc++ = 0x44;
-	// 	*uc++ = 0x24;
-	// 	*uc++ = 0x04;
-	// 	memcpy(uc, &upper, 4);
-	// 	uc += 4;
-	// 	*uc++ = 0xc3;
-
-	// 	return (char*)uc;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	// };
-
-
 
 	intptr_t phome = nInstructionBytesSrc + (intptr_t)f;
 	uint32_t reg = nUsableJumpRegs & ~nRegsWritten;
