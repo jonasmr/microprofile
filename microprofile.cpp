@@ -8699,9 +8699,6 @@ void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pFunctio
 	intptr_t nOffset = 0;
 	_DecodeType dt = Decode64Bits;
 	_DInst Instructions[15];
-	// int nMaxFunctions = 21000;
-	int nNumFunctions = 0;
-	// int xx = 0;
 	int cc = 0;
 
 	_CodeInfo ci;
@@ -8755,11 +8752,7 @@ void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pFunctio
 				pDst += I.size;
 				pDst += I.imm.sdword;
 
-
 				void* fFun1 = MicroProfileX64FollowJump((void*)pDst);
-				printf("Found call %d at +%lld ... dst %p :: JumpDst %p\n", nNumFunctions++, I.addr + nOffset, (void*)pDst, fFun1);
-				// (void)fFun1;
-				// if(nNumFunctions < nMaxFunctions)
 				MicroProfileInstrumentFromAddressOnly(fFun1);
 			}
 			else if(I.opcode == I_JMP)
@@ -9111,13 +9104,22 @@ void MicroProfileSymbolInitializeInternal()
 #if MICROPROFILE_INSTRUMENT_MICROPROFILE == 0
 			nIgnoreSymbol = 1;
 #else
-			if(strstr(pName, "Log") || strstr(pName, "Scope") || strstr(pName, "Tick")) // just for debugging: skip these so we can play around with the sample projects
+			if(strstr(pName, "Log") || strstr(pName, "Scope") || strstr(pName, "Tick") || strstr(pName, "Enter") || strstr(pName, "Leave") || strstr(pName, "Thread") || strstr(pName, "Thread")) // just for debugging: skip these so we can play around with the sample projects
 			{
 				nIgnoreSymbol = 1;
 			}
 #endif
-
 		}
+#ifdef _WIN32
+		if(strstr(pName, "__security_check_cookie")
+			|| strstr(pName, "_RTC_CheckStackVars")
+			|| strstr(pName, "__chkstk")
+			|| strstr(pName, "std::_Atomic")
+			)
+		{
+			nIgnoreSymbol = 1;
+		}
+#endif
 		if(pName == pShortName)
 		{
 			pShortName = 0;
@@ -9637,7 +9639,7 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 	int nInstructionBytesSrc = 0;
 	uint32_t nRegsWritten = 0;
 	uint32_t nRetSafe = 1;
-	uint32_t nUsableJumpRegs = (1<<R_RAX) | (1 << R_R10) | (1 << R_11);
+	uint32_t nUsableJumpRegs = (1<<R_RAX) | (1 << R_R10) | (1 << R_R11);
 	static_assert(R_RAX == 0, "R_RAX must be 0");
 	if(!MicroProfileCopyInstructionBytes(pInstructionMoveDest, f, 14, (int)codemaxsize, pTrunk, t_trunk_size, nUsableJumpRegs, &nInstructionBytesDest, &nInstructionBytesSrc, &nRegsWritten, &nRetSafe))
 	{
