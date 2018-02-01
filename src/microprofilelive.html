@@ -3492,10 +3492,9 @@ function DrawMenuFunctions()
 				if(Y >= YStart)
 				{
 					bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
-					bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+					bgcolor = bMouseIn && MouseX > X ? nBackColorOffset : nBackColors[nColorIndex];
 					TextY = Y+BoxHeight-FontAscent;
-					context.fillStyle = E?'white':'grey';
-					context.fillRect(X-2, Y, Width+4, BoxHeight);
+
 					context.fillStyle = bgcolor;
 					context.fillRect(X, Y, Width, BoxHeight);
 					context.fillStyle = Color;
@@ -3504,7 +3503,24 @@ function DrawMenuFunctions()
 					context.textAlign = 'left';
 					if(bMouseIn)
 					{
+						var bgcolorin = bMouseIn && MouseX < X ? nBackColorOffset : nBackColors[nColorIndex];
+
 						Selection = i;
+						var W = context.measureText('>>').width;
+						W = Math.max(W, BoxHeight) + 2;
+						var Corner = X - W - 1;
+						if(Corner < SizeInfo.x)
+						{
+							SizeInfo.w += SizeInfo.x - Corner;
+							SizeInfo.x = Corner;
+						}
+						context.fillStyle = bgcolorin;
+						context.fillRect(Corner, Y, W, BoxHeight);
+						context.fillStyle = Color;
+						context.textAlign = 'center';
+						context.fillText(">>", Corner + Math.floor(W / 2), TextY);
+
+						context.textAlign = 'left';
 					}
 				}
 				Y += BoxHeight;
@@ -3516,7 +3532,7 @@ function DrawMenuFunctions()
 	context.textAlign = 'left';
 	if(Selection != -1 && MouseReleased)
 	{
-		if(KeyShiftDown)
+		if(KeyShiftDown || MouseX < X)
 		{
 			WSSendMessage("I" + FF[Selection].a + ' ' + FF[Selection].rgb + ' ' + FF[Selection].n);		
 		}
