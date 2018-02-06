@@ -427,6 +427,14 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #define MICROPROFILE_INSTRUMENT_SYMBOLNAME_MAXLEN 128
 #endif
 
+#ifndef MICROPROFILE_INSTRUMENT_MAX_MODULES
+#define MICROPROFILE_INSTRUMENT_MAX_MODULES 256
+#endif
+
+#ifndef MICROPROFILE_INSTRUMENT_MAX_MODULE_CHARS
+#define MICROPROFILE_INSTRUMENT_MAX_MODULE_CHARS (8<<10)
+#endif
+
 
 typedef enum MicroProfileTokenType_t
 {

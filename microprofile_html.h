@@ -7505,7 +7505,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "		h = s.charCodeAt(i) + ((h << 5) - h);\n"
 "		h = h & h;\n"
 "	}\n"
-"	return h;\n"
+"	return Math.abs(h);\n"
 "}\n"
 "function StringToColor(s)\n"
 "{\n"
@@ -8691,11 +8691,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	{\n"
 "		context.fillStyle = \'white\';\n"
 "	}\n"
-"	context.fillText(\'+\', XTemp, YText";
+"	context.fillText(\'+\', XT";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-");\n"
+"emp, YText);\n"
 "	XTemp -= SizePlus + 3;\n"
 "\n"
 "\n"
@@ -9845,6 +9845,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	WidthArray[TYPE_CATEGORY] = 0;\n"
 "	WidthTree = FontWidth;\n"
 "	SymbolState = null;\n"
+"	FunctionQueryPending = null;\n"
 "\n"
 "	FilterInputTimersValue = \"\";\n"
 "	FilterInputGroupsValue = \"\";\n"
@@ -10107,12 +10108,12 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "		var idx = CounterArray[i];\n"
 "		var value = C[i];\n"
 "		var T = TimerArray[idx];\n"
-"		T.value = value;\n"
-"		if(T.minvalue == undefined";
+"		T.val";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-")\n"
+"ue = value;\n"
+"		if(T.minvalue == undefined)\n"
 "			T.minvalue = value;\n"
 "		else\n"
 "			T.minvalue = Math.min(T.minvalue, value);\n"

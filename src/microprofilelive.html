@@ -1632,7 +1632,7 @@ function StringHash(s) //note: matching code in microprofile.cpp: uint32_t Micro
 		h = s.charCodeAt(i) + ((h << 5) - h);
 		h = h & h;
 	}
-	return h;
+	return Math.abs(h);
 }
 function StringToColor(s)
 {
@@ -3968,6 +3968,7 @@ function WSOpen()
 	WidthArray[TYPE_CATEGORY] = 0;
 	WidthTree = FontWidth;
 	SymbolState = null;
+	FunctionQueryPending = null;
 
 	FilterInputTimersValue = "";
 	FilterInputGroupsValue = "";
