@@ -9334,7 +9334,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	var YClear = Y;\n"
 "	var TextYClear = TextY;\n"
 "	var bgcolorClear = bgcolor;\n"
-"	var YStart = Y-BoxHeight;\n"
+"	var YStart = Y-BoxHeight*2;\n"
 "\n"
 "	nColorIndex = 1-nColorIndex;\n"
 "\n"
@@ -10095,11 +10095,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "\n"
 "		FD.AggregateFrames = 0;\n"
 "		FD.FrameTime = 0.0;\n"
-"		FD.Ag";
+"		FD.";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-"gregate = 0;\n"
+"Aggregate = 0;\n"
 "		FD.AggregateTime = 0.0;\n"
 "		FD.AggregateSum = 0;\n"
 "		FD.AggregateMax = 0;\n"
