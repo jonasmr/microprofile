@@ -3376,7 +3376,7 @@ function DrawMenuFunctions()
 	var Y = SizeInfo.y;
 	var Width = SizeInfo.w;
 	Width = Math.max(300, Width);
-	Width = 10+ MeasureArray(Width, FF, function(s){return s.n;} );
+	Width = 10+ MeasureArray(Width, FF, function(s){return s.n + " " + s.m;} );
 
 	if(Width + SizeInfo.x + 50 > nWidth)
 	{
@@ -3462,8 +3462,15 @@ function DrawMenuFunctions()
 	nColorIndex = 1-nColorIndex;
 
 	Y -= nOffsetMenuFunctions + 10;
-
 	var Selection = -1;
+
+	var StringColor = function(Name)
+	{
+		var h = StringHash(Name);
+		var cidx = h % 360;
+		return cidx;
+	};
+
 	for(var i = 0; i < FF.length; ++i)
 	{
 		if(true)
@@ -3471,13 +3478,18 @@ function DrawMenuFunctions()
 			var Name = FF[i].n;
 			var ShortName = FF[i].sn;
 			var Color = FF[i].c;
-			if(!Color)
+			var ColorModule = FF[i].cm;
+			var ModuleName = FF[i].m;
+			if(!Color || !ColorModule)
 			{
-				var h = StringHash(ShortName);
-				var cidx = h % 360;
+				var cidx = StringColor(ShortName); 
 				FF[i].c = "hsl(" + cidx + ",50%, 70%)";
 				FF[i].rgb = ConvertHslToRGB(cidx/ 360, 0.5, 0.7);
+				var cidxModule = StringColor(ModuleName); 
+				FF[i].cm = "hsl(" + cidxModule + ",50%, 70%)";
+				FF[i].rgbm = ConvertHslToRGB(cidxModule/ 360, 0.5, 0.7);
 				Color = FF[i].c;
+				ColorModule = FF[i].cm;
 			}
 			var UseAlt = 0;
 			var N = UseAlt ? Name : ShortName;
@@ -3501,8 +3513,11 @@ function DrawMenuFunctions()
 					context.textAlign = 'right';
 					context.fillText(N, X + Width - 2, TextY);
 					context.textAlign = 'left';
+					context.fillStyle = ColorModule;
+					context.fillText(ModuleName, X, TextY);
 					if(bMouseIn)
 					{
+						context.fillStyle = Color;
 						var bgcolorin = bMouseIn && MouseX < X ? nBackColorOffset : nBackColors[nColorIndex];
 
 						Selection = i;
