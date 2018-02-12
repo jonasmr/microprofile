@@ -12,6 +12,14 @@
 #include <ctype.h>
 #include <string.h>
 
+#if defined(_WIN32) && _MSC_VER == 1700
+#define PRIx64 "llx"
+#define PRIu64 "llu"
+#define PRId64 "lld"
+#else
+#include <inttypes.h>
+#endif
+
 #define MICROPROFILE_MAX_COUNTERS 512
 #define MICROPROFILE_MAX_COUNTER_NAME_CHARS (MICROPROFILE_MAX_COUNTERS*16)
 #define MICROPROFILE_MAX_GROUP_INTS (MICROPROFILE_MAX_GROUPS/32)

@@ -45,13 +45,6 @@
 #define MICROPROFILE_ONCE
 
 #include <stdint.h>
-#if defined(_WIN32) && _MSC_VER == 1700
-#define PRIx64 "llx"
-#define PRIu64 "llu"
-#define PRId64 "lld"
-#else
-#include <inttypes.h>
-#endif
 typedef uint64_t MicroProfileToken;
 typedef uint16_t MicroProfileGroupId;
 
