@@ -255,18 +255,18 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #define MICROPROFILE_COUNTER_CONFIG_ONCE(name, type, limit, flags) do{static bool MICROPROFILE_TOKEN_PASTE(g_mponce,__LINE__) = false; if(!MICROPROFILE_TOKEN_PASTE(g_mponce,__LINE__)){MICROPROFILE_TOKEN_PASTE(g_mponce,__LINE__) = true; MicroProfileCounterConfig(name,type,limit,flags);}}while(0)
 #define MICROPROFILE_DECLARE_LOCAL_COUNTER(var) extern int64_t g_mp_local_counter##var; extern MicroProfileToken g_mp_counter_token##var;
 #define MICROPROFILE_DEFINE_LOCAL_COUNTER(var, name) int64_t g_mp_local_counter##var = 0;MicroProfileToken g_mp_counter_token##var = MicroProfileGetCounterToken(name)
-#define MICROPROFILE_DECLARE_LOCAL_ATOMIC_COUNTER(var) extern std::atomic<int64_t> g_mp_local_counter##var; extern MicroProfileToken g_mp_counter_token##var;
-#define MICROPROFILE_DEFINE_LOCAL_ATOMIC_COUNTER(var, name) std::atomic<int64_t> g_mp_local_counter##var;MicroProfileToken g_mp_counter_token##var = MicroProfileGetCounterToken(name)
+#define MICROPROFILE_DECLARE_LOCAL_ATOMIC_COUNTER(var) extern MicroProfileToken g_mp_counter_token##var;
+#define MICROPROFILE_DEFINE_LOCAL_ATOMIC_COUNTER(var, name) MicroProfileToken g_mp_counter_token##var = MicroProfileGetCounterToken(name)
 #define MICROPROFILE_COUNTER_LOCAL_ADD(var, count) MicroProfileLocalCounterAdd(&g_mp_local_counter##var, (count))
 #define MICROPROFILE_COUNTER_LOCAL_SUB(var, count) MicroProfileLocalCounterAdd(&g_mp_local_counter##var, -(int64_t)(count))
 #define MICROPROFILE_COUNTER_LOCAL_SET(var, count) MicroProfileLocalCounterSet(&g_mp_local_counter##var, count)
 #define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD(var) MicroProfileCounterAdd(g_mp_counter_token##var, MicroProfileLocalCounterSet(&g_mp_local_counter##var, 0))
 #define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET(var) MicroProfileCounterSet(g_mp_counter_token##var, MicroProfileLocalCounterSet(&g_mp_local_counter##var, 0))
-#define MICROPROFILE_COUNTER_LOCAL_ADD_ATOMIC(var, count) MicroProfileLocalCounterAddAtomic(&g_mp_local_counter##var, (count))
-#define MICROPROFILE_COUNTER_LOCAL_SUB_ATOMIC(var, count) MicroProfileLocalCounterAddAtomic(&g_mp_local_counter##var, -(int64_t)(count))
-#define MICROPROFILE_COUNTER_LOCAL_SET_ATOMIC(var, count) MicroProfileLocalCounterSetAtomic(&g_mp_local_counter##var, count)
-#define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD_ATOMIC(var) MicroProfileCounterAdd(g_mp_counter_token##var, MicroProfileLocalCounterSetAtomic(&g_mp_local_counter##var, 0))
-#define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET_ATOMIC(var) MicroProfileCounterSet(g_mp_counter_token##var, MicroProfileLocalCounterSetAtomic(&g_mp_local_counter##var, 0))
+#define MICROPROFILE_COUNTER_LOCAL_ADD_ATOMIC(var, count) MicroProfileLocalCounterAddAtomic(g_mp_counter_token##var, (count))
+#define MICROPROFILE_COUNTER_LOCAL_SUB_ATOMIC(var, count) MicroProfileLocalCounterAddAtomic(g_mp_counter_token##var, -(int64_t)(count))
+#define MICROPROFILE_COUNTER_LOCAL_SET_ATOMIC(var, count) MicroProfileLocalCounterSetAtomic(g_mp_counter_token##var, count)
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD_ATOMIC(var) MicroProfileCounterAdd(g_mp_counter_token##var, MicroProfileLocalCounterSetAtomic(g_mp_counter_token##var, 0))
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET_ATOMIC(var) MicroProfileCounterSet(g_mp_counter_token##var, MicroProfileLocalCounterSetAtomic(g_mp_counter_token##var, 0))
 #define MICROPROFILE_FORCEENABLECPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeCpu)
 #define MICROPROFILE_FORCEDISABLECPUGROUP(s) MicroProfileForceDisableGroup(s, MicroProfileTokenTypeCpu)
 #define MICROPROFILE_FORCEENABLEGPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeGpu)
@@ -447,7 +447,6 @@ struct MicroProfileThreadLogGpu;
 struct MicroProfileScopeStateC;
 
 #ifdef __cplusplus
-#include <atomic>
 extern "C" {
 #endif
 
@@ -534,12 +533,14 @@ MICROPROFILE_API float MicroProfileTickToMsMultiplierGpu();
 MICROPROFILE_API int64_t MicroProfileTicksPerSecondCpu();
 MICROPROFILE_API uint64_t MicroProfileTick();
 
-#ifdef __cplusplus
-MICROPROFILE_API void MicroProfileLocalCounterAddAtomic(std::atomic<int64_t>* pCounter, int64_t nCount);
-MICROPROFILE_API int64_t MicroProfileLocalCounterSetAtomic(std::atomic<int64_t>* pCounter, int64_t nCount);
 
+MICROPROFILE_API void MicroProfileLocalCounterAddAtomic(MicroProfileToken Token, int64_t nCount);
+MICROPROFILE_API int64_t MicroProfileLocalCounterSetAtomic(MicroProfileToken, int64_t nCount);
+
+#ifdef __cplusplus
 }
 #endif
+
 
 #ifdef __cplusplus
 struct MicroProfileThreadInfo

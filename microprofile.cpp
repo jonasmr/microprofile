@@ -391,6 +391,7 @@ struct MicroProfileCounterInfo
 	uint32_t nFlags;
 	int64_t nLimit;
 	MicroProfileCounterFormat eFormat;
+	std::atomic<int64_t> ExternalAtomic;
 };
 
 struct MicroProfileCounterHistory
@@ -1766,6 +1767,7 @@ MicroProfileToken MicroProfileGetCounterTokenByParent(int nParent, const char* p
 	S.CounterInfo[nResult].nFlags = 0;
 	S.CounterInfo[nResult].eFormat = MICROPROFILE_COUNTER_FORMAT_DEFAULT;
 	S.CounterInfo[nResult].nLimit = 0;
+	S.CounterInfo[nResult].ExternalAtomic = 0;
 	S.CounterSource[nResult].pSource = 0;
 	S.CounterSource[nResult].nSourceSize = 0;
 	int nLen = (int)strlen(pName)+1;
@@ -2076,12 +2078,15 @@ int64_t MicroProfileLocalCounterSet(int64_t* pCounter, int64_t nCount)
 	return r;
 }
 
-void MicroProfileLocalCounterAddAtomic(std::atomic<int64_t>* pCounter, int64_t nCount)
+void MicroProfileLocalCounterAddAtomic(MicroProfileToken nToken, int64_t nCount)
 {
+	std::atomic<int64_t>* pCounter = &S.CounterInfo[nToken].ExternalAtomic;
 	pCounter->fetch_add(nCount);
 }
-int64_t MicroProfileLocalCounterSetAtomic(std::atomic<int64_t>* pCounter, int64_t nCount)
+int64_t MicroProfileLocalCounterSetAtomic(MicroProfileToken nToken, int64_t nCount)
 {
+
+	std::atomic<int64_t>* pCounter = &S.CounterInfo[nToken].ExternalAtomic;
 	return pCounter->exchange(nCount);
 }
 
