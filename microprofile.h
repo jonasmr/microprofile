@@ -673,30 +673,7 @@ struct MicroProfileScopeGpuHandler
 #endif //__cplusplus
 #endif //enabled
 
-enum MicroProfileDrawMask
-{
-	MP_DRAW_OFF = 0x0,
-	MP_DRAW_BARS = 0x1,
-	MP_DRAW_DETAILED = 0x2,
-	MP_DRAW_COUNTERS = 0x3,
-	MP_DRAW_HIDDEN = 0x4,
-	MP_DRAW_SIZE = 0x5,
-};
 
-enum MicroProfileDrawBarsMask
-{
-	MP_DRAW_TIMERS = 0x1,
-	MP_DRAW_AVERAGE = 0x2,
-	MP_DRAW_MAX = 0x4,
-	MP_DRAW_MIN = 0x8,
-	MP_DRAW_CALL_COUNT = 0x10,
-	MP_DRAW_TIMERS_EXCLUSIVE = 0x20,
-	MP_DRAW_AVERAGE_EXCLUSIVE = 0x40,
-	MP_DRAW_MAX_EXCLUSIVE = 0x80,
-	MP_DRAW_META_FIRST = 0x100,
-	MP_DRAW_ALL = 0xffffffff,
-
-};
 
 enum MicroProfileCounterFormat
 {
