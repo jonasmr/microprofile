@@ -8924,7 +8924,7 @@ void MicroProfileSymbolFreeDataInternal()
 {
 	{
 		MP_ASSERT(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_DONE);
-		for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
+		for(int i = 0; i < S.SymbolNumModules; ++i)
 		{
 
 			while(S.SymbolModules[i].pSymbolBlock)
@@ -9140,7 +9140,7 @@ uint32_t MicroProfileSymbolGetModule(const char* pString, intptr_t nBaseAddr)
 {
 	//search for matching string: this assumes the calling code does not reuse this memory.
 	//for the ones I've tested this is OK.
-	for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
+	for(int i = 0; i < S.SymbolNumModules; ++i)
 	{
 		if(S.SymbolModules[i].nBaseAddr == nBaseAddr)
 		{
@@ -9149,7 +9149,7 @@ uint32_t MicroProfileSymbolGetModule(const char* pString, intptr_t nBaseAddr)
 		}
 	}
 
-	for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
+	for(int i = 0; i < S.SymbolNumModules; ++i)
 	{
 		if(S.SymbolModules[i].pBaseString == pString)
 		{
@@ -9173,7 +9173,7 @@ uint32_t MicroProfileSymbolGetModule(const char* pString, intptr_t nBaseAddr)
 
 		pWork++;
 	}
-	int nLen = strlen(pTrimmedString) + 1;
+	int nLen = (int)strlen(pTrimmedString) + 1;
 	printf("STRING '%s' :: trimmedstring %s   . len %d\n", pString, pTrimmedString, nLen);
 
 
@@ -9193,7 +9193,7 @@ uint32_t MicroProfileSymbolGetModule(const char* pString, intptr_t nBaseAddr)
 
 const char* MicroProfileSymbolModuleGetString(uint32_t nIndex)
 {
-	MP_ASSERT(S.SymbolNumModules > nIndex);
+	MP_ASSERT(S.SymbolNumModules > (int)nIndex);
 	return S.SymbolModules[nIndex].nStringOffset + &S.SymbolModuleNameBuffer[0];
 }
 
@@ -9204,7 +9204,7 @@ const char* MicroProfileSymbolModuleGetString(uint32_t nIndex)
 void MicroProfileSymbolInitializeInternal()
 {
 	MP_ASSERT(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_LOADING);
-	for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
+	for(int i = 0; i < S.SymbolNumModules; ++i)
 	{
 		MP_ASSERT(0 == S.SymbolModules[i].pSymbolBlock);
 
@@ -9328,7 +9328,7 @@ void MicroProfileSymbolInitializeInternal()
 
 MicroProfileSymbolDesc* MicroProfileSymbolFindFuction(void* pAddress)
 {
-	for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
+	for(int i = 0; i < S.SymbolNumModules; ++i)
 	{
 		MicroProfileSymbolBlock* pSymbols = S.SymbolModules[i].pSymbolBlock;
 		while(pSymbols)
@@ -9415,7 +9415,7 @@ void MicroProfileProcessQuery(MicroProfileFunctionQuery* pQuery)
 	int64_t t = MP_TICK();
 	int64_t tt = 0;
 
-	for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
+	for(int i = 0; i < S.SymbolNumModules; ++i)
 	{
 		int nModule = i;
 		uint32_t nModuleMatchOffset = Q.nModuleFilterMatch[nModule];
@@ -9441,7 +9441,7 @@ void MicroProfileProcessQuery(MicroProfileFunctionQuery* pQuery)
 							if(nMaskQ == (nMaskQ & E.nMask))
 							{
 								nStringsTested++;
-								MP_ASSERT(E.nModule < S.SymbolNumModules);
+								MP_ASSERT((int)E.nModule < S.SymbolNumModules);
 								if(MicroProfileStringMatch(E.pShortName, nModuleMatchOffset, &Q.pFilterStrings[0], Q.nPatternLength, Q.nMaxFilter))
 								{
 									if(Q.nNumResults < MICROPROFILE_MAX_QUERY_RESULTS)
@@ -9657,7 +9657,7 @@ void MicroProfileSymbolQueryFunctions(MpSocket Connection, const char* pFilter)
 			}
 		}
 		memset(Q.nModuleFilterMatch, 0xff, sizeof(Q.nModuleFilterMatch));
-		for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
+		for(int i = 0; i < S.SymbolNumModules; ++i)
 		{
 			Q.nModuleFilterMatch[i] = MicroProfileStringMatchOffset(MicroProfileSymbolModuleGetString(i), Q.pFilterStrings, Q.nPatternLength, Q.nMaxFilter);
 		}
