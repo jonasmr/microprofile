@@ -5838,7 +5838,9 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 	S.WSTimersSent = 0;
 	S.WSCountersSent = 0;
 	S.nJsonSettingsPending = 0;
+#if MICROPROFILE_DYNAMIC_INSTRUMENT
 	S.WSFunctionsInstrumentedSent = 0;
+#endif
 	MicroProfileWebSocketSendState(Connection);
 	MicroProfileWebSocketSendPresets(Connection);
 	if(!S.nWSWasConnected)
