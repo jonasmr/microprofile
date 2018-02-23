@@ -113,6 +113,7 @@ var nOffsetCountersY = 0;
 var nOffsetMenuTimers = 0;
 var nOffsetMenuGroup = 0;
 var nOffsetMenuFunctions = 0;
+var nOffsetMenuPatched = 0;
 
 var nHoverCounter = -1;
 
@@ -224,6 +225,7 @@ var MSG_CURRENTSETTINGS = 6;
 var MSG_COUNTERS = 7; 
 var MSG_FUNCTION_RESULTS = 8;
 var MSG_INACTIVE_FRAME = 9;
+var MSG_FUNCTION_NAMES = 10;
 
 var TYPE_NONE = 0;
 var TYPE_TIMER = 1;
@@ -342,6 +344,9 @@ var SYMBOLSTATE_DONE = 2;
 
 
 var SymbolState;
+
+var FunctionNamesInstrumented = [];
+var FunctionModulesInstrumented = [];
 
 function ConvertHslToRGB(h, s, l) //from https://gist.github.com/mjackson/5311256
 {
@@ -2050,11 +2055,13 @@ function DrawViews()
 var SubMenuGroup = 0;
 var SubMenuTimers = 1;
 var SubMenuFunctions = 2;
-var SubMenuSettings = 3;
-var SubMenuViews = 4;
-var SubMenuPresets = 5;
-var SubMenuColumns = 6;
-var SubMenuCapture = 7;
+var SubMenuPatched = 3;
+var SubMenuSettings = 4;
+var SubMenuViews = 5;
+var SubMenuPresets = 6;
+var SubMenuColumns = 7;
+var SubMenuCapture = 8;
+
 var SubMenuActive = -1;
 var SubMenuTimeoutBase = 0.7;
 var SubMenuMouseX = 0;
@@ -2064,8 +2071,9 @@ var MenuItems = [];
 var FilterInputTimersValue = '';
 var FilterInputGroupsValue = '';
 var FilterInputFunctionsValue = '';
+var FilterInputPatchedValue = '';
 
-function MakeMenuItem(name, f)
+function MakeMenuItem(name, f, visible)
 {
 	var Item = {};
 	Item.name = name
@@ -2073,6 +2081,7 @@ function MakeMenuItem(name, f)
 	Item.w = name.length;
 	Item.x = 0;
 	Item.y = 0;
+	Item.visible = visible;
 	return Item;
 }
 function EnableMenu(m)
@@ -2091,6 +2100,10 @@ function EnableMenu(m)
 		{
 			FilterInputFunctionsValue = FilterInput.value;
 		}
+		else if(SubMenuActive == SubMenuPatched)
+		{
+			FilterInputPatchedValue = FilterInput.value;
+		}
 
 		SubMenuActive = m;
 		SubMenuTimeout = new Date();
@@ -2107,6 +2120,11 @@ function EnableMenu(m)
 		{
 			FilterInput.value = FilterInputFunctionsValue;
 		}
+		else if(SubMenuActive == SubMenuPatched)
+		{
+			FilterInput.value = FilterInputPatchedValue;
+		}
+
 		FilterInputValueLast = FilterInput.value;
 	}
 	if(m == -1)
@@ -2114,7 +2132,7 @@ function EnableMenu(m)
 		SubMenuTimeout = 0;
 	}
 
-	if(SubMenuActive == SubMenuTimers || SubMenuActive == SubMenuGroup || SubMenuActive == SubMenuFunctions)
+	if(SubMenuActive == SubMenuTimers || SubMenuActive == SubMenuGroup || SubMenuActive == SubMenuFunctions || SubMenuActive == SubMenuPatched)
 	{
 		FilterInputDiv.style['display'] = 'inline';
 		FilterInput.focus();
@@ -2151,6 +2169,7 @@ function InitMenu()
 	MenuItems.push(MakeMenuItem("Control", function(){EnableMenu(SubMenuGroup); } ));
 	MenuItems.push(MakeMenuItem("Timers", function(){EnableMenu(SubMenuTimers); } ));
 	MenuItems.push(MakeMenuItem("Functions", function(){EnableMenu(SubMenuFunctions); } ));
+	MenuItems.push(MakeMenuItem("Patched", function(){EnableMenu(SubMenuPatched); }, function(){ return FunctionNamesInstrumented.length > 0;} ));
 	MenuItems.push(MakeMenuItem("Settings", function(){ EnableMenu(SubMenuSettings); } ));
 	MenuItems.push(MakeMenuItem("Views", function(){ EnableMenu(SubMenuViews); } ));
 	MenuItems.push(MakeMenuItem("Presets", function(){ EnableMenu(SubMenuPresets); } ));
@@ -2174,27 +2193,30 @@ function DrawTopMenu()
 			}
 		}
 		var Item = MenuItems[i];
-		var w = context.measureText(Item.name).width + 4;
-		var MouseIn = MouseInY && MouseX >= X && MouseX < X + w;
-		var color = MouseIn ? nBackColors[1] : "black";
-		Item.x = X;
-		Item.y = Y + BoxHeight;
-		if(MouseIn)
+		if(Item.visible == null || Item.visible())
 		{
-			context.fillStyle = 'white';
-			context.fillRect(X-2, Y, w+4, BoxHeight);
-			// Enable
-			EnableMenu(i);
+			var w = context.measureText(Item.name).width + 4;
+			var MouseIn = MouseInY && MouseX >= X && MouseX < X + w;
+			var color = MouseIn ? nBackColors[1] : "black";
+			Item.x = X;
+			Item.y = Y + BoxHeight;
+			if(MouseIn)
+			{
+				context.fillStyle = 'white';
+				context.fillRect(X-2, Y, w+4, BoxHeight);
+				// Enable
+				EnableMenu(i);
+			}
+			context.fillStyle = color;
+			context.fillRect(X, Y, w, BoxHeight);
+			context.fillStyle = "white";
+			context.fillText(Item.name, X+2, Y+BoxHeight-FontAscent);
+			if(MouseIn && MouseReleased)
+			{
+				Item.f();
+			}
+			X += w + 6;
 		}
-		context.fillStyle = color;
-		context.fillRect(X, Y, w, BoxHeight);
-		context.fillStyle = "white";
-		context.fillText(Item.name, X+2, Y+BoxHeight-FontAscent);
-		if(MouseIn && MouseReleased)
-		{
-			Item.f();
-		}
-		X += w + 6;
 	}
 }
 
@@ -2734,7 +2756,7 @@ function MeasureArray(v, A, f)
 	{
 		var s = A[i];
 		if(f)
-			s=f(s);
+			s=f(s, i);
 		var l = context.measureText(s).width;
 		v = v < l ? l : v;
 	}
@@ -3339,6 +3361,107 @@ function SpinnerDraw(Enable, context, Spinner, X, Y, w, h)
 	Spinner.Canvas = tmp;
 }
 
+
+function DrawMenuPatched()
+{
+	if(FilterInputValueLast != FilterInput.value)
+	{
+		nOffsetMenuPatched = 0;
+	}
+
+	var FilterArray = CreateFilter(FilterInput.value);
+	var context = CanvasDetailedView.getContext('2d');
+	var nColorIndex = 0;
+	var SizeInfo = TimerMenuSize();
+	SizeInfo.x = MenuItems[SubMenuPatched].x;
+	SizeInfo.y = MenuItems[SubMenuPatched].y;
+	var Y = SizeInfo.y;
+	var Width = SizeInfo.w;
+	Width = Math.max(300, Width);
+	Width = 10+ MeasureArray(Width, FunctionNamesInstrumented, function(s, i){return s + " " + FunctionModulesInstrumented[i];} );
+
+	if(Width + SizeInfo.x + 50 > nWidth)
+	{
+		Width = nWidth - (SizeInfo.x+50);
+	}
+	SizeInfo.w = Width;
+	var MaxStringLength = Math.floor(Width/(FontWidth));
+
+	var Selection = null;
+	var X = SizeInfo.x;
+	context.fillStyle = nBackColors[0];
+	TextY = Y+BoxHeight-FontAscent;
+	context.fillRect(X, Y, Width, BoxHeight);
+
+	var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight && MouseX-X < 100;
+	context.fillRect(X, Y, 99, BoxHeight);
+	context.textAlign = 'center';
+	context.fillStyle = 'white';
+	context.fillText("Patched functions", X + Width/2, TextY);
+
+	Y += BoxHeight;
+	MoveFilterInputDiv(SizeInfo.x, Y, SizeInfo.w-6);
+	Y += 45;
+
+	bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+	var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+	var TextY = Y+BoxHeight-FontAscent;
+	var YClear = Y;
+	var TextYClear = TextY;
+	var bgcolorClear = bgcolor;
+	var YStart = Y-BoxHeight*2;
+
+	nColorIndex = 1-nColorIndex;
+
+	Y -= nOffsetMenuFunctions + 10;
+	var Selection = -1;
+
+	var StringColor = function(Name)
+	{
+		var h = StringHash(Name);
+		var cidx = h % 360;
+		return cidx;
+	};
+
+	var GetColor = function(Str)
+	{
+		var cidx = StringColor(Str); 
+		return "hsl(" + cidx + ",50%, 70%)";
+	};
+	for(var i = 0; i < FunctionNamesInstrumented.length; ++i)
+	{
+		var Name = FunctionNamesInstrumented[i];
+		var ModuleName = FunctionModulesInstrumented[i];
+		if(FilterMatch(FilterArray, ModuleName + " " + Name))
+		{
+
+			var Color = GetColor(Name);
+			var ColorModule = GetColor(Name);
+			if(Y >= YStart)
+			{
+				bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
+				bgcolor = bMouseIn && MouseX > X ? nBackColorOffset : nBackColors[nColorIndex];
+				TextY = Y+BoxHeight-FontAscent;
+
+				context.fillStyle = bgcolor;
+				context.fillRect(X, Y, Width, BoxHeight);
+				context.fillStyle = Color;
+				context.textAlign = 'right';
+				context.fillText(Name, X + Width - 2, TextY);
+				context.textAlign = 'left';
+				context.fillStyle = ColorModule;
+				context.fillText(ModuleName, X, TextY);
+			}
+			Y += BoxHeight;
+			nColorIndex = 1-nColorIndex;
+		}
+	}
+	context.textAlign = 'left';
+	SizeInfo.h = Y-SizeInfo.y;
+	return SizeInfo;
+}
+
+
 function DrawMenuFunctions()
 {
 	if(FilterInputValueLast != FilterInput.value)
@@ -3549,11 +3672,11 @@ function DrawMenuFunctions()
 	{
 		if(KeyShiftDown || MouseX < X)
 		{
-			WSSendMessage("I" + FF[Selection].a + ' ' + FF[Selection].rgb + ' ' + FF[Selection].n);		
+			WSSendMessage("I" + FF[Selection].a + ' ' + FF[Selection].rgb + ' ' + FF[Selection].m + '!' + FF[Selection].n);		
 		}
 		else
 		{
-			WSSendMessage("i" + FF[Selection].a + ' ' + FF[Selection].rgb + ' ' + FF[Selection].n);		
+			WSSendMessage("i" + FF[Selection].a + ' ' + FF[Selection].rgb + ' ' + FF[Selection].m + '!' + FF[Selection].n);		
 		}
 	}
 	SizeInfo.h = Y-SizeInfo.y;
@@ -3763,6 +3886,10 @@ function DrawMenu()
 		else if(SubMenuActive == SubMenuFunctions)
 		{
 			MenuRect = DrawMenuFunctions();
+		}
+		else if(SubMenuActive == SubMenuPatched)
+		{
+			MenuRect = DrawMenuPatched();
 		}
 		else if(SubMenuActive == SubMenuSettings)
 		{
@@ -3983,7 +4110,11 @@ function WSOpen()
 	WidthArray[TYPE_CATEGORY] = 0;
 	WidthTree = FontWidth;
 	SymbolState = null;
-	FunctionQueryPending = null;
+	FunctionQueryPending = 0;
+	FunctionQueryReceived = 0;
+	FunctionQueryLastRequest = 0;
+	FunctionNamesInstrumented = [];
+	FunctionModulesInstrumented = [];
 
 	FilterInputTimersValue = "";
 	FilterInputGroupsValue = "";
@@ -4505,7 +4636,6 @@ function ProcessFrame(F, Inactive)
 
 function WSMessage()
 {
-	// console.log("MESSAGE " + event.data);
 	var Obj = JSON.parse(event.data);
 	WSReceive++;
 	WSReceiveBytes += event.data.length;
@@ -4549,6 +4679,14 @@ function WSMessage()
 	else if(k == MSG_INACTIVE_FRAME)
 	{
 		ProcessFrame(Obj.v, 1)
+	}
+	else if(k == MSG_FUNCTION_NAMES)
+	{
+		for(var i = 0; i < Obj.v.length; ++i)
+		{
+			FunctionNamesInstrumented.push(Obj.v[i][0]);
+			FunctionModulesInstrumented.push(Obj.v[i][1]);
+		}
 	}
 	else
 	{
@@ -4971,7 +5109,7 @@ function KeyUp(evt)
 {
 	var k = evt.keyCode;
 	console.log('key is ' + k);
-	var InputActive = SubMenuActive == SubMenuTimers || SubMenuActive == SubMenuGroup || SubMenuActive == SubMenuFunctions;
+	var InputActive = SubMenuActive == SubMenuTimers || SubMenuActive == SubMenuGroup || SubMenuActive == SubMenuFunctions || SubMenuActive == SubMenuPatched;
 	if(!InputActive)
 	{
 		if(k == 220)

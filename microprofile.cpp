@@ -114,6 +114,12 @@ enum EMicroProfileTokenSpecial
 //				automatic symbol iteration
 //				
 
+
+// 		LANES for timeline!	
+//			string 	filter
+//
+//	
+
 //support for multiple flip sites
 
 enum
@@ -219,8 +225,14 @@ typedef uint64_t MicroProfileThreadIdType;
 
 void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 {
-	void* p; 
-	posix_memalign(&p, nAlign, nSize); 
+	if(nAlign < 8) MP_BREAK();
+	void* p;
+	int r = posix_memalign(&p, nAlign, nSize); 
+	(void)r;
+	// if(r)
+	// {
+	// 	printf("Error is %s\n", strerror(r));
+	// }
 	return p;
 }
 
@@ -338,11 +350,14 @@ typedef std::thread* MicroProfileThread;
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
 struct MicroProfileSymbolDesc;
 void MicroProfileSymbolQueryFunctions(MpSocket Connection, const char* pFilter);
-void MicroProfileInstrumentFunction(void* pFunction, const char* pFunctionName, uint32_t nColor);
+void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, const char* pFunctionName, uint32_t nColor);
 bool MicroProfileSymbolInitialize(bool bStartLoad);
 MicroProfileSymbolDesc* MicroProfileSymbolFindFuction(void* pAddress);
-void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pFunctionName);
+void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pModuleName, const char* pFunctionName);
 void MicroProfileSymbolQuerySendResult(MpSocket Connection);
+void MicroProfileSymbolSendFunctionNames(MpSocket Connection);
+const char* MicroProfileSymbolModuleGetString(uint32_t nIndex);
+
 #endif
 
 struct MicroProfileFunctionQuery;
@@ -800,6 +815,9 @@ struct MicroProfile
 	uint32_t 						DynamicTokenIndex;
 	MicroProfileToken 				DynamicTokens[MICROPROFILE_MAX_DYNAMIC_TOKENS];
 	void* 							FunctionsInstrumented[MICROPROFILE_MAX_DYNAMIC_TOKENS];
+	const char*						FunctionsInstrumentedName[MICROPROFILE_MAX_DYNAMIC_TOKENS];
+	const char*						FunctionsInstrumentedModuleNames[MICROPROFILE_MAX_DYNAMIC_TOKENS];
+	uint32_t 						WSFunctionsInstrumentedSent;
 	MicroProfileSymbolState 		SymbolState;
 
 	struct MicroProfileSymbolModule
@@ -4759,7 +4777,8 @@ enum
 	MSG_CURRENTSETTINGS = 6, 
 	MSG_COUNTERS = 7,
 	MSG_FUNCTION_RESULTS = 8, 
-	MSG_INACTIVE_FRAME = 9
+	MSG_INACTIVE_FRAME = 9,
+	MSG_FUNCTION_NAMES = 10,
 
 };
 
@@ -5688,20 +5707,43 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 				if(r == 2)
 				{
 					printf("success!\n");
-					const char* pName = (const char*)&Bytes[1];
+					const char* pModule = (const char*)&Bytes[1];
 					int nNumChars = snprintf(0, 0, "%p %x", p, nColor);
-					pName += nNumChars;
-					while(*pName++ != ' ')
-						;
+					pModule += nNumChars;
+					while(*pModule != ' ' && *pModule != '\0')
+						++pModule;
 
-					printf("scanning for ptr %p %x %s\n", p, nColor, pName);
-					if(Bytes[0] == 'I')
+					if(*pModule == '\0')
+						break;
+
+					pModule++;
+					const char* pName = pModule;
+					while(*pName != '!' && *pName != '\0')
 					{
-						MicroProfileInstrumentFunctionsCalled(p, pName);
+						pName++;
+					}
+					if(*pName == '!')
+					{
+						//name and module seperately
+						*(char*)pName = '\0';
+						pName++;
 					}
 					else
 					{
-						MicroProfileInstrumentFunction(p, pName, nColor);
+						//name only
+						pName = pModule;
+						pModule = "";
+
+					}
+
+					printf("scanning for ptr %p %x mod:'%s' name'%s'\n", p, nColor, pModule, pName);
+					if(Bytes[0] == 'I')
+					{
+						MicroProfileInstrumentFunctionsCalled(p, pModule, pName);
+					}
+					else
+					{
+						MicroProfileInstrumentFunction(p, pModule, pName, nColor);
 					}
 				}
 			}
@@ -5764,7 +5806,7 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 	S.WSTimersSent = 0;
 	S.WSCountersSent = 0;
 	S.nJsonSettingsPending = 0;
-
+	S.WSFunctionsInstrumentedSent = 0;
 	MicroProfileWebSocketSendState(Connection);
 	MicroProfileWebSocketSendPresets(Connection);
 	if(!S.nWSWasConnected)
@@ -5863,7 +5905,10 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 		MicroProfileWebSocketSendCounters();
 		MicroProfileWSPrintEnd();
 	}
+#if MICROPROFILE_DYNAMIC_INSTRUMENT	
 	MicroProfileSymbolQuerySendResult(Connection);
+	MicroProfileSymbolSendFunctionNames(Connection);
+#endif
 }
 
 
@@ -8727,7 +8772,8 @@ void MicroProfileInstrumentFromAddressOnly(void* pFunction)
 	{
 		printf("Found function %p :: %s %s\n", (void*)pDesc->nAddress, pDesc->pName, pDesc->pShortName);
 		uint32_t nColor = MicroProfileColorFromString(pDesc->pName);
-		MicroProfileInstrumentFunction(pFunction, pDesc->pName, nColor);
+
+		MicroProfileInstrumentFunction(pFunction, MicroProfileSymbolModuleGetString(pDesc->nModule), pDesc->pName, nColor);
 	}
 	else
 	{
@@ -8735,7 +8781,7 @@ void MicroProfileInstrumentFromAddressOnly(void* pFunction)
 	}
 }
 
-void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pFunctionName)
+void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pModuleName, const char* pFunctionName)
 {
 	pFunction = MicroProfileX64FollowJump(pFunction);
 
@@ -8841,8 +8887,16 @@ void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pFunctio
 	// printf("total bytes processed %ld\n", nOffset);
 }
 
+const char* MicroProfileStrDup(const char* pStr)
+{
+	size_t len = strlen(pStr) + 1;
+	char* pOut = (char*)MP_ALLOC(len, 8);
+	memcpy(pOut, pStr, len);
+	return pOut;
+}
 
-void MicroProfileInstrumentFunction(void* pFunction, const char* pFunctionName, uint32_t nColor)
+
+void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, const char* pFunctionName, uint32_t nColor)
 {
 	MicroProfileScopeLock L(MicroProfileMutex());
 	PatchError Err;
@@ -8861,8 +8915,10 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pFunctionName, 
 	}
 	if(MicroProfilePatchFunction(pFunction, S.DynamicTokenIndex, MicroProfileInterceptEnter, MicroProfileInterceptLeave, &Err))
 	{
-		MicroProfileToken Tok = S.DynamicTokens[S.DynamicTokenIndex] = MicroProfileGetToken("INSTRUMENTS", pFunctionName, nColor, MicroProfileTokenTypeCpu);
+		MicroProfileToken Tok = S.DynamicTokens[S.DynamicTokenIndex] = MicroProfileGetToken("PATCHED", pFunctionName, nColor, MicroProfileTokenTypeCpu);
 		S.FunctionsInstrumented[S.DynamicTokenIndex] = pFunction;
+		S.FunctionsInstrumentedName[S.DynamicTokenIndex] = MicroProfileStrDup(pFunctionName);
+		S.FunctionsInstrumentedModuleNames[S.DynamicTokenIndex] = MicroProfileStrDup(pModuleName);
 		S.DynamicTokenIndex++;
 
 		uint16_t nGroup = MicroProfileGetGroupIndex(Tok);
@@ -9233,7 +9289,7 @@ void MicroProfileSymbolInitializeInternal()
 #if MICROPROFILE_INSTRUMENT_MICROPROFILE == 0
 			nIgnoreSymbol = 1;
 #else
-			if(strstr(pName, "Log") || strstr(pName, "Scope") || strstr(pName, "Tick") || strstr(pName, "Enter") || strstr(pName, "Leave") || strstr(pName, "Thread") || strstr(pName, "Thread")) // just for debugging: skip these so we can play around with the sample projects
+			if(strstr(pName, "Log") || strstr(pName, "Scope") || strstr(pName, "Tick") || strstr(pName, "Enter") || strstr(pName, "Leave") || strstr(pName, "Thread") || strstr(pName, "Thread") || strstr(pName, "Mutex")) // just for debugging: skip these so we can play around with the sample projects
 			{
 				nIgnoreSymbol = 1;
 			}
@@ -9551,6 +9607,28 @@ void MicroProfileSymbolKickThread()
 	}
 }
 
+void MicroProfileSymbolSendFunctionNames(MpSocket Connection)
+{
+	if(S.WSFunctionsInstrumentedSent < S.DynamicTokenIndex)
+	{
+		MicroProfileWSPrintStart(Connection);
+		MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":[", MSG_FUNCTION_NAMES);	
+		bool bFirst = true;
+		for(uint32_t i = S.WSFunctionsInstrumentedSent; i < S.DynamicTokenIndex; ++i)
+		{
+			const char* pString = S.FunctionsInstrumentedName[i];
+			const char* pModuleString = S.FunctionsInstrumentedModuleNames[i];
+			MicroProfileWSPrintf(bFirst ? "[\"%s\",\"%s\"]" : ",[\"%s\",\"%s\"]", pString, pModuleString);
+			bFirst = false;
+		}
+		MicroProfileWSPrintf("]}");
+		MicroProfileWSFlush();
+		MicroProfileWSPrintEnd();
+	
+		S.WSFunctionsInstrumentedSent = S.DynamicTokenIndex;
+	}
+}
+
 void MicroProfileSymbolQuerySendResult(MpSocket Connection)
 {
 	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSymbolQuerySendResult", MP_PINK2);
@@ -9578,7 +9656,7 @@ void MicroProfileSymbolQuerySendResult(MpSocket Connection)
 	if(pQuery)
 	{
 		MicroProfileWSPrintStart(Connection);
-		MicroProfileWSPrintf("{\"k\":\"%d\",\"q\":%d,\"v\":[",MSG_FUNCTION_RESULTS, pQuery->QueryId);	
+		MicroProfileWSPrintf("{\"k\":\"%d\",\"q\":%d,\"v\":[", MSG_FUNCTION_RESULTS, pQuery->QueryId);	
 		bool bFirst = true;
 		for(uint32_t i = 0; i < pQuery->nNumResults; ++i)
 		{
