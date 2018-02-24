@@ -8432,6 +8432,12 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 				BREAK_ON_PATCH_FAIL();
 				return false;
 			}
+			//return value might be used past return so preserve registers.
+#ifdef _WIN32
+			nRegsWritten |= RegToBit(R_RAX);
+#else
+			nRegsWritten |= RegToBit(R_RAX)|RegToBit(R_RDX);
+#endif
 
 		}
 
