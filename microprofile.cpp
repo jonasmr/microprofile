@@ -5499,32 +5499,61 @@ bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSetting
 }
 
 
+void MicroProfileWriteJsonString(const char* pJson, uint32_t nJsonLen)
+	{
+		char* pCur = (char*)pJson;
+		char* pEnd = pCur + nJsonLen;
+		MicroProfileWSPrintf("\"", pCur);
+		while(pCur != pEnd)
+		{
+			char* pTag = strchr(pCur, '\"');
+			if(pTag)
+			{
+				*pTag = '\0';
+				MicroProfileWSPrintf("%s\\\"", pCur);
+				*pTag = '\"';
+				pCur = pTag + 1;
+			}
+			else
+			{
+				MicroProfileWSPrintf("%s\"", pCur);
+				pCur = pEnd;
+			}
+		}
+	};
+
+
 void MicroProfileWebSocketSendPresets(MpSocket Connection)
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileGetMutex());
+	printf("sending presets ... \n");
 	MicroProfileWSPrintStart(Connection);
 	MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{", MSG_PRESETS);
-	MicroProfileWSPrintf("\"p\":[\"Default\"");
+	MicroProfileWSPrintf("\"p\":{\"Default\":\"{}\"");
+
+
 	MicroProfileParseSettings(MICROPROFILE_SETTINGS_FILE,
 		[](const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJsonLen)
-
-
 		{
-			MicroProfileWSPrintf(",\"%s\"", pName);
+			MicroProfileWSPrintf(",\"%s\":", pName);
+			MicroProfileWriteJsonString(pJson, nJsonLen);
+
 			return true;
 		}
 	);
-	MicroProfileWSPrintf("],\"r\":[");
+	MicroProfileWSPrintf("},\"r\":{");
 	bool bFirst = true;
 	MicroProfileParseSettings(MICROPROFILE_SETTINGS_FILE_BUILTIN,
 		[&bFirst](const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJsonLen)
 		{
-			MicroProfileWSPrintf("%c\"%s\"", bFirst ? ' ': ',', pName);
+			MicroProfileWSPrintf("%c\"%s\":", bFirst ? ' ': ',', pName);
+			MicroProfileWriteJsonString(pJson, nJsonLen);
+
 			bFirst = false;
 			return true;
 		}
 	);
-	MicroProfileWSPrintf("]}}");
+	MicroProfileWSPrintf("}}}");
 	MicroProfileWSFlush();
 	MicroProfileWSPrintEnd();
 }

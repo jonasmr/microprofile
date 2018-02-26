@@ -145,7 +145,9 @@ var ActivePreset = "Default";
 var ActivePresetRO = 0;
 var PresetPending = 0;
 var Presets = [];
+var PresetsCache = {};
 var ReadOnlyPresets = [];
+var ReadOnlyPresetsCache = {};
 
 Settings.ReferenceTime = 50.0;
 var ReferencePresets = [5.0, 10.0, 15.0, 20, 30, 33.33, 50, 66.66,100.0,250.0,500,1000.0];
@@ -2275,28 +2277,39 @@ function FilterMatch(FilterArray, value)
 function AddPreset(Name)
 {
 	var O = {};
-	O.p = [Name];
-	O.r = [];
+	O.p = {Name:"{}"};
+	O.r = {};
 	AddPresets(O);
+}
+function JSONTryParse(str)
+{
+	if(typeof str == 'string')
+	{
+		try{
+			return JSON.parse(str);
+		}
+		catch(e){}
+	}
+	return {}
+}
+
+function ProcessPresets(Data, Names, Cache)
+{
+	for(var idx in Data)
+	{
+		if(Names.indexOf(idx) == -1)
+		{
+			Names.push(idx);
+		}
+		Cache[idx] = JSONTryParse(Data[idx]);	
+	}
 }
 function AddPresets(Obj)
 {
 	var Names = Obj.p;
 	var ReadOnlyNames = Obj.r;
-	for(var i = 0; i < Names.length; ++i)
-	{
-		if(Presets.indexOf(Names[i]) == -1)
-		{
-			Presets.push(Names[i]);
-		}
-	}
-	for(var i = 0; i < ReadOnlyNames.length; ++i)
-	{
-		if(ReadOnlyPresets.indexOf(ReadOnlyNames[i]) == -1)
-		{
-			ReadOnlyPresets.push(ReadOnlyNames[i]);
-		}
-	}
+	ProcessPresets(Obj.p, Presets, PresetsCache);
+	ProcessPresets(Obj.r, ReadOnlyPresets, ReadOnlyPresetsCache);
 }
 function GetFullName(T)
 {
@@ -2310,9 +2323,22 @@ function GetFullName(T)
 	return ParentName + "/" + Name;
 }
 
+function ColorFromFullName(name, type)
+{
+	for(var i = 0; i < TimerArray.length; ++i)
+	{
+		var t = TimerArray[i];
+		if(t.idtype == type && GetFullName(t) == name)
+		{
+			return t.color;
+		}
+	}
+	return 'white';
+
+}
 function EnableByName(name, type)
 {
-	for(var i = 0;i < TimerArray.length; ++i)
+	for(var i = 0; i < TimerArray.length; ++i)
 	{
 		var t = TimerArray[i];
 		if(t.idtype == type && GetFullName(t) == name)
@@ -2404,6 +2430,12 @@ function SavePreset(Name)
 	Settings.Timers = Timers;
 	Settings.Groups = Groups;
 	Settings.PresetName = Name;
+	Settings.Instrumented = [];
+	for(var i = 0; i < Math.min(FunctionNamesInstrumented.length, FunctionModulesInstrumented.length); ++i)
+	{
+		Settings.Instrumented.push(FunctionNamesInstrumented[i] + "!" + FunctionModulesInstrumented[i]);
+	}
+
 	var JsonSettings = JSON.stringify(Settings);
 	console.log('settings stored ' + JsonSettings);
 	WSSendMessage("s"+Name+","+JsonSettings);
@@ -2434,10 +2466,18 @@ function DrawMenuPresets()
 	var context = CanvasDetailedView.getContext('2d');
 	context.fillRect(M.x, M.y, Width, SizeInfo.h);
 
+	var SettingsCached;
+	var SettingsCachedY = 0;
 
 	for(var i = 0; i < Presets.length; ++i)
 	{
 		var Active = (ActivePresetRO == 0 && ActivePreset == Presets[i]) ? 1 : 0;
+		if(DrawMenuElementMouseIn(M))
+		{
+			SettingsCachedY = M.y;
+			SettingsCached = PresetsCache[Presets[i]];
+		}
+
 		if(DrawMenuElement(M, Active, "Load", Presets[i], 'white', 0))
 		{
 			LoadPreset(Presets[i]);
@@ -2468,6 +2508,11 @@ function DrawMenuPresets()
 		for(var i = 0; i < ReadOnlyPresets.length; ++i)
 		{
 			var Active = (ActivePresetRO && ActivePreset == ReadOnlyPresets[i]) ? 1 : 0;
+			if(DrawMenuElementMouseIn(M))
+			{
+				SettingsCachedY = M.y;
+				SettingsCached = ReadOnlyPresetsCache[ReadOnlyPresets[i]];
+			}
 			if(DrawMenuElement(M, Active, "Builtin", ReadOnlyPresets[i], 'white', 0))
 			{
 				LoadPreset(ReadOnlyPresets[i], 1);
@@ -2475,6 +2520,67 @@ function DrawMenuPresets()
 		}
 	}
 	SizeInfo.h = M.y - SizeInfo.y;
+
+
+	if(SettingsCached)
+	{
+		var SizeLeft = 10 * FontWidth;
+		var Timers = SettingsCached.Timers;
+		var Groups = SettingsCached.Groups;
+		var Patched = SettingsCached.Patched;
+		var W = 0;
+		var H = 0;
+		if(Timers)
+		{
+			W = MeasureArray(W, Timers);
+			H = 1 + Timers.length;
+		}
+		if(Groups)
+		{
+			W = MeasureArray(W, Groups);
+			H = 1 + Groups.length;
+		}
+		if(Patched)
+		{
+			W = MeasureArray(W, Patched);
+			H = 1 + Patched.length;
+		}
+		W += 40;
+		H = H * (FontHeight+1);
+		var M = CreateMenuState(SizeInfo);
+		M.x += M.w + 5;
+		M.y = SettingsCachedY;
+		M.w = W;
+		M.h = H;
+
+		if(Groups && Groups.length)
+		{
+			DrawMenuElement(M, 0, "Groups", "", 'white', 0);
+			for(var i = 0; i < Groups.length; ++i)
+			{
+				DrawMenuElement(M, 0, "", Groups[i], 'white', 0);
+			}
+		}
+		if(Timers && Timers.length)
+		{
+			DrawMenuElement(M, 0, "Timers", "", 'white', 0);
+			for(var i = 0; i < Timers.length; ++i)
+			{
+				DrawMenuElement(M, 0, "", Timers[i], ColorFromFullName(Timers[i], TYPE_TIMER), 0);
+			}
+		}
+		if(Patched && Patched.length)
+		{
+			DrawMenuElement(M, 0, "Patched", "", 'white', 0);
+			for(var i = 0; i < Patched.length; ++i)
+			{
+				DrawMenuElement(M, 0, "", Patched[i], 'white', 0);
+			}
+		}
+
+
+	}
+
 	return SizeInfo;
 }
 
@@ -2773,12 +2879,15 @@ function CreateMenuState(SizeInfo)
 	MenuState.cidx = 0;
 	return MenuState;
 }
-
+function DrawMenuElementMouseIn(M)
+{
+	return MouseY >= M.y && MouseY < M.y + BoxHeight;
+}
 function DrawMenuElement(M, Selected, Name, Value, color)
 {
 	var context = CanvasDetailedView.getContext('2d');
 
-	var bMouseIn = MouseY >= M.y && MouseY < M.y + BoxHeight;
+	var bMouseIn = DrawMenuElementMouseIn(M);
 	var YText = M.y + BoxHeight - FontAscent;
 
 	var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[M.cidx];
