@@ -112,6 +112,7 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 		<li><a href="javascript:void(0)" onclick="ToggleDisableMerge();">MergeDisable</a></li>
 		<li><a href="javascript:void(0)" onclick="ToggleDisableLod();">LodDisable</a></li>
 		<li id='GroupColors'><a href="javascript:void(0)" onclick="ToggleGroupColors();">Group Colors</a></li>
+		<li id='DrawDetailedScaleMode'><a href="javascript:void(0)" onclick="ToggleDetailedScaleMode();">Offset Mode</a></li>
         <li id='ShowHelp'><a href="javascript:void(0)" onclick="ShowHelp(1,1);">Help</a></li>
 <!--      	<li><a href="javascript:void(0)" onclick="ToggleDebug();">DEBUG</a></li> -->
     </ul>
@@ -355,6 +356,9 @@ var FilterGroup = null;
 var FilterTimer = null;
 var g_Msg = '0';
 
+var RedrawRequested = 0;
+
+
 var Initialized = 0;
 var fDetailedOffset = Frames[0].framestart;
 var fDetailedRange = Frames[Frames.length-1].frameend - fDetailedOffset;
@@ -399,6 +403,7 @@ var nContextSwitchEnabled = 1;
 var DisableLod = 0;
 var DisableMerge = 0;
 var GroupColors = 0;
+var DrawDetailedScaleMode = 0;
 var nModDown = 0;
 var g_MSG = 'no';
 var nDrawCount = 0;
@@ -1057,7 +1062,11 @@ function UpdateGroupColors()
 		}
 	}
 }
-
+function ToggleDetailedScaleMode()
+{
+	RequestRedraw();
+	DrawDetailedScaleMode = (DrawDetailedScaleMode+1)%3;
+}
 function ToggleGroupColors()
 {
 	GroupColors = !GroupColors;
@@ -3048,6 +3057,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 	var fScaleX = nWidth / fDetailedRange; 
 	var fOffsetY = -nOffsetY + BoxHeight;
 	nHoverTokenNext = -1;
+	var nHoverTokenStack = -1;
 	nHoverTokenLogIndexNext = -1;
 	nHoverTokenIndexNext = -1;
 	nHoverCounter += nHoverCounterDelta;
@@ -3080,33 +3090,46 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 		}
 	}
 
-	// var BatchesColor = new Array();
-	// var BatchesColorColor = new Array();
-	// var BatchesColorDark = new Array();
-	var Batches = new Array(g_Colors.length+1);
-	var BatchesTxt = new Array();
-	var BatchesTxtPos = new Array();
+	var BoxHeightScaled = BoxHeight;
+	if(DrawDetailedScaleMode == 1)
+		BoxHeightScaled = Math.ceil(BoxHeight*0.5);
+	else if(DrawDetailedScaleMode == 2)
+		BoxHeightScaled = 0;
+	var Levels = [];
 	var BatchesTxtColor = ['#ffffff', '#333333'];
 
-	for(var i = 0; i < 2; ++i)
+	var AddBatch = function(StackPos, index, X, Y, W, Name, NameLen, Duration)
 	{
-		BatchesTxt[i] = Array();
-		BatchesTxtPos[i] = Array();
-	}
-	for(var i = 0; i < Batches.length; ++i)
-	{
-		Batches[i] = Array();
-	}
-
-
-	var AddBatch = function(index, X, Y, W, Name, NameLen, Duration)
-	{
-		var B = Batches[index];
+		var L = Levels[StackPos];
+		if(!L)
+		{
+			for(var j = 0; j < StackPos+1; ++j)
+			{
+				if(!Levels[j])
+				{
+					Levels[j] = {};
+					L = Levels[j];
+					L.Batches = new Array(g_Colors.length+1);
+					L.BatchesTxt = new Array();
+					L.BatchesTxtPos = new Array();
+					for(var i = 0; i < 2; ++i)
+					{
+						L.BatchesTxt[i] = Array();
+						L.BatchesTxtPos[i] = Array();
+					}
+					for(var i = 0; i < L.Batches.length; ++i)
+					{
+						L.Batches[i] = Array();
+					}
+				}
+			}
+		}
+		var B = L.Batches[index];
 		var txtidx = g_ColorsTextIndex[index];
 		if(txtidx < 0 || txtidx > 1)
 			debugger;
-		var BTxt = BatchesTxt[txtidx];
-		var BTxtPos = BatchesTxtPos[txtidx];
+		var BTxt = L.BatchesTxt[txtidx];
+		var BTxtPos = L.BatchesTxtPos[txtidx];
 		B.push(X);
 		B.push(Y);
 		B.push(W);
@@ -3182,7 +3205,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 					nHoverColorIndex = Color;
 					Color = cidhovercolor;
 				}
-				AddBatch(Color, X, Y, W, Name, Name.length, TimeEnd-TimeStart);
+				AddBatch(0, Color, X, Y, W, Name, Name.length, TimeEnd-TimeStart);
 			}
 		}
 		fOffsetY += (1+MaxPosition) * (BoxHeight+3);
@@ -3268,7 +3291,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 							var timestart = TimeArray[StartIndex];
 							var timeend = time;
 							var X = (timestart - fDetailedOffset) * fScaleX;
-							var Y = fOffsetY + StackPos * BoxHeight;
+							var Y = fOffsetY + StackPos * BoxHeightScaled;
 							var W = (timeend-timestart)*fScaleX;
 
 							if(W > MinWidth && X < nWidth && X+W > 0)
@@ -3281,7 +3304,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 										nHoverColorIndex = cid;
 										cid = cidhovercolor;
 									}
-									AddBatch(cid, X, Y, W, TimerInfo[index].name, TimerInfo[index].len, timeend-timestart);
+									AddBatch(StackPos, cid, X, Y, W, TimerInfo[index].name, TimerInfo[index].len, timeend-timestart);
 								}
 
 								if(index == FilterSearchPassIndex)
@@ -3302,7 +3325,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 									}
 								}
 
-								if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
+								if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y && StackPos > nHoverTokenStack)
 								{
 
 									RangeCpuNext.Begin = timestart;
@@ -3325,6 +3348,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 									}
 
 									nHoverTokenNext = index;
+									nHoverTokenStack = StackPos;
 									nHoverTokenIndexNext = j;
 									nHoverTokenLogIndexNext = nLog;
 									HasSetHover = 1;
@@ -3335,7 +3359,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 						}
 					}
 				}
-				fOffsetY += (1+g_MaxStack[nLog]) * BoxHeight;
+				fOffsetY += (g_MaxStack[nLog]) * BoxHeightScaled + BoxHeight;
 
 				if(HasSetHover)
 				{
@@ -3421,8 +3445,9 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 			// }
 		}
 
-
+		for(var l = 0; l < Levels.length; ++l)
 		{
+			var Batches = Levels[l].Batches;
 			for(var i = 0; i < Batches.length; ++i)
 			{
 				var a = Batches[i];
@@ -3490,18 +3515,21 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 					FillRects(a, Color, ColorDark);
 
 				}
-			}	
-		}
-		for(var i = 0; i < BatchesTxt.length; ++i)
-		{
-			context.fillStyle = BatchesTxtColor[i];
-			var TxtArray = BatchesTxt[i];
-			var PosArray = BatchesTxtPos[i];
-			for(var j = 0; j < TxtArray.length; ++j)
-			{
-				var k = j * 2;
-				context.fillText(TxtArray[j], PosArray[k],PosArray[k+1]);
 			}
+			var BatchesTxt = Levels[l].BatchesTxt;
+			var BatchesTxtPos = Levels[l].BatchesTxtPos;	
+			for(var i = 0; i < BatchesTxt.length; ++i)
+			{
+				context.fillStyle = BatchesTxtColor[i];
+				var TxtArray = BatchesTxt[i];
+				var PosArray = BatchesTxtPos[i];
+				for(var j = 0; j < TxtArray.length; ++j)
+				{
+					var k = j * 2;
+					context.fillText(TxtArray[j], PosArray[k],PosArray[k+1]);
+				}
+			}
+
 		}
 	}
 }
@@ -3745,13 +3773,13 @@ function DrawDetailed(Animation)
 	var offscreen = CanvasDetailedOffscreen.getContext('2d');
 	var fScaleX = nWidth / fDetailedRange; 
 	var fOffsetY = -nOffsetY + BoxHeight;
-
-	if(DetailedRedrawState.fOffsetY == fOffsetY && DetailedRedrawState.fDetailedOffset == fDetailedOffset && DetailedRedrawState.fDetailedRange == fDetailedRange && !KeyCtrlDown && !KeyShiftDown && !MouseDragButton)
+	if(DetailedRedrawState.fOffsetY == fOffsetY && DetailedRedrawState.fDetailedOffset == fDetailedOffset && DetailedRedrawState.fDetailedRange == fDetailedRange && !KeyCtrlDown && !KeyShiftDown && !MouseDragButton && !RedrawRequested)
 	{
 		Invalidate++;
 	}
 	else
 	{
+		RedrawRequested = 0;
 		Invalidate = 0;
 		DetailedRedrawState.fOffsetY = fOffsetY;
 		DetailedRedrawState.fDetailedOffset = fDetailedOffset;
@@ -4038,7 +4066,8 @@ function ZoomTo(fZoomBegin, fZoomEnd, OffsetYDest, ZoomTime)
 }
 function RequestRedraw()
 {
-	Invalidate = 0;
+	// ShowFlashMessage("redrawrequested", 10);
+	RedrawRequested = 1;
 	Draw(1);
 }
 function Draw(RedrawMode)
@@ -4696,6 +4725,11 @@ function KeyUp(evt)
 		{
 			ToolTipCorner = 1-ToolTipCorner;
 		}
+		if(evt.keyCode == 187)
+		{
+			DrawDetailedScaleMode = (DrawDetailedScaleMode+1) % 3;
+			FilterSearchArray = new Array();
+		}
 		if(evt.keyCode == 32)
 		{
 			if(RangeSelect.Begin < RangeSelect.End)
@@ -4952,6 +4986,10 @@ function ReadCookie()
 		{
 			ToolTipCorner = Obj.ToolTipCorner;
 		}
+		if(Obj.DrawDetailedScaleMode)
+		{
+			DrawDetailedScaleMode = Obj.DrawDetailedScaleMode;
+		}
 		TimersGroups = Obj.TimersGroups?Obj.TimersGroups:0;
 	}
 	SetContextSwitch(nContextSwitchEnabled);
@@ -4974,6 +5012,7 @@ function WriteCookie()
 	Obj.GroupColors = GroupColors;
 	Obj.ColumnsEnabled = ColumnsEnabled;
 	Obj.ToolTipCorner = ToolTipCorner;
+	Obj.DrawDetailedScaleMode = DrawDetailedScaleMode;
 	if(nHideHelp)
 	{
 		Obj.nHideHelp = 1;
