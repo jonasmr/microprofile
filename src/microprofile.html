@@ -216,11 +216,11 @@ function ConvertColorDark(hexTripletColor)
 	var color = hexTripletColor;
 	color = color.substring(1); // remove #
 	color = parseInt(color, 16); // convert to integer
-	console.log(color.toString(16));
+	// console.log(color.toString(16));
 	color = (color >> 1);
-	console.log(color.toString(16));
+	// console.log(color.toString(16));
 	color = color & 0x7f7f7f;
-	console.log(color.toString(16));
+	// console.log(color.toString(16));
 	return '#' + ("000000" + color.toString(16)).slice(-6);
 }
 function InvertColor(hexTripletColor) 
@@ -326,18 +326,19 @@ g_ColorH.push(0);
 g_ColorS.push(0);
 g_ColorL.push(0);
 
-
+var S = {};
+var S2 = {};
 var Timeline = {};
-var TimelineArray = [];
-var TimelineIdArray = [];
-var TimelineNames = [];
-var TimelineColorArray = [];
+S.TimelineArray = [];
+S.TimelineIdArray = [];
+S.TimelineNames = [];
+S.TimelineColorArray = [];
 
 
 
-
+//EBEGIN
 ____embed____
-
+//EEND
 
 var CanvasDetailedView = document.getElementById('DetailedView');
 var CanvasHistory = document.getElementById('History');
@@ -360,8 +361,8 @@ var RedrawRequested = 0;
 
 
 var Initialized = 0;
-var fDetailedOffset = Frames[0].framestart;
-var fDetailedRange = Frames[Frames.length-1].frameend - fDetailedOffset;
+var fDetailedOffset = S.Frames[0].framestart;
+var fDetailedRange = S.Frames[S.Frames.length-1].frameend - fDetailedOffset;
 var nWidth = CanvasDetailedView.width;
 var nHeight = CanvasDetailedView.height;
 var ReferenceTime = 33;
@@ -678,9 +679,9 @@ function ToggleDebugMode()
 function DetailedTotal()
 {
 	var Total = 0;
-	for(var i = 0; i < Frames.length; i++)
+	for(var i = 0; i < S.Frames.length; i++)
 	{
-		var frfr = Frames[i];
+		var frfr = S.Frames[i];
 		Total += frfr.frameend - frfr.framestart;
 	}
 	return Total;
@@ -692,27 +693,27 @@ function InitFrameInfo()
 	var div = document.getElementById('divFrameInfo');
 	var txt = '';
 	txt = txt + 'Timers View' + '<br>';
-	txt = txt + 'Frames:' + AggregateInfo.Frames +'<br>';
-	txt = txt + 'Time:' + AggregateInfo.Time.toFixed(2) +'ms<br>';
+	txt = txt + 'Frames:' + S.AggregateInfo.Frames +'<br>';
+	txt = txt + 'Time:' + S.AggregateInfo.Time.toFixed(2) +'ms<br>';
 	txt = txt + '<hr>';
 	txt = txt + 'Detailed View' + '<br>';
-	txt = txt + 'Frames:' + Frames.length +'<br>';
+	txt = txt + 'Frames:' + S.Frames.length +'<br>';
 	txt = txt + 'Time:' + DetailedTotal().toFixed(2) +'ms<br>';
 	div.innerHTML = txt;
 }
 function InitGroups()
 {
-	for(groupid in GroupInfo)
+	for(groupid in S.GroupInfo)
 	{
 		var TimerArray = Array();
-		for(timerid in TimerInfo)
+		for(timerid in S.TimerInfo)
 		{
-			if(TimerInfo[timerid].group == groupid)
+			if(S.TimerInfo[timerid].group == groupid)
 			{
 				TimerArray.push(timerid);
 			}
 		}
-		GroupInfo[groupid].TimerArray = TimerArray;
+		S.GroupInfo[groupid].TimerArray = TimerArray;
 	}
 }
 
@@ -720,10 +721,10 @@ function InitThreadMenu()
 {
 	var ulThreadMenu = document.getElementById('ThreadSubMenu');
 	var MaxLen = 7;
-	ThreadOrder = CreateOrderArray(ThreadNames, function(a){return a;});
+	ThreadOrder = CreateOrderArray(S.ThreadNames, function(a){return a;});
 	for(var idx in ThreadOrder)
 	{
-		var name = ThreadNames[ThreadOrder[idx]];
+		var name = S.ThreadNames[ThreadOrder[idx]];
 		var li = document.createElement('li');
 		if(name.length > MaxLen)
 		{
@@ -871,27 +872,27 @@ function InitGroupMenu()
 	var ulGroupMenu = document.getElementById('GroupSubMenu');
 	var MaxLen = 7;
 	var MenuArray = Array();
-	for(var i = 0; i < GroupInfo.length; ++i)
+	for(var i = 0; i < S.GroupInfo.length; ++i)
 	{
 		var x = {};
 		x.IsCategory = 0;
-		x.category = GroupInfo[i].category;
-		x.name = GroupInfo[i].name;
+		x.category = S.GroupInfo[i].category;
+		x.name = S.GroupInfo[i].name;
 		x.index = i;
 		MenuArray.push(x);
 	}
-	for(var i = 0; i < CategoryInfo.length; ++i)
+	for(var i = 0; i < S.CategoryInfo.length; ++i)
 	{
 		var x = {};
 		x.IsCategory = 1;
 		x.category = i;
-		x.name = CategoryInfo[i];
+		x.name = S.CategoryInfo[i];
 		x.index = i;
 		MenuArray.push(x);
 	}
 	var OrderFunction = function(a){ return a.category + "__" + a.name; };
 	var OrderFunctionMenu = function(a){ return a.IsCategory ? (a.category + '') : (a.category + "__" + a.name); };
-	GroupOrder = CreateOrderArray(GroupInfo, OrderFunction);
+	GroupOrder = CreateOrderArray(S.GroupInfo, OrderFunction);
 	var MenuOrder = CreateOrderArray(MenuArray, OrderFunctionMenu);
 
 	for(var idx in MenuOrder)
@@ -969,9 +970,9 @@ function UpdateGroupMenu()
 }
 function CategoryIndex(CategoryName)
 {
-	for(var i = 0; i < CategoryInfo.length; ++i)
+	for(var i = 0; i < S.CategoryInfo.length; ++i)
 	{
-		if(CategoryInfo[i] == CategoryName)
+		if(S.CategoryInfo[i] == CategoryName)
 		{
 			return i;
 		}
@@ -980,11 +981,11 @@ function CategoryIndex(CategoryName)
 }
 function IsCategoryActive(CategoryIdx)
 {
-	for(var i = 0; i < GroupInfo.length; ++i)
+	for(var i = 0; i < S.GroupInfo.length; ++i)
 	{
-		if(GroupInfo[i].category == CategoryIdx)
+		if(S.GroupInfo[i].category == CategoryIdx)
 		{
-			var Name = GroupInfo[i].name;
+			var Name = S.GroupInfo[i].name;
 			if(!GroupsActive[Name])
 			{
 				return false;
@@ -1000,11 +1001,11 @@ function ToggleCategory(CategoryName)
 	if(CategoryIdx < 0)
 		return;
 	var CategoryActive = IsCategoryActive(CategoryIdx);
-	for(var i = 0; i < GroupInfo.length; ++i)
+	for(var i = 0; i < S.GroupInfo.length; ++i)
 	{
-		if(GroupInfo[i].category == CategoryIdx)
+		if(S.GroupInfo[i].category == CategoryIdx)
 		{
-			var Name = GroupInfo[i].name;
+			var Name = S.GroupInfo[i].name;
 			if(CategoryActive)
 			{
 				GroupsActive[Name] = false;
@@ -1050,15 +1051,15 @@ function ToggleGroup(GroupName)
 }
 function UpdateGroupColors()
 {
-	for(var i = 0; i < TimerInfo.length; ++i)
+	for(var i = 0; i < S.TimerInfo.length; ++i)
 	{
 		if(GroupColors)
 		{
-			TimerInfo[i].cid = GroupInfo[TimerInfo[i].group].cid;
+			S.TimerInfo[i].cid = S.GroupInfo[S.TimerInfo[i].group].cid;
 		}
 		else
 		{
-			TimerInfo[i].cid = TimerInfo[i].timercid;
+			S.TimerInfo[i].cid = S.TimerInfo[i].timercid;
 		}
 	}
 }
@@ -1282,7 +1283,7 @@ function GatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)
 	//search backwards, count meta counters 
 	for(var i = nFrameLast; i >= 0; i--)
 	{
-		var fr = Frames[i];
+		var fr = S.Frames[i];
 		var ts = fr.ts[nLog];
 		var ti = fr.ti[nLog];
 		var tt = fr.tt[nLog];
@@ -1326,16 +1327,16 @@ function CalculateAllTimers(fBegin, fEnd)
 	var Sum = [];
 	var Count = [];
 	var Sorted = [];
-	for(var i = 0; i < TimerInfo.length; ++i)
+	for(var i = 0; i < S.TimerInfo.length; ++i)
 	{
 		Sum.push(0.0);
 		Count.push(0);
 		Sorted.push(i);
 	}
 	var nFrameFirst = 0;
-	var nFrameLast = Frames.length;
+	var nFrameLast = S.Frames.length;
 
-	var nNumLogs = Frames[0].ts.length;
+	var nNumLogs = S.Frames[0].ts.length;
 	var StackPosArray = Array(nNumLogs);
 	var StackArray = Array(nNumLogs);
 	for(var i = 0; i < nNumLogs; ++i)
@@ -1346,7 +1347,7 @@ function CalculateAllTimers(fBegin, fEnd)
 
 	for(var i = nFrameFirst; i < nFrameLast; i++)
 	{
-		var fr = Frames[i];
+		var fr = S.Frames[i];
 		for(nLog = 0; nLog < nNumLogs; nLog++)
 		{
 			var StackPos = StackPosArray[nLog];
@@ -1393,8 +1394,8 @@ function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast)
 {
 	if(!nFrameFirst || nFrameFirst < 0)
 		nFrameFirst = 0;
-	if(!nFrameLast || nFrameLast > Frames.length)
-		nFrameLast = Frames.length;
+	if(!nFrameLast || nFrameLast > S.Frames.length)
+		nFrameLast = S.Frames.length;
 	var FrameCount = nFrameLast - nFrameFirst;
 	if(0 == FrameCount)
 		return;
@@ -1403,7 +1404,7 @@ function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast)
 	var Max = 0;
 	var FrameMax = 0;
 
-	var nNumLogs = Frames[0].ts.length;
+	var nNumLogs = S.Frames[0].ts.length;
 	var StackPosArray = Array(nNumLogs);
 	var StackArray = Array(nNumLogs);
 	for(var i = 0; i < nNumLogs; ++i)
@@ -1415,7 +1416,7 @@ function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast)
 	for(var i = nFrameFirst; i < nFrameLast; i++)
 	{
 		var FrameSum = 0;
-		var fr = Frames[i];
+		var fr = S.Frames[i];
 		for(nLog = 0; nLog < nNumLogs; nLog++)
 		{
 			var StackPos = StackPosArray[nLog];
@@ -1450,7 +1451,7 @@ function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast)
 					}
 					else
 					{
-						timestart = Frames[nFrameFirst].framestart;
+						timestart = S.Frames[nFrameFirst].framestart;
 					}
 					if(index == TimerIndex)
 					{
@@ -1489,20 +1490,20 @@ function PreprocessCalculateAllTimers()
 {
 	ProfileEnter("CalculateAllTimers");
 	var nFrameFirst = 0;
-	var nFrameLast = Frames.length;
+	var nFrameLast = S.Frames.length;
 	var FrameCount = nFrameLast - nFrameFirst;
 	if(0 == FrameCount)
 		return;
-	for(var j = 0; j < TimerInfo.length; j++)
+	for(var j = 0; j < S.TimerInfo.length; j++)
 	{
-		TimerInfo[j].CallCount = 0;
-		TimerInfo[j].Sum = 0;
-		TimerInfo[j].Max = 0;
-		TimerInfo[j].FrameMax = 0;
+		S.TimerInfo[j].CallCount = 0;
+		S.TimerInfo[j].Sum = 0;
+		S.TimerInfo[j].Max = 0;
+		S.TimerInfo[j].FrameMax = 0;
 	}
 
 
-	var nNumLogs = Frames[0].ts.length;
+	var nNumLogs = S.Frames[0].ts.length;
 	var StackPosArray = Array(nNumLogs);
 	var StackArray = Array(nNumLogs);
 	for(var i = 0; i < nNumLogs; ++i)
@@ -1513,12 +1514,12 @@ function PreprocessCalculateAllTimers()
 
 	for(var i = nFrameFirst; i < nFrameLast; i++)
 	{
-		for(var j = 0; j < TimerInfo.length; j++)
+		for(var j = 0; j < S.TimerInfo.length; j++)
 		{
-			TimerInfo[j].FrameSum = 0;
+			S.TimerInfo[j].FrameSum = 0;
 		}
 
-		var fr = Frames[i];
+		var fr = S.Frames[i];
 		for(nLog = 0; nLog < nNumLogs; nLog++)
 		{
 			var StackPos = StackPosArray[nLog];
@@ -1553,21 +1554,21 @@ function PreprocessCalculateAllTimers()
 					}
 					else
 					{
-						timestart = Frames[nFrameFirst].framestart;
+						timestart = S.Frames[nFrameFirst].framestart;
 					}
 					// if(index == TimerIndex)
 					{
 						var TimeDelta = timeend - timestart;
-						TimerInfo[index].CallCount++;
-						TimerInfo[index].FrameSum += TimeDelta;
-						TimerInfo[index].Sum += TimeDelta;
-						if(TimeDelta > TimerInfo[index].Max)
+						S.TimerInfo[index].CallCount++;
+						S.TimerInfo[index].FrameSum += TimeDelta;
+						S.TimerInfo[index].Sum += TimeDelta;
+						if(TimeDelta > S.TimerInfo[index].Max)
 						{
-							TimerInfo[index].Max = TimeDelta;
-							TimerInfo[index].worst = TimeDelta;
-							TimerInfo[index].worststart = timestart;
-							TimerInfo[index].worstend = timeend;
-							TimerInfo[index].worstthread = nLog;
+							S.TimerInfo[index].Max = TimeDelta;
+							S.TimerInfo[index].worst = TimeDelta;
+							S.TimerInfo[index].worststart = timestart;
+							S.TimerInfo[index].worstend = timeend;
+							S.TimerInfo[index].worstthread = nLog;
 						}
 					}
 				}
@@ -1576,11 +1577,11 @@ function PreprocessCalculateAllTimers()
 					//meta
 				}
 			}
-			for(var j = 0; j < TimerInfo.length; j++)
+			for(var j = 0; j < S.TimerInfo.length; j++)
 			{
-				if(TimerInfo[j].FrameSum > TimerInfo[j].FrameMax)
+				if(S.TimerInfo[j].FrameSum > S.TimerInfo[j].FrameMax)
 				{
-					TimerInfo[j].FrameMax = TimerInfo[j].FrameSum;
+					S.TimerInfo[j].FrameMax = S.TimerInfo[j].FrameSum;
 				}
 			}
 			StackPosArray[nLog] = StackPos;
@@ -1589,22 +1590,22 @@ function PreprocessCalculateAllTimers()
 
 	}
 
-	for(var j = 0; j < TimerInfo.length; j++)
+	for(var j = 0; j < S.TimerInfo.length; j++)
 	{
-		var CallCount = TimerInfo[j].CallCount;
-		var Sum = TimerInfo[j].Sum.toFixed(3);
-		var Max = TimerInfo[j].Max.toFixed(3);
-		var Average = (TimerInfo[j].Sum / TimerInfo[j].CallCount).toFixed(3);
-		var FrameAverage = (TimerInfo[j].Sum / FrameCount).toFixed(3);
-		var FrameCallAverage = (TimerInfo[j].CallCount / FrameCount).toFixed(3);
-		var FrameMax = TimerInfo[j].FrameMax.toFixed(3);
-		TimerInfo[j].CallCount = CallCount;
-		TimerInfo[j].Sum = Sum;
-		TimerInfo[j].Max  = Max ;
-		TimerInfo[j].Average = Average;
-		TimerInfo[j].FrameAverage = FrameAverage;
-		TimerInfo[j].FrameCallAverage = FrameCallAverage;
-		TimerInfo[j].FrameMax = FrameMax;
+		var CallCount = S.TimerInfo[j].CallCount;
+		var Sum = S.TimerInfo[j].Sum.toFixed(3);
+		var Max = S.TimerInfo[j].Max.toFixed(3);
+		var Average = (S.TimerInfo[j].Sum / S.TimerInfo[j].CallCount).toFixed(3);
+		var FrameAverage = (S.TimerInfo[j].Sum / FrameCount).toFixed(3);
+		var FrameCallAverage = (S.TimerInfo[j].CallCount / FrameCount).toFixed(3);
+		var FrameMax = S.TimerInfo[j].FrameMax.toFixed(3);
+		S.TimerInfo[j].CallCount = CallCount;
+		S.TimerInfo[j].Sum = Sum;
+		S.TimerInfo[j].Max  = Max ;
+		S.TimerInfo[j].Average = Average;
+		S.TimerInfo[j].FrameAverage = FrameAverage;
+		S.TimerInfo[j].FrameCallAverage = FrameCallAverage;
+		S.TimerInfo[j].FrameMax = FrameMax;
 	}
 	ProfileLeave();
 }
@@ -1634,7 +1635,7 @@ function ShowFlashMessage(Message, FrameCount)
 }
 function OnPageReady()
 {
-	var DumpDate = DumpUtcCaptureTime;
+	var DumpDate = S.DumpUtcCaptureTime;
 	var CurrentDate = Date.now() / 1000;
 	var Diff = CurrentDate - DumpDate;
 	var Limit = 10*60;//flash old message when loading captures older than 10 minutes 
@@ -1670,20 +1671,20 @@ function DrawCaptureInfo(context)
 	context.fillStyle = 'white';
 	context.textAlign = 'right';
 	context.font = Font;
-	var DumpDate = DumpUtcCaptureTime;
+	var DumpDate = S.DumpUtcCaptureTime;
 	var CurrentDate = Date.now() / 1000;
 	var Diff = CurrentDate - DumpDate;
 	var DiffString = TimeString(Diff) + " ago";
 	context.fillText(new Date(DumpDate*1000).toLocaleString(), nWidth, FontHeight);
 	if(Mode == ModeTimers)
 	{
-		context.fillText("Timer Frames: " + AggregateInfo.Frames, nWidth, FontHeight*2);
+		context.fillText("Timer Frames: " + S.AggregateInfo.Frames, nWidth, FontHeight*2);
 	}
 	else
 	{
-		context.fillText("Detailed Frames "+ Frames.length, nWidth, FontHeight*2);
+		context.fillText("Detailed Frames "+ S.Frames.length, nWidth, FontHeight*2);
 	}
-	context.fillText(DumpHost, nWidth, FontHeight*3);
+	context.fillText(S.DumpHost, nWidth, FontHeight*3);
 	context.fillText(DiffString, nWidth, FontHeight*4);
 	context.textAlign = 'left';
 	DrawFlashMessage(context);
@@ -1698,7 +1699,7 @@ function DrawDetailedFrameHistory()
 	context.clearRect(0, 0, CanvasHistory.width, CanvasHistory.height);
 
 	var fHeight = nHistoryHeight;
-	var fWidth = nWidth / Frames.length;
+	var fWidth = nWidth / S.Frames.length;
 	var fHeightScale = fHeight / ReferenceTime;
 	var fX = 0;
 	var FrameIndex = -1;
@@ -1709,17 +1710,17 @@ function DrawDetailedFrameHistory()
 	var FrameFirst = -1;
 	var FrameLast = nWidth;
 	var fDetailedOffsetEnd = fDetailedOffset + fDetailedRange;
-	for(i = 0; i < Frames.length; i++)
+	for(i = 0; i < S.Frames.length; i++)
 	{
-		var fMs = Frames[i].frameend - Frames[i].framestart;
-		if(fDetailedOffset <= Frames[i].frameend && fDetailedOffset >= Frames[i].framestart)
+		var fMs = S.Frames[i].frameend - S.Frames[i].framestart;
+		if(fDetailedOffset <= S.Frames[i].frameend && fDetailedOffset >= S.Frames[i].framestart)
 		{
-			var lerp = (fDetailedOffset - Frames[i].framestart) / (Frames[i].frameend - Frames[i].framestart);
+			var lerp = (fDetailedOffset - S.Frames[i].framestart) / (S.Frames[i].frameend - S.Frames[i].framestart);
 			FrameFirst = fX + fWidth * lerp;
 		}
-		if(fDetailedOffsetEnd <= Frames[i].frameend && fDetailedOffsetEnd >= Frames[i].framestart)
+		if(fDetailedOffsetEnd <= S.Frames[i].frameend && fDetailedOffsetEnd >= S.Frames[i].framestart)
 		{
-			var lerp = (fDetailedOffsetEnd - Frames[i].framestart) / (Frames[i].frameend - Frames[i].framestart);
+			var lerp = (fDetailedOffsetEnd - S.Frames[i].framestart) / (S.Frames[i].frameend - S.Frames[i].framestart);
 			FrameLast = fX + fWidth * lerp;
 		}
 		var fH = fHeightScale * fMs;
@@ -1727,12 +1728,12 @@ function DrawDetailedFrameHistory()
 		if(bMouse && !MouseDragging)
 		{
 			context.fillStyle = FRAME_HISTORY_COLOR_GPU;
-			RangeCpuHistory.Begin = Frames[i].framestart;
-			RangeCpuHistory.End = Frames[i].frameend;
-			if(Frames[i].framestartgpu)
+			RangeCpuHistory.Begin = S.Frames[i].framestart;
+			RangeCpuHistory.End = S.Frames[i].frameend;
+			if(S.Frames[i].framestartgpu)
 			{
-				RangeGpuHistory.Begin = Frames[i].framestartgpu;
-				RangeGpuHistory.End = Frames[i].frameendgpu;
+				RangeGpuHistory.Begin = S.Frames[i].framestartgpu;
+				RangeGpuHistory.End = S.Frames[i].frameendgpu;
 			}
 			FrameIndex = i;
 		}
@@ -1772,7 +1773,7 @@ function DrawDetailedFrameHistory()
 		StringArray.push("Frame");
 		StringArray.push("" + FrameIndex);
 		StringArray.push("Time");
-		StringArray.push("" + (Frames[FrameIndex].frameend - Frames[FrameIndex].framestart).toFixed(3));
+		StringArray.push("" + (S.Frames[FrameIndex].frameend - S.Frames[FrameIndex].framestart).toFixed(3));
 
 		DrawToolTip(StringArray, CanvasHistory, HistoryViewMouseX, HistoryViewMouseY+20);
 
@@ -1837,9 +1838,9 @@ function DrawDetailedBackground(context)
 	context.globalAlpha = 0.5;
 	context.strokeStyle = '#bbbbbb';
 	context.beginPath();
-	for(var i = 0; i < Frames.length; i++)
+	for(var i = 0; i < S.Frames.length; i++)
 	{
-		var frfr = Frames[i];
+		var frfr = S.Frames[i];
 		if(frfr.frameend < fDetailedOffset || frfr.framestart > fDetailedOffset + fDetailedRange)
 		{
 			continue;
@@ -1908,11 +1909,11 @@ function DrawHoverToolTip()
 	if(nHoverToken != -1)
 	{
 		var StringArray = [];
-		var groupid = TimerInfo[nHoverToken].group;
+		var groupid = S.TimerInfo[nHoverToken].group;
 		StringArray.push("Timer");
-		StringArray.push(TimerInfo[nHoverToken].name);
+		StringArray.push(S.TimerInfo[nHoverToken].name);
 		StringArray.push("Group");
-		StringArray.push(GroupInfo[groupid].name);
+		StringArray.push(S.GroupInfo[groupid].name);
 
 		var bShowTimers = Mode == ModeTimers;
 		if(ToolTipFlip == 1)
@@ -1924,7 +1925,7 @@ function DrawHoverToolTip()
 
 			StringArray.push("");
 			StringArray.push("");
-			var Timer = TimerInfo[nHoverToken];
+			var Timer = S.TimerInfo[nHoverToken];
 			StringArray.push("Average");
 			StringArray.push(Timer.average);
 			StringArray.push("Max");
@@ -1943,11 +1944,11 @@ function DrawHoverToolTip()
 
 
 			StringArray.push("Group");
-			StringArray.push(GroupInfo[groupid].name);
+			StringArray.push(S.GroupInfo[groupid].name);
 			StringArray.push("Average");
-			StringArray.push(GroupInfo[groupid].average);
+			StringArray.push(S.GroupInfo[groupid].average);
 			StringArray.push("Max");
-			StringArray.push(GroupInfo[groupid].max);
+			StringArray.push(S.GroupInfo[groupid].max);
 
 			StringArray.push("");
 			StringArray.push("");
@@ -1955,9 +1956,9 @@ function DrawHoverToolTip()
 			StringArray.push("Timer Capture");
 			StringArray.push("");
 			StringArray.push("Frames");
-			StringArray.push(AggregateInfo.Frames);
+			StringArray.push(S.AggregateInfo.Frames);
 			StringArray.push("Time");
-			StringArray.push(AggregateInfo.Time.toFixed(2) + "ms");
+			StringArray.push(S.AggregateInfo.Time.toFixed(2) + "ms");
 
 
 
@@ -1975,25 +1976,25 @@ function DrawHoverToolTip()
 			StringArray.push("");
 			StringArray.push("");
 			StringArray.push("Total");
-			StringArray.push("" + TimerInfo[nHoverToken].Sum);
+			StringArray.push("" + S.TimerInfo[nHoverToken].Sum);
 			StringArray.push("Max");
-			StringArray.push("" + TimerInfo[nHoverToken].Max);
+			StringArray.push("" + S.TimerInfo[nHoverToken].Max);
 			StringArray.push("Average");
-			StringArray.push("" + TimerInfo[nHoverToken].Average);
+			StringArray.push("" + S.TimerInfo[nHoverToken].Average);
 			StringArray.push("Count");
-			StringArray.push("" + TimerInfo[nHoverToken].CallCount);
+			StringArray.push("" + S.TimerInfo[nHoverToken].CallCount);
 
 			StringArray.push("");
 			StringArray.push("");
 
 			StringArray.push("Max/Frame");
-			StringArray.push("" + TimerInfo[nHoverToken].FrameMax);
+			StringArray.push("" + S.TimerInfo[nHoverToken].FrameMax);
 
 			StringArray.push("Average Time/Frame");
-			StringArray.push("" + TimerInfo[nHoverToken].FrameAverage);
+			StringArray.push("" + S.TimerInfo[nHoverToken].FrameAverage);
 
 			StringArray.push("Average Count/Frame");
-			StringArray.push("" + TimerInfo[nHoverToken].FrameCallAverage);
+			StringArray.push("" + S.TimerInfo[nHoverToken].FrameCallAverage);
 
 
 
@@ -2042,7 +2043,7 @@ function DrawHoverToolTip()
 			StringArray.push("Detailed Capture");
 			StringArray.push("");
 			StringArray.push("Frames");
-			StringArray.push(Frames.length);
+			StringArray.push(S.Frames.length);
 			StringArray.push("Time");
 			StringArray.push(DetailedTotal().toFixed(2) + "ms");	
 		}
@@ -2114,11 +2115,11 @@ function DrawBarView()
 
 	//clamp offset to prevent scrolling into the void
 	var nTotalRows = 0;
-	for(var groupid in GroupInfo)
+	for(var groupid in S.GroupInfo)
 	{
-		if(GroupsAllActive || GroupsActive[GroupInfo[groupid].name])
+		if(GroupsAllActive || GroupsActive[S.GroupInfo[groupid].name])
 		{
-			nTotalRows += GroupInfo[groupid].TimerArray.length + 1;
+			nTotalRows += S.GroupInfo[groupid].TimerArray.length + 1;
 		}
 	}
 	var nTotalRowPixels = nTotalRows * Height;
@@ -2146,7 +2147,7 @@ function DrawBarView()
 	var bMouseIn = 0;
 	var RcpReferenceTime = 1.0 / ReferenceTime;
 	var CountWidth = 12 * FontWidth;
-	var nMetaLen = TimerInfo[0].meta.length;
+	var nMetaLen = S.TimerInfo[0].meta.length;
 	var nMetaCharacters = 10;
 	var InnerBoxHeight = BoxHeight-2;
 	var TimerLen = 8; //todo: fix max digits.
@@ -2297,7 +2298,7 @@ function DrawBarView()
 	function DrawTimerRow(timerid, showgroup)
 	{
 		R = 0;
-		var Timer = TimerInfo[timerid];
+		var Timer = S.TimerInfo[timerid];
 		var Average = Timer.average;
 		var Max = Timer.max;
 		var Min = Timer.min;
@@ -2346,26 +2347,26 @@ function DrawBarView()
 		if(showgroup)
 		{
 			context.fillStyle = 'white';
-			context.fillText(GroupInfo[Timer.group].name, 1, YText);
+			context.fillText(S.GroupInfo[Timer.group].name, 1, YText);
 		}
 	}
 	if(SortColumn && TimersGroups == 0)
 	{
-		var OrderArray = new Array(TimerInfo.length);
-		var KeyArray = new Array(TimerInfo.length);
+		var OrderArray = new Array(S.TimerInfo.length);
+		var KeyArray = new Array(S.TimerInfo.length);
 		for(var idx in GroupOrder)
 		{
-			var Group = GroupInfo[idx];
+			var Group = S.GroupInfo[idx];
 			if((GroupsAllActive || GroupsActive[Group.name]) && FilterMatch(FilterGroup, Group.name))
 			{
 				var TimerArray = Group.TimerArray;
 				for(var timerindex in TimerArray)
 				{
 					var timerid = TimerArray[timerindex];
-					if(FilterMatch(FilterTimer, TimerInfo[timerid].name))
+					if(FilterMatch(FilterTimer, S.TimerInfo[timerid].name))
 					{
 						OrderArray.push(timerid);
-						NameWidth = Math.max(TimerInfo[timerid].wtotal, NameWidth);
+						NameWidth = Math.max(S.TimerInfo[timerid].wtotal, NameWidth);
 					}
 				}
 			}
@@ -2373,15 +2374,15 @@ function DrawBarView()
 		var KeyFunc = null;
 		switch(SortColumn)
 		{
-			case 1: KeyFunc = function (a) { return TimerInfo[a].average; }; break;
-			case 2: KeyFunc = function (a) { return TimerInfo[a].max; }; break;
-			case 3: KeyFunc = function (a) { return TimerInfo[a].total; }; break;
-			case 4: KeyFunc = function (a) { return TimerInfo[a].min; }; break;
-			case 5: KeyFunc = function (a) { return TimerInfo[a].spike; }; break;
-			case 6: KeyFunc = function (a) { return TimerInfo[a].callaverage; }; break;
-			case 7: KeyFunc = function (a) { return TimerInfo[a].callcount; }; break;
-			case 8: KeyFunc = function (a) { return TimerInfo[a].exclaverage; }; break;
-			case 9: KeyFunc = function (a) { return TimerInfo[a].exclmax; }; break;
+			case 1: KeyFunc = function (a) { return S.TimerInfo[a].average; }; break;
+			case 2: KeyFunc = function (a) { return S.TimerInfo[a].max; }; break;
+			case 3: KeyFunc = function (a) { return S.TimerInfo[a].total; }; break;
+			case 4: KeyFunc = function (a) { return S.TimerInfo[a].min; }; break;
+			case 5: KeyFunc = function (a) { return S.TimerInfo[a].spike; }; break;
+			case 6: KeyFunc = function (a) { return S.TimerInfo[a].callaverage; }; break;
+			case 7: KeyFunc = function (a) { return S.TimerInfo[a].callcount; }; break;
+			case 8: KeyFunc = function (a) { return S.TimerInfo[a].exclaverage; }; break;
+			case 9: KeyFunc = function (a) { return S.TimerInfo[a].exclmax; }; break;
 		}
 
 		var Flip = SortColumnOrderFlip == 1 ? -1 : 1;
@@ -2396,9 +2397,9 @@ function DrawBarView()
 	}
 	else if(2 == TimersGroups)
 	{
-		for(var i = 0; i < ThreadNames.length; ++i)
+		for(var i = 0; i < S.ThreadNames.length; ++i)
 		{
-			if((ThreadsActive[ThreadNames[i]] || ThreadsAllActive) && FilterMatch(FilterTimer, ThreadNames[i]))
+			if((ThreadsActive[S.ThreadNames[i]] || ThreadsAllActive) && FilterMatch(FilterTimer, S.ThreadNames[i]))
 			{
 				var X = 0;
 				var YText = Y+Height-FontAscent;
@@ -2408,19 +2409,19 @@ function DrawBarView()
 				context.fillRect(0, Y, Width, FontHeight+2);
 				var ThreadColor = CSwitchColors[i % CSwitchColors.length];
 				context.fillStyle = ThreadColor;
-				context.fillText(ThreadNames[i], 1, YText);
+				context.fillText(S.ThreadNames[i], 1, YText);
 				context.textAlign = 'left';
 				Y += Height;
 				for(var idx in GroupOrder)
 				{
 					R = 0;
 					var groupid = GroupOrder[idx];
-					var Group = GroupInfo[groupid];
-					var PerThreadTimer = ThreadGroupTimeArray[i][groupid];
-					var PerThreadTimerTotal = ThreadGroupTimeTotalArray[i][groupid];
+					var Group = S.GroupInfo[groupid];
+					var PerThreadTimer = S.ThreadGroupTimeArray[i][groupid];
+					var PerThreadTimerTotal = S.ThreadGroupTimeTotalArray[i][groupid];
 					if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (GroupsAllActive || GroupsActive[Group.name]) && FilterMatch(FilterGroup, Group.name))
 					{
-						var GColor = GroupColors ? g_Colors[GroupInfo[groupid].cid] : 'white';
+						var GColor = GroupColors ? g_Colors[S.GroupInfo[groupid].cid] : 'white';
 						var X = 0;
 						nColorIndex = 1-nColorIndex;
 						bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
@@ -2444,8 +2445,8 @@ function DrawBarView()
 		for(var idx in GroupOrder)
 		{
 			var groupid = GroupOrder[idx];
-			var Group = GroupInfo[groupid];
-			var GColor = GroupColors ? g_Colors[GroupInfo[groupid].cid] : 'white';
+			var Group = S.GroupInfo[groupid];
+			var GColor = GroupColors ? g_Colors[S.GroupInfo[groupid].cid] : 'white';
 			if((GroupsAllActive || GroupsActive[Group.name]) && FilterMatch(FilterGroup, Group.name))
 			{
 				R = 0;
@@ -2472,12 +2473,12 @@ function DrawBarView()
 				Y += Height;
 				if(TimersGroups)
 				{
-					for(var i = 0; i < ThreadNames.length; ++i)
+					for(var i = 0; i < S.ThreadNames.length; ++i)
 					{
 						R = 0;
-						var PerThreadTimer = ThreadGroupTimeArray[i][groupid];
-						var PerThreadTimerTotal = ThreadGroupTimeTotalArray[i][groupid];
-						if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (ThreadsActive[ThreadNames[i]] || ThreadsAllActive) && FilterMatch(FilterTimer, ThreadNames[i]))
+						var PerThreadTimer = S.ThreadGroupTimeArray[i][groupid];
+						var PerThreadTimerTotal = S.ThreadGroupTimeTotalArray[i][groupid];
+						if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (ThreadsActive[S.ThreadNames[i]] || ThreadsAllActive) && FilterMatch(FilterTimer, S.ThreadNames[i]))
 						{
 							var YText = Y+Height-FontAscent;
 							bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
@@ -2487,7 +2488,7 @@ function DrawBarView()
 							var ThreadColor = CSwitchColors[i % CSwitchColors.length];
 							context.fillStyle = ThreadColor;
 							context.textAlign = 'right';
-							context.fillText(ThreadNames[i], NameWidth - 5, YText);
+							context.fillText(S.ThreadNames[i], NameWidth - 5, YText);
 							context.textAlign = 'left';
 							X = NameWidth;
 							DrawTimer(PerThreadTimer, ThreadColor);
@@ -2502,7 +2503,7 @@ function DrawBarView()
 					for(var timerindex in TimerArray)
 					{
 						var timerid = TimerArray[timerindex];
-						if(FilterMatch(FilterTimer, TimerInfo[timerid].name))
+						if(FilterMatch(FilterTimer, S.TimerInfo[timerid].name))
 						{
 							DrawTimerRow(timerid, 0);
 							Y += Height;
@@ -2683,7 +2684,7 @@ function DrawCounterView()
 	var Height = BoxHeight;
 	var Width = nWidth;
 	//clamp offset to prevent scrolling into the void
-	var nTotalRows = CounterInfo.length;
+	var nTotalRows = S.CounterInfo.length;
 	var nTotalRowPixels = nTotalRows * Height;
 	var nFrameRows = nHeight - BoxHeight;
 	if(nOffsetCountersY + nFrameRows > nTotalRowPixels && nTotalRowPixels > nFrameRows)
@@ -2734,7 +2735,7 @@ function DrawCounterView()
 
 	function DrawCounterRecursive(Index)
 	{
-		var Counter = CounterInfo[Index];
+		var Counter = S.CounterInfo[Index];
 		var Indent = CounterIndent(Counter.level);
 		CounterNameWidthTemp = Max(CounterNameWidthTemp, Counter.name.length+1 + Indent / (FontWidth+1));
 		CounterValueWidthTemp = Max(CounterValueWidthTemp, Counter.formatted.length);
@@ -2850,14 +2851,14 @@ function DrawCounterView()
 			while(ChildIndex != -1)
 			{
 				DrawCounterRecursive(ChildIndex);
-				ChildIndex = CounterInfo[ChildIndex].sibling;
+				ChildIndex = S.CounterInfo[ChildIndex].sibling;
 			}
 		}
 	}
 
-	for(var i = 0; i < CounterInfo.length; ++i)
+	for(var i = 0; i < S.CounterInfo.length; ++i)
 	{
-		if(CounterInfo[i].parent == -1)
+		if(S.CounterInfo[i].parent == -1)
 		{
 			DrawCounterRecursive(i);
 		}
@@ -2902,7 +2903,7 @@ function PreprocessContextSwitchCacheItem(ThreadId)
 		CSArrayIn = new Array();
 		CSArrayOut = new Array();
 		CSArrayCpu = new Array();
-		var nCount = CSwitchTime.length;
+		var nCount = S.CSwitchTime.length;
 		var j = 0;
 		var TimeIn = -1.0;
 		for(var i = 0; i < nCount; ++i)
@@ -2914,14 +2915,14 @@ function PreprocessContextSwitchCacheItem(ThreadId)
 			{
 				if(ThreadIn == ThreadId)
 				{
-					TimeIn = CSwitchTime[i];
+					TimeIn = S.CSwitchTime[i];
 				}
 			}
 			else
 			{
 				if(ThreadOut == ThreadId)
 				{
-					var TimeOut = CSwitchTime[i];
+					var TimeOut = S.CSwitchTime[i];
 					CSArrayIn.push(TimeIn);
 					CSArrayOut.push(TimeOut);
 					CSArrayCpu.push(Cpu);
@@ -2943,7 +2944,7 @@ function PreprocessContextSwitchCache()
 {
 	ProfileEnter("PreprocessContextSwitchCache");
 	var AllThreads = {};
-	var nCount = CSwitchTime.length;
+	var nCount = S.CSwitchTime.length;
 	for(var i = 0; i < nCount; ++i)
 	{	
 		var nThreadIn = CSwitchThreadInOutCpu[i];
@@ -2951,9 +2952,9 @@ function PreprocessContextSwitchCache()
 		{
 		    AllThreads[nThreadIn] = '' + nThreadIn;
 		    var FoundThread = false;
-		    for(var i = 0; i < ThreadIds.length; ++i)
+		    for(var i = 0; i < S.ThreadIds.length; ++i)
 		    {
-		        if(ThreadIds[i] == nThreadIn)
+		        if(S.ThreadIds[i] == nThreadIn)
 		        {
 		            FoundThread = true;
 		        }
@@ -2968,9 +2969,9 @@ function PreprocessContextSwitchCache()
 	{
 		PreprocessContextSwitchCacheItem(CSwitchOnlyThreads[i]);
 	}
-	for(var i = 0; i < ThreadIds.length; ++i)
+	for(var i = 0; i < S.ThreadIds.length; ++i)
 	{
-		PreprocessContextSwitchCacheItem(ThreadIds[i]);	
+		PreprocessContextSwitchCacheItem(S.ThreadIds[i]);	
 	}
 	function HandleMissingThread(a)
 	{
@@ -3078,13 +3079,13 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 
 	context.fillStyle = 'black';
 	context.font = Font;
-	var nNumLogs = Frames[0].ts.length;
+	var nNumLogs = S.Frames[0].ts.length;
 	var fTimeEnd = fDetailedOffset + fDetailedRange;
 
 	var FirstFrame = 0;
-	for(var i = 0; i < Frames.length ; i++)
+	for(var i = 0; i < S.Frames.length ; i++)
 	{
-		if(Frames[i].frameend < fDetailedOffset)
+		if(S.Frames[i].frameend < fDetailedOffset)
 		{
 			FirstFrame = i;
 		}
@@ -3215,12 +3216,12 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 
 		if(!ThreadY)
 		{
-			ThreadY = new Array(ThreadNames.length+1);
+			ThreadY = new Array(S.ThreadNames.length+1);
 		}
 
 		for(nLog = 0; nLog < nNumLogs; nLog++)
 		{
-			var ThreadName = ThreadNames[nLog];
+			var ThreadName = S.ThreadNames[nLog];
 			ThreadY[nLog] = fOffsetY;
 			if(ThreadsAllActive || ThreadsActive[ThreadName])
 			{
@@ -3247,7 +3248,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 				context.fillText(ThreadName, 0, fOffsetY);
 				if(nContextSwitchEnabled)
 				{
-					DrawContextSwitchBars(context, ThreadIds[nLog], fScaleX, fOffsetY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled);
+					DrawContextSwitchBars(context, S.ThreadIds[nLog], fScaleX, fOffsetY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled);
 					fOffsetY += CSwitchHeight+1;
 				}
 				var MaxDepth = 1;
@@ -3259,8 +3260,8 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 				var IndexArray = Lod.IndexArray[nLog];
 				var TimeArray = Lod.TimeArray[nLog];
 
-				var LocalFirstFrame = Frames[FirstFrame].FirstFrameIndex[nLog];
-				var IndexStart = ISGPU[nLog] ? 0 : Lod.LogStart[LocalFirstFrame][nLog];
+				var LocalFirstFrame = S.Frames[FirstFrame].FirstFrameIndex[nLog];
+				var IndexStart = S.ISGPU[nLog] ? 0 : Lod.LogStart[LocalFirstFrame][nLog];
 				var IndexEnd = TimeArray.length;
 				IndexEnd = TimeArray.length;
 				var HasSetHover = 0;
@@ -3298,13 +3299,13 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 							{
 								if(bDrawEnabled || index == nHoverToken)
 								{
-									var cid = TimerInfo[index].cid;
+									var cid = S.TimerInfo[index].cid;
 									if(index == nHoverToken)
 									{
 										nHoverColorIndex = cid;
 										cid = cidhovercolor;
 									}
-									AddBatch(StackPos, cid, X, Y, W, TimerInfo[index].name, TimerInfo[index].len, timeend-timestart);
+									AddBatch(StackPos, cid, X, Y, W, S.TimerInfo[index].name, S.TimerInfo[index].len, timeend-timestart);
 								}
 
 								if(index == FilterSearchPassIndex)
@@ -3363,7 +3364,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 
 				if(HasSetHover)
 				{
-					for(var i = 0; i < Frames.length-1; ++i)
+					for(var i = 0; i < S.Frames.length-1; ++i)
 					{
 						var IndexStart = Lod.LogStart[i][nLog];
 						if(nHoverTokenIndexNext >= IndexStart)
@@ -3493,23 +3494,25 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 							var mult = nHoverCounter / 255.0;
 							var m2 =mult -0.5;
 							var m4 = m2 * 0.5;
-							var H = g_ColorH[nHoverColorIndex];
-							var S = g_ColorS[nHoverColorIndex];
-							var L = g_ColorL[nHoverColorIndex];
-							var offset = 0;
-							if(S> 0.5)
-								offset = 0.5 - S;
-							var offsetL = 0;
-							if(L > 0.75)
-								offsetL = 0.75 - L;
-							L = L + m4 + offsetL;
-							L = L > 1 ? 1 : (L < 0 ? 0 : L);
-							S = S + m2 + offset;
-							S = S > 1 ? 1 : (S < 0 ? 0 : S);
-							var ColorCV = ConvertHslToColor(H, S, L);
-							// ShowFlashMessage('S' + S + 'H' + H, 10); 
+							var f = function()
+							{
+								var H = g_ColorH[nHoverColorIndex];
+								var S = g_ColorS[nHoverColorIndex];
+								var L = g_ColorL[nHoverColorIndex];
+								var offset = 0;
+								if(S> 0.5)
+									offset = 0.5 - S;
+								var offsetL = 0;
+								if(L > 0.75)
+									offsetL = 0.75 - L;
+								L = L + m4 + offsetL;
+								L = L > 1 ? 1 : (L < 0 ? 0 : L);
+								S = S + m2 + offset;
+								S = S > 1 ? 1 : (S < 0 ? 0 : S);
+								return ConvertHslToColor(H, S, L);
+							};
+							var ColorCV = f();
 							ColorDark = Color = ColorCV; ;
-							// console.log('hover color string ' + Color + ' ... old ' + 'hsl(' + H + ',' + S + ',' + L + ')');
 						}
 					}
 					FillRects(a, Color, ColorDark);
@@ -3923,12 +3926,12 @@ function MoveToNext(Direction) //1 forward, -1 backwards
 	var TypeEnd = Forward ? 0 : 1;
 	var SearchTimeBegin = Forward ? fTimeBegin : fTimeEnd;
 
-	var istart = Forward ? 0 : Frames.length-1;
-	var iend = Forward ? Frames.length : -1;
+	var istart = Forward ? 0 : S.Frames.length-1;
+	var iend = Forward ? S.Frames.length : -1;
 	var idelta = Forward ? 1 : -1;
 	for(var i = istart; i != iend; i += idelta)
 	{
-		var fr = Frames[i];
+		var fr = S.Frames[i];
 		var ts = fr.ts[nLog];
 		var ti = fr.ti[nLog];
 		var tt = fr.tt[nLog];
@@ -4336,11 +4339,11 @@ function MouseHandleDrag()
 	{
 		function HistoryFrameTime(x)
 		{
-			var NumFrames = Frames.length;
+			var NumFrames = S.Frames.length;
 			var fBarWidth = nWidth / NumFrames;
 			var Index = clamp(Math.floor(NumFrames * x / nWidth), 0, NumFrames-1);
 			var Lerp = clamp((x/fBarWidth - Index) , 0, 1);
-			var time = Frames[Index].framestart + (Frames[Index].frameend - Frames[Index].framestart) * Lerp;
+			var time = S.Frames[Index].framestart + (S.Frames[Index].frameend - S.Frames[Index].framestart) * Lerp;
 			return time;
 		}
 		if(MouseDragSelectRange())
@@ -4394,13 +4397,13 @@ function MouseHandleDragClick()
 		{
 			if(nHoverCounter != -1)
 			{
-				if(CounterInfo[nHoverCounter].firstchild != -1)
+				if(S.CounterInfo[nHoverCounter].firstchild != -1)
 				{
-					CounterInfo[nHoverCounter].closed = !CounterInfo[nHoverCounter].closed;
+					S.CounterInfo[nHoverCounter].closed = !S.CounterInfo[nHoverCounter].closed;
 				}
 				else
 				{
-					CounterInfo[nHoverCounter].Expanded = !CounterInfo[nHoverCounter].Expanded;
+					S.CounterInfo[nHoverCounter].Expanded = !S.CounterInfo[nHoverCounter].Expanded;
 				}
 				Draw(1);
 			}
@@ -4749,13 +4752,13 @@ function KeyUp(evt)
 				{
 					Token = RangeSelect.Index;
 				}
-				if(Token != -1 && Token < TimerInfo.length)
+				if(Token != -1 && Token < S.TimerInfo.length)
 				{
-					var start = TimerInfo[Token].worststart;
-					var end = TimerInfo[Token].worstend;
+					var start = S.TimerInfo[Token].worststart;
+					var end = S.TimerInfo[Token].worstend;
 					RangeSelect.Begin = start;
 					RangeSelect.End = end;
-					RangeSelect.Thread = TimerInfo[Token].worstthread;
+					RangeSelect.Thread = S.TimerInfo[Token].worstthread;
 					RangeSelect.Index = Token;
 					ShowFlashMessage('Worst: ' + (end-start).toFixed(2) + 'ms', 100);
 					MoveTo(RangeSelect.Begin, RangeSelect.End, ThreadY[RangeSelect.Thread] + nOffsetY, ThreadY[RangeSelect.Thread+1] + nOffsetY);
@@ -5087,18 +5090,18 @@ function DrawFilterSearch()
 
 	Y -= nOffsetFilterSearch;
 	var Count = 0;
-	for(var i = 0; i < TimerInfo.length; ++i)
+	for(var i = 0; i < S.TimerInfo.length; ++i)
 	{
-		var v = TimerInfo[i];
+		var v = S.TimerInfo[i];
 		{
 			var Name = v.name;
-			var ParentName = GroupInfo[v.group].name;
+			var ParentName = S.GroupInfo[v.group].name;
 			if(FilterMatch(FilterArray, ParentName + " " + Name))
 			{
 				if(Y >= YStart)
 				{
 					Count++;
-					var ParentName = GroupInfo[v.group].name;
+					var ParentName = S.GroupInfo[v.group].name;
 					var ParentColor = 'white';
 					var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
 					var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
@@ -5135,9 +5138,9 @@ function CalcAverage()
 	for(nLog = 0; nLog < nNumLogs; nLog++)
 	{
 		StackPos = 0;
-		for(var i = 0; i < Frames.length; i++)
+		for(var i = 0; i < S.Frames.length; i++)
 		{
-			var Frame_ = Frames[i];			
+			var Frame_ = S.Frames[i];			
 			var tt = Frame_.tt[nLog];
 			var ts = Frame_.ts[nLog];
 
@@ -5186,7 +5189,7 @@ function MakeLod(index, MinDelta, TimeArray, TypeArray, IndexArray, LogStart)
 
 function PreprocessBuildSplitArray()
 {
-	var nNumLogs = Frames[0].ts.length;
+	var nNumLogs = S.Frames[0].ts.length;
 
 	ProfileEnter("PreprocessBuildSplitArray");
 	var SplitArrays = new Array(nNumLogs);
@@ -5275,7 +5278,7 @@ function PreprocessBuildSplitArray()
 
 function PreprocessBuildDurationArray()
 {
-	var nNumLogs = Frames[0].ts.length;
+	var nNumLogs = S.Frames[0].ts.length;
 	ProfileEnter("PreprocessBuildDurationArray");
 	var DurationArrays = new Array(nNumLogs);
 	for(nLog = 0; nLog < nNumLogs; ++nLog)
@@ -5326,7 +5329,7 @@ function PreprocessBuildDurationArray()
 function PreprocessLods()
 {
 	ProfileEnter("PreprocessLods");
-	var nNumLogs = Frames[0].ts.length;
+	var nNumLogs = S.Frames[0].ts.length;
 	var SplitArrays = PreprocessBuildSplitArray();
 	var DurationArrays = PreprocessBuildDurationArray();
 	var Source = LodData[0];
@@ -5412,21 +5415,21 @@ function PreprocessLods()
 function PreprocessGlobalArray()
 {
 	ProfileEnter("PreprocessGlobalArray");
-	var nNumLogs = Frames[0].ts.length;
-	var CaptureStart = Frames[0].framestart;
-	var CaptureEnd = Frames[Frames.length-1].frameend;
+	var nNumLogs = S.Frames[0].ts.length;
+	var CaptureStart = S.Frames[0].framestart;
+	var CaptureEnd = S.Frames[S.Frames.length-1].frameend;
 	g_TypeArray = new Array(nNumLogs);
 	g_TimeArray = new Array(nNumLogs);
 	g_IndexArray = new Array(nNumLogs);
 	var StackPos = 0;
 	var Stack = Array(20);
-	var LogStartArray = new Array(Frames.length);
-	for(var i = 0; i < Frames.length; i++)
+	var LogStartArray = new Array(S.Frames.length);
+	for(var i = 0; i < S.Frames.length; i++)
 	{
-		Frames[i].LogStart = new Array(nNumLogs);	
-		LogStartArray[i] = Frames[i].LogStart;
+		S.Frames[i].LogStart = new Array(nNumLogs);	
+		LogStartArray[i] = S.Frames[i].LogStart;
 
-		Frames[i].LogEnd = new Array(nNumLogs);
+		S.Frames[i].LogEnd = new Array(nNumLogs);
 	}
 	var MinDelta = Array(nNumLogs);
 	for(nLog = 0; nLog < nNumLogs; nLog++)
@@ -5436,13 +5439,13 @@ function PreprocessGlobalArray()
 		var TypeArray = new Array();
 		var TimeArray = new Array();
 		var IndexArray = new Array();
-		for(var i = 0; i < Frames.length; i++)
+		for(var i = 0; i < S.Frames.length; i++)
 		{
-			var Frame_ = Frames[i];	
+			var Frame_ = S.Frames[i];	
 			Frame_.LogStart[nLog] = TimeArray.length;
-			var CanDiscard = !ISGPU[nLog] || Frame_.frameendgpu > 0; //in case of no reference, we cannot discard gpu markers. This happens when there is no gpu/cpu tick reference
+			var CanDiscard = !S.ISGPU[nLog] || Frame_.frameendgpu > 0; //in case of no reference, we cannot discard gpu markers. This happens when there is no gpu/cpu tick reference
 
-			var FrameDiscard = (ISGPU[nLog] ? Frame_.frameendgpu : Frame_.frameend) + 33;//if timestamps are more than 33ms after current frame, we assume buffer has wrapped.
+			var FrameDiscard = (S.ISGPU[nLog] ? Frame_.frameendgpu : Frame_.frameend) + 33;//if timestamps are more than 33ms after current frame, we assume buffer has wrapped.
 			var tt = Frame_.tt[nLog];
 			var ts = Frame_.ts[nLog];
 			var ti = Frame_.ti[nLog];
@@ -5471,7 +5474,7 @@ function PreprocessGlobalArray()
 		g_IndexArray[nLog] = IndexArray;
 		if(Discard)
 		{
-			console.log('discarded ' + Discard + ' markers from ' + ThreadNames[nLog]);
+			console.log('discarded ' + Discard + ' markers from ' + S.ThreadNames[nLog]);
 		}
 	}
 	MakeLod(0, MinDelta, g_TimeArray, g_TypeArray, g_IndexArray, LogStartArray);
@@ -5482,10 +5485,10 @@ function PreprocessFindFirstFrames()
 {
 	ProfileEnter("PreprocesFindFirstFrames");
 	//create arrays that show how far back we need to start search in order to get all markers.
-	var nNumLogs = Frames[0].ts.length;
-	for(var i = 0; i < Frames.length; i++)
+	var nNumLogs = S.Frames[0].ts.length;
+	for(var i = 0; i < S.Frames.length; i++)
 	{
-		Frames[i].FirstFrameIndex = new Array(nNumLogs);
+		S.Frames[i].FirstFrameIndex = new Array(nNumLogs);
 	}
 
 	var StackPos = 0;
@@ -5496,9 +5499,9 @@ function PreprocessFindFirstFrames()
 	{
 		var MaxStack = 0;
 		StackPos = 0;
-		for(var i = 0; i < Frames.length; i++)
+		for(var i = 0; i < S.Frames.length; i++)
 		{
-			var Frame_ = Frames[i];			
+			var Frame_ = S.Frames[i];			
 			var tt = Frame_.tt[nLog];
 			var count = tt.length;
 
@@ -5507,7 +5510,7 @@ function PreprocessFindFirstFrames()
 			{
 				FirstFrame = Stack[0];
 			}
-			Frames[i].FirstFrameIndex[nLog] = FirstFrame;
+			S.Frames[i].FirstFrameIndex[nLog] = FirstFrame;
 
 			for(var j = 0; j < count; j++)
 			{
@@ -5552,9 +5555,9 @@ function PreprocessMeta()
 		if(MetaLengthsMax[i]<12)
 			MetaLengthsMax[i] = 12;
 	}
-	for(var i = 0; i < TimerInfo.length; ++i)
+	for(var i = 0; i < S.TimerInfo.length; ++i)
 	{
-		var Timer = TimerInfo[i];
+		var Timer = S.TimerInfo[i];
 		for(var j = 0; j < MetaNames.length; ++j)
 		{
 			var Len = FormatMeta(Timer.meta[j],0).length + 2;
@@ -5582,30 +5585,30 @@ function PreprocessWidths()
 	context.font = Font;
 	TimerNameWidth = 0;
 	GroupNameWidth = 0;
-	for(var i = 0; i < TimerInfo.length; ++i)
+	for(var i = 0; i < S.TimerInfo.length; ++i)
 	{
-		var str = GroupInfo[TimerInfo[i].group].name + "XXX" + TimerInfo[i].name;
+		var str = S.GroupInfo[S.TimerInfo[i].group].name + "XXX" + S.TimerInfo[i].name;
 		var width = context.measureText(str).width;
-		var widthname = context.measureText(TimerInfo[i].name).width;
-		TimerInfo[i].wtotal = width;
-		TimerInfo[i].w = widthname;
+		var widthname = context.measureText(S.TimerInfo[i].name).width;
+		S.TimerInfo[i].wtotal = width;
+		S.TimerInfo[i].w = widthname;
 		TimerNameWidth = Math.max(TimerNameWidth, widthname);
 	}
-	for(var i = 0; i < GroupInfo.length; ++i)
+	for(var i = 0; i < S.GroupInfo.length; ++i)
 	{
-		var widthname = context.measureText(TimerInfo[i].name).width;
+		var widthname = context.measureText(S.TimerInfo[i].name).width;
 		GroupNameWidth = Math.max(GroupNameWidth, widthname);
 	}
 }
 
 function PreprocessTimeline()
 {
-	Timeline.Times = TimelineArray;
-	Timeline.Ids = TimelineIdArray;
-	Timeline.Colors = new Array(TimelineArray.length);
-	Timeline.Names = TimelineNames;
-	Timeline.Ends = new Array(TimelineArray.length);
-	Timeline.Pairs = new Array(TimelineArray.length);
+	Timeline.Times = S.TimelineArray;
+	Timeline.Ids = S.TimelineIdArray;
+	Timeline.Colors = new Array(S.TimelineArray.length);
+	Timeline.Names = S.TimelineNames;
+	Timeline.Ends = new Array(S.TimelineArray.length);
+	Timeline.Pairs = new Array(S.TimelineArray.length);
 	Timeline.Tracks = new Array();
 	Timeline.Positions = new Array();
 	for(var i = 0; i < Timeline.Times.length; ++i)
@@ -5613,7 +5616,7 @@ function PreprocessTimeline()
 		Timeline.Positions[i] = -1;
 		Timeline.Ends[i] = -1;
 		Timeline.Pairs[i] = -1;
-		var Color = TimelineColorArray[i]
+		var Color = S.TimelineColorArray[i]
 		if(!Color || Color == '')
 		{
 			Color = '#777777'
