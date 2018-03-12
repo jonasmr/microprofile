@@ -46,6 +46,7 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 </style>
 </head>
 <body style="">
+<input type="file" id="file-input" style="display:none"/>
 <div id='filterinput'>
 <div class="filterinput0">Group<br><input type="text" id="filtergroup"></div>
 <div class="filterinput1">Timer/Thread<br><input type="text" id="filtertimer"></div>
@@ -113,6 +114,7 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 		<li><a href="javascript:void(0)" onclick="ToggleDisableLod();">LodDisable</a></li>
 		<li id='GroupColors'><a href="javascript:void(0)" onclick="ToggleGroupColors();">Group Colors</a></li>
 		<li id='DrawDetailedFlameMode'><a href="javascript:void(0)" onclick="ToggleDetailedFlameMode();">Flame Mode</a></li>
+		<li id='ComparePromptLi'><a href="javascript:void(0)" onclick="ComparePrompt();">Compare</a></li>
         <li id='ShowHelp'><a href="javascript:void(0)" onclick="ShowHelp(1,1);">Help</a></li>
 <!--      	<li><a href="javascript:void(0)" onclick="ToggleDebug();">DEBUG</a></li> -->
     </ul>
@@ -374,8 +376,6 @@ var nOffsetCountersY = 0;
 var nOffsetFilterSearch = 0;
 var FilterInputSearchLast = '';
 var nBarsWidth = 80;
-var GroupNameWidth = 200;
-var TimerNameWidth = 200;
 var MouseButtonState = [0,0,0,0,0,0,0,0];
 var KeyShiftDown = 0;
 var MouseDragButton = 0;
@@ -446,6 +446,7 @@ var FilterSearchSelectionMax = 0;
 var FilterSearchPassIndex = -1;
 var FilterSearchArray = new Array();
 var FilterSearchStartTime = new Date();
+var IgnoreInput = 0;
 function RangeInit()
 {
 	return {"Begin":-1, "End":-1, "YBegin":-1, "YEnd":-1, "Thread": -1 , "Index": -1};
@@ -504,18 +505,16 @@ var ProfileFpsAggr = 0;
 var ProfileFpsCount = 0;
 var ProfileLastTimeStamp = new Date();
 
-var CSwitchCache = {};
-var CSwitchOnlyThreads = [];
 var ProfileData = {};
 var ProfileStackTime = {};
 var ProfileStackName = {};
 var Debug = 1;
 
-var g_MaxStack = Array();
-var g_TypeArray;
-var g_TimeArray;
-var g_IndexArray;
-var LodData = new Array();
+// var MaxStack = Array();
+// var S.TypeArray;
+// var S.TimeArray;
+// var S.IndexArray;
+// var S.LodData = new Array();
 var NumLodSplits = 10;
 var SplitMin = 100;
 var SPLIT_LIMIT = 1e20;
@@ -2111,7 +2110,7 @@ function DrawBarView()
 
 	var Height = BoxHeight;
 	var Width = nWidth;
-	var NameWidth = Math.max(TimerNameWidth, GroupNameWidth) + 20;
+	var NameWidth = Math.max(S.TimerNameWidth, S.GroupNameWidth) + 20;
 
 	//clamp offset to prevent scrolling into the void
 	var nTotalRows = 0;
@@ -2897,7 +2896,7 @@ function DrawCounterView()
 //preprocess context switch data to contain array per thread
 function PreprocessContextSwitchCacheItem(ThreadId)
 {
-	var CSObject = CSwitchCache[ThreadId];
+	var CSObject = S.CSwitchCache[ThreadId];
 	if(ThreadId > 0 && !CSObject)
 	{
 		CSArrayIn = new Array();
@@ -2936,7 +2935,7 @@ function PreprocessContextSwitchCacheItem(ThreadId)
 		CSObject.In = CSArrayIn;
 		CSObject.Out = CSArrayOut;
 		CSObject.Cpu = CSArrayCpu;
-		CSwitchCache[ThreadId] = CSObject;
+		S.CSwitchCache[ThreadId] = CSObject;
 	}
 
 }
@@ -2961,13 +2960,13 @@ function PreprocessContextSwitchCache()
 		    }
 		    if(!FoundThread)
 		    {
-		        CSwitchOnlyThreads.push(nThreadIn);
+		        S.CSwitchOnlyThreads.push(nThreadIn);
 		    }
 		}
 	}
-	for(var i = 0; i < CSwitchOnlyThreads.length; ++i)
+	for(var i = 0; i < S.CSwitchOnlyThreads.length; ++i)
 	{
-		PreprocessContextSwitchCacheItem(CSwitchOnlyThreads[i]);
+		PreprocessContextSwitchCacheItem(S.CSwitchOnlyThreads[i]);
 	}
 	for(var i = 0; i < S.ThreadIds.length; ++i)
 	{
@@ -2987,7 +2986,7 @@ function PreprocessContextSwitchCache()
 		else
 			return a.tid - b.tid;
 	}
-	CSwitchOnlyThreads.sort( function(a, b){ 
+	S.CSwitchOnlyThreads.sort( function(a, b){ 
 		HandleMissingThread(a);
 		HandleMissingThread(b);
 		return CompareThreadInfo(CSwitchThreads[a], CSwitchThreads[b]); 
@@ -2999,8 +2998,8 @@ function PreprocessContextSwitchCache()
 function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled)
 {
 	ProfileEnter("DrawContextSwitchBars");
-	var CSObject = CSwitchCache[ThreadId];
-	if(CSObject)
+	var CSObject = S.CSwitchCache[ThreadId];
+	if(CSObject && CSObject.Size > 0)
 	{
 		var Size = CSObject.Size;		
 		var In = CSObject.In;
@@ -3044,12 +3043,27 @@ function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOf
 			}
 		}
 	}
+	else //debug: draw context switch without cswitch
+	{
+		for(var i = 0; i < 8; ++i)
+		{
+			context.fillStyle = CSwitchColors[i];
+			context.fillRect((nWidth * i / 8) + 10, fOffsetY, nWidth / 8 - 20, CSwitchHeight);
+		}
+
+
+	}
 	ProfileLeave();
 }
 
-function DrawDetailedView(context, MinWidth, bDrawEnabled)
+function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 {
-	if(bDrawEnabled)
+	if(!S || !S.Frames)
+	{
+		return;
+	}
+	var bSecond = S != S0;
+	if(bDrawEnabled && !bSecond)
 	{
 		DrawDetailedBackground(context);
 	}
@@ -3057,6 +3071,8 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 	var colors = [ '#ff0000', '#ff00ff', '#ffff00'];
 	var fScaleX = nWidth / fDetailedRange; 
 	var fOffsetY = -nOffsetY + BoxHeight;
+
+
 	nHoverTokenNext = -1;
 	var nHoverTokenStack = -1;
 	nHoverTokenLogIndexNext = -1;
@@ -3080,6 +3096,11 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 	context.fillStyle = 'black';
 	context.font = Font;
 	var nNumLogs = S.Frames[0].ts.length;
+	if(S0)
+	{
+		if(S0.Frames[0].ts.length != S.Frames[0].ts.length)
+			debugger;
+	}
 	var fTimeEnd = fDetailedOffset + fDetailedRange;
 
 	var FirstFrame = 0;
@@ -3092,10 +3113,20 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 	}
 
 	var BoxHeightScaled = BoxHeight;
+	var fExtra = 0;
+	var Padding = 15;
 	if(DrawDetailedFlameMode == 1)
+	{
 		BoxHeightScaled = Math.ceil(BoxHeight*0.5);
+		fExtra = 0.5;
+	}
 	else if(DrawDetailedFlameMode == 2)
+	{
 		BoxHeightScaled = 0;
+		fExtra = 1;
+	}
+	var BoxHeightScaledPos = Math.abs(BoxHeightScaled);
+
 	var Levels = [];
 	var BatchesTxtColor = ['#ffffff', '#333333'];
 
@@ -3167,7 +3198,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 	};
 
 
-
+	//todo: dont draw twice
 	{
 		context.fillStyle = 'white';
 		fOffsetY += BoxHeight;
@@ -3183,6 +3214,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 		var off = 0.7;
 		var off2 = 2*off;
 		var MaxPosition = 1;
+
 		for(var i = 0; i < Timeline.Positions.length; ++i)
 		{
 			var TimeStart = Times[i];
@@ -3212,49 +3244,137 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 		fOffsetY += (1+MaxPosition) * (BoxHeight+3);
 	}
 	var nMinTimeMs = MinWidth / fScaleX;
+	var DrawGuides = 1;
 	{
 
 		if(!ThreadY)
 		{
-			ThreadY = new Array(S.ThreadNames.length+1);
+			ThreadY = new Array(S0.ThreadNames.length+1);
 		}
 
 		for(nLog = 0; nLog < nNumLogs; nLog++)
 		{
-			var ThreadName = S.ThreadNames[nLog];
+			var ThreadName = S0.ThreadNames[nLog];
 			ThreadY[nLog] = fOffsetY;
+			var SMul = 2;
+			var LogHeight = (S0.MaxStack[nLog]) * BoxHeightScaledPos + BoxHeight;
+			var LogHeight2 = (S0.MaxStack2[nLog]) * BoxHeightScaledPos + BoxHeight;
+			if(nContextSwitchEnabled)
+			{
+				LogHeight += (CSwitchHeight+4);
+				LogHeight2 += (CSwitchHeight+4) * SMul;
+			}
+			if(!S0.SecondActive)
+			{
+				LogHeight2 = 0;
+			}
+			var OY = fOffsetY;
+			if(bSecond)
+			{
+				OY += LogHeight+1;
+			}
+			
+			// if(!bSecond)
+			// {
+
+
+
+			// 	// var LogHeight0 = (S0.MaxStack[nLog]) * BoxHeightScaledPos + BoxHeight * 1 * SMul;
+			// 	OY += LogHeight2;
+			// 	context.strokeStyle = 'orange';
+			// 	context.beginPath();
+			// 	context.moveTo(0, OY);
+			// 	context.lineTo(5000, OY);
+			// 	context.fillStyle = 'orange';
+			// 	context.fillText("" + nLog, 450 + nLog * 10, OY); 
+
+			// 	context.moveTo(0, OY + LogHeight-2);
+			// 	context.lineTo(5000, OY+ LogHeight-2);
+			// 	context.fillText("" + nLog, 550 + nLog * 10, OY+LogHeight-2); 
+			// 	context.stroke();
+
+			// 	context.fillStyle = 'white';
+
+			// }
+			// else
+			// {
+			// 	context.strokeStyle = 'orange';
+			// 	context.fillStyle = 'orange';
+			// 	context.fillText("" + nLog, 450 + nLog * 10, OY); 
+			// 	context.beginPath();
+			// 	context.moveTo(0, OY);
+			// 	context.lineTo(5000, OY);
+
+			// 	context.fillText("" + nLog, 550 + nLog * 10, OY+LogHeight-2); 
+
+			// 	context.moveTo(0, OY + LogHeight2-2);
+			// 	context.lineTo(5000, OY+ LogHeight2-2);
+			// 	context.stroke();			
+			// }
+
+
 			if(ThreadsAllActive || ThreadsActive[ThreadName])
 			{
 				var LodIndex = 0;
 				var MinDelta = 0;
 				var NextLod = 1;
-				while(NextLod < LodData.length && LodData[NextLod].MinDelta[nLog] < nMinTimeMs)
+				while(NextLod < S.LodData.length && S.LodData[NextLod].MinDelta[nLog] < nMinTimeMs)
 				{
 					LodIndex = NextLod;
 					NextLod = NextLod + 1;
-					MinDelta = LodData[LodIndex].MinDelta[nLog];
+					MinDelta = S.LodData[LodIndex].MinDelta[nLog];
 				}
-				if(LodIndex == LodData.length)
+				if(LodIndex == S.LodData.length)
 				{
-					LodIndex = LodData.length-1;
+					LodIndex = S.LodData.length-1;
 				}
 				if(DisableLod)
 				{
 					LodIndex = 0;
 				}
 
+				if(!bSecond)
+				{
+					context.strokeStyle = 'grey';
+					context.beginPath();
+					context.moveTo(0, OY+1);
+					context.lineTo(nWidth, OY+1);
+					context.stroke();
+				}
+				else
+				{
+					context.globalAlpha = 0.1;
+					context.fillStyle = 'orange';
+					context.fillRect(0, OY, nWidth, LogHeight2);
+					context.fillStyle = 'white';
+					context.globalAlpha = 1;
+
+				}
+				OY += 4;
+				// if(DrawGuides&& 0)
+				// {
+				// 	context.strokeStyle = 'green';
+				// 	context.beginPath();
+				// 	context.moveTo(0, fOffsetY);
+				// 	context.lineTo(5000, fOffsetY);
+				// 	context.stroke();
+				// 	context.fillStyle = 'white';
+				// 	context.fillText("" + nLog, 150 + nLog * 10, fOffsetY); 
+				// }
+				// // OY += BoxHeight;
+				context.textBaseline = 'top';
 				context.fillStyle = 'white';
-				fOffsetY += BoxHeight;
 				context.fillText(ThreadName, 0, fOffsetY);
+				context.textBaseline = 'alphabetic';
 				if(nContextSwitchEnabled)
 				{
-					DrawContextSwitchBars(context, S.ThreadIds[nLog], fScaleX, fOffsetY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled);
-					fOffsetY += CSwitchHeight+1;
+					DrawContextSwitchBars(context, S.ThreadIds[nLog], fScaleX, OY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled);
+					OY += CSwitchHeight+2;
 				}
 				var MaxDepth = 1;
 				var StackPos = 0;
 				var Stack = Array(20);
-				var Lod = LodData[LodIndex];
+				var Lod = S.LodData[LodIndex];
 
 				var TypeArray = Lod.TypeArray[nLog];
 				var IndexArray = Lod.IndexArray[nLog];
@@ -3292,7 +3412,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 							var timestart = TimeArray[StartIndex];
 							var timeend = time;
 							var X = (timestart - fDetailedOffset) * fScaleX;
-							var Y = fOffsetY + StackPos * BoxHeightScaled;
+							var Y = OY + StackPos * BoxHeightScaled;
 							var W = (timeend-timestart)*fScaleX;
 
 							if(W > MinWidth && X < nWidth && X+W > 0)
@@ -3360,7 +3480,19 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 						}
 					}
 				}
-				fOffsetY += (g_MaxStack[nLog]) * BoxHeightScaled + BoxHeight;
+				fOffsetY += LogHeight + LogHeight2 + Padding;
+				// if(DrawGuides)
+				// {
+				// 	context.strokeStyle = 'red';
+				// 	context.beginPath();
+				// 	context.moveTo(0, fOffsetY+2);
+				// 	context.lineTo(5000, fOffsetY+2);	
+				// 	context.stroke();
+				// 	context.fillStyle = 'red';
+				// 	context.fillText("" + nLog, 200 + nLog * 10, fOffsetY); 
+				// 	context.fillStyle = 'white';
+				// }
+
 
 				if(HasSetHover)
 				{
@@ -3377,10 +3509,10 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 			ThreadY[nLog+1] = fOffsetY;
 		}
 
-		if(nContextSwitchEnabled) //non instrumented threads.
+		if(nContextSwitchEnabled && !bSecond) //non instrumented threads.
 		{
 			var CurrentPid = -112;
-			var ContextSwitchThreads = CSwitchOnlyThreads;
+			var ContextSwitchThreads = S.CSwitchOnlyThreads;
 			function DrawHeader(str, X, Y)
 			{
 				var width = str.length * FontWidth;
@@ -3796,13 +3928,15 @@ function DrawDetailed(Animation)
 	if(Invalidate == 0) //when panning, only draw bars that are a certain width to keep decent framerate
 	{
 		context.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
-		DrawDetailedView(context, nMinWidthPan, true);
+		DrawDetailedView(S, S, context, nMinWidthPan, true);
+		DrawDetailedView(S2, S, context, nMinWidthPan, true, 1);
 		ProfileRedraw0++;
 	}
 	else if(Invalidate == 1) //draw full and store
 	{
 		offscreen.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
-		DrawDetailedView(offscreen, nMinWidth, true);
+		DrawDetailedView(S, S, offscreen, nMinWidth, true);
+		DrawDetailedView(S2, S, offscreen, nMinWidth, true, 1);
 		OffscreenData = offscreen.getImageData(0, 0, CanvasDetailedOffscreen.width, CanvasDetailedOffscreen.height);
 		ProfileRedraw1++;
 	}
@@ -3810,7 +3944,8 @@ function DrawDetailed(Animation)
 	{
 		context.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
 		context.putImageData(OffscreenData, 0, 0);
-		DrawDetailedView(context, nMinWidth, false);
+		DrawDetailedView(S, S, context, nMinWidth, false);
+		DrawDetailedView(S2, S, context, nMinWidth, false, 1);
 		ProfileRedraw2++;
 	}
 
@@ -4709,8 +4844,8 @@ function KeyUp(evt)
 	{
 		ToolTipFlip = 0;
 	}
-//	ShowFlashMessage(evt.keyCode + ' <<', 100);
-	if(!FilterSearchActive)
+	ShowFlashMessage(evt.keyCode + ' <<', 100);
+	if(!FilterSearchActive && !IgnoreInput)
 	{
 		if(evt.keyCode == 112)
 		{
@@ -4818,7 +4953,7 @@ function KeyUp(evt)
 	}
 
 
-	if(evt.keyCode == 13)
+	if(evt.keyCode == 13 && !IgnoreInput)
 	{
 		if(FilterSearchActive)
 		{
@@ -4909,6 +5044,10 @@ function KeyDown(evt)
 		KeyShiftDown = 1;
 	}
 	else if(evt.keyCode == 9)
+	{
+		evt.preventDefault();
+	}
+	else if(evt.keyCode == 13)
 	{
 		evt.preventDefault();
 	}
@@ -5078,7 +5217,7 @@ function DrawFilterSearch()
 	var nColorIndex = 0;
 	var SizeInfo = TimerMenuSize();
 	var Y = SizeInfo.y;
-	var Width = TimerNameWidth + GroupNameWidth;
+	var Width = S.TimerNameWidth + S.GroupNameWidth;
 	SizeInfo.w = Width;
 	var X = SizeInfo.x;
 
@@ -5174,7 +5313,7 @@ function CalcAverage()
 
 function MakeLod(index, MinDelta, TimeArray, TypeArray, IndexArray, LogStart)
 {
-	if(LodData[index])
+	if(S.LodData[index])
 	{
 		console.log("error!!");
 	}
@@ -5184,7 +5323,7 @@ function MakeLod(index, MinDelta, TimeArray, TypeArray, IndexArray, LogStart)
 	o.TypeArray = TypeArray;
 	o.IndexArray = IndexArray;
 	o.LogStart = LogStart;
-	LodData[index] = o;
+	S.LodData[index] = o;
 }
 
 function PreprocessBuildSplitArray()
@@ -5196,7 +5335,7 @@ function PreprocessBuildSplitArray()
 
 	for(nLog = 0; nLog < nNumLogs; ++nLog)
 	{
-		console.log("source log " + nLog + " size " + LodData[0].TypeArray[nLog].length);
+		console.log("source log " + nLog + " size " + S.LodData[0].TypeArray[nLog].length);
 	}
 
 
@@ -5205,8 +5344,8 @@ function PreprocessBuildSplitArray()
 		var MaxDepth = 1;
 		var StackPos = 0;
 		var Stack = Array(20);
-		var TypeArray = LodData[0].TypeArray[nLog];
-		var TimeArray = LodData[0].TimeArray[nLog];
+		var TypeArray = S.LodData[0].TypeArray[nLog];
+		var TimeArray = S.LodData[0].TimeArray[nLog];
 		var DeltaTimes = new Array(TypeArray.length);
 
 		for(var j = 0; j < TypeArray.length; ++j)
@@ -5287,9 +5426,9 @@ function PreprocessBuildDurationArray()
 		var StackPos = 0;
 		var Stack = Array(20);
 		var StackIndex = Array(20);
-		var TypeArray = LodData[0].TypeArray[nLog];
-		var TimeArray = LodData[0].TimeArray[nLog];
-		var DurationArray = Array(LodData[0].TypeArray[nLog].length);
+		var TypeArray = S.LodData[0].TypeArray[nLog];
+		var TimeArray = S.LodData[0].TimeArray[nLog];
+		var DurationArray = Array(S.LodData[0].TypeArray[nLog].length);
 		for(var j = 0; j < TypeArray.length; ++j)
 		{
 			var type = TypeArray[j];
@@ -5332,7 +5471,7 @@ function PreprocessLods()
 	var nNumLogs = S.Frames[0].ts.length;
 	var SplitArrays = PreprocessBuildSplitArray();
 	var DurationArrays = PreprocessBuildDurationArray();
-	var Source = LodData[0];
+	var Source = S.LodData[0];
 	var SourceLogStart = Source.LogStart;
 	var NumFrames = SourceLogStart.length;
 
@@ -5418,9 +5557,9 @@ function PreprocessGlobalArray()
 	var nNumLogs = S.Frames[0].ts.length;
 	var CaptureStart = S.Frames[0].framestart;
 	var CaptureEnd = S.Frames[S.Frames.length-1].frameend;
-	g_TypeArray = new Array(nNumLogs);
-	g_TimeArray = new Array(nNumLogs);
-	g_IndexArray = new Array(nNumLogs);
+	S.TypeArray = new Array(nNumLogs);
+	S.TimeArray = new Array(nNumLogs);
+	S.IndexArray = new Array(nNumLogs);
 	var StackPos = 0;
 	var Stack = Array(20);
 	var LogStartArray = new Array(S.Frames.length);
@@ -5469,15 +5608,15 @@ function PreprocessGlobalArray()
 			}
 			Frame_.LogEnd[nLog] = TimeArray.length;
 		}
-		g_TypeArray[nLog] = TypeArray;
-		g_TimeArray[nLog] = TimeArray;
-		g_IndexArray[nLog] = IndexArray;
+		S.TypeArray[nLog] = TypeArray;
+		S.TimeArray[nLog] = TimeArray;
+		S.IndexArray[nLog] = IndexArray;
 		if(Discard)
 		{
 			console.log('discarded ' + Discard + ' markers from ' + S.ThreadNames[nLog]);
 		}
 	}
-	MakeLod(0, MinDelta, g_TimeArray, g_TypeArray, g_IndexArray, LogStartArray);
+	MakeLod(0, MinDelta, S.TimeArray, S.TypeArray, S.IndexArray, LogStartArray);
 	ProfileLeave();
 }
 
@@ -5493,7 +5632,7 @@ function PreprocessFindFirstFrames()
 
 	var StackPos = 0;
 	var Stack = Array(20);
-	g_MaxStack = Array(nNumLogs);
+	S.MaxStack = Array(nNumLogs);
 	
 	for(nLog = 0; nLog < nNumLogs; nLog++)
 	{
@@ -5533,8 +5672,12 @@ function PreprocessFindFirstFrames()
 				}
 			}
 		}
-		g_MaxStack[nLog] = MaxStack;
+		S.MaxStack[nLog] = MaxStack;
 	}
+	S.MaxStack2 = Array(S.MaxStack.length);
+	for(var i = 0; i < S.MaxStack2.length; ++i)
+		S.MaxStack2[i] = 0;
+	S.SecondActive = 0;
 	ProfileLeave();
 }
 function PreprocessMeta()
@@ -5583,8 +5726,8 @@ function PreprocessWidths()
 {
 	var context = CanvasHistory.getContext('2d');
 	context.font = Font;
-	TimerNameWidth = 0;
-	GroupNameWidth = 0;
+	S.TimerNameWidth = 0;
+	S.GroupNameWidth = 0;
 	for(var i = 0; i < S.TimerInfo.length; ++i)
 	{
 		var str = S.GroupInfo[S.TimerInfo[i].group].name + "XXX" + S.TimerInfo[i].name;
@@ -5592,12 +5735,12 @@ function PreprocessWidths()
 		var widthname = context.measureText(S.TimerInfo[i].name).width;
 		S.TimerInfo[i].wtotal = width;
 		S.TimerInfo[i].w = widthname;
-		TimerNameWidth = Math.max(TimerNameWidth, widthname);
+		S.TimerNameWidth = Math.max(S.TimerNameWidth, widthname);
 	}
 	for(var i = 0; i < S.GroupInfo.length; ++i)
 	{
 		var widthname = context.measureText(S.TimerInfo[i].name).width;
-		GroupNameWidth = Math.max(GroupNameWidth, widthname);
+		S.GroupNameWidth = Math.max(S.GroupNameWidth, widthname);
 	}
 }
 
@@ -5769,22 +5912,42 @@ function PreprocessTimeline()
 		}
 	}
 }
+
+function Preprocess_S()
+{
+	console.log('preprocessing\n');	
+	S.LodData = new Array();
+	S.CSwitchCache = {};
+	S.CSwitchOnlyThreads = [];
+	S.GroupNameWidth = 200;
+	S.TimerNameWidth = 200;
+
+
+
+
+	PreprocessCalculateAllTimers();
+	PreprocessFindFirstFrames();
+
+	PreprocessGlobalArray();
+	PreprocessLods();
+	PreprocessMeta();
+
+	PreprocessContextSwitchCache();
+	PreprocessWidths();
+	console.log('preprocessing done\n');
+	console.log("SS " + S.LodData.length);
+}
 function Preprocess()
 {
 	var ProfileModeOld = ProfileMode;
 	ProfileMode = 1;
 	ProfileModeClear();
 	ProfileEnter("Preprocess");
-	PreprocessCalculateAllTimers();
-	PreprocessFindFirstFrames();
-	PreprocessGlobalArray();
-	PreprocessLods();
-	PreprocessMeta();
-	PreprocessContextSwitchCache();
+	Preprocess_S();
+
 	ProfileLeave();
 	ProfileModeDump();
 	ProfileMode = ProfileModeOld;
-	PreprocessWidths();
 	PreprocessTimeline();
 	Initialized = 1;
 }
@@ -5823,6 +5986,219 @@ function ResetColumnWidth()
 		}
 	}
 }
+var Comp0 = new Date();
+var Comp1 = new Date();
+var Comp2 = new Date();
+var Comp3 = new Date();
+
+function SetGlobal(Name, Value)
+{
+	this[Name] = Value;
+}
+
+
+//compare todo:
+//	Match threads
+//	match tokens.
+//	Calculate shared screen positions.
+//	Invert second pass
+//	fix hovertoken
+//	fix range display
+// 	todo: isgpu
+function CompareFixup(S0, S1) // S0 is the reference
+{
+	var GroupRemap = Array(S1.GroupInfo.length);
+	var ThreadRemap = Array(S1.ThreadNames.length);
+	var TimerRemap = Array(S1.TimerInfo.length);
+	for(var i = 0; i < S1.GroupInfo.length; ++i)
+	{
+		var n = S1.GroupInfo[i].name;
+		var idx = S0.GroupInfo.findIndex(function(G){ return G.name == n; });
+		if(idx != -1)
+		{
+			GroupRemap[i] = idx;
+		}
+		else
+		{
+			GroupRemap[i] = S0.GroupInfo.length;
+			S0.GroupInfo.push(S1.GroupInfo[i]);
+		}
+	}
+	for(var i = 0; i < S0.TimerInfo.length; ++i)
+	{
+		var n = S0.TimerInfo[i].name;	
+		console.log('OG ', n, ' idx ', i);
+	}
+
+	for(var i = 0; i < S1.TimerInfo.length; ++i)
+	{
+		var TI = S1.TimerInfo[i];
+		var n = S1.TimerInfo[i].name;
+		var idx = S0.TimerInfo.findIndex(function(T){ return T.name == n; });
+		//todo:
+		// cid, timercid
+		TI.group = GroupRemap[TI.group];
+		if(idx != -1)
+		{
+			TimerRemap[i] = idx;
+		}
+		else
+		{
+			console.log('added timer ' + TI.name + ' idx ' + S0.TimerInfo.length);
+			TimerRemap[i] = S0.TimerInfo.length;
+			TI.id = S0.TimerInfo.length;
+			S0.TimerInfo.push(TI);
+		}
+	}
+	for(var i = 0; i < S1.ThreadNames.length; ++i)
+	{
+		var n = S1.ThreadNames[i];
+		var idx = S0.ThreadNames.indexOf(n);
+		if(idx != -1)
+		{
+			ThreadRemap[i] = idx;
+		}
+		else
+		{
+			ThreadRemap[i] = S0.ThreadNames.length;
+			S0.ThreadNames.push(n);
+		}
+	}
+	function Fix(a, r)
+	{
+		for(var i in a)
+		{
+			a[i] = r[a[i]];
+		}
+	}
+	var NumThreads = S0.ThreadNames.length;
+	for(var i in S1.Frames)
+	{
+		var F = S1.Frames[i];
+		var ti = F.ti;
+		var ts = F.ts;
+		var tt = F.tt;
+		if(ti.length < NumThreads)
+			debugger;
+		if(ts.length < NumThreads)
+			debugger;
+		if(tt.length < NumThreads)
+			debugger;
+		F.ti = new Array(NumThreads);
+		F.ts = new Array(NumThreads);
+		F.tt = new Array(NumThreads);
+		for(var j in ti)
+		{
+
+			Fix(ti[j], TimerRemap);
+			F.ti[ThreadRemap[j]] = ti[j];
+			S
+		}
+		for(var i = 0; i < NumThreads; ++i)
+		{
+			if(!F.ti[i])
+				debugger;
+		}
+		for(var j in ts)
+		{
+			F.ts[ThreadRemap[j]] = ts[j];
+		}
+		for(var i = 0; i < NumThreads; ++i)
+		{
+			if(!F.ts[i])
+				debugger;
+		}
+		for(var j in tt)
+		{
+			F.tt[ThreadRemap[j]] = tt[j];
+		}
+		for(var i = 0; i < NumThreads; ++i)
+		{
+			if(!F.tt[i])
+				debugger;
+		}
+	}
+
+	//todo fixup all fields??
+}
+function ReadHtmlFile(e)
+{
+	var File = e.target.files[0];
+	if (!File)
+	{
+		return;
+	}
+	var Reader = new FileReader();
+	Reader.onload = function(e) {
+		ParseCompareData(e.target.result);
+	};
+	Reader.onprogress = function(e)
+	{
+		var m = e.loaded + ":" + e.total + " :: " + e.lengthComputable;
+		console.log(m);
+	};
+	C0 = new Date();
+	Reader.readAsText(File);
+}
+
+function ParseCompareData(Data)
+{
+	S.AA = "GED";
+	Comp1 = new Date();
+	var idxbegin = Data.indexOf("//EBEGIN");
+	if(idxbegin == -1)
+		return;
+	idxbegin += "//EBEGIN".length + 1;
+	var idxend = Data.indexOf("//EEND", idxbegin);
+	if(idxend == -1)
+		return;
+
+	Comp2 = new Date();
+
+	var STemp = S;
+
+	var idx = idxbegin;
+	while(idx < idxend)
+	{
+		var idx0 = Data.indexOf('\n', idx);
+		var s = Data.substring(idx, idx0);
+
+		console.log(s);
+		eval(s);
+
+		idx = idx0+1;
+
+	}
+	S.AA = "FISK";
+	SetGlobal("S", S); //Set global S to point to new object, while its preprocessed
+	Comp3 = new Date();
+
+
+	CompareFixup(STemp, S);
+	Preprocess_S();
+	STemp.MaxStack2 = S.MaxStack;
+	STemp.SecondActive = 1;
+
+
+	var Comp4 = new Date();
+
+	SetGlobal("S2", S);
+	SetGlobal("S", STemp);
+	console.log('file loaded ' + idxbegin + ' ' + idxend );
+	console.log('time ' + (Comp1 - Comp0));
+	console.log('time ' + (Comp2 - Comp1));
+	console.log('time ' + (Comp3 - Comp2).toFixed(2));
+	console.log('time ' + (Comp4 - Comp3).toFixed(2));
+	document.getElementById('file-input').removeEventListener('change', ReadHtmlFile, false);
+
+}
+
+function ComparePrompt()
+{
+	document.getElementById('file-input').addEventListener('change', ReadHtmlFile, false);
+	document.getElementById('file-input').click();
+}
+
 
 var mousewheelevt = (/Firefox/i.test(navigator.userAgent)) ? "DOMMouseScroll" : "mousewheel" //FF doesn't recognize mousewheel as of FF3.x
 

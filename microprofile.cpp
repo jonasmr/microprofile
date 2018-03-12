@@ -3742,7 +3742,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 		char FormattedLimit[64];
 		MicroProfileFormatCounter(S.CounterInfo[i].eFormat, nCounter, Formatted, sizeof(Formatted)-1);
 		MicroProfileFormatCounter(S.CounterInfo[i].eFormat, S.CounterInfo[i].nLimit, FormattedLimit, sizeof(FormattedLimit)-1);
-		MicroProfilePrintf(CB, Handle, "MakeCounter(%d, %d, %d, %d, %d, '%s', %lld, %lld, %lld, '%s', %lld, '%s', %f, %f, %d, S.CounterHistory%d),\n", 
+		MicroProfilePrintf(CB, Handle, "MakeCounter(%d, %d, %d, %d, %d, '%s', %lld, %lld, %lld, '%s', %lld, '%s', %f, %f, %d, S.CounterHistory%d),", 
 			i,
 			S.CounterInfo[i].nParent,
 			S.CounterInfo[i].nSibling,
