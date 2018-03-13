@@ -114,6 +114,7 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 		<li><a href="javascript:void(0)" onclick="ToggleDisableLod();">LodDisable</a></li>
 		<li id='GroupColors'><a href="javascript:void(0)" onclick="ToggleGroupColors();">Group Colors</a></li>
 		<li id='DrawDetailedFlameMode'><a href="javascript:void(0)" onclick="ToggleDetailedFlameMode();">Flame Mode</a></li>
+		<li><a href="javascript:void(0)" onclick="ToggleDetailedSecondReverse();">Compare Reverse</a></li>
 		<li id='ComparePromptLi'><a href="javascript:void(0)" onclick="ComparePrompt();">Compare</a></li>
         <li id='ShowHelp'><a href="javascript:void(0)" onclick="ShowHelp(1,1);">Help</a></li>
 <!--      	<li><a href="javascript:void(0)" onclick="ToggleDebug();">DEBUG</a></li> -->
@@ -405,6 +406,7 @@ var DisableLod = 0;
 var DisableMerge = 0;
 var GroupColors = 0;
 var DrawDetailedFlameMode = 0;
+var DrawDetailedCompareReverse = 1;
 var nModDown = 0;
 var g_MSG = 'no';
 var nDrawCount = 0;
@@ -1064,9 +1066,14 @@ function UpdateGroupColors()
 }
 function ToggleDetailedFlameMode()
 {
-	RequestRedraw();
 	DrawDetailedFlameMode = (DrawDetailedFlameMode+1)%3;
-}
+}	RequestRedraw();
+
+function ToggleDetailedSecondReverse()
+{
+	DrawDetailedCompareReverse = 1-DrawDetailedCompareReverse;
+}	RequestRedraw();
+
 function ToggleGroupColors()
 {
 	GroupColors = !GroupColors;
@@ -3045,11 +3052,11 @@ function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOf
 	}
 	else //debug: draw context switch without cswitch
 	{
-		for(var i = 0; i < 8; ++i)
-		{
-			context.fillStyle = CSwitchColors[i];
-			context.fillRect((nWidth * i / 8) + 10, fOffsetY, nWidth / 8 - 20, CSwitchHeight);
-		}
+		// for(var i = 0; i < 8; ++i)
+		// {
+		// 	context.fillStyle = CSwitchColors[i];
+		// 	context.fillRect((nWidth * i / 8) + 10, fOffsetY, nWidth / 8 - 20, CSwitchHeight);
+		// }
 
 
 	}
@@ -3113,8 +3120,10 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 	}
 
 	var BoxHeightScaled = BoxHeight;
+	var Scale = 1;
 	var fExtra = 0;
 	var Padding = 15;
+	var SecondReverseOffset = 0;
 	if(DrawDetailedFlameMode == 1)
 	{
 		BoxHeightScaled = Math.ceil(BoxHeight*0.5);
@@ -3125,8 +3134,13 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 		BoxHeightScaled = 0;
 		fExtra = 1;
 	}
+	if(DrawDetailedCompareReverse && bSecond)
+	{
+		Scale = -1;
+		BoxHeightScaled = -BoxHeightScaled;
+		SecondReverseOffset = 5-BoxHeight;
+	}
 	var BoxHeightScaledPos = Math.abs(BoxHeightScaled);
-
 	var Levels = [];
 	var BatchesTxtColor = ['#ffffff', '#333333'];
 
@@ -3262,16 +3276,23 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			if(nContextSwitchEnabled)
 			{
 				LogHeight += (CSwitchHeight+4);
-				LogHeight2 += (CSwitchHeight+4) * SMul;
+				LogHeight2 += (CSwitchHeight+4);
 			}
 			if(!S0.SecondActive)
 			{
 				LogHeight2 = 0;
 			}
 			var OY = fOffsetY;
-			if(bSecond)
+			if(!bSecond)
 			{
-				OY += LogHeight+1;
+				OY += LogHeight2+1;
+			}
+			else
+			{
+				if(DrawDetailedCompareReverse)
+				{
+					OY += LogHeight2 - 5;
+				}
 			}
 			
 			// if(!bSecond)
@@ -3337,15 +3358,15 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				{
 					context.strokeStyle = 'grey';
 					context.beginPath();
-					context.moveTo(0, OY+1);
-					context.lineTo(nWidth, OY+1);
+					context.moveTo(0, fOffsetY+1);
+					context.lineTo(nWidth, fOffsetY+1);
 					context.stroke();
 				}
 				else
 				{
 					context.globalAlpha = 0.1;
 					context.fillStyle = 'orange';
-					context.fillRect(0, OY, nWidth, LogHeight2);
+					context.fillRect(0, fOffsetY, nWidth, LogHeight2+4);
 					context.fillStyle = 'white';
 					context.globalAlpha = 1;
 
@@ -3369,7 +3390,8 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				if(nContextSwitchEnabled)
 				{
 					DrawContextSwitchBars(context, S.ThreadIds[nLog], fScaleX, OY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled);
-					OY += CSwitchHeight+2;
+					OY += Scale * (CSwitchHeight+2);
+					OY += SecondReverseOffset;
 				}
 				var MaxDepth = 1;
 				var StackPos = 0;
@@ -3413,6 +3435,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 							var timeend = time;
 							var X = (timestart - fDetailedOffset) * fScaleX;
 							var Y = OY + StackPos * BoxHeightScaled;
+
 							var W = (timeend-timestart)*fScaleX;
 
 							if(W > MinWidth && X < nWidth && X+W > 0)
@@ -4866,6 +4889,11 @@ function KeyUp(evt)
 		if(evt.keyCode == 187)
 		{
 			DrawDetailedFlameMode = (DrawDetailedFlameMode+1) % 3;
+			FilterSearchArray = new Array(); 
+		}
+		if(evt.keyCode == 189)
+		{
+			DrawDetailedCompareReverse = 1-DrawDetailedCompareReverse;
 			FilterSearchArray = new Array();
 		}
 		if(evt.keyCode == 32)
@@ -5132,6 +5160,10 @@ function ReadCookie()
 		{
 			DrawDetailedFlameMode = Obj.DrawDetailedFlameMode;
 		}
+		if(Obj.DrawDetailedCompareReverse)
+		{
+			DrawDetailedCompareReverse = Obj.DrawDetailedCompareReverse;
+		}
 		TimersGroups = Obj.TimersGroups?Obj.TimersGroups:0;
 	}
 	SetContextSwitch(nContextSwitchEnabled);
@@ -5155,6 +5187,7 @@ function WriteCookie()
 	Obj.ColumnsEnabled = ColumnsEnabled;
 	Obj.ToolTipCorner = ToolTipCorner;
 	Obj.DrawDetailedFlameMode = DrawDetailedFlameMode;
+	Obj.DrawDetailedCompareReverse = DrawDetailedCompareReverse;
 	if(nHideHelp)
 	{
 		Obj.nHideHelp = 1;
