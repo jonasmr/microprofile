@@ -3074,11 +3074,11 @@ const char g_MicroProfileHtml_end_2[] =
 "	}\n"
 "	else //debug: draw context switch without cswitch\n"
 "	{\n"
-"		// for(var i = 0; i < 8; ++i)\n"
-"		// {\n"
-"		// 	context.fillStyle = CSwitchColors[i];\n"
-"		// 	context.fillRect((nWidth * i / 8) + 10, fOffsetY, nWidth / 8 - 20, CSwitchHeight);\n"
-"		// }\n"
+"		for(var i = 0; i < 8; ++i)\n"
+"		{\n"
+"			context.fillStyle = CSwitchColors[i];\n"
+"			context.fillRect((nWidth * i / 8) + 10, fOffsetY, nWidth / 8 - 20, CSwitchHeight);\n"
+"		}\n"
 "\n"
 "\n"
 "	}\n"
@@ -3387,7 +3387,7 @@ const char g_MicroProfileHtml_end_2[] =
 "				else\n"
 "				{\n"
 "					context.globalAlpha = 0.1;\n"
-"					context.fillStyle = \'orange\';\n"
+"					context.fillStyle = \'red\';\n"
 "					context.fillRect(0, fOffsetY, nWidth, LogHeight2+4);\n"
 "					context.fillStyle = \'white\';\n"
 "					context.globalAlpha = 1;\n"
@@ -3413,8 +3413,8 @@ const char g_MicroProfileHtml_end_2[] =
 "				{\n"
 "					DrawContextSwitchBars(context, S.ThreadIds[nLog], fScaleX, OY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled);\n"
 "					OY += Scale * (CSwitchHeight+2);\n"
-"					OY += SecondReverseOffset;\n"
 "				}\n"
+"				OY += SecondReverseOffset;\n"
 "				var MaxDepth = 1;\n"
 "				var StackPos = 0;\n"
 "				var Stack = Array(20);\n"
@@ -4375,16 +4375,16 @@ const char g_MicroProfileHtml_end_2[] =
 "		CanvasDetailedOffscreen.style.height = nHeight + \'px\';\n"
 "		CanvasDetailedOffscreen.width = nWidth * DPR;\n"
 "		CanvasDetailedOffscreen.height = nHeight * DPR;\n"
-"		CanvasDetailedOffscreen.getContext(\'2d\').scale(DPR,DPR)";
-
-const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
-const char g_MicroProfileHtml_end_3[] =
-";\n"
+"		CanvasDetailedOffscreen.getContext(\'2d\').scale(DPR,DPR);\n"
 "\n"
 "	}\n"
 "	else\n"
 "	{\n"
-"		DPR = 1;\n"
+"		DP";
+
+const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
+const char g_MicroProfileHtml_end_3[] =
+"R = 1;\n"
 "		CanvasDetailedView.width = nWidth;\n"
 "		CanvasDetailedView.height = nHeight;\n"
 "		CanvasDetailedOffscreen.width = nWidth;\n"
@@ -5954,12 +5954,12 @@ const char g_MicroProfileHtml_end_3[] =
 "			var match = Matching[ID];\n"
 "			if(match)\n"
 "			{\n"
-"				if(match > Ids.length ";
+"				if(match > Ids.length || match < 0)\n"
+"					";
 
 const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
 const char g_MicroProfileHtml_end_4[] =
-"|| match < 0)\n"
-"					debugger;\n"
+"debugger;\n"
 "				Pairs[match] = i;\n"
 "				Pairs[i] = match;\n"
 "				if(match > i)\n"

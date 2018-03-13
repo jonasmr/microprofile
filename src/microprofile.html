@@ -3052,11 +3052,11 @@ function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOf
 	}
 	else //debug: draw context switch without cswitch
 	{
-		// for(var i = 0; i < 8; ++i)
-		// {
-		// 	context.fillStyle = CSwitchColors[i];
-		// 	context.fillRect((nWidth * i / 8) + 10, fOffsetY, nWidth / 8 - 20, CSwitchHeight);
-		// }
+		for(var i = 0; i < 8; ++i)
+		{
+			context.fillStyle = CSwitchColors[i];
+			context.fillRect((nWidth * i / 8) + 10, fOffsetY, nWidth / 8 - 20, CSwitchHeight);
+		}
 
 
 	}
@@ -3365,7 +3365,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				else
 				{
 					context.globalAlpha = 0.1;
-					context.fillStyle = 'orange';
+					context.fillStyle = 'red';
 					context.fillRect(0, fOffsetY, nWidth, LogHeight2+4);
 					context.fillStyle = 'white';
 					context.globalAlpha = 1;
@@ -3391,8 +3391,8 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				{
 					DrawContextSwitchBars(context, S.ThreadIds[nLog], fScaleX, OY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled);
 					OY += Scale * (CSwitchHeight+2);
-					OY += SecondReverseOffset;
 				}
+				OY += SecondReverseOffset;
 				var MaxDepth = 1;
 				var StackPos = 0;
 				var Stack = Array(20);
