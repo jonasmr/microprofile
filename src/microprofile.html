@@ -3050,15 +3050,14 @@ function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOf
 			}
 		}
 	}
-	else //debug: draw context switch without cswitch
+	else 
 	{
-		for(var i = 0; i < 8; ++i)
-		{
-			context.fillStyle = CSwitchColors[i];
-			context.fillRect((nWidth * i / 8) + 10, fOffsetY, nWidth / 8 - 20, CSwitchHeight);
-		}
-
-
+		//debug: draw context switch without cswitch
+		// for(var i = 0; i < 8; ++i)
+		// {
+		// 	context.fillStyle = CSwitchColors[i];
+		// 	context.fillRect((nWidth * i / 8) + 10, fOffsetY, nWidth / 8 - 20, CSwitchHeight);
+		// }
 	}
 	ProfileLeave();
 }
@@ -3080,10 +3079,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 	var fOffsetY = -nOffsetY + BoxHeight;
 
 
-	nHoverTokenNext = -1;
 	var nHoverTokenStack = -1;
-	nHoverTokenLogIndexNext = -1;
-	nHoverTokenIndexNext = -1;
 	nHoverCounter += nHoverCounterDelta;
 	if(nHoverCounter >= 255) 
 	{
@@ -3354,6 +3350,8 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					LodIndex = 0;
 				}
 
+if(bDrawEnabled)
+{
 				if(!bSecond)
 				{
 					context.strokeStyle = 'grey';
@@ -3371,6 +3369,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					context.globalAlpha = 1;
 
 				}
+			}
 				OY += 4;
 				// if(DrawGuides&& 0)
 				// {
@@ -3383,10 +3382,8 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				// 	context.fillText("" + nLog, 150 + nLog * 10, fOffsetY); 
 				// }
 				// // OY += BoxHeight;
-				context.textBaseline = 'top';
-				context.fillStyle = 'white';
-				context.fillText(ThreadName, 0, fOffsetY);
-				context.textBaseline = 'alphabetic';
+
+
 				if(nContextSwitchEnabled)
 				{
 					DrawContextSwitchBars(context, S.ThreadIds[nLog], fScaleX, OY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled);
@@ -3503,6 +3500,17 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 						}
 					}
 				}
+
+				var w =context.measureText(ThreadName).width;
+				context.fillStyle = nBackColors[0];
+				context.fillRect(0, fOffsetY+1, w, FontHeight);
+				context.textBaseline = 'top';
+				context.fillStyle = 'white';
+				context.fillText(ThreadName, 0, fOffsetY+1);
+				context.textBaseline = 'alphabetic';
+
+
+
 				fOffsetY += LogHeight + LogHeight2 + Padding;
 				// if(DrawGuides)
 				// {
@@ -3948,6 +3956,13 @@ function DrawDetailed(Animation)
 		Invalidate = 1;
 	}
 	nHoverTokenDrawn = nHoverToken;
+
+	nHoverTokenNext = -1;
+	nHoverTokenLogIndexNext = -1;
+	nHoverTokenIndexNext = -1;
+
+
+
 	if(Invalidate == 0) //when panning, only draw bars that are a certain width to keep decent framerate
 	{
 		context.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
