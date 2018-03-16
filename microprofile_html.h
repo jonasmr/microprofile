@@ -3461,13 +3461,13 @@ const char g_MicroProfileHtml_end_2[] =
 "							{\n"
 "								if(bDrawEnabled || index == nHoverToken)\n"
 "								{\n"
-"									var cid = S.TimerInfo[index].cid;\n"
+"									var cid = S0.TimerInfo[index].cid;\n"
 "									if(index == nHoverToken)\n"
 "									{\n"
 "										nHoverColorIndex = cid;\n"
 "										cid = cidhovercolor;\n"
 "									}\n"
-"									AddBatch(StackPos, cid, X, Y, W, S.TimerInfo[index].name, S.TimerInfo[index].len, timeend-timestart);\n"
+"									AddBatch(StackPos, cid, X, Y, W, S0.TimerInfo[index].name, S0.TimerInfo[index].len, timeend-timestart);\n"
 "								}\n"
 "\n"
 "								if(index == FilterSearchPassIndex)\n"
@@ -4387,11 +4387,11 @@ const char g_MicroProfileHtml_end_2[] =
 "		CanvasDetailedView.getContext(\'2d\').scale(DPR,DPR);\n"
 "\n"
 "		CanvasDetailedOffscreen.style.width = nWidth + \'px\';\n"
-"		CanvasDetailedOffscreen.style.heigh";
+"		CanvasDetailedOffscreen.style.he";
 
 const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
 const char g_MicroProfileHtml_end_3[] =
-"t = nHeight + \'px\';\n"
+"ight = nHeight + \'px\';\n"
 "		CanvasDetailedOffscreen.width = nWidth * DPR;\n"
 "		CanvasDetailedOffscreen.height = nHeight * DPR;\n"
 "		CanvasDetailedOffscreen.getContext(\'2d\').scale(DPR,DPR);\n"
@@ -5959,11 +5959,11 @@ const char g_MicroProfileHtml_end_3[] =
 "	var Pairs = Timeline.Pairs;\n"
 "	var Ids = Timeline.Ids;\n"
 "	var Ends = Timeline.Ends;\n"
-"	var Times = Timeli";
+"	var Times = Tim";
 
 const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
 const char g_MicroProfileHtml_end_4[] =
-"ne.Times;\n"
+"eline.Times;\n"
 "	if(Ids)\n"
 "	{\n"
 "		for(var i = 0; i < Ids.length; ++i)\n"
@@ -6083,7 +6083,7 @@ const char g_MicroProfileHtml_end_4[] =
 "//	fix hovertoken\n"
 "//	fix range display\n"
 "// 	todo: isgpu\n"
-"//  \n"
+"\n"
 "function CompareFixup(S0, S1) // S0 is the reference\n"
 "{\n"
 "	var GroupRemap = Array(S1.GroupInfo.length);\n"
@@ -6112,10 +6112,9 @@ const char g_MicroProfileHtml_end_4[] =
 "	for(var i = 0; i < S1.TimerInfo.length; ++i)\n"
 "	{\n"
 "		var TI = S1.TimerInfo[i];\n"
-"		var n = S1.TimerInfo[i].name;\n"
-"		var idx = S0.TimerInfo.findIndex(function(T){ return T.name == n; });\n"
-"		//todo:\n"
-"		// cid, timercid\n"
+"		var n = TI.name;\n"
+"		var g = GroupRemap[TI.group];\n"
+"		var idx = S0.TimerInfo.findIndex(function(T){ return T.name == n && T.group == g; });\n"
 "		TI.group = GroupRemap[TI.group];\n"
 "		if(idx != -1)\n"
 "		{\n"
@@ -6171,7 +6170,6 @@ const char g_MicroProfileHtml_end_4[] =
 "\n"
 "			Fix(ti[j], TimerRemap);\n"
 "			F.ti[ThreadRemap[j]] = ti[j];\n"
-"			S\n"
 "		}\n"
 "		for(var i = 0; i < NumThreads; ++i)\n"
 "		{\n"
@@ -6269,7 +6267,7 @@ const char g_MicroProfileHtml_end_4[] =
 "	console.log(\'time \' + (Comp3 - Comp2).toFixed(2));\n"
 "	console.log(\'time \' + (Comp4 - Comp3).toFixed(2));\n"
 "	document.getElementById(\'file-input\').removeEventListener(\'change\', ReadHtmlFile, false);\n"
-"\n"
+"	RequestRedraw();\n"
 "}\n"
 "\n"
 "function ComparePrompt()\n"

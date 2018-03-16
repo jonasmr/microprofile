@@ -3439,13 +3439,13 @@ if(bDrawEnabled)
 							{
 								if(bDrawEnabled || index == nHoverToken)
 								{
-									var cid = S.TimerInfo[index].cid;
+									var cid = S0.TimerInfo[index].cid;
 									if(index == nHoverToken)
 									{
 										nHoverColorIndex = cid;
 										cid = cidhovercolor;
 									}
-									AddBatch(StackPos, cid, X, Y, W, S.TimerInfo[index].name, S.TimerInfo[index].len, timeend-timestart);
+									AddBatch(StackPos, cid, X, Y, W, S0.TimerInfo[index].name, S0.TimerInfo[index].len, timeend-timestart);
 								}
 
 								if(index == FilterSearchPassIndex)
@@ -6053,6 +6053,7 @@ function SetGlobal(Name, Value)
 //	fix hovertoken
 //	fix range display
 // 	todo: isgpu
+
 function CompareFixup(S0, S1) // S0 is the reference
 {
 	var GroupRemap = Array(S1.GroupInfo.length);
@@ -6081,10 +6082,9 @@ function CompareFixup(S0, S1) // S0 is the reference
 	for(var i = 0; i < S1.TimerInfo.length; ++i)
 	{
 		var TI = S1.TimerInfo[i];
-		var n = S1.TimerInfo[i].name;
-		var idx = S0.TimerInfo.findIndex(function(T){ return T.name == n; });
-		//todo:
-		// cid, timercid
+		var n = TI.name;
+		var g = GroupRemap[TI.group];
+		var idx = S0.TimerInfo.findIndex(function(T){ return T.name == n && T.group == g; });
 		TI.group = GroupRemap[TI.group];
 		if(idx != -1)
 		{
@@ -6140,7 +6140,6 @@ function CompareFixup(S0, S1) // S0 is the reference
 
 			Fix(ti[j], TimerRemap);
 			F.ti[ThreadRemap[j]] = ti[j];
-			S
 		}
 		for(var i = 0; i < NumThreads; ++i)
 		{
@@ -6238,7 +6237,7 @@ function ParseCompareData(Data)
 	console.log('time ' + (Comp3 - Comp2).toFixed(2));
 	console.log('time ' + (Comp4 - Comp3).toFixed(2));
 	document.getElementById('file-input').removeEventListener('change', ReadHtmlFile, false);
-
+	RequestRedraw();
 }
 
 function ComparePrompt()
