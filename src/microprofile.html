@@ -275,6 +275,12 @@ function MakeTimer(id, name, group, color, colordark, average, max, min, exclave
 	var timer = {"id":id, "name":name, "len":name.length, "cid":cid, "timercid":cid, "group":group, "average":average, "max":max, "min":min, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "spike":spike,"total":total, "meta":meta, "metaavg":metaavg, "metamax":metamax, "worst":0, "worststart":0, "worstend":0};
 	return timer;
 }
+
+function CloneTimer(T)
+{
+	return MakeTimer(T.id, T.name, T.group, g_ColorMap[T.cid], g_ColorMap[t.cid], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
 function MakeFrame(id, framestart, frameend, framestartgpu, frameendgpu, ts, tt, ti)
 {
 	var frame = {"id":id, "framestart":framestart, "frameend":frameend, "framestartgpu":framestartgpu, "frameendgpu":frameendgpu, "ts":ts, "tt":tt, "ti":ti};
@@ -3101,7 +3107,9 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 	var nNumLogs = S.Frames[0].ts.length;
 	if(S0)
 	{
-		if(S0.Frames[0].ts.length != S.Frames[0].ts.length)
+		var l0 = S0.Frames[0].ts.length;
+		var l1 = S.Frames[0].ts.length
+		if(l1 != l0)
 			debugger;
 	}
 	var fTimeEnd = fDetailedOffset + fDetailedRange;
@@ -3350,26 +3358,35 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					LodIndex = 0;
 				}
 
-if(bDrawEnabled)
-{
-				if(!bSecond)
+				if(bDrawEnabled)
 				{
-					context.strokeStyle = 'grey';
-					context.beginPath();
-					context.moveTo(0, fOffsetY+1);
-					context.lineTo(nWidth, fOffsetY+1);
-					context.stroke();
-				}
-				else
-				{
-					context.globalAlpha = 0.1;
-					context.fillStyle = 'red';
-					context.fillRect(0, fOffsetY, nWidth, LogHeight2+4);
-					context.fillStyle = 'white';
-					context.globalAlpha = 1;
+					if(!bSecond)
+					{
+						//todo: try out some more..	
+						// var grd=context.createLinearGradient(0,fOffsetY+1,0,fOffsetY+1+LogHeight);
+						// grd.addColorStop(0,nBackColors[0]);
+						// grd.addColorStop(1,nBackColors[1]);
+						// context.fillStyle=grd;
+						// context.fillRect(0,fOffsetY+1,nWidth,LogHeight);
 
+						context.strokeStyle = 'grey';
+						context.beginPath();
+						context.moveTo(0, fOffsetY+1);
+						context.lineTo(nWidth, fOffsetY+1);
+						context.stroke();
+
+
+					}
+					else
+					{
+						context.globalAlpha = 0.1;
+						context.fillStyle = 'red';
+						context.fillRect(0, fOffsetY, nWidth, LogHeight2+4);
+						context.fillStyle = 'white';
+						context.globalAlpha = 1;
+
+					}
 				}
-			}
 				OY += 4;
 				// if(DrawGuides&& 0)
 				// {
@@ -5676,6 +5693,10 @@ function PreprocessFindFirstFrames()
 	for(var i = 0; i < S.Frames.length; i++)
 	{
 		S.Frames[i].FirstFrameIndex = new Array(nNumLogs);
+		for(var j = 0; j < S.Frames[i].FirstFrameIndex.length; ++j)
+		{
+			S.Frames[i].FirstFrameIndex[j] = 0;
+		}
 	}
 
 	var StackPos = 0;
@@ -6098,6 +6119,10 @@ function CompareFixup(S0, S1) // S0 is the reference
 			S0.TimerInfo.push(TI);
 		}
 	}
+
+	var NumThreads = S0.ThreadNames.length;
+
+
 	for(var i = 0; i < S1.ThreadNames.length; ++i)
 	{
 		var n = S1.ThreadNames[i];
@@ -6110,22 +6135,54 @@ function CompareFixup(S0, S1) // S0 is the reference
 		{
 			ThreadRemap[i] = S0.ThreadNames.length;
 			S0.ThreadNames.push(n);
+			NumThreads++;
 		}
 	}
-	function Fix(a, r)
+	var Fix = function(a, r)
 	{
 		for(var i in a)
 		{
 			a[i] = r[a[i]];
 		}
+	};
+	var FixArray = function(a, s)
+	{
+		if(!s)
+			return;
+		for(var i = 0; i < a.length; ++i)
+		{
+			if(!a[i])
+				a[i] = [];
+		}
+		while(a.length != s)
+			a.push([]);
+	};
+
+	for(var i in S0.Frames)
+	{
+		var F = S0.Frames[i];
+		FixArray(F.ti, NumThreads);
+		FixArray(F.ts, NumThreads);
+		FixArray(F.tt, NumThreads);
+
+		// for(var j = F.FirstFrameIndex.length; j < NumThreads; ++j)
+		// {
+		// 	F.FirstFrameIndex.push(100000); //nothing here..
+		// }
 	}
-	var NumThreads = S0.ThreadNames.length;
+	console.log("********** ", NumThreads);
+	console.log("********** ", NumThreads);
+	console.log("********** ", NumThreads);
+	console.log("********** ", NumThreads);
+
 	for(var i in S1.Frames)
 	{
 		var F = S1.Frames[i];
 		var ti = F.ti;
 		var ts = F.ts;
 		var tt = F.tt;
+		var FirstFrameIndex = F.FirstFrameIndex;
+
 		if(ti.length < NumThreads)
 			debugger;
 		if(ts.length < NumThreads)
@@ -6135,6 +6192,19 @@ function CompareFixup(S0, S1) // S0 is the reference
 		F.ti = new Array(NumThreads);
 		F.ts = new Array(NumThreads);
 		F.tt = new Array(NumThreads);
+		
+		// F.FirstFrameIndex = new Array(NumThreads);
+
+		// for(var j = 0; j < F.FirstFrameIndex.length; ++j)
+		// {
+		// 	F.FirstFrameIndex[j] = 10000000; //default to skip everything
+		// }
+		// for(var j = 0; j < FirstFrameIndex.length; ++j)
+		// {
+		// 	F.FirstFrameIndex[ThreadRemap[j]] = FirstFrameIndex[j]; //default to skip everything
+		// }
+
+
 		for(var j in ti)
 		{
 
@@ -6164,9 +6234,40 @@ function CompareFixup(S0, S1) // S0 is the reference
 			if(!F.tt[i])
 				debugger;
 		}
+		//assert length is the same
+		if(F.tt.length != S0.Frames[0].tt.length)
+		{
+			debugger;
+		}
+		if(F.ti.length != S0.Frames[0].ti.length)
+		{
+			debugger;
+		}
+		if(F.ts.length != S0.Frames[0].ts.length)
+		{
+			debugger;
+		}
+		console.log('log ' + i +  ':', F.ts.length, ':', F.ti.length, ':', F.tt.length);
 	}
-
 	//todo fixup all fields??
+
+	var NewTimerInfo = Array(S0.TimerInfo.length);
+	for(var i = 0; i < S1.TimerInfo.length; ++i)
+	{
+		NewTimerInfo[TimerRemap[i]] = S1.TimerInfo[i];
+	}
+	for(var i = 0; i < NewTimerInfo.length; ++i)
+	{
+		if(!NewTimerInfo[i])
+		{
+			NewTimerInfo[i] = CloneTimer(S0.TimerInfo[i]);
+		}
+	}
+	S1.TimerInfo = NewTimerInfo;
+
+
+
+
 }
 function ReadHtmlFile(e)
 {
@@ -6190,6 +6291,17 @@ function ReadHtmlFile(e)
 
 function ParseCompareData(Data)
 {
+	var dumpmax = function(S)
+	{
+		var s = "maxstack ";
+		for(var i = 0; i < S.length; ++i)
+		{
+			s += ", " + S[i];
+		}
+		console.log(s);
+	};
+
+	dumpmax(S.MaxStack);
 	S.AA = "GED";
 	Comp1 = new Date();
 	var idxbegin = Data.indexOf("//EBEGIN");
@@ -6223,14 +6335,25 @@ function ParseCompareData(Data)
 
 	CompareFixup(STemp, S);
 	Preprocess_S();
-	STemp.MaxStack2 = S.MaxStack;
-	STemp.SecondActive = 1;
 
+	var MaxStack2 = S.MaxStack;
 
 	var Comp4 = new Date();
 
 	SetGlobal("S2", S);
 	SetGlobal("S", STemp);
+
+	Preprocess_S();
+
+
+	dumpmax(S.MaxStack);
+
+
+	STemp.MaxStack2 = S.MaxStack;
+	S.MaxStack2 = STemp.MaxStack;
+	STemp.SecondActive = 1;
+
+
 	console.log('file loaded ' + idxbegin + ' ' + idxend );
 	console.log('time ' + (Comp1 - Comp0));
 	console.log('time ' + (Comp2 - Comp1));
