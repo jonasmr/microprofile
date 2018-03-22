@@ -107,7 +107,7 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
         <li><a>---</a></li>
     </ul>
 </li>
-<li id="ilOptions"><a>Options&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</a>
+<li id="ilOptions"><a>Options</a>
     <ul id='OptionsMenu'>
         <li><a href="javascript:void(0)" onclick="ToggleContextSwitch();">Context Switch</a></li>
 		<li><a href="javascript:void(0)" onclick="ToggleDisableMerge();">MergeDisable</a></li>
@@ -120,6 +120,8 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 <!--      	<li><a href="javascript:void(0)" onclick="ToggleDebug();">DEBUG</a></li> -->
     </ul>
 </li>
+<li><a href="javascript:void(0)" onclick="ComparePrompt();">Compare</a></li>
+
 </ul>
 </div>
 <div class="helpstart" id="helpwindow" style="left:20px;top:20px">
@@ -261,9 +263,16 @@ function InvertColorIndex(hexTripletColor) {
 		return 1;
 	}
 }
+
 function MakeGroup(id, name, category, numtimers, isgpu, total, average, max, color)
 {
 	var cid = GetColorIndex(color);
+	var group = {"id":id, "name":name, "category":category, "numtimers":numtimers, "isgpu":isgpu, "total": total, "average" : average, "max" : max, "cid":cid};
+	return group;
+}
+
+function MakeGroupCid(id, name, category, numtimers, isgpu, total, average, max, color, cid)
+{
 	var group = {"id":id, "name":name, "category":category, "numtimers":numtimers, "isgpu":isgpu, "total": total, "average" : average, "max" : max, "cid":cid};
 	return group;
 }
@@ -276,9 +285,20 @@ function MakeTimer(id, name, group, color, colordark, average, max, min, exclave
 	return timer;
 }
 
+function MakeTimerCid(id, name, group, cid, average, max, min, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax)
+{
+	var spike = max <= 0 || average <= 0 ? 0 : (100 * max / average);
+	var timer = {"id":id, "name":name, "len":name.length, "cid":cid, "timercid":cid, "group":group, "average":average, "max":max, "min":min, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "spike":spike,"total":total, "meta":meta, "metaavg":metaavg, "metamax":metamax, "worst":0, "worststart":0, "worstend":0};
+	return timer;
+}
+
 function CloneTimer(T)
 {
-	return MakeTimer(T.id, T.name, T.group, g_ColorMap[T.cid], g_ColorMap[t.cid], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+	return MakeTimerCid(T.id, T.name, T.group, T.cid, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+function CloneGroup(G)
+{
+	return MakeGroupCid(G.id, G.name, G.category, G.numtimers, G.isgpu, G.total, G.average, G.max, G.cid);
 }
 
 function MakeFrame(id, framestart, frameend, framestartgpu, frameendgpu, ts, tt, ti)
@@ -5799,7 +5819,7 @@ function PreprocessWidths()
 	S.GroupNameWidth = 0;
 	for(var i = 0; i < S.TimerInfo.length; ++i)
 	{
-		var str = S.GroupInfo[S.TimerInfo[i].group].name + "XXX" + S.TimerInfo[i].name;
+		var str = S.GroupInfo[S.TimerInfo[i].group].name + "XXX" + S.TimerInfo[i].name;		
 		var width = context.measureText(str).width;
 		var widthname = context.measureText(S.TimerInfo[i].name).width;
 		S.TimerInfo[i].wtotal = width;
@@ -6067,19 +6087,39 @@ function SetGlobal(Name, Value)
 
 
 //compare todo:
-//	Match threads
-//	match tokens.
-//	Calculate shared screen positions.
-//	Invert second pass
-//	fix hovertoken
-//	fix range display
+//	**Match threads
+//	**match tokens.
+//	**Calculate shared screen positions.
+//	**Invert second pass
+//	**fix hovertoken
+//	**fix range display
 // 	todo: isgpu
+//  todo: group numtimers.
+//	implement timer view
 
 function CompareFixup(S0, S1) // S0 is the reference
 {
+	var GroupRemapReverse = Array(S0.GroupInfo.length);
 	var GroupRemap = Array(S1.GroupInfo.length);
 	var ThreadRemap = Array(S1.ThreadNames.length);
 	var TimerRemap = Array(S1.TimerInfo.length);
+
+	// var dump = function(SS, str)
+	// {
+	// 	console.log(str);
+	// 	for(var i = 0; i < SS.GroupInfo.length; ++i)
+	// 	{
+	// 		console.log("G" + i + ":" + SS.GroupInfo[i].name);
+	// 	}
+	// 	for(var i = 0; i < SS.TimerInfo.length; ++i)
+	// 	{
+	// 		console.log("T" + i + ":" + SS.TimerInfo[i].name);
+	// 	}
+	
+	// };
+	// dump(S0, "S0be4");
+	// dump(S1, "S1be4");
+
 	for(var i = 0; i < S1.GroupInfo.length; ++i)
 	{
 		var n = S1.GroupInfo[i].name;
@@ -6164,16 +6204,7 @@ function CompareFixup(S0, S1) // S0 is the reference
 		FixArray(F.ti, NumThreads);
 		FixArray(F.ts, NumThreads);
 		FixArray(F.tt, NumThreads);
-
-		// for(var j = F.FirstFrameIndex.length; j < NumThreads; ++j)
-		// {
-		// 	F.FirstFrameIndex.push(100000); //nothing here..
-		// }
 	}
-	console.log("********** ", NumThreads);
-	console.log("********** ", NumThreads);
-	console.log("********** ", NumThreads);
-	console.log("********** ", NumThreads);
 
 	for(var i in S1.Frames)
 	{
@@ -6181,36 +6212,18 @@ function CompareFixup(S0, S1) // S0 is the reference
 		var ti = F.ti;
 		var ts = F.ts;
 		var tt = F.tt;
-		var FirstFrameIndex = F.FirstFrameIndex;
 
-		if(ti.length < NumThreads)
-			debugger;
-		if(ts.length < NumThreads)
-			debugger;
-		if(tt.length < NumThreads)
-			debugger;
 		F.ti = new Array(NumThreads);
 		F.ts = new Array(NumThreads);
 		F.tt = new Array(NumThreads);
 		
-		// F.FirstFrameIndex = new Array(NumThreads);
-
-		// for(var j = 0; j < F.FirstFrameIndex.length; ++j)
-		// {
-		// 	F.FirstFrameIndex[j] = 10000000; //default to skip everything
-		// }
-		// for(var j = 0; j < FirstFrameIndex.length; ++j)
-		// {
-		// 	F.FirstFrameIndex[ThreadRemap[j]] = FirstFrameIndex[j]; //default to skip everything
-		// }
-
-
 		for(var j in ti)
 		{
 
 			Fix(ti[j], TimerRemap);
 			F.ti[ThreadRemap[j]] = ti[j];
 		}
+		FixArray(F.ti, NumThreads);
 		for(var i = 0; i < NumThreads; ++i)
 		{
 			if(!F.ti[i])
@@ -6220,6 +6233,7 @@ function CompareFixup(S0, S1) // S0 is the reference
 		{
 			F.ts[ThreadRemap[j]] = ts[j];
 		}
+		FixArray(F.ts, NumThreads);
 		for(var i = 0; i < NumThreads; ++i)
 		{
 			if(!F.ts[i])
@@ -6229,6 +6243,8 @@ function CompareFixup(S0, S1) // S0 is the reference
 		{
 			F.tt[ThreadRemap[j]] = tt[j];
 		}
+		FixArray(F.tt, NumThreads);
+
 		for(var i = 0; i < NumThreads; ++i)
 		{
 			if(!F.tt[i])
@@ -6247,23 +6263,96 @@ function CompareFixup(S0, S1) // S0 is the reference
 		{
 			debugger;
 		}
-		console.log('log ' + i +  ':', F.ts.length, ':', F.ti.length, ':', F.tt.length);
+		// console.log('log ' + i +  ':', F.ts.length, ':', F.ti.length, ':', F.tt.length);
 	}
-	//todo fixup all fields??
 
 	var NewTimerInfo = Array(S0.TimerInfo.length);
 	for(var i = 0; i < S1.TimerInfo.length; ++i)
 	{
-		NewTimerInfo[TimerRemap[i]] = S1.TimerInfo[i];
+		let xx = TimerRemap[i];
+		NewTimerInfo[xx] = S1.TimerInfo[i];
+		NewTimerInfo[xx].id = xx;
+		NewTimerInfo[xx].group = S0.TimerInfo[xx].group;
+		
+		if(NewTimerInfo[xx].id != S0.TimerInfo[xx].id)
+		{
+			debugger;
+		}
+		if(NewTimerInfo[xx].group != S0.TimerInfo[xx].group)
+		{
+			debugger;
+		}
+
 	}
 	for(var i = 0; i < NewTimerInfo.length; ++i)
 	{
 		if(!NewTimerInfo[i])
 		{
 			NewTimerInfo[i] = CloneTimer(S0.TimerInfo[i]);
+			NewTimerInfo[i].id = i;
+			if(NewTimerInfo[i].id != S0.TimerInfo[i].id)
+			{
+				debugger;
+			}
+			if(NewTimerInfo[i].group != S0.TimerInfo[i].group)
+			{
+				debugger;
+			}
+	
 		}
 	}
 	S1.TimerInfo = NewTimerInfo;
+	var NewGroupInfo = Array(S0.GroupInfo.length);
+
+	for(let i = 0; i < S1.GroupInfo.length; ++i)
+	{
+		let xx = GroupRemap[i];
+		NewGroupInfo[xx] = S1.GroupInfo[i];
+		NewGroupInfo[xx].id = xx;
+	}
+	for(let i = 0; i < NewGroupInfo.length; ++i)
+	{
+		if(!NewGroupInfo[i])
+		{
+			NewGroupInfo[i] = CloneGroup(S0.GroupInfo[i]);
+			NewGroupInfo[i].id = i;
+		}
+	}
+	S1.GroupInfo = NewGroupInfo;
+	for(let i = 0; i < S1.GroupInfo.length; ++i)
+	{
+		if(S1.GroupInfo[i].id != i)
+			debugger;
+		if(S0.GroupInfo[i].id != i)
+			debugger;
+	}
+
+	//debugging:
+	if(S0.TimerInfo.length != S1.TimerInfo.length)
+		debugger;
+	for(let i = 0; i < S0.TimerInfo.length; ++i)
+	{
+		let t0 = S0.TimerInfo[i];
+		let t1 = S1.TimerInfo[i];
+		if(t0.id != t1.id)
+			debugger;
+		if(t0.name != t1.name)
+			debugger;
+		if(t0.group != t1.group)
+			debugger;
+	}
+
+	if(S0.GroupInfo.length != S1.GroupInfo.length)
+		debugger;
+	for(let i = 0; i < S0.GroupInfo.length; ++i)
+	{
+		let t0 = S0.GroupInfo[i];
+		let t1 = S1.GroupInfo[i];
+		if(t0.id != t1.id)
+			debugger;
+		if(t0.name != t1.name)
+			debugger;
+	}
 
 
 
@@ -6278,7 +6367,10 @@ function ReadHtmlFile(e)
 	}
 	var Reader = new FileReader();
 	Reader.onload = function(e) {
-		ParseCompareData(e.target.result);
+		if(!ParseCompareData(e.target.result))
+		{
+			ShowFlashMessage("Failed to parse file", 50);
+		}
 	};
 	Reader.onprogress = function(e)
 	{
@@ -6291,67 +6383,50 @@ function ReadHtmlFile(e)
 
 function ParseCompareData(Data)
 {
-	var dumpmax = function(S)
-	{
-		var s = "maxstack ";
-		for(var i = 0; i < S.length; ++i)
-		{
-			s += ", " + S[i];
-		}
-		console.log(s);
-	};
-
-	dumpmax(S.MaxStack);
-	S.AA = "GED";
+	S.AA = "Original";
 	Comp1 = new Date();
+	
 	var idxbegin = Data.indexOf("//EBEGIN");
 	if(idxbegin == -1)
-		return;
+		return false;
 	idxbegin += "//EBEGIN".length + 1;
 	var idxend = Data.indexOf("//EEND", idxbegin);
 	if(idxend == -1)
-		return;
+		return false;
 
 	Comp2 = new Date();
-
-	var STemp = S;
+	var SOriginal = S;
 
 	var idx = idxbegin;
 	while(idx < idxend)
 	{
 		var idx0 = Data.indexOf('\n', idx);
 		var s = Data.substring(idx, idx0);
-
-		console.log(s);
+		// console.log(s);
 		eval(s);
-
 		idx = idx0+1;
-
 	}
-	S.AA = "FISK";
+
+	S.AA = "Parsed";
+	var SParsed = S;   //note: the calls to eval, will make a new "S" in local scope.
 	SetGlobal("S", S); //Set global S to point to new object, while its preprocessed
 	Comp3 = new Date();
 
 
-	CompareFixup(STemp, S);
+	CompareFixup(SOriginal, SParsed);
 	Preprocess_S();
 
-	var MaxStack2 = S.MaxStack;
+	var MaxStack2 = SParsed.MaxStack;
 
 	var Comp4 = new Date();
+	SetGlobal("S2", SParsed);
+	SetGlobal("S", SOriginal);
 
-	SetGlobal("S2", S);
-	SetGlobal("S", STemp);
+	Preprocess_S(); //since indices are rebased, a repreprocessing is needed.
 
-	Preprocess_S();
-
-
-	dumpmax(S.MaxStack);
-
-
-	STemp.MaxStack2 = S.MaxStack;
-	S.MaxStack2 = STemp.MaxStack;
-	STemp.SecondActive = 1;
+	SOriginal.MaxStack2 = SParsed.MaxStack;
+	SParsed.MaxStack2 = SOriginal.MaxStack;
+	SOriginal.SecondActive = 1;
 
 
 	console.log('file loaded ' + idxbegin + ' ' + idxend );
@@ -6361,6 +6436,7 @@ function ParseCompareData(Data)
 	console.log('time ' + (Comp4 - Comp3).toFixed(2));
 	document.getElementById('file-input').removeEventListener('change', ReadHtmlFile, false);
 	RequestRedraw();
+	return true;
 }
 
 function ComparePrompt()
