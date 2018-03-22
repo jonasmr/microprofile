@@ -115,13 +115,11 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 		<li id='GroupColors'><a href="javascript:void(0)" onclick="ToggleGroupColors();">Group Colors</a></li>
 		<li id='DrawDetailedFlameMode'><a href="javascript:void(0)" onclick="ToggleDetailedFlameMode();">Flame Mode</a></li>
 		<li><a href="javascript:void(0)" onclick="ToggleDetailedSecondReverse();">Compare Reverse</a></li>
-		<li id='ComparePromptLi'><a href="javascript:void(0)" onclick="ComparePrompt();">Compare</a></li>
         <li id='ShowHelp'><a href="javascript:void(0)" onclick="ShowHelp(1,1);">Help</a></li>
 <!--      	<li><a href="javascript:void(0)" onclick="ToggleDebug();">DEBUG</a></li> -->
     </ul>
 </li>
-<li><a href="javascript:void(0)" onclick="ComparePrompt();">Compare</a></li>
-
+<li><a id='ComparePromptA' href="javascript:void(0)" onclick="ComparePrompt();">Compare</a></li>
 </ul>
 </div>
 <div class="helpstart" id="helpwindow" style="left:20px;top:20px">
@@ -6435,6 +6433,8 @@ function ParseCompareData(Data)
 	console.log('time ' + (Comp3 - Comp2).toFixed(2));
 	console.log('time ' + (Comp4 - Comp3).toFixed(2));
 	document.getElementById('file-input').removeEventListener('change', ReadHtmlFile, false);
+	let CompStr = 'Compare [' + document.getElementById('file-input').value + ']';
+	document.getElementById('ComparePromptA').innerHTML = CompStr;
 	RequestRedraw();
 	return true;
 }
