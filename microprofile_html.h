@@ -3287,16 +3287,18 @@ const char g_MicroProfileHtml_end_2[] =
 "				var X = (TimeStart - fDetailedOffset) * fScaleX;\n"
 "				var Y = fOffsetY + P * (BoxHeight+2);\n"
 "				var W = (TimeEnd-TimeStart)*fScaleX;\n"
-"\n"
-"				if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)\n"
+"				if(!bSecond)\n"
 "				{\n"
-"					RangeCpuNext.Begin = TimeStart;\n"
-"					RangeCpuNext.End = TimeEnd;\n"
-"					RangeCpuNext.Thread = -1;\n"
-"					nHoverColorIndex = Color;\n"
-"					Color = cidhovercolor;\n"
+"					if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)\n"
+"					{\n"
+"						RangeCpuNext.Begin = TimeStart;\n"
+"						RangeCpuNext.End = TimeEnd;\n"
+"						RangeCpuNext.Thread = -1;\n"
+"						nHoverColorIndex = Color;\n"
+"						Color = cidhovercolor;\n"
+"					}\n"
+"					AddBatch(0, Color, X, Y, W, Name, Name.length, TimeEnd-TimeStart);\n"
 "				}\n"
-"				AddBatch(0, Color, X, Y, W, Name, Name.length, TimeEnd-TimeStart);\n"
 "			}\n"
 "		}\n"
 "		fOffsetY += (1+MaxPosition) * (BoxHeight+3);\n"
@@ -3425,6 +3427,16 @@ const char g_MicroProfileHtml_end_2[] =
 "						context.fillStyle = \'white\';\n"
 "						context.globalAlpha = 1;\n"
 "\n"
+"					}\n"
+"				}\n"
+"				if(!bSecond && !bDrawEnabled)\n"
+"				{\n"
+"					if(Math.abs(fOffsetY+10 - DetailedViewMouseY) < 10)\n"
+"					{\n"
+"						context.globalAlpha = 0.3;\n"
+"						context.fillStyle = \'grey\';\n"
+"						context.fillRect(0, fOffsetY+2, nWidth,  LogHeight2 + LogHeight);\n"
+"						context.globalAlpha = 1.0;\n"
 "					}\n"
 "				}\n"
 "				OY += 4;\n"
@@ -4404,7 +4416,11 @@ const char g_MicroProfileHtml_end_2[] =
 "}\n"
 "function ResizeCanvas() \n"
 "{\n"
-"	nWidth = window.innerWidth;\n"
+"	nWidth = wind";
+
+const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
+const char g_MicroProfileHtml_end_3[] =
+"ow.innerWidth;\n"
 "	nHeight = window.innerHeight - CanvasHistory.height-2;\n"
 "	DPR = window.devicePixelRatio;\n"
 "\n"
@@ -4414,11 +4430,7 @@ const char g_MicroProfileHtml_end_2[] =
 "		CanvasDetailedView.style.height = nHeight + \'px\';\n"
 "		CanvasDetailedView.width = nWidth * DPR;\n"
 "		CanvasDetailedView.height = nHeight * DPR;\n"
-"		CanvasHistory.sty";
-
-const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
-const char g_MicroProfileHtml_end_3[] =
-"le.width = window.innerWidth + \'px\';\n"
+"		CanvasHistory.style.width = window.innerWidth + \'px\';\n"
 "		CanvasHistory.style.height = 70 + \'px\';\n"
 "		CanvasHistory.width = window.innerWidth * DPR;\n"
 "		CanvasHistory.height = 70 * DPR;\n"
@@ -5941,7 +5953,11 @@ const char g_MicroProfileHtml_end_3[] =
 "		if(!Invalid)\n"
 "		{\n"
 "			var idx = Track.b.length;\n"
-"			Track.b.push(b);\n"
+"			Track.b.push(b)";
+
+const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
+const char g_MicroProfileHtml_end_4[] =
+";\n"
 "			Track.e.push(e);\n"
 "			Track.k.push(k);\n"
 "			Track.n.push(next);\n"
@@ -5969,11 +5985,7 @@ const char g_MicroProfileHtml_end_3[] =
 "\n"
 "	var AddToTrack = function(b, e, k)\n"
 "	{\n"
-"		";
-
-const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
-const char g_MicroProfileHtml_end_4[] =
-"var Tracks = Timeline.Tracks;\n"
+"		var Tracks = Timeline.Tracks;\n"
 "\n"
 "		for(var i = 0; i < Tracks.length; ++i)\n"
 "		{\n"

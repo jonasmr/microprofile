@@ -3265,16 +3265,18 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				var X = (TimeStart - fDetailedOffset) * fScaleX;
 				var Y = fOffsetY + P * (BoxHeight+2);
 				var W = (TimeEnd-TimeStart)*fScaleX;
-
-				if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
+				if(!bSecond)
 				{
-					RangeCpuNext.Begin = TimeStart;
-					RangeCpuNext.End = TimeEnd;
-					RangeCpuNext.Thread = -1;
-					nHoverColorIndex = Color;
-					Color = cidhovercolor;
+					if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
+					{
+						RangeCpuNext.Begin = TimeStart;
+						RangeCpuNext.End = TimeEnd;
+						RangeCpuNext.Thread = -1;
+						nHoverColorIndex = Color;
+						Color = cidhovercolor;
+					}
+					AddBatch(0, Color, X, Y, W, Name, Name.length, TimeEnd-TimeStart);
 				}
-				AddBatch(0, Color, X, Y, W, Name, Name.length, TimeEnd-TimeStart);
 			}
 		}
 		fOffsetY += (1+MaxPosition) * (BoxHeight+3);
@@ -3403,6 +3405,16 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 						context.fillStyle = 'white';
 						context.globalAlpha = 1;
 
+					}
+				}
+				if(!bSecond && !bDrawEnabled)
+				{
+					if(Math.abs(fOffsetY+10 - DetailedViewMouseY) < 10)
+					{
+						context.globalAlpha = 0.3;
+						context.fillStyle = 'grey';
+						context.fillRect(0, fOffsetY+2, nWidth,  LogHeight2 + LogHeight);
+						context.globalAlpha = 1.0;
 					}
 				}
 				OY += 4;
