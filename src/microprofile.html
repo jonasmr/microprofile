@@ -3156,11 +3156,11 @@ function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOf
 	else 
 	{
 		//debug: draw context switch without cswitch
-		// for(var i = 0; i < 8; ++i)
-		// {
-		// 	context.fillStyle = CSwitchColors[i];
-		// 	context.fillRect((nWidth * i / 8) + 10, fOffsetY, nWidth / 8 - 20, CSwitchHeight);
-		// }
+		for(var i = 0; i < 8; ++i)
+		{
+			context.fillStyle = CSwitchColors[i];
+			context.fillRect((nWidth * i / 8) + 10, fOffsetY, nWidth / 8 - 20, CSwitchHeight);
+		}
 	}
 	ProfileLeave();
 }
@@ -3434,6 +3434,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 
 		for(let i = 0; i < nNumLogs; i++)
 		{
+			let fOffsetYDelta = 0;
 			let nLog = ThreadOrderT[i];
 			var ThreadName = S0.ThreadNames[nLog];
 			ThreadY[nLog] = fOffsetY;
@@ -3608,6 +3609,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				var HasSetHover = 0;
 
 
+
 				for(let j = IndexStart; j < IndexEnd; ++j)
 				{
 					var type = TypeArray[j];
@@ -3702,36 +3704,22 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 						}
 					}
 				}
-
-
-				var w = context.measureText(ThreadName).width;
-				context.fillStyle = nBackColors[0];
-				context.fillRect(0, fOffsetY+1, w, FontHeight);
-				context.textBaseline = 'top';
-				context.fillStyle = 'white';
-				context.fillText(ThreadName, 0, fOffsetY+1);
-				if(ThreadHover)
+				if(HasSetHover)
 				{
-					DrawDetailedButtons(context, nWidth, fOffsetY+1, ["\u2191\u2191\u2191", "\u2193\u2193\u2193", "\u2191", "\u2193"], 
-						[function(){ThreadOrderMoveUp(ThreadName,1);}, function(){ThreadOrderMoveDown(ThreadName,1);},
-						function(){ThreadOrderMoveUp(ThreadName);}, function(){ThreadOrderMoveDown(ThreadName);}],
-						 "right");
-
-
-					// DrawDetailedButtons(context, nWidth, fOffsetY+1, ["\u2191\u2191\u2191", "\u2193\u2193\u2193"], 
-					// 	[function(){ThreadOrderMoveUp(ThreadName);}, function(){ThreadOrderMoveDown(ThreadName);}],
-					// 	 "right");
-					if(MouseReleased)
+					for(let i = 0; i < S.Frames.length-1; ++i)
 					{
-						ThreadsActive[ThreadName] = !ThreadsActive[ThreadName];
-						RequestRedraw();
-					}					
+						var IndexStart = Lod.LogStart[i][nLog];
+						if(nHoverTokenIndexNext >= IndexStart)
+						{
+							nHoverFrame = i;
+						}
+					}
 				}
-				context.textBaseline = 'alphabetic';
+
+				fOffsetYDelta = LogHeight + LogHeight2 + Padding;
 
 
 
-				fOffsetY += LogHeight + LogHeight2 + Padding;
 				// if(DrawGuides)
 				// {
 				// 	context.strokeStyle = 'red';
@@ -3745,49 +3733,32 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				// }
 
 
-				if(HasSetHover)
-				{
-					for(let i = 0; i < S.Frames.length-1; ++i)
-					{
-						var IndexStart = Lod.LogStart[i][nLog];
-						if(nHoverTokenIndexNext >= IndexStart)
-						{
-							nHoverFrame = i;
-						}
-					}
-				}
 			}
 			else
 			{
-				var w = context.measureText(ThreadName).width;
-				context.fillStyle = nBackColors[0];
-				context.fillRect(0, fOffsetY+1, w, FontHeight);
-				context.textBaseline = 'top';
-				context.fillStyle = 'white';
-				context.fillText(ThreadName, 0, fOffsetY+1);
-				if(ThreadHover)
-				{
-					DrawDetailedButtons(context, nWidth, fOffsetY+1, ["\u2191\u2191\u2191", "\u2193\u2193\u2193", "\u2191", "\u2193"], 
-						[function(){ThreadOrderMoveUp(ThreadName,1);}, function(){ThreadOrderMoveDown(ThreadName,1);},
-						function(){ThreadOrderMoveUp(ThreadName);}, function(){ThreadOrderMoveDown(ThreadName);}],
-						 "right");
-
-
-					// DrawDetailedButtons(context, nWidth, fOffsetY+1, ["\u2191\u2191\u2191", "\u2193\u2193\u2193"], 
-					// 	[ThreadOrderMoveUp, ThreadOrderMoveDown],
-					// 	 "right");
-					if(MouseReleased)
-					{
-						ThreadsActive[ThreadName] = !ThreadsActive[ThreadName];
-						RequestRedraw();
-					}					
-
-				}
-				context.textBaseline = 'alphabetic';
-				fOffsetY += BoxHeight;
-
-
+				fOffsetYDelta = BoxHeight
 			}
+
+			var w = context.measureText(ThreadName).width;
+			context.fillStyle = nBackColors[0];
+			context.fillRect(0, fOffsetY+1, w, FontHeight);
+			context.textBaseline = 'top';
+			context.fillStyle = 'white';
+			context.fillText(ThreadName, 0, fOffsetY+1);
+			if(ThreadHover && !bDrawEnabled)
+			{
+				DrawDetailedButtons(context, nWidth, fOffsetY+1, ["\u2191\u2191\u2191", "\u2193\u2193\u2193", "\u2191", "\u2193"], 
+					[function(){ThreadOrderMoveUp(ThreadName,1);}, function(){ThreadOrderMoveDown(ThreadName,1);},
+					function(){ThreadOrderMoveUp(ThreadName);}, function(){ThreadOrderMoveDown(ThreadName);}],
+					 "right");
+				if(MouseReleased)
+				{
+					ThreadsActive[ThreadName] = !ThreadsActive[ThreadName];
+					RequestRedraw();
+				}					
+			}
+			context.textBaseline = 'alphabetic';
+			fOffsetY += fOffsetYDelta;
 			ThreadY[nLog+1] = fOffsetY;
 		}
 
