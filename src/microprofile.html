@@ -3156,11 +3156,11 @@ function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOf
 	else 
 	{
 		//debug: draw context switch without cswitch
-		for(var i = 0; i < 8; ++i)
-		{
-			context.fillStyle = CSwitchColors[i];
-			context.fillRect((nWidth * i / 8) + 10, fOffsetY, nWidth / 8 - 20, CSwitchHeight);
-		}
+		// for(var i = 0; i < 8; ++i)
+		// {
+		// 	context.fillStyle = CSwitchColors[i];
+		// 	context.fillRect((nWidth * i / 8) + 10, fOffsetY, nWidth / 8 - 20, CSwitchHeight);
+		// }
 	}
 	ProfileLeave();
 }
@@ -3745,7 +3745,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			context.textBaseline = 'top';
 			context.fillStyle = 'white';
 			context.fillText(ThreadName, 0, fOffsetY+1);
-			if(ThreadHover && !bDrawEnabled)
+			if(ThreadHover)
 			{
 				DrawDetailedButtons(context, nWidth, fOffsetY+1, ["\u2191\u2191\u2191", "\u2193\u2193\u2193", "\u2191", "\u2193"], 
 					[function(){ThreadOrderMoveUp(ThreadName,1);}, function(){ThreadOrderMoveDown(ThreadName,1);},

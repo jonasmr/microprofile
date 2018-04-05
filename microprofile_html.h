@@ -3178,11 +3178,11 @@ const char g_MicroProfileHtml_end_2[] =
 "	else \n"
 "	{\n"
 "		//debug: draw context switch without cswitch\n"
-"		for(var i = 0; i < 8; ++i)\n"
-"		{\n"
-"			context.fillStyle = CSwitchColors[i];\n"
-"			context.fillRect((nWidth * i / 8) + 10, fOffsetY, nWidth / 8 - 20, CSwitchHeight);\n"
-"		}\n"
+"		// for(var i = 0; i < 8; ++i)\n"
+"		// {\n"
+"		// 	context.fillStyle = CSwitchColors[i];\n"
+"		// 	context.fillRect((nWidth * i / 8) + 10, fOffsetY, nWidth / 8 - 20, CSwitchHeight);\n"
+"		// }\n"
 "	}\n"
 "	ProfileLeave();\n"
 "}\n"
@@ -3767,7 +3767,7 @@ const char g_MicroProfileHtml_end_2[] =
 "			context.textBaseline = \'top\';\n"
 "			context.fillStyle = \'white\';\n"
 "			context.fillText(ThreadName, 0, fOffsetY+1);\n"
-"			if(ThreadHover && !bDrawEnabled)\n"
+"			if(ThreadHover)\n"
 "			{\n"
 "				DrawDetailedButtons(context, nWidth, fOffsetY+1, [\"\\u2191\\u2191\\u2191\", \"\\u2193\\u2193\\u2193\", \"\\u2191\", \"\\u2193\"], \n"
 "					[function(){ThreadOrderMoveUp(ThreadName,1);}, function(){ThreadOrderMoveDown(ThreadName,1);},\n"
@@ -4407,11 +4407,11 @@ const char g_MicroProfileHtml_end_2[] =
 "							RangeSelect.Thread = nLog;\n"
 "							RangeSelect.Index = Index;\n"
 "							MoveTo(fResultTimeBegin,fResultTimeEnd);\n"
-"						";
+"							r";
 
 const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
 const char g_MicroProfileHtml_end_3[] =
-"	return;\n"
+"eturn;\n"
 "						}\n"
 "					}\n"
 "				}\n"
@@ -5972,11 +5972,11 @@ const char g_MicroProfileHtml_end_3[] =
 "	for(nLog = 0; nLog < nNumLogs; nLog++)\n"
 "	{\n"
 "		var MaxStack = 0;\n"
-"		St";
+"		Stac";
 
 const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
 const char g_MicroProfileHtml_end_4[] =
-"ackPos = 0;\n"
+"kPos = 0;\n"
 "		for(var i = 0; i < S.Frames.length; i++)\n"
 "		{\n"
 "			var Frame_ = S.Frames[i];			\n"
