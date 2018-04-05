@@ -409,8 +409,10 @@ var ToolTipFlip = 0;
 var ToolTipCorner = 1;
 var DetailedViewMouseX = 0;
 var DetailedViewMouseY = 0;
+var DetailedMouseOverButton = 0;
 var HistoryViewMouseX = -1;
 var HistoryViewMouseY = -1;
+var MouseReleased = false;
 var MouseHistory = 0;
 var MouseDetailed = 0;
 var FontHeight = 10;
@@ -551,6 +553,8 @@ var DetailedFrameCounter = 0;
 var Invalidate = 0;
 var GroupOrder = Array();
 var ThreadOrder = Array();
+var ThreadOrderNames = Array();
+var ThreadOrderT = Array();
 var TimersGroups = 0;
 var MetaLengths = Array();
 var MetaLengthsAvg = Array();
@@ -712,6 +716,7 @@ function DetailedTotal()
 	return Total;
 }
 
+
 function InitFrameInfo()
 {
 
@@ -742,11 +747,85 @@ function InitGroups()
 	}
 }
 
+
+function ThreadOrderMove(Name, Dir, Top)
+{	
+	let idx = ThreadOrderNames.indexOf(Name);
+	let base = idx;
+	idx += Dir;
+	let found = -1;
+	while(idx >= 0 && idx <= ThreadOrderNames.length)
+	{
+		let n = S.ThreadNames.indexOf(ThreadOrderNames[idx]);
+		if(n != -1)
+		{
+			found = idx;
+			if(!Top)
+				break;
+		}
+		idx += Dir;
+	}
+	Dir = -Dir; 
+	while(found >= 0 && found <= ThreadOrderNames.length && (Dir > 0 ? (found <= base) : (found >= base)))
+	{
+		let Tmp = ThreadOrderNames[found];
+		ThreadOrderNames[found] = Name;
+		Name = Tmp;
+		found += Dir;
+	}
+	ThreadOrderSort();
+}
+function ThreadOrderMoveUp(Name, Top)
+{
+	ThreadOrderMove(Name, -1, Top);
+	WriteCookie();
+}
+function ThreadOrderMoveDown(Name, Top)
+{
+	ThreadOrderMove(Name, 1, Top);
+	WriteCookie();
+}
+function ThreadOrderSort()
+{
+	for(let i = 0; i < S.ThreadNames.length; ++i)
+	{
+		var name = S.ThreadNames[i];
+		var idx = ThreadOrderNames.indexOf(name);
+		if(idx == -1)
+		{
+			ThreadOrderNames.push(name);
+		}
+	}
+
+	//clear all that are not present??
+	let ThreadOrderX = Array(S.ThreadNames.length);
+	for(let i = 0; i < S.ThreadNames.length; ++i)
+	{
+		var n = ThreadOrderNames.indexOf(S.ThreadNames[i]);
+		if(n == -1)
+		{
+			debugger;
+		}
+		ThreadOrderX[i] = {"i":i, "n": n};
+	}
+	ThreadOrderX.sort(function(l,r){return l.n-r.n;});
+	ThreadOrderT = Array(S.ThreadNames.length);
+	for(let i = 0; i < S.ThreadNames.length; ++i)
+	{
+		ThreadOrderT[i] = ThreadOrderX[i].i;
+	}
+}
+
+
+
 function InitThreadMenu()
 {
 	var ulThreadMenu = document.getElementById('ThreadSubMenu');
 	var MaxLen = 7;
+
+	ThreadOrder = [];
 	ThreadOrder = CreateOrderArray(S.ThreadNames, function(a){return a;});
+
 	for(var idx in ThreadOrder)
 	{
 		var name = S.ThreadNames[ThreadOrder[idx]];
@@ -3086,6 +3165,72 @@ function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOf
 	ProfileLeave();
 }
 
+function DrawDetailedButtons(context, X, Y, Names, Callbacks, Align)
+{
+	if(!Align)
+	{
+		Align = "left";
+	}
+	var Dir = 1;
+	var Offset = 0;
+	var OffsetText = 0;
+	if(Align == "right")
+	{
+		Dir = -1;
+	}
+	else if(Align == "center")
+	{
+		Offset = -0.5;
+		Align = "left";
+	}
+	let W = Array(Names.length);
+	var w = 0;
+	for(let i = 0; i < Names.length; ++i)
+	{
+		W[i] = context.measureText(Names[i]).width;
+		w += W[i];
+	}
+	X += w * Offset;
+
+	context.textBaseline = 'top';
+	context.textAlign = Align;
+	context.fillStyle = 'white';
+	var mx = DetailedViewMouseX;
+	var my = DetailedViewMouseY;
+	for(let i = 0; i < Names.length; ++i)
+	{
+		let w = W[i];
+		let x0_ = X + w * Dir;
+		let x0 = Math.min(X, x0_);
+		let x1 = Math.max(X, x0_);
+		let y0 = Y;
+		let y1 = Y + FontHeight;
+		context.fillStyle = nBackColors[0];
+		context.fillRect(x0, y0, x1 - x0, y1 - y0);
+
+		if(mx >= x0 && mx <= x1 && my >= y0 && my <= y1)
+		{
+			DetailedMouseOverButton = 1;
+			context.fillStyle = 'cyan';
+			if(MouseReleased)
+			{
+				Callbacks[i]();
+				MouseReleased = 0;
+			}
+		}
+		else
+		{
+			context.fillStyle = 'white';
+		}
+
+		context.fillText(Names[i], X, Y);
+		X += Dir * (w+FontWidth);
+	}
+
+	context.fillStyle = 'white';
+	context.textAlign = 'left';
+}
+
 function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 {
 	if(!S || !S.Frames)
@@ -3133,7 +3278,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 	var fTimeEnd = fDetailedOffset + fDetailedRange;
 
 	var FirstFrame = 0;
-	for(var i = 0; i < S.Frames.length ; i++)
+	for(let i = 0; i < S.Frames.length ; i++)
 	{
 		if(S.Frames[i].frameend < fDetailedOffset)
 		{
@@ -3232,9 +3377,6 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			}
 		}
 	};
-
-
-	//todo: dont draw twice
 	{
 		context.fillStyle = 'white';
 		fOffsetY += BoxHeight;
@@ -3251,7 +3393,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 		var off2 = 2*off;
 		var MaxPosition = 1;
 
-		for(var i = 0; i < Timeline.Positions.length; ++i)
+		for(let i = 0; i < Timeline.Positions.length; ++i)
 		{
 			var TimeStart = Times[i];
 			var TimeEnd = Ends[i];
@@ -3290,8 +3432,9 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			ThreadY = new Array(S0.ThreadNames.length+1);
 		}
 
-		for(nLog = 0; nLog < nNumLogs; nLog++)
+		for(let i = 0; i < nNumLogs; i++)
 		{
+			let nLog = ThreadOrderT[i];
 			var ThreadName = S0.ThreadNames[nLog];
 			ThreadY[nLog] = fOffsetY;
 			var SMul = 2;
@@ -3357,8 +3500,34 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			// 	context.stroke();			
 			// }
 
+// ThreadsAllActive || 
+			let Active = ThreadsActive[ThreadName];
+			var ThreadHover = false;
+			if(!bSecond)
+			{
+				let D = fOffsetY + BoxHeight - DetailedViewMouseY;
+				if(D > 0 && D < BoxHeight)
+				{
+					if(!bDrawEnabled)
+					{
+						context.globalAlpha = 0.3;
+						context.fillStyle = 'grey';
+						context.fillRect(0, fOffsetY+2, nWidth, Active ? LogHeight2 + LogHeight + Padding : BoxHeight);
+						context.globalAlpha = 1.0;
+					}
+					ThreadHover = 1;
+				}
+				if(bDrawEnabled)
+				{
+					context.strokeStyle = 'grey';
+					context.beginPath();
+					context.moveTo(0, fOffsetY+1);
+					context.lineTo(nWidth, fOffsetY+1);
+					context.stroke();
+				}
+			}
 
-			if(ThreadsAllActive || ThreadsActive[ThreadName])
+			if(Active)
 			{
 				var LodIndex = 0;
 				var MinDelta = 0;
@@ -3389,11 +3558,6 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 						// context.fillStyle=grd;
 						// context.fillRect(0,fOffsetY+1,nWidth,LogHeight);
 
-						context.strokeStyle = 'grey';
-						context.beginPath();
-						context.moveTo(0, fOffsetY+1);
-						context.lineTo(nWidth, fOffsetY+1);
-						context.stroke();
 
 
 					}
@@ -3407,16 +3571,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 
 					}
 				}
-				if(!bSecond && !bDrawEnabled)
-				{
-					if(Math.abs(fOffsetY+10 - DetailedViewMouseY) < 10)
-					{
-						context.globalAlpha = 0.3;
-						context.fillStyle = 'grey';
-						context.fillRect(0, fOffsetY+2, nWidth,  LogHeight2 + LogHeight);
-						context.globalAlpha = 1.0;
-					}
-				}
+
 				OY += 4;
 				// if(DrawGuides&& 0)
 				// {
@@ -3453,7 +3608,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				var HasSetHover = 0;
 
 
-				for(var j = IndexStart; j < IndexEnd; ++j)
+				for(let j = IndexStart; j < IndexEnd; ++j)
 				{
 					var type = TypeArray[j];
 					var index = IndexArray[j];
@@ -3548,12 +3703,30 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					}
 				}
 
-				var w =context.measureText(ThreadName).width;
+
+				var w = context.measureText(ThreadName).width;
 				context.fillStyle = nBackColors[0];
 				context.fillRect(0, fOffsetY+1, w, FontHeight);
 				context.textBaseline = 'top';
 				context.fillStyle = 'white';
 				context.fillText(ThreadName, 0, fOffsetY+1);
+				if(ThreadHover)
+				{
+					DrawDetailedButtons(context, nWidth, fOffsetY+1, ["\u2191\u2191\u2191", "\u2193\u2193\u2193", "\u2191", "\u2193"], 
+						[function(){ThreadOrderMoveUp(ThreadName,1);}, function(){ThreadOrderMoveDown(ThreadName,1);},
+						function(){ThreadOrderMoveUp(ThreadName);}, function(){ThreadOrderMoveDown(ThreadName);}],
+						 "right");
+
+
+					// DrawDetailedButtons(context, nWidth, fOffsetY+1, ["\u2191\u2191\u2191", "\u2193\u2193\u2193"], 
+					// 	[function(){ThreadOrderMoveUp(ThreadName);}, function(){ThreadOrderMoveDown(ThreadName);}],
+					// 	 "right");
+					if(MouseReleased)
+					{
+						ThreadsActive[ThreadName] = !ThreadsActive[ThreadName];
+						RequestRedraw();
+					}					
+				}
 				context.textBaseline = 'alphabetic';
 
 
@@ -3574,7 +3747,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 
 				if(HasSetHover)
 				{
-					for(var i = 0; i < S.Frames.length-1; ++i)
+					for(let i = 0; i < S.Frames.length-1; ++i)
 					{
 						var IndexStart = Lod.LogStart[i][nLog];
 						if(nHoverTokenIndexNext >= IndexStart)
@@ -3583,6 +3756,37 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 						}
 					}
 				}
+			}
+			else
+			{
+				var w = context.measureText(ThreadName).width;
+				context.fillStyle = nBackColors[0];
+				context.fillRect(0, fOffsetY+1, w, FontHeight);
+				context.textBaseline = 'top';
+				context.fillStyle = 'white';
+				context.fillText(ThreadName, 0, fOffsetY+1);
+				if(ThreadHover)
+				{
+					DrawDetailedButtons(context, nWidth, fOffsetY+1, ["\u2191\u2191\u2191", "\u2193\u2193\u2193", "\u2191", "\u2193"], 
+						[function(){ThreadOrderMoveUp(ThreadName,1);}, function(){ThreadOrderMoveDown(ThreadName,1);},
+						function(){ThreadOrderMoveUp(ThreadName);}, function(){ThreadOrderMoveDown(ThreadName);}],
+						 "right");
+
+
+					// DrawDetailedButtons(context, nWidth, fOffsetY+1, ["\u2191\u2191\u2191", "\u2193\u2193\u2193"], 
+					// 	[ThreadOrderMoveUp, ThreadOrderMoveDown],
+					// 	 "right");
+					if(MouseReleased)
+					{
+						ThreadsActive[ThreadName] = !ThreadsActive[ThreadName];
+						RequestRedraw();
+					}					
+
+				}
+				context.textBaseline = 'alphabetic';
+				fOffsetY += BoxHeight;
+
+
 			}
 			ThreadY[nLog+1] = fOffsetY;
 		}
@@ -3603,7 +3807,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 
 
 			}
-			for(var i = 0; i < ContextSwitchThreads.length; ++i)
+			for(let i = 0; i < ContextSwitchThreads.length; ++i)
 			{
 				var ThreadId = ContextSwitchThreads[i];
 				var ThreadName = '' + ThreadId;
@@ -3656,7 +3860,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			// }
 		}
 
-		for(var l = 0; l < Levels.length; ++l)
+		for(let l = 0; l < Levels.length; ++l)
 		{
 			var Batches = Levels[l].Batches;
 			for(var i = 0; i < Batches.length; ++i)
@@ -3666,7 +3870,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				{
 					if(!DisableMerge)
 					{
-						for(var j = 0; j < a.length; j += 3)
+						for(let j = 0; j < a.length; j += 3)
 						{						
 							var X = a[j];
 							var Y = a[j+1];
@@ -3731,14 +3935,14 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			}
 			var BatchesTxt = Levels[l].BatchesTxt;
 			var BatchesTxtPos = Levels[l].BatchesTxtPos;	
-			for(var i = 0; i < BatchesTxt.length; ++i)
+			for(let i = 0; i < BatchesTxt.length; ++i)
 			{
 				context.fillStyle = BatchesTxtColor[i];
 				var TxtArray = BatchesTxt[i];
 				var PosArray = BatchesTxtPos[i];
-				for(var j = 0; j < TxtArray.length; ++j)
+				for(let j = 0; j < TxtArray.length; ++j)
 				{
-					var k = j * 2;
+					let k = j * 2;
 					context.fillText(TxtArray[j], PosArray[k],PosArray[k+1]);
 				}
 			}
@@ -3972,6 +4176,9 @@ function DrawDetailed(Animation)
 		return;
 	}
 	ProfileEnter("DrawDetailed");
+	DetailedMouseEvent = {};
+	DetailedMouseOverButton = false;
+
 	DebugDrawQuadCount = 0;
 	DebugDrawTextCount = 0;
 	nHoverCSCpuNext = -1;
@@ -4063,6 +4270,13 @@ function DrawDetailed(Animation)
 	context.textAlign = 'right';
 	DrawTextBox(context, TimeToMsString(fDetailedOffset + fDetailedRange), nWidth, FontHeight, 'right');
 	context.textAlign = 'left';
+
+	if(!FilterSearchActive && !IgnoreInput)
+	{
+		let Colors = GroupColors ? "Color[group]" : "Color[timer]";
+		DrawDetailedButtons(context, nWidth * 0.5, 0, [Colors, "Search"],[ToggleGroupColors, FilterInputShow], "center");
+	}
+
 
 	var YBegin = ThreadY[fRangeThreadIdNext];
 	var YEnd = ThreadY[fRangeThreadIdNext+1];
@@ -4287,11 +4501,18 @@ function ZoomTo(fZoomBegin, fZoomEnd, OffsetYDest, ZoomTime)
 		requestAnimationFrame(ZoomFunc);
 	}
 }
+
+var InsideDraw = 0;
 function RequestRedraw()
 {
 	// ShowFlashMessage("redrawrequested", 10);
 	RedrawRequested = 1;
-	Draw(1);
+	Invalidate = 1;
+	if(!InsideDraw)
+	{
+		Draw(1);
+	}
+
 }
 function Draw(RedrawMode)
 {
@@ -4299,6 +4520,11 @@ function Draw(RedrawMode)
 	{
 		return;
 	}
+	if(InsideDraw)
+	{
+		return;
+	}
+	InsideDraw = 1;
 	if(ProfileMode)
 	{
 		ProfileModeClear();
@@ -4329,6 +4555,12 @@ function Draw(RedrawMode)
 		ProfileLeave();
 		ProfileModeDraw(CanvasDetailedView);
 	}
+	MouseReleased = false;
+	InsideDraw = 0;
+	if(RedrawRequested)
+	{
+		requestAnimationFrame(AutoRedraw);
+	}
 }
 
 function AutoRedraw(Timestamp)
@@ -4340,6 +4572,8 @@ function AutoRedraw(Timestamp)
 		{
 			RedrawMode = 1;
 		}
+		if(RedrawRequested)
+			RedrawMode = 1;
 	}
 	else
 	{
@@ -4634,7 +4868,10 @@ function MouseHandleDragClick()
 		}
 		else
 		{
-			ZoomToHighlight();
+			if(!DetailedMouseOverButton)
+			{
+				ZoomToHighlight();
+			}
 		}
 	}
 	else if(MouseDragTarget == CanvasHistory)
@@ -4838,9 +5075,11 @@ function MouseSortClick()
 function MouseButton(bPressed, evt)
 {
     evt.preventDefault();
+	MouseReleased = !bPressed;
 	MouseDrag(bPressed ? MouseDragDown : MouseDragUp, evt);
 	if(!bPressed)
 		MouseSortClick();
+	RequestRedraw();
 }
 
 function MouseOut(evt)
@@ -6481,7 +6720,8 @@ window.addEventListener('resize', ResizeCanvas, false);
 
 InitGroups();
 ReadCookie();
-MeasureFont()
+MeasureFont();
+ThreadOrderSort();
 InitThreadMenu();
 InitGroupMenu();
 InitColumnMenu();
