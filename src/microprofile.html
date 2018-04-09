@@ -97,7 +97,8 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 </li>
 <li id="ilThreads"><a>Threads</a>
     <ul id="ThreadSubMenu">
-        <li><a href="javascript:void(0)" onclick="ToggleThread();">All</a></li>
+        <li><a href="javascript:void(0)" onclick="ToggleThread(0, 1);">All</a></li>
+        <li><a href="javascript:void(0)" onclick="ToggleThread(0, 0);">None</a></li>
         <li><a>---</a></li>
     </ul>
 </li>
@@ -112,7 +113,6 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
         <li><a href="javascript:void(0)" onclick="ToggleContextSwitch();">Context Switch</a></li>
 		<li><a href="javascript:void(0)" onclick="ToggleDisableMerge();">MergeDisable</a></li>
 		<li><a href="javascript:void(0)" onclick="ToggleDisableLod();">LodDisable</a></li>
-		<li id='GroupColors'><a href="javascript:void(0)" onclick="ToggleGroupColors();">Group Colors</a></li>
 		<li id='DrawDetailedFlameMode'><a href="javascript:void(0)" onclick="ToggleDetailedFlameMode();">Flame Mode</a></li>
 		<li><a href="javascript:void(0)" onclick="ToggleDetailedSecondReverse();">Compare Reverse</a></li>
         <li id='ShowHelp'><a href="javascript:void(0)" onclick="ShowHelp(1,1);">Help</a></li>
@@ -421,7 +421,8 @@ var FontAscent = 3; //Set manually
 var Font = 'Bold ' + FontHeight + 'px Courier New';
 var FontFlash = 'Bold ' + 35 + 'px Courier New';
 var BoxHeight = FontHeight + 2;
-var ThreadsActive = new Object();
+var ThreadsActive = {};
+var ThreadsActiveBackup = {};
 var ThreadsAllActive = 1;
 var GroupsActive = new Object();
 var GroupsAllActive = 1;
@@ -857,19 +858,13 @@ function UpdateThreadMenu()
 		var elem = as[i];
 		var inner = elem.innerText;
 		var bActive = false;
-		if(i < 2)
-		{
-			if(inner == 'All')
-			{
-				bActive = ThreadsAllActive;
-			}
-		}
-		else
+		if(i > 2)
 		{
 			bActive = ThreadsActive[inner];
 		}
 		if(bActive)
 		{
+
 			elem.style['text-decoration'] = 'underline';
 		}
 		else
@@ -879,7 +874,7 @@ function UpdateThreadMenu()
 	}
 }
 
-function ToggleThread(ThreadName)
+function ToggleThread(ThreadName, All)
 {
 	if(ThreadName)
 	{
@@ -894,13 +889,29 @@ function ToggleThread(ThreadName)
 	}
 	else
 	{
-		if(ThreadsAllActive)
+		let B = {};
+		let A = 0;
+		let I = 0;
+		for(let i in ThreadsActive)
 		{
-			ThreadsAllActive = 0;
+			B[i] = ThreadsActive[i];
+			if(ThreadsActive[i])
+			{
+				A++;
+			}
+			else
+			{
+				I++;
+			}
+			ThreadsActive[i] = All;
 		}
-		else
+		if((I == 0 && All) || (A == 0 && !All))
 		{
-			ThreadsAllActive = 1;
+			ThreadsActive = ThreadsActiveBackup;
+		}
+		else if(I != 0 && A != 0)
+		{
+			ThreadsActiveBackup = B;
 		}
 	}
 	Invalidate = 0;
@@ -1157,7 +1168,7 @@ function UpdateGroupColors()
 {
 	for(var i = 0; i < S.TimerInfo.length; ++i)
 	{
-		if(GroupColors)
+		if(GroupColors == 1)
 		{
 			S.TimerInfo[i].cid = S.GroupInfo[S.TimerInfo[i].group].cid;
 		}
@@ -1179,17 +1190,10 @@ function ToggleDetailedSecondReverse()
 
 function ToggleGroupColors()
 {
-	GroupColors = !GroupColors;
+	GroupColors = (GroupColors+1)%3;
 	UpdateGroupColors();
-	UpdateOptionsMenu();
 	WriteCookie();
 	RequestRedraw();
-}
-
-function UpdateOptionsMenu()
-{
-	var ulGroupColors = document.getElementById('GroupColors');
-	ulGroupColors.style['text-decoration'] = GroupColors ? 'underline' : 'none';
 }
 
 function ShowHelp(Show, Forever)
@@ -3249,16 +3253,19 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 
 
 	var nHoverTokenStack = -1;
-	nHoverCounter += nHoverCounterDelta;
-	if(nHoverCounter >= 255) 
+	if(S == S0)
 	{
-		nHoverCounter = 255;
-		nHoverCounterDelta = -nHoverCounterDelta;
-	}
-	if(nHoverCounter < 128) 
-	{
-		nHoverCounter = 128;
-		nHoverCounterDelta = -nHoverCounterDelta;
+		nHoverCounter += nHoverCounterDelta;
+		if(nHoverCounter >= 255) 
+		{
+			nHoverCounter = 255;
+			nHoverCounterDelta = -nHoverCounterDelta;
+		}
+		if(nHoverCounter < 128) 
+		{
+			nHoverCounter = 128;
+			nHoverCounterDelta = -nHoverCounterDelta;
+		}
 	}
 	var nHoverHigh = nHoverCounter.toString(16);
 	var nHoverLow = (127+255-nHoverCounter).toString(16);
@@ -3267,6 +3274,8 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 
 	context.fillStyle = 'black';
 	context.font = Font;
+	context.textBaseline = 'alphabetic';
+
 	var nNumLogs = S.Frames[0].ts.length;
 	if(S0)
 	{
@@ -3434,9 +3443,9 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 
 		for(let i = 0; i < nNumLogs; i++)
 		{
-			let fOffsetYDelta = 0;
 			let nLog = ThreadOrderT[i];
-			var ThreadName = S0.ThreadNames[nLog];
+			let ThreadName = S0.ThreadNames[nLog];
+			let ThreadColors = S0.ThreadColors[nLog];
 			ThreadY[nLog] = fOffsetY;
 			var SMul = 2;
 			var LogHeight = (S0.MaxStack[nLog]) * BoxHeightScaledPos + BoxHeight;
@@ -3462,47 +3471,8 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					OY += LogHeight2 - 5;
 				}
 			}
-			
-			// if(!bSecond)
-			// {
-
-
-
-			// 	// var LogHeight0 = (S0.MaxStack[nLog]) * BoxHeightScaledPos + BoxHeight * 1 * SMul;
-			// 	OY += LogHeight2;
-			// 	context.strokeStyle = 'orange';
-			// 	context.beginPath();
-			// 	context.moveTo(0, OY);
-			// 	context.lineTo(5000, OY);
-			// 	context.fillStyle = 'orange';
-			// 	context.fillText("" + nLog, 450 + nLog * 10, OY); 
-
-			// 	context.moveTo(0, OY + LogHeight-2);
-			// 	context.lineTo(5000, OY+ LogHeight-2);
-			// 	context.fillText("" + nLog, 550 + nLog * 10, OY+LogHeight-2); 
-			// 	context.stroke();
-
-			// 	context.fillStyle = 'white';
-
-			// }
-			// else
-			// {
-			// 	context.strokeStyle = 'orange';
-			// 	context.fillStyle = 'orange';
-			// 	context.fillText("" + nLog, 450 + nLog * 10, OY); 
-			// 	context.beginPath();
-			// 	context.moveTo(0, OY);
-			// 	context.lineTo(5000, OY);
-
-			// 	context.fillText("" + nLog, 550 + nLog * 10, OY+LogHeight-2); 
-
-			// 	context.moveTo(0, OY + LogHeight2-2);
-			// 	context.lineTo(5000, OY+ LogHeight2-2);
-			// 	context.stroke();			
-			// }
-
-// ThreadsAllActive || 
 			let Active = ThreadsActive[ThreadName];
+			let fOffsetYDelta = Active ? (LogHeight + LogHeight2 + Padding) : BoxHeight;
 			var ThreadHover = false;
 			if(!bSecond)
 			{
@@ -3518,13 +3488,26 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					}
 					ThreadHover = 1;
 				}
-				if(bDrawEnabled)
+				if(bDrawEnabled && !bSecond)
 				{
-					context.strokeStyle = 'grey';
+
+					context.strokeStyle = ThreadColors.colordark;
 					context.beginPath();
 					context.moveTo(0, fOffsetY+1);
 					context.lineTo(nWidth, fOffsetY+1);
 					context.stroke();
+
+					let Gradient = ThreadColors.gradient;
+					if(!Gradient)
+					{
+						Gradient = context.createLinearGradient(0,0,200,0);
+						Gradient.addColorStop(0,ThreadColors.color);
+						Gradient.addColorStop(1,'transparent');
+						ThreadColors.gradient = Gradient;
+					}
+					context.fillStyle = Gradient;
+					context.fillRect(0,fOffsetY+1,200, fOffsetYDelta);
+		
 				}
 			}
 
@@ -3552,15 +3535,16 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				{
 					if(!bSecond)
 					{
-						//todo: try out some more..	
-						// var grd=context.createLinearGradient(0,fOffsetY+1,0,fOffsetY+1+LogHeight);
-						// grd.addColorStop(0,nBackColors[0]);
-						// grd.addColorStop(1,nBackColors[1]);
-						// context.fillStyle=grd;
-						// context.fillRect(0,fOffsetY+1,nWidth,LogHeight);
-
-
-
+						let Gradient = ThreadColors.gradient;
+						if(!Gradient)
+						{
+							Gradient = context.createLinearGradient(0,0,200,0);
+							Gradient.addColorStop(0,ThreadColors.color);
+							Gradient.addColorStop(1,'transparent');
+							ThreadColors.gradient = Gradient;
+						}
+						context.fillStyle = Gradient;
+						context.fillRect(0,fOffsetY+1,200,LogHeight + LogHeight2 + Padding);
 					}
 					else
 					{
@@ -3574,18 +3558,6 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				}
 
 				OY += 4;
-				// if(DrawGuides&& 0)
-				// {
-				// 	context.strokeStyle = 'green';
-				// 	context.beginPath();
-				// 	context.moveTo(0, fOffsetY);
-				// 	context.lineTo(5000, fOffsetY);
-				// 	context.stroke();
-				// 	context.fillStyle = 'white';
-				// 	context.fillText("" + nLog, 150 + nLog * 10, fOffsetY); 
-				// }
-				// // OY += BoxHeight;
-
 
 				if(nContextSwitchEnabled)
 				{
@@ -3643,7 +3615,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 							{
 								if(bDrawEnabled || index == nHoverToken)
 								{
-									var cid = S0.TimerInfo[index].cid;
+									var cid = GroupColors == 2 ? ThreadColors.colordark_cid : S0.TimerInfo[index].cid;
 									if(index == nHoverToken)
 									{
 										nHoverColorIndex = cid;
@@ -3715,33 +3687,9 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 						}
 					}
 				}
-
-				fOffsetYDelta = LogHeight + LogHeight2 + Padding;
-
-
-
-				// if(DrawGuides)
-				// {
-				// 	context.strokeStyle = 'red';
-				// 	context.beginPath();
-				// 	context.moveTo(0, fOffsetY+2);
-				// 	context.lineTo(5000, fOffsetY+2);	
-				// 	context.stroke();
-				// 	context.fillStyle = 'red';
-				// 	context.fillText("" + nLog, 200 + nLog * 10, fOffsetY); 
-				// 	context.fillStyle = 'white';
-				// }
-
-
 			}
-			else
-			{
-				fOffsetYDelta = BoxHeight
-			}
-
 			var w = context.measureText(ThreadName).width;
 			context.fillStyle = nBackColors[0];
-			context.fillRect(0, fOffsetY+1, w, FontHeight);
 			context.textBaseline = 'top';
 			context.fillStyle = 'white';
 			context.fillText(ThreadName, 0, fOffsetY+1);
@@ -3754,6 +3702,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				if(MouseReleased)
 				{
 					ThreadsActive[ThreadName] = !ThreadsActive[ThreadName];
+					WriteCookie();
 					RequestRedraw();
 				}					
 			}
@@ -4244,7 +4193,7 @@ function DrawDetailed(Animation)
 
 	if(!FilterSearchActive && !IgnoreInput)
 	{
-		let Colors = GroupColors ? "Color[group]" : "Color[timer]";
+		let Colors = GroupColors == 2 ? "Color[thread]" : (GroupColors ? "Color[group]" : "Color[timer]");
 		DrawDetailedButtons(context, nWidth * 0.5, 0, [Colors, "Search"],[ToggleGroupColors, FilterInputShow], "center");
 	}
 
@@ -5436,12 +5385,15 @@ function ReadCookie()
 		{
 			DrawDetailedCompareReverse = Obj.DrawDetailedCompareReverse;
 		}
+		if(Obj.ThreadOrderNames)
+		{
+			ThreadOrderNames = Obj.ThreadOrderNames;
+		}
 		TimersGroups = Obj.TimersGroups?Obj.TimersGroups:0;
 	}
 	SetContextSwitch(nContextSwitchEnabled);
 	SetMode(NewMode, TimersGroups);
 	SetReferenceTime(ReferenceTimeString);
-	UpdateOptionsMenu();
 	UpdateGroupColors();
 }
 function WriteCookie()
@@ -5460,6 +5412,7 @@ function WriteCookie()
 	Obj.ToolTipCorner = ToolTipCorner;
 	Obj.DrawDetailedFlameMode = DrawDetailedFlameMode;
 	Obj.DrawDetailedCompareReverse = DrawDetailedCompareReverse;
+	Obj.ThreadOrderNames = ThreadOrderNames;
 	if(nHideHelp)
 	{
 		Obj.nHideHelp = 1;
@@ -6031,6 +5984,38 @@ function PreprocessMeta()
 	}
 }
 
+function StringHash(s) //note: matching code in microprofile.cpp: uint32_t MicroProfileStringHash(const char* pString)
+{ 
+	var h = 0xfeedba3e;
+	for(var i = 0; i < s.length; ++i)
+	{
+		h = s.charCodeAt(i) + (h << 5) - h;
+		h = h & h;
+	}
+	return Math.abs(h);
+}
+
+function StringColorIndex(Name)
+{
+	var h = StringHash(Name);
+	var cidx = Math.floor(360*(h  / (1<<32-1)) );
+	return cidx;
+
+}
+
+function PreprocessThreadColors(S)
+{
+	S.ThreadColors = Array(S.ThreadNames.length);
+	for(let i = 0; i < S.ThreadNames.length; ++i)
+	{
+		var cidx = StringColorIndex(S.ThreadNames[i]);
+		var color = "hsl(" + cidx + ",50%, 60%)";
+		var colordark = "hsl(" + cidx + ",80%, 30%)";
+		var colordark_cid = GetColorIndex(colordark);
+		S.ThreadColors[i] = {"color":color, "colordark":colordark, "cidx":cidx, "gradient":null, "colordark_cid":colordark_cid};
+	}
+}
+
 function PreprocessWidths()
 {
 	var context = CanvasHistory.getContext('2d');
@@ -6240,6 +6225,7 @@ function Preprocess_S()
 	PreprocessGlobalArray();
 	PreprocessLods();
 	PreprocessMeta();
+	PreprocessThreadColors(S);
 
 	PreprocessContextSwitchCache();
 	PreprocessWidths();
@@ -6398,6 +6384,10 @@ function CompareFixup(S0, S1) // S0 is the reference
 			NumThreads++;
 		}
 	}
+
+	PreprocessThreadColors(S0);
+	PreprocessThreadColors(S1);
+
 	var Fix = function(a, r)
 	{
 		for(var i in a)
