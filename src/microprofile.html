@@ -3474,6 +3474,36 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			let Active = ThreadsActive[ThreadName];
 			let fOffsetYDelta = Active ? (LogHeight + LogHeight2 + Padding) : BoxHeight;
 			var ThreadHover = false;
+			if(bDrawEnabled)
+			{
+				if(Active || !bSecond)
+				{
+					let Color = bSecond ? ThreadColors.coloroff : ThreadColors.color;
+					let ColorLine = !bSecond ? ThreadColors.colordark : ThreadColors.color;
+					let Gradient = bSecond ? ThreadColors.gradientoff : ThreadColors.gradient;
+					let BaseY = (bSecond||!Active) ? (fOffsetY+1) : (fOffsetY+1+LogHeight2);
+					let HeightY = !Active ? BoxHeight : (bSecond ? LogHeight2 : (LogHeight + Padding));
+					
+					context.strokeStyle = ColorLine;
+					context.beginPath();
+					context.moveTo(0, BaseY);
+					context.lineTo(nWidth, BaseY);
+					context.stroke();
+					if(!Gradient)
+					{
+						Gradient = context.createLinearGradient(0,0,200,0);
+						Gradient.addColorStop(0, Color);
+						Gradient.addColorStop(1,'transparent');
+						if(bSecond)
+							ThreadColors.gradientoff = Gradient;
+						else
+							ThreadColors.gradient = Gradient;
+					}
+					context.fillStyle = Gradient;
+					context.fillRect(0,BaseY,200,HeightY);
+				}
+			}
+
 			if(!bSecond)
 			{
 				let D = fOffsetY + BoxHeight - DetailedViewMouseY;
@@ -3487,27 +3517,6 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 						context.globalAlpha = 1.0;
 					}
 					ThreadHover = 1;
-				}
-				if(bDrawEnabled && !bSecond)
-				{
-
-					context.strokeStyle = ThreadColors.colordark;
-					context.beginPath();
-					context.moveTo(0, fOffsetY+1);
-					context.lineTo(nWidth, fOffsetY+1);
-					context.stroke();
-
-					let Gradient = ThreadColors.gradient;
-					if(!Gradient)
-					{
-						Gradient = context.createLinearGradient(0,0,200,0);
-						Gradient.addColorStop(0,ThreadColors.color);
-						Gradient.addColorStop(1,'transparent');
-						ThreadColors.gradient = Gradient;
-					}
-					context.fillStyle = Gradient;
-					context.fillRect(0,fOffsetY+1,200, fOffsetYDelta);
-		
 				}
 			}
 
@@ -3530,33 +3539,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				{
 					LodIndex = 0;
 				}
-
-				if(bDrawEnabled)
-				{
-					if(!bSecond)
-					{
-						let Gradient = ThreadColors.gradient;
-						if(!Gradient)
-						{
-							Gradient = context.createLinearGradient(0,0,200,0);
-							Gradient.addColorStop(0,ThreadColors.color);
-							Gradient.addColorStop(1,'transparent');
-							ThreadColors.gradient = Gradient;
-						}
-						context.fillStyle = Gradient;
-						context.fillRect(0,fOffsetY+1,200,LogHeight + LogHeight2 + Padding);
-					}
-					else
-					{
-						context.globalAlpha = 0.1;
-						context.fillStyle = 'red';
-						context.fillRect(0, fOffsetY, nWidth, LogHeight2+4);
-						context.fillStyle = 'white';
-						context.globalAlpha = 1;
-
-					}
-				}
-
+				
 				OY += 4;
 
 				if(nContextSwitchEnabled)
@@ -6010,9 +5993,10 @@ function PreprocessThreadColors(S)
 	{
 		var cidx = StringColorIndex(S.ThreadNames[i]);
 		var color = "hsl(" + cidx + ",50%, 60%)";
+		var coloroff = "hsl(" + cidx + ",85%, 50%)";
 		var colordark = "hsl(" + cidx + ",80%, 30%)";
 		var colordark_cid = GetColorIndex(colordark);
-		S.ThreadColors[i] = {"color":color, "colordark":colordark, "cidx":cidx, "gradient":null, "colordark_cid":colordark_cid};
+		S.ThreadColors[i] = {"color":color, "colordark":colordark, "cidx":cidx, "gradient":null,"gradientoff":null, "coloroff":coloroff, "colordark_cid":colordark_cid};
 	}
 }
 
