@@ -367,6 +367,8 @@ S.TimelineColorArray = [];
 ____embed____
 //EEND
 
+var G_DEBUG = 0;
+
 var CanvasDetailedView = document.getElementById('DetailedView');
 var CanvasHistory = document.getElementById('History');
 var CanvasDetailedOffscreen = document.createElement('canvas');
@@ -410,9 +412,9 @@ var ToolTipCorner = 1;
 var DetailedViewMouseX = 0;
 var DetailedViewMouseY = 0;
 var DetailedMouseOverButton = 0;
+var DetailedMouseEvent = null;
 var HistoryViewMouseX = -1;
 var HistoryViewMouseY = -1;
-var MouseReleased = false;
 var MouseHistory = 0;
 var MouseDetailed = 0;
 var FontHeight = 10;
@@ -3196,7 +3198,7 @@ function DrawDetailedButtons(context, X, Y, Names, Callbacks, Align)
 	}
 	X += w * Offset;
 
-	context.textBaseline = 'top';
+	// context.textBaseline = 'top';
 	context.textAlign = Align;
 	context.fillStyle = 'white';
 	var mx = DetailedViewMouseX;
@@ -3216,18 +3218,14 @@ function DrawDetailedButtons(context, X, Y, Names, Callbacks, Align)
 		{
 			DetailedMouseOverButton = 1;
 			context.fillStyle = 'cyan';
-			if(MouseReleased)
-			{
-				Callbacks[i]();
-				MouseReleased = 0;
-			}
+			DetailedAddMouseEvent(99, function(){ Callbacks[i](); } );
 		}
 		else
 		{
 			context.fillStyle = 'white';
 		}
 
-		context.fillText(Names[i], X, Y);
+		context.fillText(Names[i], X, Y + FontHeight - 2);
 		X += Dir * (w+FontWidth);
 	}
 
@@ -3274,7 +3272,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 
 	context.fillStyle = 'black';
 	context.font = Font;
-	context.textBaseline = 'alphabetic';
+	// context.textBaseline = 'alphabetic';
 
 	var nNumLogs = S.Frames[0].ts.length;
 	if(S0)
@@ -3503,10 +3501,15 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					context.fillRect(0,BaseY,200,HeightY);
 				}
 			}
-
+				let D = fOffsetY + BoxHeight - DetailedViewMouseY;
+			
+			if(bDrawEnabled && G_DEBUG && 0)
+			{
+				debugger;
+			}
+			console.log(' d, ', bSecond, ' ', DetailedViewMouseY, "  D ", D, " ... dRAWEN", bDrawEnabled);
 			if(!bSecond)
 			{
-				let D = fOffsetY + BoxHeight - DetailedViewMouseY;
 				if(D > 0 && D < BoxHeight)
 				{
 					if(!bDrawEnabled)
@@ -3515,6 +3518,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 						context.fillStyle = 'grey';
 						context.fillRect(0, fOffsetY+2, nWidth, Active ? LogHeight2 + LogHeight + Padding : BoxHeight);
 						context.globalAlpha = 1.0;
+						console.log('drew log ', fOffsetY);
 					}
 					ThreadHover = 1;
 				}
@@ -3539,7 +3543,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				{
 					LodIndex = 0;
 				}
-				
+
 				OY += 4;
 
 				if(nContextSwitchEnabled)
@@ -3673,23 +3677,24 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			}
 			var w = context.measureText(ThreadName).width;
 			context.fillStyle = nBackColors[0];
-			context.textBaseline = 'top';
+			// context.textBaseline = 'top';
 			context.fillStyle = 'white';
-			context.fillText(ThreadName, 0, fOffsetY+1);
+			context.fillText(ThreadName, 0, fOffsetY+FontHeight-1);
 			if(ThreadHover)
 			{
 				DrawDetailedButtons(context, nWidth, fOffsetY+1, ["\u2191\u2191\u2191", "\u2193\u2193\u2193", "\u2191", "\u2193"], 
 					[function(){ThreadOrderMoveUp(ThreadName,1);}, function(){ThreadOrderMoveDown(ThreadName,1);},
 					function(){ThreadOrderMoveUp(ThreadName);}, function(){ThreadOrderMoveDown(ThreadName);}],
 					 "right");
-				if(MouseReleased)
+							// DetailedAddMouseEvent(1, function(){ Callbacks[i](); } );
+				DetailedAddMouseEvent(1, function()
 				{
 					ThreadsActive[ThreadName] = !ThreadsActive[ThreadName];
-					WriteCookie();
+					// WriteCookie();
 					RequestRedraw();
-				}					
+				});
 			}
-			context.textBaseline = 'alphabetic';
+			// context.textBaseline = 'alphabetic';
 			fOffsetY += fOffsetYDelta;
 			ThreadY[nLog+1] = fOffsetY;
 		}
@@ -4071,15 +4076,29 @@ function DrawRange(context, Range, ColorBack, ColorFront, Name, Offset)
 	}
 	return Offset;
 }
+function DetailedAddMouseEvent(P, E)
+{
+	if(!DetailedMouseEvent)
+	{
+		DetailedMouseEvent = {"P":P, "E":E};
+	}
+	else if(DetailedMouseEvent.P < P)
+	{
+		DetailedMouseEvent.P = P;
+		DetailedMouseEvent.E = E;
+	}
+
+}
 
 function DrawDetailed(Animation)
 {
+	DetailedMouseEvent = null;
+
 	if(AnimationActive != Animation || !Initialized)
 	{
 		return;
 	}
 	ProfileEnter("DrawDetailed");
-	DetailedMouseEvent = {};
 	DetailedMouseOverButton = false;
 
 	DebugDrawQuadCount = 0;
@@ -4458,7 +4477,7 @@ function Draw(RedrawMode)
 		ProfileLeave();
 		ProfileModeDraw(CanvasDetailedView);
 	}
-	MouseReleased = false;
+
 	InsideDraw = 0;
 	if(RedrawRequested)
 	{
@@ -4574,6 +4593,7 @@ var MouseDragMove = 3;
 var MouseDragState = MouseDragOff;
 var MouseDragTarget = 0;
 var MouseDragButton = 0;
+var MouseDragButtonNext = 0;
 var MouseDragKeyShift = 0;
 var MouseDragKeyCtrl = 0;
 var MouseDragX = 0;
@@ -4771,7 +4791,11 @@ function MouseHandleDragClick()
 		}
 		else
 		{
-			if(!DetailedMouseOverButton)
+			if(DetailedMouseEvent)
+			{
+				DetailedMouseEvent.E();
+			}
+			else if(!DetailedMouseOverButton)
 			{
 				ZoomToHighlight();
 			}
@@ -4802,6 +4826,10 @@ function MapMouseButton(Event)
 	}
 }
 
+function MouseDragIsActive()
+{
+	return MouseDragState != MouseDragOff && MouseDragState != MouseDragDown;
+}
 function MouseDragReset()
 {
 	MouseDragState = MouseDragOff;
@@ -4825,7 +4853,10 @@ function MouseDrag(Source, Event)
 		MouseDragReset();
 		return;
 	}
-
+	if(G_DEBUG)
+	{
+		debugger;
+	}
 	var LocalRect = Event.target.getBoundingClientRect();
 	MouseDragX = Event.clientX - LocalRect.left;
 	MouseDragY = Event.clientY - LocalRect.top;
@@ -4848,6 +4879,8 @@ function MouseDrag(Source, Event)
 	}
 	else if(MouseDragState == MouseDragOff)
 	{
+
+
 		if(Source == MouseDragDown || KeyShiftDown || KeyCtrlDown)
 		{
 			MouseDragTarget = Event.target;
@@ -4865,6 +4898,45 @@ function MouseDrag(Source, Event)
 				MouseDragState = MouseDragMove;
 			}
 		}
+
+		// if(Source == MouseDragDown || KeyShiftDown || KeyCtrlDown)
+		// {
+		// 	if(MouseDragXStart == -1)
+		// 	{
+		// 		MouseDragXStart = MouseDragX;
+		// 		MouseDragYStart = MouseDragY;
+		// 		MouseDragTarget = Event.target;
+		// 		MouseDragButtonNext = MapMouseButton(Event);
+		// 	}
+		// 	else if(MouseDragXStart != MouseDragX || MouseDragYStart != MouseDragY)
+		// 	{
+
+		// 		//revert det her lort.
+		// 		fix mouse released til at
+		// 		MouseDragState = MouseDragDown;
+		// 		MouseDragButton = MouseDragButtonNext;
+		// 		MouseDragKeyCtrl = 0;
+		// 		MouseDragKeyShift = 0;
+
+
+		// 		if(KeyShiftDown || KeyCtrlDown)
+		// 		{
+		// 			MouseDragKeyShift = KeyShiftDown;
+		// 			MouseDragKeyCtrl = KeyCtrlDown;
+		// 			MouseDragState = MouseDragMove;
+		// 		}
+
+		// 	}
+
+
+
+		// }
+		// else
+		// {
+		// 	MouseDragXStart = -1;
+		// 	MouseDragYStart = -1;
+
+		// }
 	}
 	else if(MouseDragState == MouseDragDown)
 	{
@@ -4912,6 +4984,11 @@ function MouseMove(evt)
 		var Rect = CanvasHistory.getBoundingClientRect();
 		HistoryViewMouseX = x;
 		HistoryViewMouseY = y;
+
+
+		DetailedViewMouseX = -1;
+		DetailedViewMouseY = -1;
+
 	}
 	Draw(1);
 }
@@ -4978,7 +5055,6 @@ function MouseSortClick()
 function MouseButton(bPressed, evt)
 {
     evt.preventDefault();
-	MouseReleased = !bPressed;
 	MouseDrag(bPressed ? MouseDragDown : MouseDragUp, evt);
 	if(!bPressed)
 		MouseSortClick();
@@ -5067,6 +5143,10 @@ function ToggleFilterInput(escape)
 
 function KeyUp(evt)
 {
+	if(evt.keyCode== 84)
+	{
+		G_DEBUG = 1;
+	}
 	if(evt.keyCode == 18)
 	{
 		ToolTipFlip = 0;
