@@ -264,6 +264,10 @@ function InvertColorIndex(hexTripletColor) {
 
 function MakeGroup(id, name, category, numtimers, isgpu, total, average, max, color)
 {
+	if(color == "")
+	{
+		color = ColorFromString(name, 40, 50);
+	}
 	var cid = GetColorIndex(color);
 	var group = {"id":id, "name":name, "category":category, "numtimers":numtimers, "isgpu":isgpu, "total": total, "average" : average, "max" : max, "cid":cid};
 	return group;
@@ -3507,7 +3511,6 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			{
 				debugger;
 			}
-			console.log(' d, ', bSecond, ' ', DetailedViewMouseY, "  D ", D, " ... dRAWEN", bDrawEnabled);
 			if(!bSecond)
 			{
 				if(D > 0 && D < BoxHeight)
@@ -6063,7 +6066,12 @@ function StringColorIndex(Name)
 	var h = StringHash(Name);
 	var cidx = Math.floor(360*(h  / (1<<32-1)) );
 	return cidx;
+}
 
+function ColorFromString(Name, S, L)
+{
+	var H = StringColorIndex(Name);
+	return "hsl(" + H + "," + S + "%, " + L+ "%)";
 }
 
 function PreprocessThreadColors(S)

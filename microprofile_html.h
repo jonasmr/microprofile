@@ -267,6 +267,10 @@ const char g_MicroProfileHtml_begin_0[] =
 "\n"
 "function MakeGroup(id, name, category, numtimers, isgpu, total, average, max, color)\n"
 "{\n"
+"	if(color == \"\")\n"
+"	{\n"
+"		color = ColorFromString(name, 40, 50);\n"
+"	}\n"
 "	var cid = GetColorIndex(color);\n"
 "	var group = {\"id\":id, \"name\":name, \"category\":category, \"numtimers\":numtimers, \"isgpu\":isgpu, \"total\": total, \"average\" : average, \"max\" : max, \"cid\":cid};\n"
 "	return group;\n"
@@ -3529,7 +3533,6 @@ const char g_MicroProfileHtml_end_2[] =
 "			{\n"
 "				debugger;\n"
 "			}\n"
-"			console.log(\' d, \', bSecond, \' \', DetailedViewMouseY, \"  D \", D, \" ... dRAWEN\", bDrawEnabled);\n"
 "			if(!bSecond)\n"
 "			{\n"
 "				if(D > 0 && D < BoxHeight)\n"
@@ -4399,13 +4402,13 @@ const char g_MicroProfileHtml_end_2[] =
 "	{\n"
 "		AnimationActive = true;\n"
 "		var fDetailedOffsetOriginal = fDetailedOffset;\n"
-"		var fDetailedRangeO";
+"		var fDetailedRangeOriginal = fDetailedRange;\n"
+"		var fDetailedOffsetTarget = fZoomBegin;\n"
+"		var fDetailedRangeTarget = f";
 
 const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
 const char g_MicroProfileHtml_end_3[] =
-"riginal = fDetailedRange;\n"
-"		var fDetailedOffsetTarget = fZoomBegin;\n"
-"		var fDetailedRangeTarget = fZoomEnd - fZoomBegin;\n"
+"ZoomEnd - fZoomBegin;\n"
 "		var OffsetYOriginal = nOffsetY;\n"
 "		var OffsetYTarget = OffsetYDest;\n"
 "		var TimestampStart = new Date();\n"
@@ -5971,14 +5974,14 @@ const char g_MicroProfileHtml_end_3[] =
 "{\n"
 "	ProfileEnter(\"PreprocesFindFirstFrames\");\n"
 "	//create arrays that show how far back we need to start search in order to get all markers.\n"
-"	var nNumLogs = S";
+"	var nNumLogs = S.Frames[0].ts.length;\n"
+"	for(var i = 0; i < S.Frames.length; i++)\n"
+"	{\n"
+"		S.Frames[i].FirstFrameIndex =";
 
 const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
 const char g_MicroProfileHtml_end_4[] =
-".Frames[0].ts.length;\n"
-"	for(var i = 0; i < S.Frames.length; i++)\n"
-"	{\n"
-"		S.Frames[i].FirstFrameIndex = new Array(nNumLogs);\n"
+" new Array(nNumLogs);\n"
 "		for(var j = 0; j < S.Frames[i].FirstFrameIndex.length; ++j)\n"
 "		{\n"
 "			S.Frames[i].FirstFrameIndex[j] = 0;\n"
@@ -6093,7 +6096,12 @@ const char g_MicroProfileHtml_end_4[] =
 "	var h = StringHash(Name);\n"
 "	var cidx = Math.floor(360*(h  / (1<<32-1)) );\n"
 "	return cidx;\n"
+"}\n"
 "\n"
+"function ColorFromString(Name, S, L)\n"
+"{\n"
+"	var H = StringColorIndex(Name);\n"
+"	return \"hsl(\" + H + \",\" + S + \"%, \" + L+ \"%)\";\n"
 "}\n"
 "\n"
 "function PreprocessThreadColors(S)\n"

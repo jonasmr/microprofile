@@ -1616,7 +1616,7 @@ uint16_t MicroProfileGetGroup(const char* pGroup, MicroProfileTokenType Type)
 	S.GroupInfo[S.nGroupCount].nGroupIndex = S.nGroupCount;
 	S.GroupInfo[S.nGroupCount].Type = Type;
 	S.GroupInfo[S.nGroupCount].nMaxTimerNameLen = 0;
-	S.GroupInfo[S.nGroupCount].nColor = 0x88888888;
+	S.GroupInfo[S.nGroupCount].nColor = 0x42;
 	S.GroupInfo[S.nGroupCount].nCategory = 0;
 	uint32_t nIndex = S.nGroupCount / 32;
 	uint32_t nBit = S.nGroupCount % 32;
@@ -3523,11 +3523,22 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 	uint32_t nAggregateFrames = S.nAggregateFrames ? S.nAggregateFrames : 1;
 	float fRcpAggregateFrames = 1.f / nAggregateFrames;
 	(void)fRcpAggregateFrames;
+	char ColorString[32];
 	for(uint32_t i = 0; i < S.nGroupCount; ++i)
 	{
 		MP_ASSERT(i == S.GroupInfo[i].nGroupIndex);
 		float fToMs = S.GroupInfo[i].Type == MicroProfileTokenTypeCpu ? fToMsCPU : fToMsGPU;
-		MicroProfilePrintf(CB, Handle, "S.GroupInfo[%d] = MakeGroup(%d, \"%s\", %d, %d, %d, %f, %f, %f, '#%02x%02x%02x');\n", 
+		const char* pColorStr = "";
+		if(S.GroupInfo[i].nColor != 0x42)
+		{
+			snprintf(ColorString, sizeof(ColorString)-1, "#%02x%02x%02x",
+				MICROPROFILE_UNPACK_RED(S.GroupInfo[i].nColor) & 0xff,
+				MICROPROFILE_UNPACK_GREEN(S.GroupInfo[i].nColor) & 0xff,
+				MICROPROFILE_UNPACK_BLUE(S.GroupInfo[i].nColor) & 0xff);
+			pColorStr = &ColorString[0];
+
+		}
+		MicroProfilePrintf(CB, Handle, "S.GroupInfo[%d] = MakeGroup(%d, \"%s\", %d, %d, %d, %f, %f, %f, '%s');\n", 
 			S.GroupInfo[i].nGroupIndex, 
 			S.GroupInfo[i].nGroupIndex, 
 			S.GroupInfo[i].pName, 
@@ -3536,10 +3547,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 			S.GroupInfo[i].Type == MicroProfileTokenTypeGpu?1:0, 
 			fToMs * S.AggregateGroup[i], 
 			fToMs * S.AggregateGroup[i] / nAggregateFrames, 
-			fToMs * S.AggregateGroupMax[i],
-			MICROPROFILE_UNPACK_RED(S.GroupInfo[i].nColor) & 0xff,
-			MICROPROFILE_UNPACK_GREEN(S.GroupInfo[i].nColor) & 0xff,
-			MICROPROFILE_UNPACK_BLUE(S.GroupInfo[i].nColor) & 0xff);
+			fToMs * S.AggregateGroupMax[i], pColorStr);
 	}
 	//timers
 
