@@ -3163,6 +3163,7 @@ void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pC
 	*pContextSwitchEnd = nContextSwitchEnd;
 }
 
+
 int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_t nBufferSize)
 {
 	if (!nCounter)
