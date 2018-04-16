@@ -930,7 +930,18 @@ const char g_MicroProfileHtml_end_0[] =
 "			}\n"
 "			ThreadsActive[i] = All;\n"
 "		}\n"
-"		if((I == 0 && All) || (A == 0 && !All))\n"
+"		if(All)\n"
+"		{\n"
+"			for(let i in S.ThreadNames)\n"
+"			{\n"
+"				if(!ThreadsActive[S.ThreadNames[i]])\n"
+"				{\n"
+"					ThreadsActive[S.ThreadNames[i]] = 1;\n"
+"					I++;\n"
+"				}\n"
+"			}\n"
+"		}\n"
+"		if(((I == 0 && All) || (A == 0 && !All)) && Object.keys(ThreadsActiveBackup).length)\n"
 "		{\n"
 "			ThreadsActive = ThreadsActiveBackup;\n"
 "		}\n"
@@ -1834,18 +1845,18 @@ const char g_MicroProfileHtml_end_0[] =
 "	var x = HistoryViewMouseX;\n"
 "\n"
 "	var context = CanvasHistory.getContext(\'2d\');\n"
-"	context.clearRect(0, 0, CanvasHistory.width, CanvasHistory.height);\n"
+"	context.clearRec";
+
+const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
+const char g_MicroProfileHtml_end_1[] =
+"t(0, 0, CanvasHistory.width, CanvasHistory.height);\n"
 "\n"
 "	var fHeight = nHistoryHeight;\n"
 "	var fWidth = nWidth / S.Frames.length;\n"
 "	var fHeightScale = fHeight / ReferenceTime;\n"
 "	var fX = 0;\n"
 "	var FrameIndex = -1;\n"
-"	var ";
-
-const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
-const char g_MicroProfileHtml_end_1[] =
-"MouseDragging = MouseDragState != MouseDragOff;\n"
+"	var MouseDragging = MouseDragState != MouseDragOff;\n"
 "	RangeCpuHistory = RangeInit();\n"
 "	RangeGpuHistory = RangeInit()\n"
 "\n"
@@ -3064,6 +3075,10 @@ const char g_MicroProfileHtml_end_1[] =
 "			{\n"
 "				if(ThreadOut == ThreadId)\n"
 "				{\n"
+"";
+
+const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
+const char g_MicroProfileHtml_end_2[] =
 "					var TimeOut = S.CSwitchTime[i];\n"
 "					CSArrayIn.push(TimeIn);\n"
 "					CSArrayOut.push(TimeOut);\n"
@@ -3074,11 +3089,7 @@ const char g_MicroProfileHtml_end_1[] =
 "			j += 3;\n"
 "		}\n"
 "		CSObject = new Object();\n"
-"		CSObject.Siz";
-
-const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
-const char g_MicroProfileHtml_end_2[] =
-"e = CSArrayIn.length;\n"
+"		CSObject.Size = CSArrayIn.length;\n"
 "		CSObject.In = CSArrayIn;\n"
 "		CSObject.Out = CSArrayOut;\n"
 "		CSObject.Cpu = CSArrayCpu;\n"
@@ -4402,18 +4413,18 @@ const char g_MicroProfileHtml_end_2[] =
 "	{	\n"
 "		nOffsetYDest = YTop;\n"
 "	}\n"
-"	var fRange = fDetailedRange;\n"
+"	v";
+
+const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
+const char g_MicroProfileHtml_end_3[] =
+"ar fRange = fDetailedRange;\n"
 "	var fMinRange = (fMoveEnd-fMoveBegin) * 2.0;\n"
 "	if(fRange < fMinRange)\n"
 "	{\n"
 "		fRange = fMinRange;\n"
 "	}\n"
 "	var fMoveCenter = (fMoveBegin + fMoveEnd) * 0.5;\n"
-"	fMoveBegin = fMoveCenter - 0.5 *";
-
-const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
-const char g_MicroProfileHtml_end_3[] =
-" fRange;\n"
+"	fMoveBegin = fMoveCenter - 0.5 * fRange;\n"
 "	fMoveEnd = fMoveCenter + 0.5 * fRange;\n"
 "	var nOffset;\n"
 "	if(nOffsetYDest != nOffsetY)\n"
@@ -5993,13 +6004,13 @@ const char g_MicroProfileHtml_end_3[] =
 "		{\n"
 "			var Frame_ = S.Frames[i];	\n"
 "			Frame_.LogStart[nLog] = TimeArray.length;\n"
-"			var CanDiscard = !S.ISGPU[nLog] || Frame_.frameendgpu > 0; //in case of no reference, we cannot discard gpu markers. This happens when there is no gpu/cpu tick reference\n"
-"\n"
-"			var FrameDiscard = (S.ISGPU[nLog] ? Frame_.frameendgpu : Frame_.frameend) + 33;//if timestamps are mo";
+"			var CanDiscard = !S.ISGPU[nLog] || Frame_.frameendgpu > 0; //in ca";
 
 const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
 const char g_MicroProfileHtml_end_4[] =
-"re than 33ms after current frame, we assume buffer has wrapped.\n"
+"se of no reference, we cannot discard gpu markers. This happens when there is no gpu/cpu tick reference\n"
+"\n"
+"			var FrameDiscard = (S.ISGPU[nLog] ? Frame_.frameendgpu : Frame_.frameend) + 33;//if timestamps are more than 33ms after current frame, we assume buffer has wrapped.\n"
 "			var tt = Frame_.tt[nLog];\n"
 "			var ts = Frame_.ts[nLog];\n"
 "			var ti = Frame_.ti[nLog];\n"

@@ -916,7 +916,18 @@ function ToggleThread(ThreadName, All)
 			}
 			ThreadsActive[i] = All;
 		}
-		if((I == 0 && All) || (A == 0 && !All))
+		if(All)
+		{
+			for(let i in S.ThreadNames)
+			{
+				if(!ThreadsActive[S.ThreadNames[i]])
+				{
+					ThreadsActive[S.ThreadNames[i]] = 1;
+					I++;
+				}
+			}
+		}
+		if(((I == 0 && All) || (A == 0 && !All)) && Object.keys(ThreadsActiveBackup).length)
 		{
 			ThreadsActive = ThreadsActiveBackup;
 		}
