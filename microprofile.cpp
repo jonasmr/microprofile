@@ -4160,7 +4160,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 		const char* p1 = pThreadInfo[i].pThreadModule ? pThreadInfo[i].pThreadModule : "?";
 		const char* p2 = pThreadInfo[i].pProcessModule ? pThreadInfo[i].pProcessModule : "?";
 
-		MicroProfilePrintf(CB, Handle, "%" PRId64 ":{\'tid\':%" PRId64 ",\'pid\':%" PRId64 ",\'t\':\'%s\',\'p\':\'%s\'},\n",
+		MicroProfilePrintf(CB, Handle, "%" PRId64 ":{\'tid\':%" PRId64 ",\'pid\':%" PRId64 ",\'t\':\'%s\',\'p\':\'%s\'},",
 			(uint64_t)pThreadInfo[i].tid,
 			(uint64_t)pThreadInfo[i].tid,
 			(uint64_t)pThreadInfo[i].pid,
