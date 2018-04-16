@@ -5239,7 +5239,7 @@ const char g_MicroProfileHtml_end_3[] =
 "	{\n"
 "		ToolTipFlip = 0;\n"
 "	}\n"
-"	ShowFlashMessage(evt.keyCode + \' <<\', 100);\n"
+"	// ShowFlashMessage(evt.keyCode + \' <<\', 100);\n"
 "	if(!FilterSearchActive && !IgnoreInput)\n"
 "	{\n"
 "		if(evt.keyCode == 112)\n"
@@ -6004,11 +6004,11 @@ const char g_MicroProfileHtml_end_3[] =
 "		{\n"
 "			var Frame_ = S.Frames[i];	\n"
 "			Frame_.LogStart[nLog] = TimeArray.length;\n"
-"			var CanDiscard = !S.ISGPU[nLog] || Frame_.frameendgpu > 0; //in ca";
+"			var CanDiscard = !S.ISGPU[nLog] || Frame_.frameendgpu > 0; //in";
 
 const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
 const char g_MicroProfileHtml_end_4[] =
-"se of no reference, we cannot discard gpu markers. This happens when there is no gpu/cpu tick reference\n"
+" case of no reference, we cannot discard gpu markers. This happens when there is no gpu/cpu tick reference\n"
 "\n"
 "			var FrameDiscard = (S.ISGPU[nLog] ? Frame_.frameendgpu : Frame_.frameend) + 33;//if timestamps are more than 33ms after current frame, we assume buffer has wrapped.\n"
 "			var tt = Frame_.tt[nLog];\n"
@@ -6780,6 +6780,7 @@ const char g_MicroProfileHtml_end_4[] =
 "\n"
 "	Comp2 = new Date();\n"
 "	var SOriginal = S;\n"
+"	S = {};\n"
 "\n"
 "	var idx = idxbegin;\n"
 "	while(idx < idxend)\n"

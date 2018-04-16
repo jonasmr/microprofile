@@ -5213,7 +5213,7 @@ function KeyUp(evt)
 	{
 		ToolTipFlip = 0;
 	}
-	ShowFlashMessage(evt.keyCode + ' <<', 100);
+	// ShowFlashMessage(evt.keyCode + ' <<', 100);
 	if(!FilterSearchActive && !IgnoreInput)
 	{
 		if(evt.keyCode == 112)
@@ -6750,6 +6750,7 @@ function ParseCompareData(Data)
 
 	Comp2 = new Date();
 	var SOriginal = S;
+	S = {};
 
 	var idx = idxbegin;
 	while(idx < idxend)
