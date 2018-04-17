@@ -349,6 +349,8 @@ var SymbolState;
 
 var FunctionNamesInstrumented = [];
 var FunctionModulesInstrumented = [];
+var PopupsAllowed = 0;
+
 
 function ConvertHslToRGB(h, s, l) //from https://gist.github.com/mjackson/5311256
 {
@@ -2990,9 +2992,38 @@ function DrawMenuRoll(M, Name, RollValue, RollExt, RollFunction, Tweak, Type)
 	return Tweak;
 
 }
-
-
-
+function CheckPopupAllowed()
+{
+	if(!PopupsAllowed)
+	{
+		var W = window.open("about:blank");
+		var Fail = function()
+		{
+			window.alert('To use Autocapture, you need to allow popups. please click the icon in the right side of the adress bar');
+		};
+		var Check = function()
+		{
+			if(!(W.innerHeight>0))
+				Fail();
+			else
+			{
+				PopupsAllowed = 1;
+				W.close();
+			}
+		};
+		if(W)
+		{
+            if(/chrome/.test(navigator.userAgent.toLowerCase()))
+            	setTimeout(Check, 200);
+            else
+            	W.onload = Check;
+		}
+		else
+		{
+			Fail();
+		}
+	}
+}
 
 function DrawMenuCapture()
 {
@@ -3015,6 +3046,8 @@ function DrawMenuCapture()
 	if(DrawMenuElement(M, 0, "AutoCapture Enabled", AutoCaptureEnabled ? "on" : "off", 'white', 0))
 	{
 		AutoCaptureEnabled = !AutoCaptureEnabled;
+
+		CheckPopupAllowed();
 	}
 	AutoCaptureSourceTweak = DrawMenuRoll(M, "AutoCapture Source", GetAutoCaptureString(), '', AutoCaptureSourceRoll, AutoCaptureSourceTweak);
 	AutoCaptureTweak = DrawMenuRoll(M, "AutoCapture Threshold", Settings.AutoCaptureTheshold, 'ms', AutoCaptureRoll, AutoCaptureTweak, 'int');

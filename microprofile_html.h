@@ -7246,6 +7246,8 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "\n"
 "var FunctionNamesInstrumented = [];\n"
 "var FunctionModulesInstrumented = [];\n"
+"var PopupsAllowed = 0;\n"
+"\n"
 "\n"
 "function ConvertHslToRGB(h, s, l) //from https://gist.github.com/mjackson/5311256\n"
 "{\n"
@@ -8229,11 +8231,11 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "				case 9: KeyFunc = function (a) { return TimerArray[a].exclmax; }; break;\n"
 "			}\n"
 "			var Flip = Settings.SortColumnOrderFlip == 1 ? -1 : 1;\n"
-"			OrderArray.sort(function(a,b) { return Flip * (KeyFunc(b) ";
+"			OrderArray.sort(function(a,b) { re";
 
 const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
 const char g_MicroProfileHtmlLive_begin_1[] =
-"- KeyFunc(a)); } );\n"
+"turn Flip * (KeyFunc(b) - KeyFunc(a)); } );\n"
 "		}\n"
 "	}\n"
 "\n"
@@ -9706,12 +9708,12 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "\n"
 "	}else if(Tweak||Direction)\n"
 "	{\n"
-"		if(!Direction)\n"
-"			Direction = Twe";
+"		if(!Direc";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-"ak;\n"
+"tion)\n"
+"			Direction = Tweak;\n"
 "		if(Direction<0)\n"
 "		{\n"
 "			AutoCaptureSourceIndex--;\n"
@@ -9895,9 +9897,38 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	return Tweak;\n"
 "\n"
 "}\n"
-"\n"
-"\n"
-"\n"
+"function CheckPopupAllowed()\n"
+"{\n"
+"	if(!PopupsAllowed)\n"
+"	{\n"
+"		var W = window.open(\"about:blank\");\n"
+"		var Fail = function()\n"
+"		{\n"
+"			window.alert(\'To use Autocapture, you need to allow popups. please click the icon in the right side of the adress bar\');\n"
+"		};\n"
+"		var Check = function()\n"
+"		{\n"
+"			if(!(W.innerHeight>0))\n"
+"				Fail();\n"
+"			else\n"
+"			{\n"
+"				PopupsAllowed = 1;\n"
+"				W.close();\n"
+"			}\n"
+"		};\n"
+"		if(W)\n"
+"		{\n"
+"            if(/chrome/.test(navigator.userAgent.toLowerCase()))\n"
+"            	setTimeout(Check, 200);\n"
+"            else\n"
+"            	W.onload = Check;\n"
+"		}\n"
+"		else\n"
+"		{\n"
+"			Fail();\n"
+"		}\n"
+"	}\n"
+"}\n"
 "\n"
 "function DrawMenuCapture()\n"
 "{\n"
@@ -9920,6 +9951,8 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	if(DrawMenuElement(M, 0, \"AutoCapture Enabled\", AutoCaptureEnabled ? \"on\" : \"off\", \'white\', 0))\n"
 "	{\n"
 "		AutoCaptureEnabled = !AutoCaptureEnabled;\n"
+"\n"
+"		CheckPopupAllowed();\n"
 "	}\n"
 "	AutoCaptureSourceTweak = DrawMenuRoll(M, \"AutoCapture Source\", GetAutoCaptureString(), \'\', AutoCaptureSourceRoll, AutoCaptureSourceTweak);\n"
 "	AutoCaptureTweak = DrawMenuRoll(M, \"AutoCapture Threshold\", Settings.AutoCaptureTheshold, \'ms\', AutoCaptureRoll, AutoCaptureTweak, \'int\');\n"
@@ -11046,7 +11079,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	}\n"
 "	else\n"
 "	{\n"
-"		ReferenceGraph = Settings.ReferenceTime;\n"
+"		ReferenceGraph = Setting";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+"s.ReferenceTime;\n"
 "		ReferenceHistory = Settings.ReferenceTime;\n"
 "		ReferenceBar = Settings.ReferenceTime;\n"
 "	}\n"
@@ -11080,11 +11117,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "		DrawMessage();\n"
 "	}\n"
 "\n"
-"	DrawConnec";
-
-const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
-const char g_MicroProfileHtmlLive_begin_3[] =
-"tionStatus();\n"
+"	DrawConnectionStatus();\n"
 "	DrawPlotf(CanvasDetailedView);\n"
 "	DrawActiveToolTip();\n"
 "\n"
@@ -12572,7 +12605,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "				context.fillStyle = \'white\';\n"
 "				context.fillText( FormatCounter(Counter.format, Counter.minvalue), X, Y + Height - FontAscent);\n"
 "				X += CounterWidth + 5;\n"
-"				context.fillText( FormatCounter(Counter.format, Counter.maxvalue), X, Y + Height - FontAscent);\n"
+"				context.fillText( FormatCounter(Counter.format, C";
+
+const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
+const char g_MicroProfileHtmlLive_begin_4[] =
+"ounter.maxvalue), X, Y + Height - FontAscent);\n"
 "				X += CounterWidth + 5;\n"
 "			}\n"
 "			Y += HeightExpanded;\n"
@@ -12596,11 +12633,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "	context.fillRect(0, 0, Width, Height);\n"
 "	context.fillStyle = \'white\';\n"
 "	DrawHeaderSplitSingle(\'Name\', CounterNameWidth);\n"
-"	DrawHeaderSplitSingleRight(\'Value\', CounterValueWidth + (FontWidth+1";
-
-const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
-const char g_MicroProfileHtmlLive_begin_4[] =
-"));\n"
+"	DrawHeaderSplitSingleRight(\'Value\', CounterValueWidth + (FontWidth+1));\n"
 "	DrawHeaderSplitSingle(\'Limit\', CounterLimitWidth + CounterWidth + 3 * (FontWidth+1));\n"
 "	ProfileLeave();\n"
 "}\n"
