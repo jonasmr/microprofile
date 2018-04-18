@@ -7032,6 +7032,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "\n"
 "var MouseDragActiveXStart = 0;\n"
 "var MouseDragActiveXEnd = -1;\n"
+"var MouseInCaptureButton = 0;\n"
 "\n"
 "var ToolTipCallback = null;\n"
 "\n"
@@ -8231,11 +8232,11 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "				case 9: KeyFunc = function (a) { return TimerArray[a].exclmax; }; break;\n"
 "			}\n"
 "			var Flip = Settings.SortColumnOrderFlip == 1 ? -1 : 1;\n"
-"			OrderArray.sort(function(a,b) { re";
+"			Orde";
 
 const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
 const char g_MicroProfileHtmlLive_begin_1[] =
-"turn Flip * (KeyFunc(b) - KeyFunc(a)); } );\n"
+"rArray.sort(function(a,b) { return Flip * (KeyFunc(b) - KeyFunc(a)); } );\n"
 "		}\n"
 "	}\n"
 "\n"
@@ -8833,6 +8834,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "}\n"
 "function DrawCaptureButton(context)\n"
 "{\n"
+"	MouseInCaptureButton = 0;\n"
 "	if(!ShowMenu())\n"
 "	{\n"
 "		return;\n"
@@ -8844,9 +8846,9 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	var X = nWidth / 2 - w / 2;\n"
 "	var XCenter = nWidth / 2;\n"
 "	var Y = nHeight - 30;\n"
-"	var bMouseInCapture = MouseInside(X, Y, w, 4 + FontHeight);\n"
+"	MouseInCaptureButton = MouseInside(X, Y, w, 4 + FontHeight);\n"
 "	context.textAlign = \'center\';\n"
-"	context.fillStyle = bMouseInCapture ? nBackColors[1] : \'black\';\n"
+"	context.fillStyle = MouseInCaptureButton ? nBackColors[1] : \'black\';\n"
 "	context.fillRect(X, Y, w, 4 + FontHeight);\n"
 "	context.fillStyle = \'#ffffff\';\n"
 "	context.fillText(CaptureText, XCenter, Y + FontHeight);\n"
@@ -8862,23 +8864,12 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	context.fillStyle = \'#ffffff\';\n"
 "	context.fillText(MenuText, X + w2*0.5, Y + FontHeight);\n"
 "	context.textAlign = \'left\';\n"
-"	if(MouseReleased)\n"
+"	if(bMouseInCaptureMenu)\n"
 "	{\n"
-"		if(bMouseInCapture)\n"
-"		{\n"
-"			Capture();\n"
-"		}\n"
-"	}\n"
-"	else\n"
-"	{\n"
-"		if(bMouseInCaptureMenu)\n"
-"		{\n"
-"			CaptureButtonX = X + w2;\n"
-"			CaptureButtonY = Y;\n"
-"			EnableMenu(SubMenuCapture);\n"
-"		}	\n"
-"	}\n"
-"\n"
+"		CaptureButtonX = X + w2;\n"
+"		CaptureButtonY = Y;\n"
+"		EnableMenu(SubMenuCapture);\n"
+"	}	\n"
 "}\n"
 "function UpdateX7Views()\n"
 "{\n"
@@ -9708,12 +9699,12 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "\n"
 "	}else if(Tweak||Direction)\n"
 "	{\n"
-"		if(!Direc";
+"		if(!Direction)\n"
+"			Direction = Twea";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-"tion)\n"
-"			Direction = Tweak;\n"
+"k;\n"
 "		if(Direction<0)\n"
 "		{\n"
 "			AutoCaptureSourceIndex--;\n"
@@ -9951,7 +9942,6 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	if(DrawMenuElement(M, 0, \"AutoCapture Enabled\", AutoCaptureEnabled ? \"on\" : \"off\", \'white\', 0))\n"
 "	{\n"
 "		AutoCaptureEnabled = !AutoCaptureEnabled;\n"
-"\n"
 "		CheckPopupAllowed();\n"
 "	}\n"
 "	AutoCaptureSourceTweak = DrawMenuRoll(M, \"AutoCapture Source\", GetAutoCaptureString(), \'\', AutoCaptureSourceRoll, AutoCaptureSourceTweak);\n"
@@ -11079,12 +11069,12 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	}\n"
 "	else\n"
 "	{\n"
-"		ReferenceGraph = Setting";
+"		ReferenceGraph = Settings.ReferenceTime;\n"
+"		Referen";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-"s.ReferenceTime;\n"
-"		ReferenceHistory = Settings.ReferenceTime;\n"
+"ceHistory = Settings.ReferenceTime;\n"
 "		ReferenceBar = Settings.ReferenceTime;\n"
 "	}\n"
 "	if(Settings.AggregateFrames != AggregateFrames)\n"
@@ -11943,6 +11933,10 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "			}\n"
 "			Draw(1);\n"
 "		}\n"
+"		if(MouseInCaptureButton)\n"
+"		{\n"
+"			Capture();\n"
+"		}\n"
 "	}\n"
 "}\n"
 "\n"
@@ -12605,11 +12599,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "				context.fillStyle = \'white\';\n"
 "				context.fillText( FormatCounter(Counter.format, Counter.minvalue), X, Y + Height - FontAscent);\n"
 "				X += CounterWidth + 5;\n"
-"				context.fillText( FormatCounter(Counter.format, C";
+"				context.fillText( FormatCo";
 
 const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
 const char g_MicroProfileHtmlLive_begin_4[] =
-"ounter.maxvalue), X, Y + Height - FontAscent);\n"
+"unter(Counter.format, Counter.maxvalue), X, Y + Height - FontAscent);\n"
 "				X += CounterWidth + 5;\n"
 "			}\n"
 "			Y += HeightExpanded;\n"

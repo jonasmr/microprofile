@@ -135,6 +135,7 @@ var MouseDragYStart = 0;
 
 var MouseDragActiveXStart = 0;
 var MouseDragActiveXEnd = -1;
+var MouseInCaptureButton = 0;
 
 var ToolTipCallback = null;
 
@@ -1932,6 +1933,7 @@ function DrawMessage()
 }
 function DrawCaptureButton(context)
 {
+	MouseInCaptureButton = 0;
 	if(!ShowMenu())
 	{
 		return;
@@ -1943,9 +1945,9 @@ function DrawCaptureButton(context)
 	var X = nWidth / 2 - w / 2;
 	var XCenter = nWidth / 2;
 	var Y = nHeight - 30;
-	var bMouseInCapture = MouseInside(X, Y, w, 4 + FontHeight);
+	MouseInCaptureButton = MouseInside(X, Y, w, 4 + FontHeight);
 	context.textAlign = 'center';
-	context.fillStyle = bMouseInCapture ? nBackColors[1] : 'black';
+	context.fillStyle = MouseInCaptureButton ? nBackColors[1] : 'black';
 	context.fillRect(X, Y, w, 4 + FontHeight);
 	context.fillStyle = '#ffffff';
 	context.fillText(CaptureText, XCenter, Y + FontHeight);
@@ -1961,23 +1963,12 @@ function DrawCaptureButton(context)
 	context.fillStyle = '#ffffff';
 	context.fillText(MenuText, X + w2*0.5, Y + FontHeight);
 	context.textAlign = 'left';
-	if(MouseReleased)
+	if(bMouseInCaptureMenu)
 	{
-		if(bMouseInCapture)
-		{
-			Capture();
-		}
-	}
-	else
-	{
-		if(bMouseInCaptureMenu)
-		{
-			CaptureButtonX = X + w2;
-			CaptureButtonY = Y;
-			EnableMenu(SubMenuCapture);
-		}	
-	}
-
+		CaptureButtonX = X + w2;
+		CaptureButtonY = Y;
+		EnableMenu(SubMenuCapture);
+	}	
 }
 function UpdateX7Views()
 {
@@ -3046,7 +3037,6 @@ function DrawMenuCapture()
 	if(DrawMenuElement(M, 0, "AutoCapture Enabled", AutoCaptureEnabled ? "on" : "off", 'white', 0))
 	{
 		AutoCaptureEnabled = !AutoCaptureEnabled;
-
 		CheckPopupAllowed();
 	}
 	AutoCaptureSourceTweak = DrawMenuRoll(M, "AutoCapture Source", GetAutoCaptureString(), '', AutoCaptureSourceRoll, AutoCaptureSourceTweak);
@@ -5033,6 +5023,10 @@ function MouseHandleDragClick()
 				TimerArray[nHoverCounter].Expanded = !TimerArray[nHoverCounter].Expanded;
 			}
 			Draw(1);
+		}
+		if(MouseInCaptureButton)
+		{
+			Capture();
 		}
 	}
 }
