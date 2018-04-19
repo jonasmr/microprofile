@@ -3825,11 +3825,11 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 			if(nLogStart != nLogEnd)
 			{
 				uint32_t k = nLogStart;
-				MicroProfilePrintf(CB, Handle, "%d", MicroProfileLogGetType(pLog->Log[k]));
+				MicroProfilePrintf(CB, Handle, "%" PRId64, MicroProfileLogGetType(pLog->Log[k]));
 				for(k = (k+1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 				{
 					uint64_t nLogType = MicroProfileLogGetType(pLog->Log[k]);
-					MicroProfilePrintf(CB, Handle, ",%d", nLogType);
+					MicroProfilePrintf(CB, Handle, ",%" PRId64, nLogType);
 				}
 			}
 			MicroProfilePrintf(CB, Handle, "];\n");
@@ -5783,7 +5783,7 @@ void MicroProfileWebSocketSendCounterEntry(uint32_t id, uint32_t parent, const c
 {
 	WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
 	WSPrintf("\"name\":\"%s\",", pName);
-	WSPrintf("\"limit\":%d,", nLimit);	
+	WSPrintf("\"limit\":%" PRId64 ",", nLimit);
 	WSPrintf("\"format\":%d", nFormat);	
 	WSPrintf("}}");
 	WSFlush();
