@@ -215,6 +215,12 @@ int main(int argc, char* argv[])
 	MicroProfileOnThreadCreate("Main");
 	printf("press ctrl-c to quit\n");
 
+
+
+	void MicroProfileHashTableTest();
+	MicroProfileHashTableTest();
+
+
 	//turn on profiling
 	MicroProfileSetEnableAllGroups(true);
 	MicroProfileSetForceMetaCounters(true);

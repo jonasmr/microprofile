@@ -462,6 +462,45 @@ struct MicroProfileFrameState
 	int32_t nHistoryTimeline;	
 };
 
+struct MicroProfileStringBlock
+{
+	enum{DEFAULT_SIZE = 1024,};
+	MicroProfileStringBlock* pNext;
+	uint32_t nUsed;
+	uint32_t nSize;
+	char Memory[];
+};
+
+
+typedef bool (*MicroProfileHashCompareFunction)(uint64_t l, uint64_t r);
+typedef uint64_t (*MicroProfileHashFunction)(uint64_t p);
+
+struct MicroProfileHashTableEntry
+{
+	uint64_t Key;
+	uint64_t Hash;
+	uint64_t Value;
+};
+
+struct MicroProfileHashTable
+{
+	MicroProfileHashTableEntry* pEntries;
+	uint32_t nUsed;
+	uint32_t nAllocated;
+	uint32_t nSearchLimit;
+	uint32_t nLim;
+	MicroProfileHashCompareFunction CompareFunc;
+	MicroProfileHashFunction HashFunc;
+};
+
+struct MicroProfileStrings
+{
+	MicroProfileHashTable HashTable;
+	MicroProfileStringBlock* pFirst;
+	MicroProfileStringBlock* pLast;
+};
+
+
 struct MicroProfileThreadLog
 {
 	MicroProfileLogEntry	Log[MICROPROFILE_BUFFER_SIZE];
@@ -813,6 +852,8 @@ struct MicroProfile
 	int64_t 					nCounterMin[MICROPROFILE_MAX_COUNTERS];
 #endif
 
+	MicroProfileStrings 		Strings;
+
 
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
 	uint32_t 						DynamicTokenIndex;
@@ -1144,6 +1185,27 @@ MICROPROFILE_DEFINE(g_MicroProfileGpuSubmit, "MicroProfile", "MicroProfileGpuSub
 MICROPROFILE_DEFINE(g_MicroProfileSendLoop, "MicroProfile", "MicroProfileSocketSendLoop", MP_GREEN4);
 
 
+
+void MicroProfileHashTableInit(MicroProfileHashTable* pTable, uint32_t nInitialSize, MicroProfileHashCompareFunction CompareFunc, MicroProfileHashFunction HashFunc);
+void MicroProfileHashTableDestroy(MicroProfileHashTable* pTable);
+uint64_t MicroProfileHashTableHash(MicroProfileHashTable* pTable, uint64_t K);
+void MicroProfileHashTableGrow(MicroProfileHashTable* pTable);
+
+bool MicroProfileHashTableSet(MicroProfileHashTable* pTable, uint64_t Key, uint64_t Value, uint64_t H, bool bAllowGrow);
+bool MicroProfileHashTableGet(MicroProfileHashTable* pTable, uint64_t Key, uint64_t* pValue);
+bool MicroProfileHashTableRemove(MicroProfileHashTable* pTable, uint64_t Key);
+
+bool MicroProfileHashTableSetString(MicroProfileHashTable* pTable, const char* pKey, const char* pValue);
+bool MicroProfileHashTableGetString(MicroProfileHashTable* pTable, const char* pKey, const char** pValue);
+bool MicroProfileHashTableRemoveString(MicroProfileHashTable* pTable, const char* pKey);
+
+const char* MicroProfileStringIntern(const char* pStr);
+const char* MicroProfileStringIntern(const char* pStr, uint32_t nLen);
+
+void MicroProfileStringsInit(MicroProfileStrings* pStrings);
+void MicroProfileStringsDestroy(MicroProfileStrings* pStrings);
+
+
 inline std::recursive_mutex& MicroProfileMutex()
 {
 	static std::recursive_mutex Mutex;
@@ -1257,6 +1319,7 @@ void MicroProfileInit()
 			S.TimelineTokenStaticString[i] = nullptr;
 			S.TimelineToken[i] = 0;
 		}
+		MicroProfileStringsInit(&S.Strings);
 	}
 	MICROPROFILE_COUNTER_CONFIG("MicroProfile/Alloc/Memory", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
 	MICROPROFILE_COUNTER_CONFIG("MicroProfile/ThreadLog/Memory", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
@@ -1291,6 +1354,7 @@ void MicroProfileShutdown()
 			S.nJsonSettingsBufferSize = 0;
 		}
 		MicroProfileGpuShutdown();
+		MicroProfileStringsDestroy(&S.Strings);
 		MICROPROFILE_FREE(S.WSBuf.pBufferAllocation);
 
 	}
@@ -10727,10 +10791,532 @@ static void* MicroProfileAllocExecutableMemory(size_t s)
 
 
 
+void MicroProfileHashTableInit(MicroProfileHashTable* pTable, uint32_t nInitialSize, uint32_t nSearchLimit, MicroProfileHashCompareFunction CompareFunc, MicroProfileHashFunction HashFunc)
+{
+	pTable->nAllocated = nInitialSize;
+	pTable->nUsed = 0;
+	uint32_t nSize = nInitialSize*sizeof(MicroProfileHashTableEntry);
+	pTable->pEntries = (MicroProfileHashTableEntry*)MICROPROFILE_ALLOC(nSize, 8);
+	pTable->CompareFunc = CompareFunc;
+	pTable->HashFunc = HashFunc;
+	pTable->nSearchLimit = nSearchLimit;
+	pTable->nLim = pTable->nAllocated / 5;
+	if(pTable->nLim > pTable->nSearchLimit)
+		pTable->nLim = pTable->nSearchLimit;
+	memset(pTable->pEntries, 0, nSize);
+}
+void MicroProfileHashTableDestroy(MicroProfileHashTable* pTable)
+{
+	MICROPROFILE_FREE(pTable->pEntries);
+}
+
+uint64_t MicroProfileHashTableHash(MicroProfileHashTable* pTable, uint64_t K)
+{
+	uint64_t H = pTable->HashFunc?(*pTable->HashFunc)(K) : K;
+	return H == 0 ? 1 : H;
+}
+
+void MicroProfileHashTableGrow(MicroProfileHashTable* pTable)
+{
+	uint32_t nAllocated = pTable->nAllocated;
+	uint32_t nNewSize = nAllocated * 2;
+	printf("GROW %d -> %d\n", nAllocated, nNewSize);
+
+	MicroProfileHashTable New;
+	MicroProfileHashTableInit(&New, nNewSize, pTable->nSearchLimit, pTable->CompareFunc, pTable->HashFunc);
+	for(uint32_t i = 0; i < nAllocated; ++i)
+	{
+		MicroProfileHashTableEntry& E = pTable->pEntries[i];
+		if(E.Hash != 0)
+		{
+			MicroProfileHashTableSet(&New, E.Key, E.Value, E.Hash, false);
+		}
+	}
+	MicroProfileHashTableDestroy(pTable);
+	*pTable = New;
+}
+
+bool MicroProfileHashTableSet(MicroProfileHashTable* pTable, uint64_t Key, uint64_t Value)
+{
+	uint64_t H = MicroProfileHashTableHash(pTable, Key);
+	return MicroProfileHashTableSet(pTable, Key, Value, H, true);
+
+}
+
+
+bool MicroProfileHashTableSet(MicroProfileHashTable* pTable, uint64_t Key, uint64_t Value, uint64_t H, bool bAllowGrow)
+{
+	// uint64_t H = MicroProfileHashTableHash(pTable, Key);
+	MicroProfileHashCompareFunction Cmp = pTable->CompareFunc;
+	while(1)
+	{
+		const uint32_t nLim = pTable->nLim;
+		uint32_t B = H % pTable->nAllocated;
+		MicroProfileHashTableEntry* pEntries = pTable->pEntries;
+		
+		for(uint32_t i = 0; i < pTable->nAllocated; ++i)
+		{
+			uint32_t Idx = (B+i) % pTable->nAllocated;
+			if(pEntries[Idx].Hash == 0)
+			{
+				pEntries[Idx].Hash = H;
+				pEntries[Idx].Key = Key;
+				pEntries[Idx].Value = Value;
+				return true;
+			}
+			else if(pEntries[Idx].Hash == H && (Cmp ? (Cmp)(Key, pEntries[Idx].Key) : Key == pEntries[Idx].Key))
+			{
+				pEntries[Idx].Value = Value;
+				return true;
+			}
+			else if (i > nLim)
+			{
+				break;
+			}
+		}
+		if(bAllowGrow)
+		{
+			MicroProfileHashTableGrow(pTable);
+		}
+		else
+		{
+			MP_BREAK();
+		}
+	}
+	MP_BREAK();
+}
+
+bool MicroProfileHashTableGet(MicroProfileHashTable* pTable, uint64_t Key, uint64_t* pValue)
+{
+	uint64_t H = MicroProfileHashTableHash(pTable, Key);
+	uint32_t B = H % pTable->nAllocated;
+	MicroProfileHashTableEntry* pEntries = pTable->pEntries;
+	MicroProfileHashCompareFunction Cmp = pTable->CompareFunc;
+	for(uint32_t i = 0; i < pTable->nAllocated; ++i)
+	{
+		uint32_t Idx = (B+i) % pTable->nAllocated;
+		if(pEntries[Idx].Hash == 0)
+		{
+			return false;
+		}
+		else if(pEntries[Idx].Hash == H && (Cmp ? (Cmp)(Key, pEntries[Idx].Key) : Key == pEntries[Idx].Key))
+		{
+			*pValue = pEntries[Idx].Value;
+			return true;
+		}
+	}
+	return false;
+}
+
+bool MicroProfileHashTableRemove(MicroProfileHashTable* pTable, uint64_t Key)
+{
+
+	uint64_t H = MicroProfileHashTableHash(pTable, Key);
+	uint32_t B = H % pTable->nAllocated;
+	MicroProfileHashTableEntry* pEntries = pTable->pEntries;
+	MicroProfileHashCompareFunction Cmp = pTable->CompareFunc;
+	uint32_t nBase = (uint32_t)-1;
+	uint32_t nAllocated = pTable->nAllocated;
+	for(uint32_t i = 0; i < nAllocated; ++i)
+	{
+		uint32_t Idx = (B+i) % nAllocated;
+		if(pEntries[Idx].Hash == 0)
+		{
+			return false;
+		}
+		else if(pEntries[Idx].Hash == H && (Cmp ? (Cmp)(Key, pEntries[Idx].Key) : Key == pEntries[Idx].Key))
+		{
+			nBase = Idx;
+			break;
+		}
+	}
+	pEntries[nBase].Hash = 0;
+	pEntries[nBase].Key = 0;
+	pEntries[nBase].Value = 0;
+	nBase++;
+	for(uint32_t i = 0; i < nAllocated; ++i)
+	{
+		uint32_t Idx = (nBase+i) % nAllocated;
+		if(pEntries[Idx].Hash == 0)
+		{
+			break;
+		}
+		else
+		{
+			MicroProfileHashTableEntry E = pEntries[Idx];
+			pEntries[Idx] = {};
+			MicroProfileHashTableSet(pTable, E.Key, E.Value, E.Hash, false);
+		}
+	}
+	return true;
+
+}
+uint64_t MicroProfileHashTableHashString(uint64_t pString)
+{
+	return MicroProfileStringHash((const char*)pString);
+}
+
+bool MicroProfileHashTableCompareString(uint64_t L, uint64_t R)
+{
+	return 0 == strcmp((const char*)L, (const char*)R);
+}
+
+bool MicroProfileHashTableSetString(MicroProfileHashTable* pTable, const char* pKey, const char* pValue)
+{
+	return MicroProfileHashTableSet(pTable, (uint64_t)pKey, (uint64_t)pValue);
+}
+
+bool MicroProfileHashTableGetString(MicroProfileHashTable* pTable, const char* pKey, const char** pValue)
+{
+	return MicroProfileHashTableGet(pTable, (uint64_t)pKey, (uint64_t*)pValue);
+}
+
+bool MicroProfileHashTableRemoveString(MicroProfileHashTable* pTable, const char* pKey)
+{
+	return MicroProfileHashTableRemove(pTable, (uint64_t)pKey);
+}
 
 
 
 
+void MicroProfileStringBlockFree(MicroProfileStringBlock* pBlock)
+{
+	MICROPROFILE_COUNTER_SUB("/microprofile/stringblock/count", 1);
+	MICROPROFILE_COUNTER_SUB("/microprofile/stringblock/memory", pBlock->nSize + sizeof(MicroProfileStringBlock));
+	MP_FREE(pBlock);
+}
+MicroProfileStringBlock* MicroProfileStringBlockAlloc(uint32_t nSize)
+{
+	nSize = MicroProfileMax(nSize, (uint32_t)(MicroProfileStringBlock::DEFAULT_SIZE - sizeof(MicroProfileStringBlock)));
+	nSize += sizeof(MicroProfileStringBlock);
+	MICROPROFILE_COUNTER_ADD("/microprofile/stringblock/count", 1);
+	MICROPROFILE_COUNTER_ADD("/microprofile/stringblock/memory", nSize);
+	printf("alloc string block %d sizeof strings is %d\n", nSize, (int)sizeof(MicroProfileStringBlock));
+	MicroProfileStringBlock* pBlock = (MicroProfileStringBlock*)MP_ALLOC(nSize, 8);
+	pBlock->pNext = 0;
+	pBlock->nSize = nSize - sizeof(MicroProfileStringBlock);
+	pBlock->nUsed = 0;
+	return pBlock;
+}
+
+void MicroProfileStringsInit(MicroProfileStrings* pStrings)
+{
+	MicroProfileHashTableInit(&pStrings->HashTable, 1, 25, MicroProfileHashTableCompareString, MicroProfileHashTableHashString); 
+	pStrings->pFirst = 0;
+	pStrings->pLast = 0;
+}
+void MicroProfileStringsDestroy(MicroProfileStrings* pStrings)
+{
+	MicroProfileStringBlock* pBlock = pStrings->pFirst;
+	while(pBlock)
+	{
+		MicroProfileStringBlock* pNext = pBlock->pNext;
+		MicroProfileStringBlockFree(pBlock);
+		pBlock = pNext;
+	}
+	MICROPROFILE_COUNTER_SET("/microprofile/stringblock/waste", 0);
+	memset(pStrings, 0, sizeof(*pStrings));
+}
+
+const char* MicroProfileStringIntern(const char* pStr)
+{
+	return MicroProfileStringIntern(pStr, strlen(pStr));
+}
+
+const char* MicroProfileStringIntern(const char* pStr, uint32_t nLen)
+{
+	MicroProfileStrings* pStrings = &S.Strings;
+	const char* pRet;
+	if(MicroProfileHashTableGetString(&pStrings->HashTable, pStr, &pRet))
+	{
+		if(0 != strcmp(pStr, pRet))
+		{
+			MP_BREAK();
+		}
+		return pRet;
+	}
+	else
+	{
+		if(pStr[nLen] != '\0')
+			MP_BREAK();// string should be 0 terminated.
+		nLen += 1;
+		MicroProfileStringBlock* pBlock = pStrings->pLast;
+		if(0 == pBlock || pBlock->nUsed + nLen > pBlock->nSize)
+		{
+			MicroProfileStringBlock* pNewBlock = MicroProfileStringBlockAlloc(nLen);
+			if(pBlock)
+			{
+				pBlock->pNext = pNewBlock;
+				pStrings->pLast = pNewBlock;
+				MICROPROFILE_COUNTER_ADD("/microprofile/stringblock/waste", pBlock->nSize - pBlock->nUsed);
+			}
+			else
+			{
+				pStrings->pLast = pStrings->pFirst = pNewBlock;
+			}
+			pBlock = pNewBlock;
+
+
+		}
+		char* pDest = &pBlock->Memory[pBlock->nUsed];
+		pBlock->nUsed += nLen;
+		MP_ASSERT(pBlock->nUsed <= pBlock->nSize);
+		memcpy(pDest, pStr, nLen);
+		MicroProfileHashTableSetString(&pStrings->HashTable, pDest, pDest);
+		return pDest;
+	}
+
+	return 0;
+}
+
+void DumpTable(MicroProfileHashTable* pTable)
+	{
+		for(uint32_t i = 0; i < pTable->nAllocated; ++i)
+		{
+			if(pTable->pEntries[i].Hash != 0)
+			{
+				printf("[%05d,%05lld]  ::::%llx, %llx .. hash %llx\n", i, pTable->pEntries[i].Hash % pTable->nAllocated, pTable->pEntries[i].Key, pTable->pEntries[i].Value, pTable->pEntries[i].Hash);
+			}
+		}
+	};
+void DumpTableStr(MicroProfileHashTable* pTable)
+	{
+		int c = 0;
+		for(uint32_t i = 0; i < pTable->nAllocated; ++i)
+		{
+			if(pTable->pEntries[i].Hash != 0)
+			{
+				printf("%03d [%05d,%05lld]  ::::%s, %s .. hash %llx\n", c++, i, pTable->pEntries[i].Hash % pTable->nAllocated, (const char*)pTable->pEntries[i].Key, (const char*)pTable->pEntries[i].Value, pTable->pEntries[i].Hash);
+			}
+		}
+		printf("FillPrc %f\n", 100.f * c / (float)pTable->nAllocated);
+
+
+	};
+
+
+static const char* txt[] = {"gaudy","chilly","obtain","suspend","jelly","peel","nauseating","complain","cave","practise","sail","close",
+	"drawer","mature","impossible","exist","sister","poke","ancient","paddle","ask","shallow","outrageous","healthy","reading",
+	"obey","water","elbow","abnormal","trap","wholesale","lovely","stupid","comparison","swim","brash","towering","accept",
+	"invention","plantation","spooky","tiger","knot","literate","awake","itch","medical","ticket","tawdry","correct","mine",
+	"accidental","dinner","produce","protective","red","dreary","toe","drain","zesty","inform","boundless","ghost","attend",
+	"rely","fill","liquid","pump","continue","spark","church","fortunate","truthful","conscious","possible","motion","evanescent",
+	"branch","skirt","number","meek","hour","form","work","car","post","talk","fear","tightfisted","dress","perform","fry",
+	"courageous","dysfunctional","page","one","annoy","abrasive","dependent","payment"};
+
+
+void MicroProfileStringInternTest()
+{
+	MicroProfileStringsInit(&S.Strings);
+	uint32_t nCount = sizeof(txt) / sizeof(txt[0]);
+	const char* pStrings[100];
+	const char* pStrings2[100];
+
+	DumpTableStr(&S.Strings.HashTable);
+	for(uint32_t i = 0; i < nCount; ++i)
+	{
+		pStrings[i] = MicroProfileStringIntern(txt[i]);
+		pStrings2[i] = strdup(txt[i]);
+	}
+
+	for(uint32_t i = 0; i < nCount; ++i)
+	{
+		const char* pStr = MicroProfileStringIntern(pStrings2[i]);
+		if(pStr != pStrings[i])
+		{
+			MP_BREAK();
+		}
+	}
+	DumpTableStr(&S.Strings.HashTable);
+
+	MicroProfileStringsDestroy(&S.Strings);
+}
+
+
+
+void MicroProfileHashTableTest()
+{
+	MicroProfileStringInternTest();
+
+	MicroProfileHashTable T;
+	MicroProfileHashTable* pTable = &T;
+	MicroProfileHashTableInit(pTable, 1, 100, 0, 0);
+
+#define NUM_ITEMS 100
+	
+	uint64_t Keys[NUM_ITEMS];
+	uint64_t Values[NUM_ITEMS];
+	memset(Keys, 0xff, sizeof(Keys));
+	memset(Values, 0xff, sizeof(Values));
+
+	static int l = 0;
+	auto RR = [&]() -> uint64_t
+	{
+		if(l++ % 4 < 2)
+		{
+			return l;
+		}
+		uint64_t l = rand();
+		uint64_t u = rand();
+		return l | (u << 32);
+	};
+	auto RRUnique = [&]()
+	{
+		bool bFound = false;
+		uint64_t V = 0;
+		do
+		{
+			V = RR();
+			for(uint32_t i = 0; i != NUM_ITEMS; ++i)
+			{
+				if(V == Keys[i])
+				{
+					bFound = true;
+				}
+			}
+			if(!bFound)
+			{
+				return V;
+			}
+		}while(bFound);
+		MP_BREAK();
+	};
+
+
+
+	Keys[0] = 0;
+	Values[0] = 42;
+	for(uint32_t i = 1; i < NUM_ITEMS; ++i)
+	{
+		Keys[i] = RRUnique();
+		Values[i] = RR();
+	}
+	
+	for(uint32_t i = 0; i < NUM_ITEMS; ++i)
+	{
+		MicroProfileHashTableSet(pTable, Keys[i], Values[i]);
+	}
+
+	for(uint32_t i = 0; i < NUM_ITEMS; ++i)
+	{
+		uint64_t V;
+		if(MicroProfileHashTableGet(pTable, Keys[i], &V))
+		{
+			if(V != Values[i])
+			{
+				MP_BREAK();
+			}
+		}
+		else
+		{
+			MP_BREAK();
+		}
+		uint64_t nonkey = RRUnique();
+		if(MicroProfileHashTableGet(pTable, nonkey, &V))
+		{
+			MP_BREAK();
+		}
+	}
+
+	DumpTable(pTable);
+	if(!MicroProfileHashTableRemove(pTable, 0))
+	{
+		MP_BREAK();
+	}
+	printf("removed\n");
+	DumpTable(pTable);
+	uint64_t v;
+	if(MicroProfileHashTableGet(pTable, 0, &v))
+	{
+		MP_BREAK();
+	}
+	if(MicroProfileHashTableGet(pTable, 1, &v))
+	{
+		if(v != 2)
+			MP_BREAK();
+	}
+
+
+	MicroProfileHashTableDestroy(pTable);
+
+
+	MicroProfileHashTable Strings;
+	MicroProfileHashTableInit(&Strings, 1, 25, MicroProfileHashTableCompareString, MicroProfileHashTableHashString); 
+	uint32_t nCount = sizeof(txt) / sizeof(txt[0]);
+	for(uint32_t i = 0; i < nCount; i+=2)
+	{
+		MicroProfileHashTableSetString(&Strings, txt[i], txt[i+1]);
+	}
+	DumpTableStr(&Strings);
+
+	for(uint32_t i = 0; i < nCount; i+=2)
+	{
+		const char* pKey = txt[i];
+		const char* pValue = txt[i+1];
+		const char* pRes = 0;
+		if(MicroProfileHashTableGetString(&Strings, pKey, &pRes))
+		{
+			if(pRes != pValue)
+			{
+				MP_BREAK();
+			}
+		}
+		else
+		{
+			MP_BREAK();
+		}
+	}
+	uint32_t nRem = nCount /2;
+	for(uint32_t i = 0; i < nRem; i += 2)
+	{
+		const char* pKey = txt[i];
+		const char* pValue = txt[i+1];
+
+		if(!MicroProfileHashTableRemoveString(&Strings, pKey))
+		{
+			MP_BREAK();
+		}
+		if(MicroProfileHashTableRemoveString(&Strings, pValue))
+		{
+			MP_BREAK();
+		}
+	}
+	for(uint32_t i = 0; i < nRem; i += 2)
+	{
+		const char* pKey = txt[i];
+		if(MicroProfileHashTableRemoveString(&Strings, pKey))
+		{
+			MP_BREAK();
+		}
+	}
+
+	for(uint32_t i = 0; i < nCount; i+=2)
+	{
+		const char* pKey = txt[i];
+		const char* pValue = txt[i+1];
+		const char* V;
+		if(MicroProfileHashTableGetString(&Strings, pKey, &V))
+		{
+			if(i < nRem)
+			{
+				MP_BREAK();
+			}
+			else
+			{
+				if(V != pValue)
+					MP_BREAK();
+			}
+		}
+		else
+		{
+			if(i >= nRem)
+				MP_BREAK();
+		}
+	}
+
+	DumpTableStr(&Strings);
+	MicroProfileHashTableDestroy(&Strings);
+}
 
 
 #undef S
