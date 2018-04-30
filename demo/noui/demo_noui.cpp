@@ -215,12 +215,6 @@ int main(int argc, char* argv[])
 	MicroProfileOnThreadCreate("Main");
 	printf("press ctrl-c to quit\n");
 
-
-
-	void MicroProfileHashTableTest();
-	MicroProfileHashTableTest();
-
-
 	//turn on profiling
 	MicroProfileSetEnableAllGroups(true);
 	MicroProfileSetForceMetaCounters(true);
@@ -255,7 +249,6 @@ int main(int argc, char* argv[])
 
 	MICROPROFILE_COUNTER_CONFIG_ONCE("/test/sinus", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
 	MICROPROFILE_COUNTER_CONFIG("/test/cosinus", MICROPROFILE_COUNTER_FORMAT_DEFAULT, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
-
 
 	#if DUMP_SPIKE_TEST
 	MicroProfileDumpFile("spike.html", "spike.csv", 200.f, -1.f);

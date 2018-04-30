@@ -1266,7 +1266,6 @@ void MicroProfileInit()
 		S.nGroupCount = 0;
 		S.nAggregateFlipTick = MP_TICK();
 		memset(S.nActiveGroups, 0, sizeof(S.nActiveGroups));
-		// S.nActiveBars = 0;
 		S.nFrozen = 0;
 		S.nWasFrozen = 0;
 		memset(S.nForceGroups, 0, sizeof(S.nForceGroups));
@@ -11015,6 +11014,7 @@ void MicroProfileStringsDestroy(MicroProfileStrings* pStrings)
 		pBlock = pNext;
 	}
 	MICROPROFILE_COUNTER_SET("/microprofile/stringblock/waste", 0);
+	MICROPROFILE_COUNTER_SET("/microprofile/stringblock/strings", 0);
 	memset(pStrings, 0, sizeof(*pStrings));
 }
 
@@ -11055,14 +11055,15 @@ const char* MicroProfileStringIntern(const char* pStr, uint32_t nLen)
 				pStrings->pLast = pStrings->pFirst = pNewBlock;
 			}
 			pBlock = pNewBlock;
-
-
 		}
+		MICROPROFILE_COUNTER_ADD("/microprofile/stringblock/strings", 1);
 		char* pDest = &pBlock->Memory[pBlock->nUsed];
 		pBlock->nUsed += nLen;
 		MP_ASSERT(pBlock->nUsed <= pBlock->nSize);
 		memcpy(pDest, pStr, nLen);
 		MicroProfileHashTableSetString(&pStrings->HashTable, pDest, pDest);
+		void DumpTableStr(MicroProfileHashTable* pTable);
+		DumpTableStr(&pStrings->HashTable);
 		return pDest;
 	}
 
