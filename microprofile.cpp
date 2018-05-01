@@ -413,7 +413,7 @@ struct MicroProfileCounterInfo
 	int nFirstChild;
 	uint16_t nNameLen;
 	uint8_t nLevel;
-	char* pName;
+	const char* pName;
 	uint32_t nFlags;
 	int64_t nLimit;
 	MicroProfileCounterFormat eFormat;
@@ -853,7 +853,16 @@ struct MicroProfile
 #endif
 
 	MicroProfileStrings 		Strings;
+	MicroProfileToken 			CounterToken_MicroProfile;
+	MicroProfileToken 			CounterToken_StringBlock;
+	MicroProfileToken 			CounterToken_StringBlock_Count;
+	MicroProfileToken 			CounterToken_StringBlock_Waste;
+	MicroProfileToken 			CounterToken_StringBlock_Strings;
+	MicroProfileToken 			CounterToken_StringBlock_Memory;
 
+	MicroProfileToken 			CounterToken_Alloc;
+	MicroProfileToken 			CounterToken_Alloc_Memory;
+	MicroProfileToken 			CounterToken_Alloc_Count;
 
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
 	uint32_t 						DynamicTokenIndex;
@@ -1198,12 +1207,21 @@ bool MicroProfileHashTableRemove(MicroProfileHashTable* pTable, uint64_t Key);
 bool MicroProfileHashTableSetString(MicroProfileHashTable* pTable, const char* pKey, const char* pValue);
 bool MicroProfileHashTableGetString(MicroProfileHashTable* pTable, const char* pKey, const char** pValue);
 bool MicroProfileHashTableRemoveString(MicroProfileHashTable* pTable, const char* pKey);
-
+enum
+{
+	ESTRINGINTERN_LOWERCASE = 1,
+};
 const char* MicroProfileStringIntern(const char* pStr);
-const char* MicroProfileStringIntern(const char* pStr, uint32_t nLen);
+const char* MicroProfileStringInternLower(const char* pStr);
+const char* MicroProfileStringIntern(const char* pStr, uint32_t nLen, uint32_t nInternalFlags = 0);
 
 void MicroProfileStringsInit(MicroProfileStrings* pStrings);
 void MicroProfileStringsDestroy(MicroProfileStrings* pStrings);
+
+MicroProfileToken MicroProfileCounterTokenInit(int nParent);
+void MicroProfileCounterTokenInitName(MicroProfileToken nToken, const char* pName);
+void MicroProfileCounterConfigInternal(MicroProfileToken, uint32_t eFormat, int64_t nLimit, uint32_t nFlags);
+
 
 
 inline std::recursive_mutex& MicroProfileMutex()
@@ -1245,9 +1263,36 @@ void MicroProfileInit()
 		mutex.lock();
 	if(bOnce)
 	{
-		S.nMemUsage += sizeof(S);
 		bOnce = false;
 		memset(&S, 0, sizeof(S));
+
+
+		MicroProfileStringsInit(&S.Strings);
+
+		//these strings are used for counter names inside the string
+		S.CounterToken_MicroProfile = MicroProfileCounterTokenInit(-1);
+		S.CounterToken_StringBlock = MicroProfileCounterTokenInit(S.CounterToken_MicroProfile);
+		S.CounterToken_StringBlock_Count = MicroProfileCounterTokenInit(S.CounterToken_StringBlock);
+		S.CounterToken_StringBlock_Waste = MicroProfileCounterTokenInit(S.CounterToken_StringBlock);
+		S.CounterToken_StringBlock_Strings = MicroProfileCounterTokenInit(S.CounterToken_StringBlock);
+		S.CounterToken_StringBlock_Memory = MicroProfileCounterTokenInit(S.CounterToken_StringBlock);
+
+		S.CounterToken_Alloc = MicroProfileCounterTokenInit(S.CounterToken_MicroProfile);
+		S.CounterToken_Alloc_Memory = MicroProfileCounterTokenInit(S.CounterToken_Alloc);
+		S.CounterToken_Alloc_Count = MicroProfileCounterTokenInit(S.CounterToken_Alloc);
+
+		MicroProfileCounterTokenInitName(S.CounterToken_MicroProfile, "microprofile");
+		MicroProfileCounterTokenInitName(S.CounterToken_StringBlock, "stringblock");
+		MicroProfileCounterTokenInitName(S.CounterToken_StringBlock_Count, "count");
+		MicroProfileCounterTokenInitName(S.CounterToken_StringBlock_Waste, "waste");
+		MicroProfileCounterTokenInitName(S.CounterToken_StringBlock_Strings, "strings");
+		MicroProfileCounterTokenInitName(S.CounterToken_StringBlock_Memory, "memory");
+
+		MicroProfileCounterTokenInitName(S.CounterToken_Alloc, "alloc");
+		MicroProfileCounterTokenInitName(S.CounterToken_Alloc_Memory, "memory");
+		MicroProfileCounterTokenInitName(S.CounterToken_Alloc_Count, "count");
+
+		S.nMemUsage += sizeof(S);
 		for(int i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
 		{
 			S.GroupInfo[i].pName[0] = '\0';
@@ -1320,7 +1365,7 @@ void MicroProfileInit()
 		}
 		MicroProfileStringsInit(&S.Strings);
 	}
-	MICROPROFILE_COUNTER_CONFIG("MicroProfile/Alloc/Memory", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
+	MicroProfileCounterConfigInternal(S.CounterToken_Alloc_Memory, MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
 	MICROPROFILE_COUNTER_CONFIG("MicroProfile/ThreadLog/Memory", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
 
 
@@ -1843,15 +1888,10 @@ const char* MicroProfileCounterFullName(int nCounter)
 	}
 	return &Buffer[0];
 }
-MicroProfileToken MicroProfileGetCounterTokenByParent(int nParent, const char* pName)
+
+		// S.CounterTokenStringBlock = MicroProfileCounterTokenInit(S.CounterTokenMicroProfile);
+MicroProfileToken MicroProfileCounterTokenInit(int nParent)
 {
-	for(uint32_t i = 0; i < S.nNumCounters; ++i)
-	{
-		if(nParent == S.CounterInfo[i].nParent && !MP_STRCASECMP(S.CounterInfo[i].pName, pName))
-		{
-			return i;
-		}
-	}
 	MicroProfileToken nResult = S.nNumCounters++;
 	S.CounterInfo[nResult].nParent = nParent;
 	S.CounterInfo[nResult].nSibling = -1;
@@ -1862,16 +1902,11 @@ MicroProfileToken MicroProfileGetCounterTokenByParent(int nParent, const char* p
 	S.CounterInfo[nResult].ExternalAtomic = 0;
 	S.CounterSource[nResult].pSource = 0;
 	S.CounterSource[nResult].nSourceSize = 0;
-	int nLen = (int)strlen(pName)+1;
-
-	MP_ASSERT(nLen + S.nCounterNamePos <= MICROPROFILE_MAX_COUNTER_NAME_CHARS);
-	uint32_t nPos = S.nCounterNamePos;
-	S.nCounterNamePos += nLen;
-	memcpy(&S.CounterNames[nPos], pName, nLen);
-	S.CounterInfo[nResult].nNameLen = nLen-1;
-	S.CounterInfo[nResult].pName = &S.CounterNames[nPos];
+	S.CounterInfo[nResult].nNameLen = 0;
+	S.CounterInfo[nResult].pName = nullptr;
 	if(nParent >= 0)
 	{
+		MP_ASSERT(nParent < S.nNumCounters);
 		S.CounterInfo[nResult].nSibling = S.CounterInfo[nParent].nFirstChild;
 		S.CounterInfo[nResult].nLevel = S.CounterInfo[nParent].nLevel + 1;
 		S.CounterInfo[nParent].nFirstChild = nResult;
@@ -1880,7 +1915,26 @@ MicroProfileToken MicroProfileGetCounterTokenByParent(int nParent, const char* p
 	{
 		S.CounterInfo[nResult].nLevel = 0;
 	}
+	return nResult;
+}
+void MicroProfileCounterTokenInitName(MicroProfileToken nToken, const char* pName)
+{
+	MP_ASSERT(0 == S.CounterInfo[nToken].pName);
+	S.CounterInfo[nToken].nNameLen = strlen(pName);
+	S.CounterInfo[nToken].pName = MicroProfileStringInternLower(pName);
+}
 
+MicroProfileToken MicroProfileGetCounterTokenByParent(int nParent, const char* pName)
+{
+	for(uint32_t i = 0; i < S.nNumCounters; ++i)
+	{
+		if(nParent == S.CounterInfo[i].nParent && S.CounterInfo[i].pName == pName)
+		{
+			return i;
+		}
+	}
+	MicroProfileToken nResult = MicroProfileCounterTokenInit(nParent);
+	MicroProfileCounterTokenInitName(nResult, pName);
 	return nResult;
 }
 
@@ -1898,7 +1952,8 @@ MicroProfileToken MicroProfileGetCounterToken(const char* pName)
 		{
 			break;
 		}
-		nResult = MicroProfileGetCounterTokenByParent(nResult, SubName);
+		const char* pSubNameLower = MicroProfileStringInternLower(SubName);
+		nResult = MicroProfileGetCounterTokenByParent(nResult, pSubNameLower);
 
 	}while(pName != 0);
 	S.CounterInfo[nResult].nFlags |= MICROPROFILE_COUNTER_FLAG_LEAF;
@@ -2200,12 +2255,17 @@ void MicroProfileCounterSetLimit(MicroProfileToken nToken, int64_t nCount)
 	S.CounterInfo[nToken].nLimit = nCount;
 }
 
-void MicroProfileCounterConfig(const char* pName, uint32_t eFormat, int64_t nLimit, uint32_t nFlags)
+void MicroProfileCounterConfigInternal(MicroProfileToken nToken, uint32_t eFormat, int64_t nLimit, uint32_t nFlags)
 {
-	MicroProfileToken nToken = MicroProfileGetCounterToken(pName);
 	S.CounterInfo[nToken].eFormat = (MicroProfileCounterFormat)eFormat;
 	S.CounterInfo[nToken].nLimit = nLimit;
 	S.CounterInfo[nToken].nFlags |= (nFlags & ~MICROPROFILE_COUNTER_FLAG_INTERNAL_MASK);
+}
+
+void MicroProfileCounterConfig(const char* pName, uint32_t eFormat, int64_t nLimit, uint32_t nFlags)
+{
+	MicroProfileToken nToken = MicroProfileGetCounterToken(pName);
+	MicroProfileCounterConfigInternal(nToken, eFormat, nLimit, nFlags);
 }
 
 void MicroProfileCounterSetPtr(const char* pCounterName, void* pSource, uint32_t nSize)
@@ -2374,7 +2434,6 @@ void MicroProfileGpuLeaveInternal(MicroProfileThreadLogGpu* pGpuLog, MicroProfil
 			MicroProfileInitThreadLog();
 		}
 
-		// MicroProfileThreadLogGpu* pGpuLog = MicroProfileGetThreadLogGpu();		
 		MP_ASSERT(pGpuLog->pContext != (void*)-1); // must be called between GpuBegin/GpuEnd
 		uint64_t nTimer = MicroProfileGpuInsertTimeStamp(pGpuLog->pContext);
 		MicroProfileLogPutGpu(nToken_, nTimer, MP_LOG_LEAVE, pGpuLog);
@@ -2442,8 +2501,8 @@ void* MicroProfileAllocInternal(size_t nSize, size_t nAlign)
 	pVal[-1] = (uint32_t)nSize;
 	pVal[-2] = (uint32_t)nAlign;
 	pVal[-3] = (uint32_t)0x28586813;
-	MICROPROFILE_COUNTER_ADD("MicroProfile/Alloc/Memory", nSize);
-	MICROPROFILE_COUNTER_ADD("MicroProfile/Alloc/Count", 1);
+	MicroProfileCounterAdd(S.CounterToken_Alloc_Memory, nSize);
+	MicroProfileCounterAdd(S.CounterToken_Alloc_Count, 1);
 	return (void*)nPtr;
 }
 void MicroProfileFreeInternal(void* pPtr)
@@ -2455,8 +2514,8 @@ void MicroProfileFreeInternal(void* pPtr)
 	uint32_t nMagic = p4[-3];
 	MP_ASSERT(nMagic == 0x28586813);
 	MICROPROFILE_FREE( (void*) (p-nAlign));
-	MICROPROFILE_COUNTER_SUB("MicroProfile/Alloc/Memory", nSize);
-	MICROPROFILE_COUNTER_SUB("MicroProfile/Alloc/Count", 1);
+	MicroProfileCounterAdd(S.CounterToken_Alloc_Memory, -(int)nSize);
+	MicroProfileCounterAdd(S.CounterToken_Alloc_Count, -1);
 
 
 }
@@ -2473,13 +2532,13 @@ void* MicroProfileReallocInternal(void* pPtr, size_t nSize)
 		uint32_t nMagicBase = p4[-3];
 		MP_ASSERT(nMagicBase == 0x28586813);
 
-		MICROPROFILE_COUNTER_ADD("MicroProfile/Alloc/Memory", nSize - nSizeBase);
+		MicroProfileCounterAdd(S.CounterToken_Alloc_Memory, nSize - nSizeBase);
 	}
 	else
 	{
 		nAlignBase = 4 * sizeof(uint32_t);
-		MICROPROFILE_COUNTER_ADD("MicroProfile/Alloc/Memory", nSize + nAlignBase);
-		MICROPROFILE_COUNTER_ADD("MicroProfile/Alloc/Count", 1);
+		MicroProfileCounterAdd(S.CounterToken_Alloc_Memory, nSize + nAlignBase);
+		MicroProfileCounterAdd(S.CounterToken_Alloc_Count, 1);
 	}
 
 	nSize += nAlignBase;
@@ -10819,7 +10878,9 @@ void MicroProfileHashTableGrow(MicroProfileHashTable* pTable)
 {
 	uint32_t nAllocated = pTable->nAllocated;
 	uint32_t nNewSize = nAllocated * 2;
+	#if MICROPROFILE_DEBUG
 	printf("GROW %d -> %d\n", nAllocated, nNewSize);
+	#endif
 
 	MicroProfileHashTable New;
 	MicroProfileHashTableInit(&New, nNewSize, pTable->nSearchLimit, pTable->CompareFunc, pTable->HashFunc);
@@ -10980,16 +11041,17 @@ bool MicroProfileHashTableRemoveString(MicroProfileHashTable* pTable, const char
 
 void MicroProfileStringBlockFree(MicroProfileStringBlock* pBlock)
 {
-	MICROPROFILE_COUNTER_SUB("/microprofile/stringblock/count", 1);
-	MICROPROFILE_COUNTER_SUB("/microprofile/stringblock/memory", pBlock->nSize + sizeof(MicroProfileStringBlock));
+	MicroProfileCounterAdd(S.CounterToken_StringBlock_Count, -1);
+	MicroProfileCounterAdd(S.CounterToken_StringBlock_Memory, -(int64_t)(pBlock->nSize + sizeof(MicroProfileStringBlock)));
+
 	MP_FREE(pBlock);
 }
 MicroProfileStringBlock* MicroProfileStringBlockAlloc(uint32_t nSize)
 {
 	nSize = MicroProfileMax(nSize, (uint32_t)(MicroProfileStringBlock::DEFAULT_SIZE - sizeof(MicroProfileStringBlock)));
 	nSize += sizeof(MicroProfileStringBlock);
-	MICROPROFILE_COUNTER_ADD("/microprofile/stringblock/count", 1);
-	MICROPROFILE_COUNTER_ADD("/microprofile/stringblock/memory", nSize);
+	MicroProfileCounterAdd(S.CounterToken_StringBlock_Count, 1);
+	MicroProfileCounterAdd(S.CounterToken_StringBlock_Memory, nSize);
 	printf("alloc string block %d sizeof strings is %d\n", nSize, (int)sizeof(MicroProfileStringBlock));
 	MicroProfileStringBlock* pBlock = (MicroProfileStringBlock*)MP_ALLOC(nSize, 8);
 	pBlock->pNext = 0;
@@ -11013,19 +11075,37 @@ void MicroProfileStringsDestroy(MicroProfileStrings* pStrings)
 		MicroProfileStringBlockFree(pBlock);
 		pBlock = pNext;
 	}
-	MICROPROFILE_COUNTER_SET("/microprofile/stringblock/waste", 0);
-	MICROPROFILE_COUNTER_SET("/microprofile/stringblock/strings", 0);
+	MicroProfileCounterSet(S.CounterToken_StringBlock_Waste, 0);
+	MicroProfileCounterSet(S.CounterToken_StringBlock_Strings, 0);
+
 	memset(pStrings, 0, sizeof(*pStrings));
 }
 
 const char* MicroProfileStringIntern(const char* pStr)
 {
-	return MicroProfileStringIntern(pStr, strlen(pStr));
+	return MicroProfileStringIntern(pStr, strlen(pStr), 0);
 }
 
-const char* MicroProfileStringIntern(const char* pStr, uint32_t nLen)
+const char* MicroProfileStringInternLower(const char* pStr)
+{
+	return MicroProfileStringIntern(pStr, strlen(pStr), ESTRINGINTERN_LOWERCASE);
+}
+
+const char* MicroProfileStringIntern(const char* pStr_, uint32_t nLen, uint32_t nFlags)
 {
 	MicroProfileStrings* pStrings = &S.Strings;
+	const char* pStr = pStr_;
+	char* pLowerCaseStr = (char*)alloca(nLen+1);
+	if(0 != (nFlags & ESTRINGINTERN_LOWERCASE))
+	{
+		for(uint32_t i = 0; i < nLen; ++i)
+		{
+			pLowerCaseStr[i] = tolower(pStr[i]);
+		}
+		pLowerCaseStr[nLen] = '\0';
+		pStr = pLowerCaseStr;
+
+	}
 	const char* pRet;
 	if(MicroProfileHashTableGetString(&pStrings->HashTable, pStr, &pRet))
 	{
@@ -11048,7 +11128,7 @@ const char* MicroProfileStringIntern(const char* pStr, uint32_t nLen)
 			{
 				pBlock->pNext = pNewBlock;
 				pStrings->pLast = pNewBlock;
-				MICROPROFILE_COUNTER_ADD("/microprofile/stringblock/waste", pBlock->nSize - pBlock->nUsed);
+				MicroProfileCounterAdd(S.CounterToken_StringBlock_Waste, pBlock->nSize - pBlock->nUsed);
 			}
 			else
 			{
@@ -11056,14 +11136,18 @@ const char* MicroProfileStringIntern(const char* pStr, uint32_t nLen)
 			}
 			pBlock = pNewBlock;
 		}
-		MICROPROFILE_COUNTER_ADD("/microprofile/stringblock/strings", 1);
+		MicroProfileCounterAdd(S.CounterToken_StringBlock_Strings, 1);
 		char* pDest = &pBlock->Memory[pBlock->nUsed];
 		pBlock->nUsed += nLen;
 		MP_ASSERT(pBlock->nUsed <= pBlock->nSize);
 		memcpy(pDest, pStr, nLen);
 		MicroProfileHashTableSetString(&pStrings->HashTable, pDest, pDest);
+
+#if 0
 		void DumpTableStr(MicroProfileHashTable* pTable);
 		DumpTableStr(&pStrings->HashTable);
+#endif
+		
 		return pDest;
 	}
 
