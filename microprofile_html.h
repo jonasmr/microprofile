@@ -11467,6 +11467,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "			}\n"
 "		}\n"
 "		SymbolState = F.s;\n"
+"		MenuItems[SubMenuFunctions].visible = function(){return true;}\n"
+"	}\n"
+"	else\n"
+"	{\n"
+"		MenuItems[SubMenuFunctions].visible = function(){return false;}\n"
 "	}\n"
 "	if(F.fr)\n"
 "	{\n"
@@ -12597,13 +12602,13 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "				}\n"
 "				X += Prc.length + 5;\n"
 "				context.fillStyle = \'white\';\n"
-"				context.fillText( FormatCounter(Counter.format, Counter.minvalue), X, Y + Height - FontAscent);\n"
-"				X += CounterWidth + 5;\n"
-"				context.fillText( FormatCo";
+"				context.fi";
 
 const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
 const char g_MicroProfileHtmlLive_begin_4[] =
-"unter(Counter.format, Counter.maxvalue), X, Y + Height - FontAscent);\n"
+"llText( FormatCounter(Counter.format, Counter.minvalue), X, Y + Height - FontAscent);\n"
+"				X += CounterWidth + 5;\n"
+"				context.fillText( FormatCounter(Counter.format, Counter.maxvalue), X, Y + Height - FontAscent);\n"
 "				X += CounterWidth + 5;\n"
 "			}\n"
 "			Y += HeightExpanded;\n"

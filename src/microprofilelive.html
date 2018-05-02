@@ -4558,6 +4558,11 @@ function ProcessFrame(F, Inactive)
 			}
 		}
 		SymbolState = F.s;
+		MenuItems[SubMenuFunctions].visible = function(){return true;}
+	}
+	else
+	{
+		MenuItems[SubMenuFunctions].visible = function(){return false;}
 	}
 	if(F.fr)
 	{

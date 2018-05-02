@@ -464,7 +464,7 @@ struct MicroProfileFrameState
 
 struct MicroProfileStringBlock
 {
-	enum{DEFAULT_SIZE = 1024,};
+	enum{DEFAULT_SIZE = 8192,};
 	MicroProfileStringBlock* pNext;
 	uint32_t nUsed;
 	uint32_t nSize;
