@@ -16,11 +16,11 @@ ASM_SOURCES =
 
 #comment in the following lines to enable function instrumentation.
 #requires distorm to be present and compiled (IE distorm3.a must be present)
-CFLAGS+=-DMICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE
-#CFLAGS+=-DMICROPROFILE_BREAK_ON_PATCH_FAIL=1
-LDFLAGS+=../../distorm/distorm3.a
-ASM_SOURCES+=../../patch_osx.s
-CFLAGS+= -I../../distorm/include
+#CFLAGS+=-DMICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE
+##CFLAGS+=-DMICROPROFILE_BREAK_ON_PATCH_FAIL=1
+#LDFLAGS+=../../distorm/distorm3.a
+#ASM_SOURCES+=../../patch_osx.s
+#CFLAGS+= -I../../distorm/include
 
 TARGET=demo_noui
 CC=clang

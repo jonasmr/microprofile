@@ -8142,6 +8142,18 @@ void MicroProfileGpuShutdown()
 #endif
 
 
+uint32_t MicroProfileStringHash(const char* pString) //note matching: code in javascript: microprofilelive.html: function StringHash(s)
+{
+	uint32_t h = 0xfeedba3e;
+	char c;
+	while(0 != (c = *pString++))
+	{
+		h = c + ((h<<5) - h);
+	}
+	return h;
+}
+
+
 
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
 // '##::::'##::'#######:::'#######::'##:::'##:::::'######::'##::::'##::::'###::::'########::'########:'########::
@@ -8863,18 +8875,6 @@ void MicroProfileInterceptLeave(int a)
 	MP_ASSERT(pLog->nStackScope > 0); // if youre hitting this assert you probably have mismatched _ENTER/_LEAVE markers
 	MicroProfileScopeStateC* pScopeState = &pLog->ScopeState[--pLog->nStackScope];
 	MicroProfileLeaveInternal(pScopeState->Token, pScopeState->nTick);
-}
-
-
-uint32_t MicroProfileStringHash(const char* pString) //note matching: code in javascript: microprofilelive.html: function StringHash(s)
-{
-	uint32_t h = 0xfeedba3e;
-	char c;
-	while(0 != (c = *pString++))
-	{
-		h = c + ((h<<5) - h);
-	}
-	return h;
 }
 
 uint32_t MicroProfileColorFromString(const char* pString) //note matching code/constants in javascript: microprofilelive.html: function StringToColor(s)
