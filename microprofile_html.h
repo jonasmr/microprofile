@@ -9340,7 +9340,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "{\n"
 "	var Selection = null;\n"
 "	var SizeInfo = {};\n"
-"	SizeInfo.h = BoxHeight * (Presets.length * 2 + 1);\n"
+"	SizeInfo.h = BoxHeight * (Presets.length * 2);\n"
 "	if(ReadOnlyPresets.length)\n"
 "	{\n"
 "		SizeInfo.h += BoxHeight * (Presets.length + 1);\n"
@@ -9700,12 +9700,12 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	}else if(Tweak||Direction)\n"
 "	{\n"
 "		if(!Direction)\n"
-"			Direction = Twea";
+"			Direction = Tweak;\n"
+"	";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-"k;\n"
-"		if(Direction<0)\n"
+"	if(Direction<0)\n"
 "		{\n"
 "			AutoCaptureSourceIndex--;\n"
 "			if(AutoCaptureSourceIndex<-1)\n"
@@ -11070,11 +11070,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	else\n"
 "	{\n"
 "		ReferenceGraph = Settings.ReferenceTime;\n"
-"		Referen";
+"		ReferenceHi";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-"ceHistory = Settings.ReferenceTime;\n"
+"story = Settings.ReferenceTime;\n"
 "		ReferenceBar = Settings.ReferenceTime;\n"
 "	}\n"
 "	if(Settings.AggregateFrames != AggregateFrames)\n"
@@ -12602,11 +12602,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "				}\n"
 "				X += Prc.length + 5;\n"
 "				context.fillStyle = \'white\';\n"
-"				context.fi";
+"				context.fillTe";
 
 const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
 const char g_MicroProfileHtmlLive_begin_4[] =
-"llText( FormatCounter(Counter.format, Counter.minvalue), X, Y + Height - FontAscent);\n"
+"xt( FormatCounter(Counter.format, Counter.minvalue), X, Y + Height - FontAscent);\n"
 "				X += CounterWidth + 5;\n"
 "				context.fillText( FormatCounter(Counter.format, Counter.maxvalue), X, Y + Height - FontAscent);\n"
 "				X += CounterWidth + 5;\n"
