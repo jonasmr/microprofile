@@ -8153,6 +8153,13 @@ uint32_t MicroProfileStringHash(const char* pString) //note matching: code in ja
 	return h;
 }
 
+const char* MicroProfileStrDup(const char* pStr)
+{
+	size_t len = strlen(pStr) + 1;
+	char* pOut = (char*)MP_ALLOC(len,8);
+	memcpy(pOut,pStr,len);
+	return pOut;
+}
 
 
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
@@ -9057,14 +9064,6 @@ void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pModuleN
 		nOffset += nOffsetNext;
 	}while(nOffset < nCodeLen);
 	// printf("total bytes processed %ld\n", nOffset);
-}
-
-const char* MicroProfileStrDup(const char* pStr)
-{
-	size_t len = strlen(pStr) + 1;
-	char* pOut = (char*)MP_ALLOC(len, 8);
-	memcpy(pOut, pStr, len);
-	return pOut;
 }
 
 
@@ -11201,7 +11200,7 @@ void MicroProfileStringInternTest()
 	for(uint32_t i = 0; i < nCount; ++i)
 	{
 		pStrings[i] = MicroProfileStringIntern(txt[i]);
-		pStrings2[i] = strdup(txt[i]);
+		pStrings2[i] = MicroProfileStrDup(txt[i]);
 	}
 
 	for(uint32_t i = 0; i < nCount; ++i)
