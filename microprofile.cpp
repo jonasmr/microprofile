@@ -453,7 +453,7 @@ struct MicroProfileContextSwitch
 struct MicroProfileFrameState
 {
 	int64_t nFrameStartCpu;
-	int64_t nFrameStartGpu;
+	uint32_t nFrameStartGpu;
 	uint64_t nFrameId;
 	uint32_t nGpuPending;
 	uint32_t nLogStart[MICROPROFILE_MAX_THREADS];
@@ -1330,7 +1330,7 @@ void MicroProfileInit()
 		for(int i = 0; i < MICROPROFILE_MAX_FRAME_HISTORY; ++i)
 		{
 			S.Frames[i].nFrameStartCpu = nTick;
-			S.Frames[i].nFrameStartGpu = -1;
+			S.Frames[i].nFrameStartGpu = (uint32_t)-1;
 		}
 		S.nWebServerDataSent = (uint64_t)-1;
 		S.WebSocketTimers = -1;
@@ -7247,26 +7247,29 @@ void MicroProfileStartContextSwitchTrace(){}
 
 uint32_t MicroProfileGpuInsertTimeStamp(void* pContext_)
 {
-	MicroProfileD3D11Frame& Frame = S.pGPU->m_QueryFrames[S.pGPU->m_nQueryFrame];
-	uint32_t nStart = Frame.m_nQueryStart;
-	if(Frame.m_nRateQueryStarted)
+	if(S.pGPU)
 	{
-		uint32_t nIndex = (uint32_t)-1;
-		do
+		MicroProfileD3D11Frame& Frame = S.pGPU->m_QueryFrames[S.pGPU->m_nQueryFrame];
+		uint32_t nStart = Frame.m_nQueryStart;
+		if(Frame.m_nRateQueryStarted)
 		{
-			nIndex = Frame.m_nQueryCount.load();
-			if(nIndex + 1 >= Frame.m_nQueryCountMax)
+			uint32_t nIndex = (uint32_t)-1;
+			do
 			{
-				return (uint32_t)-1;
-			}
-		}while(!Frame.m_nQueryCount.compare_exchange_weak(nIndex, nIndex+1));
-		nIndex += nStart;
-		uint32_t nQueryIndex = nIndex % MICROPROFILE_D3D_MAX_QUERIES;
+				nIndex = Frame.m_nQueryCount.load();
+				if(nIndex + 1 >= Frame.m_nQueryCountMax)
+				{
+					return (uint32_t)-1;
+				}
+			}while(!Frame.m_nQueryCount.compare_exchange_weak(nIndex, nIndex+1));
+			nIndex += nStart;
+			uint32_t nQueryIndex = nIndex % MICROPROFILE_D3D_MAX_QUERIES;
 
-		ID3D11Query* pQuery = (ID3D11Query*)S.pGPU->m_pQueries[nQueryIndex];
-		ID3D11DeviceContext* pContext = (ID3D11DeviceContext*)pContext_;
-		pContext->End(pQuery);
-		return nQueryIndex;
+			ID3D11Query* pQuery = (ID3D11Query*)S.pGPU->m_pQueries[nQueryIndex];
+			ID3D11DeviceContext* pContext = (ID3D11DeviceContext*)pContext_;
+			pContext->End(pQuery);
+			return nQueryIndex;
+		}
 	}
 	return (uint32_t)-1;
 }
@@ -7303,11 +7306,19 @@ bool MicroProfileGpuGetData(void* pQuery, void* pData, uint32_t nDataSize)
 
 uint64_t MicroProfileTicksPerSecondGpu()
 {
-	return S.pGPU->m_nQueryFrequency;
+	if(S.pGPU)
+	{
+		return S.pGPU->m_nQueryFrequency;
+	}
+	return 1;
 }
 
 uint32_t MicroProfileGpuFlip(void* pDeviceContext_)
 {
+	if(!pDeviceContext_)
+	{
+		return (uint32_t)-1;
+	}
 	ID3D11DeviceContext* pDeviceContext = (ID3D11DeviceContext*)pDeviceContext_;
 	uint32_t nFrameTimeStamp = MicroProfileGpuInsertTimeStamp(pDeviceContext);
 	MicroProfileD3D11Frame& CurrentFrame = S.pGPU->m_QueryFrames[S.pGPU->m_nQueryFrame];
@@ -7448,30 +7459,33 @@ void MicroProfileGpuShutdown()
 
 int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu)
 {
-	MicroProfileD3D11Frame& Frame = S.pGPU->m_QueryFrames[S.pGPU->m_nQueryFrame];
-	if (Frame.m_nRateQueryStarted)
+	if(S.pGPU)
 	{
-		ID3D11Query* pSyncQuery = (ID3D11Query*)S.pGPU->pSyncQuery;
-		ID3D11DeviceContext* pImmediateContext = (ID3D11DeviceContext*)S.pGPU->m_pImmediateContext;
-		pImmediateContext->End(pSyncQuery);
-
-		HRESULT hr;
-		do
+		MicroProfileD3D11Frame& Frame = S.pGPU->m_QueryFrames[S.pGPU->m_nQueryFrame];
+		if (Frame.m_nRateQueryStarted)
 		{
-			hr = pImmediateContext->GetData(pSyncQuery, pOutGpu, sizeof(*pOutGpu), 0);
-		} while (hr == S_FALSE);
-		*pOutCPU = MP_TICK();
-		switch (hr)
-		{
-		case DXGI_ERROR_DEVICE_REMOVED:
-		case DXGI_ERROR_INVALID_CALL:
-		case E_INVALIDARG:
-			MP_BREAK();
-			return false;
+			ID3D11Query* pSyncQuery = (ID3D11Query*)S.pGPU->pSyncQuery;
+			ID3D11DeviceContext* pImmediateContext = (ID3D11DeviceContext*)S.pGPU->m_pImmediateContext;
+			pImmediateContext->End(pSyncQuery);
 
+			HRESULT hr;
+			do
+			{
+				hr = pImmediateContext->GetData(pSyncQuery, pOutGpu, sizeof(*pOutGpu), 0);
+			} while (hr == S_FALSE);
+			*pOutCPU = MP_TICK();
+			switch (hr)
+			{
+			case DXGI_ERROR_DEVICE_REMOVED:
+			case DXGI_ERROR_INVALID_CALL:
+			case E_INVALIDARG:
+				MP_BREAK();
+				return false;
+
+			}
+			MP_ASSERT(hr == S_OK);
+			return 1;
 		}
-		MP_ASSERT(hr == S_OK);
-		return 1;
 	}
 	return 0;
 }
