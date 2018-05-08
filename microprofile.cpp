@@ -11173,7 +11173,7 @@ void DumpTable(MicroProfileHashTable* pTable)
 		{
 			if(pTable->pEntries[i].Hash != 0)
 			{
-				printf("[%05d,%05lld]  ::::%llx, %llx .. hash %llx\n", i, pTable->pEntries[i].Hash % pTable->nAllocated, pTable->pEntries[i].Key, pTable->pEntries[i].Value, pTable->pEntries[i].Hash);
+				printf("[%05d,%05" PRIu64 "]  ::::%" PRIx64 ", %" PRIx64 " .. hash %" PRIx64 "\n", i, pTable->pEntries[i].Hash % pTable->nAllocated, pTable->pEntries[i].Key, pTable->pEntries[i].Value, pTable->pEntries[i].Hash);
 			}
 		}
 	};
@@ -11184,7 +11184,7 @@ void DumpTableStr(MicroProfileHashTable* pTable)
 		{
 			if(pTable->pEntries[i].Hash != 0)
 			{
-				printf("%03d [%05d,%05lld]  ::::%s, %s .. hash %llx\n", c++, i, pTable->pEntries[i].Hash % pTable->nAllocated, (const char*)pTable->pEntries[i].Key, (const char*)pTable->pEntries[i].Value, pTable->pEntries[i].Hash);
+				printf("%03d [%05d,%05" PRIu64 "]  ::::%s, %s .. hash %" PRIx64 "\n", c++, i, pTable->pEntries[i].Hash % pTable->nAllocated, (const char*)pTable->pEntries[i].Key, (const char*)pTable->pEntries[i].Value, pTable->pEntries[i].Hash);
 			}
 		}
 		printf("FillPrc %f\n", 100.f * c / (float)pTable->nAllocated);
