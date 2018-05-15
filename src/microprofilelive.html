@@ -73,6 +73,7 @@ var FRAME_HISTORY_COLOR_CPU = '#ff7f27';
 var FRAME_HISTORY_COLOR_GPU = '#ffffff';
 
 var Settings = {};
+var Cookie = {};
 
 var HistoryHeight = 100;
 var CanvasDetailedView = document.getElementById('DetailedView');
@@ -229,6 +230,7 @@ var MSG_COUNTERS = 7;
 var MSG_FUNCTION_RESULTS = 8;
 var MSG_INACTIVE_FRAME = 9;
 var MSG_FUNCTION_NAMES = 10;
+var MSG_INSTRUMENT_ERROR = 11;
 
 var TYPE_NONE = 0;
 var TYPE_TIMER = 1;
@@ -271,6 +273,7 @@ var VIEW_SIZE = 6;
 
 Settings.FancyGraph = 1;
 Settings.AutomaticReference = 1;
+Cookie.CodeReportMode = 0; // 0: prompt, 1:always send, 2: never send, never prompt
 
 
 var ReferenceHistory = 0;
@@ -3160,6 +3163,24 @@ function DrawMenuSettings()
 		Settings.AllowHighDPI = 1 - Settings.AllowHighDPI;
 		ResizeCanvas();
 	}
+	if(DrawMenuElement(M, Cookie.CodeReportMode == 0, "Code Report: Prompt", Cookie.CodeReportMode == 0 ? 1 : 0, 'white'))
+	{
+		Cookie.CodeReportMode = 0;
+		WriteCookie();
+	}
+
+	if(DrawMenuElement(M, Cookie.CodeReportMode == 1, "Code Report: Report Silently", Cookie.CodeReportMode == 1 ? 1 : 0, 'white'))
+	{
+		Cookie.CodeReportMode = 1;
+		WriteCookie();
+	}
+	if(DrawMenuElement(M, Cookie.CodeReportMode == 2, "Code Report: Never Report", Cookie.CodeReportMode == 2 ? 1 : 0, 'white'))
+	{
+		Cookie.CodeReportMode = 2;
+		WriteCookie();
+	}
+
+
 
 
 	SizeInfo.h = M.y - SizeInfo.y;
@@ -4825,6 +4846,44 @@ function WSMessage()
 			FunctionModulesInstrumented.push(Obj.v[i][1]);
 		}
 	}
+	else if(k == MSG_INSTRUMENT_ERROR)
+	{
+		var D = Obj.v.data;
+		var F = Obj.v.functions;
+		var ASM_SERVER = "http://localhost:3000"; //todo fixup with actual server name.
+		var url = ASM_SERVER + "/add/" + Obj.v.version + "/";
+		console.log(JSON.stringify(D));
+		console.log(JSON.stringify(F));
+		for(var i = 0; i < D.length; ++i)
+		{
+			url = url + D[i].code + "/";
+		}
+		var s = "Failed to instrument the following functions:\n";
+
+		for(var i = 0; i < F.length; ++i)
+		{
+			s = s + F[i] + "\n";
+		}
+		s = s + "\n\nPlease click \"OK\"to report the failed code segments\n"
+		s = s + "this will open the following url in a hidden frame\n"
+		s = s + url;
+		s = s + "\n-No additional data will be sent\n-No symbol names will be sent";
+		s = s + "\n[this popup can be auto-denied or auto-accepted from the settings menu]";
+		if(Cookie.CodeReportMode != 2)
+		{
+			if(Cookie.CodeReportMode == 1 || confirm(s))
+			{
+				var iframe = document.createElement("iframe");
+				iframe.onload = function(){document.body.removeChild(iframe); console.log("removed iframe");};
+				console.log("opening url " + url);
+				iframe.setAttribute("src", url);
+				iframe.style.width = "100x";
+				iframe.style.height = "100px";
+				document.body.appendChild(iframe);
+			}
+		}
+		console.log("got error "+ JSON.stringify(Obj.v));
+	}
 	else
 	{
 		console.log('hest!');
@@ -5766,6 +5825,51 @@ function ParseUrl()
 	PresetToLoadRO = StrCommand[0] == 'b';
 }
 
+
+function GetCookie()
+{
+	var result = document.cookie.match(/fisk=([^;]+)/);
+	if(result && result.length > 0)
+	{
+		var Obj = JSON.parse(result[1]);
+		if(!Obj.offline)
+		{
+			var C = {};
+			C.offline = Obj;
+			Obj = C;
+		}
+		return Obj;
+	}
+	else
+	{
+		return {offline:{},live:{}};
+	}
+}
+
+function ReadCookie()
+{
+	var C = GetCookie().live;
+	for(var i in C)
+	{
+		Cookie[i] = C[i];
+	}
+}
+function WriteCookie()
+{
+	var C = GetCookie();
+	C.live = {};
+	for(var i in Cookie)
+	{
+		C.live[i] = Cookie[i];
+	}
+
+	var date = new Date();
+	date.setFullYear(2099);
+	var cookie = 'fisk=' + JSON.stringify(C) + ';expires=' + date;
+	document.cookie = cookie;
+}
+
+ReadCookie();
 ParseUrl();
 ResizeCanvas();
 SetupEvents();

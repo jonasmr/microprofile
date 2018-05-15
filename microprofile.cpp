@@ -34,7 +34,7 @@
 #define MICROPROFILE_INVALID_TICK ((uint64_t)-1)
 #define MICROPROFILE_INVALID_FRAME ((uint32_t)-1)
 #define MICROPROFILE_GROUP_MASK_ALL 0xffffffff
-
+#define MICROPROFILE_MAX_PATCH_ERRORS 32
 #define MP_LOG_TICK_MASK  0x0000ffffffffffff
 #define MP_LOG_INDEX_MASK 0x3fff000000000000
 #define MP_LOG_BEGIN_MASK 0xc000000000000000
@@ -359,6 +359,7 @@ MicroProfileSymbolDesc* MicroProfileSymbolFindFuction(void* pAddress);
 void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pModuleName, const char* pFunctionName);
 void MicroProfileSymbolQuerySendResult(MpSocket Connection);
 void MicroProfileSymbolSendFunctionNames(MpSocket Connection);
+void MicroProfileSymbolSendErrors(MpSocket Connection);
 const char* MicroProfileSymbolModuleGetString(uint32_t nIndex);
 
 #endif
@@ -550,6 +551,15 @@ struct MicroProfileWebSocketBuffer
 	std::atomic<uint32_t> nSendGet;
 };
 
+typedef void (*MicroProfileHookFunc)(int x);
+
+struct MicroProfilePatchError
+{
+	unsigned char Code[32];
+	char Message[256];
+	int AlreadyInstrumented;
+	int nCodeSize;
+};
 
 
 
@@ -898,6 +908,10 @@ struct MicroProfile
 	int 							SymbolThreadRunning;
 	int 							SymbolThreadFinished;
 	MicroProfileThread 				SymbolThread;
+	int 							nNumPatchErrors;
+	MicroProfilePatchError			PatchErrors[MICROPROFILE_MAX_PATCH_ERRORS];
+	int 							nNumPatchErrorFunctions;
+	const char* 					PatchErrorFunctionNames[MICROPROFILE_MAX_PATCH_ERRORS];
 #endif
 
 
@@ -4914,6 +4928,7 @@ enum
 	MSG_FUNCTION_RESULTS = 8, 
 	MSG_INACTIVE_FRAME = 9,
 	MSG_FUNCTION_NAMES = 10,
+	MSG_INSTRUMENT_ERROR = 11,
 
 };
 
@@ -6074,6 +6089,7 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
 	MicroProfileSymbolQuerySendResult(Connection);
 	MicroProfileSymbolSendFunctionNames(Connection);
+	MicroProfileSymbolSendErrors(Connection);
 #endif
 }
 
@@ -8190,17 +8206,6 @@ const char* MicroProfileStrDup(const char* pStr)
 #include <mnemonics.h>
 
 
-typedef void (*MicroProfileHookFunc)(int x);
-
-struct PatchError
-{
-	unsigned char Code[12];
-	unsigned char CodeBeforeJump[12];
-	char Message[256];
-	int AlreadyInstrumented;
-};
-
-
 #if MICROPROFILE_BREAK_ON_PATCH_FAIL
 #define BREAK_ON_PATCH_FAIL() MP_BREAK()
 #else
@@ -8210,7 +8215,7 @@ struct PatchError
 
 void* MicroProfileX64FollowJump(void* pSrc);
 bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit, const int nMaxSize, char* pTrunk, intptr_t nTrunkSize, uint32_t nUsableJumpRegs, int* nBytesDest, int* nBytesSrc, uint32_t* pRegsWritten, uint32_t* nRetSafe) ;
-bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter, MicroProfileHookFunc leave, PatchError* pError);
+bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter, MicroProfileHookFunc leave, MicroProfilePatchError* pError);
 template<typename Callback>
 void MicroProfileIterateSymbols(Callback CB);
 
@@ -8492,7 +8497,7 @@ void* MicroProfileX64FollowJump(void* pSrc)
 
 }
 
-bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit, const int nMaxSize, char* pTrunk, intptr_t nTrunkSize, const uint32_t nUsableJumpRegs, int* nBytesDest, int* nBytesSrc, uint32_t* pRegsWritten, uint32_t* pRetSafe) 
+bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit, const int nMaxSize, char* pTrunk, intptr_t nTrunkSize, const uint32_t nUsableJumpRegs, int* pBytesDest, int* pBytesSrc, uint32_t* pRegsWritten, uint32_t* pRetSafe) 
 {
 
 	_DecodeType dt = Decode64Bits;
@@ -8571,10 +8576,20 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 	const uint32_t nUsableRegisters = RegToBit(R_RAX) | RegToBit(R_R10) | RegToBit(R_R11);
 #endif
 
+	uint32_t nBytesToMove = 0;
+	for(i = 0; i < nCount; ++i)
+	{
+		nBytesToMove += Instructions[i].size;
+		if(nBytesToMove > nLimit)
+			break;
+	}
+	*pBytesSrc = nBytesToMove;
+
+
 	uint32_t nRspMask = RegToBit(R_RSP);
 	*pRetSafe = 1;
 
-	for(; i < nCount; ++i)
+	for(i = 0; i < nCount; ++i)
 	{
 		rip[i] = 0;
 		auto& I = Instructions[i];
@@ -8865,8 +8880,7 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 	}
 
 
-	*nBytesDest = (int)(d - (uint8_t*)pDest);
-	*nBytesSrc = (int)(s - (uint8_t*)pSrc);
+	*pBytesDest = (int)(d - (uint8_t*)pDest);
 
 	return true;
 }
@@ -9084,7 +9098,7 @@ void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pModuleN
 void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, const char* pFunctionName, uint32_t nColor)
 {
 	MicroProfileScopeLock L(MicroProfileMutex());
-	PatchError Err;
+	MicroProfilePatchError Err;
 	if(S.DynamicTokenIndex == MICROPROFILE_MAX_DYNAMIC_TOKENS)
 	{
 		printf("instrument failing, out of dynamic tokens %d\n", S.DynamicTokenIndex);
@@ -9115,6 +9129,32 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, co
 	}
 	else
 	{
+		bool bFound = false;
+		for(uint32_t i = 0; i < S.nNumPatchErrors; ++i)
+		{
+			if(Err.nCodeSize == S.PatchErrors[i].nCodeSize && 0 == memcmp(Err.Code, S.PatchErrors[i].Code, Err.nCodeSize))
+			{
+				bFound = true;
+				break;
+			}
+		}
+		if(!bFound && S.nNumPatchErrors < MICROPROFILE_MAX_PATCH_ERRORS)
+		{
+			memcpy(&S.PatchErrors[S.nNumPatchErrors++], &Err, sizeof(Err));
+		}
+		bFound = false;
+		for(uint32_t i = 0; i < S.nNumPatchErrorFunctions; ++i)
+		{
+			if(0 == strcmp(pFunctionName, S.PatchErrorFunctionNames[i]))
+			{
+				bFound = true;
+			}
+		}
+		if(!bFound && S.nNumPatchErrorFunctions < MICROPROFILE_MAX_PATCH_ERRORS)
+		{
+			S.PatchErrorFunctionNames[S.nNumPatchErrorFunctions++] = pFunctionName;
+
+		}
 		printf("interception fail!!\n");
 	}
 
@@ -9165,6 +9205,10 @@ void MicroProfileSymbolFreeDataInternal()
 {
 	{
 		MP_ASSERT(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_DONE);
+
+		S.nNumPatchErrorFunctions = 0;
+		memset(S.PatchErrorFunctionNames, 0, sizeof(S.PatchErrorFunctionNames));
+
 		for(int i = 0; i < S.SymbolNumModules; ++i)
 		{
 
@@ -9787,6 +9831,48 @@ void MicroProfileSymbolSendFunctionNames(MpSocket Connection)
 	}
 }
 
+void MicroProfileSymbolSendErrors(MpSocket Connection)
+{
+	if(S.nNumPatchErrors)
+	{
+		MicroProfileWSPrintStart(Connection);
+		MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{\"version\":\"%d.%d\",\"data\":[", MSG_INSTRUMENT_ERROR, MICROPROFILE_MAJOR_VERSION, MICROPROFILE_MINOR_VERSION);
+		bool bFirst = true;
+		for(uint32_t i = 0; i < S.nNumPatchErrors; ++i)
+		{
+			MicroProfilePatchError& E = S.PatchErrors[i];
+			(void)E;
+			if(!bFirst)
+				MicroProfileWSPrintf(",");
+			MicroProfileWSPrintf("{\"code\":\"");
+			for(uint32_t i = 0; i < E.nCodeSize; ++i)
+				MicroProfileWSPrintf("%02x", E.Code[i] & 0xff);
+			MicroProfileWSPrintf("\",\"message\":\"%s\",\"already\":%d}", &E.Message[0], E.AlreadyInstrumented);
+			bFirst = false;
+		}
+
+		MicroProfileWSPrintf("],\"functions\":[");
+		bFirst = true;
+		for(uint32_t i = 0; i < S.nNumPatchErrorFunctions; ++i)
+		{
+			if(!bFirst)
+				MicroProfileWSPrintf(",");
+
+			MicroProfileWSPrintf("\"%s\"", S.PatchErrorFunctionNames[i]);
+
+			bFirst = false;
+		}
+
+		MicroProfileWSPrintf("]}}");
+		
+		MicroProfileWSFlush();
+		MicroProfileWSPrintEnd();
+
+		S.nNumPatchErrors = 0;
+		S.nNumPatchErrorFunctions = 0;
+	}
+}
+
 void MicroProfileSymbolQuerySendResult(MpSocket Connection)
 {
 	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSymbolQuerySendResult", MP_PINK2);
@@ -9950,17 +10036,11 @@ extern "C" void microprofile_tramp_trunk();
 extern "C" void microprofile_tramp_call_patch_pop();
 extern "C" void microprofile_tramp_call_patch_push();
 
-bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter, MicroProfileHookFunc leave, PatchError* pError)
+bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter, MicroProfileHookFunc leave, MicroProfilePatchError* pError)
 {
 	char* pOriginal = (char*)f;
 
 	f = MicroProfileX64FollowJump(f);
-
-	if(pError)
-	{
-		memcpy(&pError->Code[0], f, 12);
-		memcpy(&pError->CodeBeforeJump[0], pOriginal, 12);
-	}
 
 	intptr_t t_enter =(intptr_t)microprofile_tramp_enter;
 	intptr_t t_enter_patch_offset =(intptr_t)microprofile_tramp_enter_patch - t_enter;
@@ -9997,11 +10077,14 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 		if(pError)
 		{
 			const char* pCode = (const char*)f;
-			snprintf(pError->Message, sizeof(pError->Message), "Failed to move code bytes %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
-				pCode[0],	pCode[1], pCode[2], pCode[3],
-				pCode[4],	pCode[5], pCode[6], pCode[7],
-				pCode[8],	pCode[9], pCode[10], pCode[11]
-				);
+			memset(pError->Code, 0, sizeof(pError->Code));
+			memcpy(pError->Code, pCode, nInstructionBytesSrc);
+			int off = snprintf(pError->Message, sizeof(pError->Message), "Failed to move %d code bytes ", nInstructionBytesSrc);
+			pError->nCodeSize = nInstructionBytesSrc;
+			for(int i = 0; i < nInstructionBytesSrc; ++i)
+			{
+				off += snprintf(off + pError->Message, sizeof(pError->Message) - off, "%02x ", 0xff&pCode[i]);
+			}
 			printf("%s\n", pError->Message);
 		}
 		return false;
@@ -10418,7 +10501,7 @@ extern "C" void microprofile_tramp_call_patch_push();
 
 
 
-bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter, MicroProfileHookFunc leave, PatchError* pError) __attribute__((optnone))
+bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter, MicroProfileHookFunc leave, MicroProfilePatchError* pError) __attribute__((optnone))
 {
 	if(pError)
 	{
@@ -10461,16 +10544,18 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 		if(pError)
 		{
 			const char* pCode = (const char*)f;
-			snprintf(pError->Message, sizeof(pError->Message), "Failed to move code bytes %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
-				pCode[0],	pCode[1], pCode[2], pCode[3],
-				pCode[4],	pCode[5], pCode[6], pCode[7],
-				pCode[8],	pCode[9], pCode[10], pCode[11]
-				);
+			memset(pError->Code, 0, sizeof(pError->Code));
+			memcpy(pError->Code, pCode, nInstructionBytesSrc);
+			int off = snprintf(pError->Message, sizeof(pError->Message), "Failed to move %d code bytes ", nInstructionBytesSrc);
+			pError->nCodeSize = nInstructionBytesSrc;
+			for(int i = 0; i < nInstructionBytesSrc; ++i)
+			{
+				off += snprintf(off + pError->Message, sizeof(pError->Message) - off, "%02x ", 0xff&pCode[i]);
+			}
 			printf("%s\n", pError->Message);
 		}
 		return false;
-	}
-
+	} 
 	intptr_t phome = nInstructionBytesSrc + (intptr_t)f;
 	uint32_t reg = nUsableJumpRegs & ~nRegsWritten;
 	static_assert(R_RAX == 0, "R_RAX must be 0");

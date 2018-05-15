@@ -5447,14 +5447,35 @@ function KeyDown(evt)
 	Invalidate = 0;
 }
 
-function ReadCookie()
+function GetCookie()
 {
 	var result = document.cookie.match(/fisk=([^;]+)/);
-	var NewMode = ModeDetailed;
-	var ReferenceTimeString = '33ms';
+	console.log("cookie is " + document.cookie);
 	if(result && result.length > 0)
 	{
 		var Obj = JSON.parse(result[1]);
+		if(!Obj.offline)
+		{
+			var C = {};
+			C.offline = Obj;
+			Obj = C;
+		}		
+		return Obj;
+	}
+	else
+	{
+		return {offline:{},live:{}};
+	}
+}
+
+function ReadCookie()
+{
+	var C = GetCookie();
+	var NewMode = ModeDetailed;
+	var ReferenceTimeString = '33ms';
+	if(C.offline)
+	{
+		var Obj = C.offline;
 		if(Obj.Mode)
 		{
 			NewMode = Obj.Mode;
@@ -5536,6 +5557,7 @@ function ReadCookie()
 }
 function WriteCookie()
 {
+	var C = GetCookie();
 	var Obj = new Object();
 	Obj.Mode = Mode;
 	Obj.ReferenceTime = ReferenceTime + 'ms';
@@ -5555,9 +5577,10 @@ function WriteCookie()
 	{
 		Obj.nHideHelp = 1;
 	}
+	C.offline = Obj;
 	var date = new Date();
 	date.setFullYear(2099);
-	var cookie = 'fisk=' + JSON.stringify(Obj) + ';expires=' + date;
+	var cookie = 'fisk=' + JSON.stringify(C) + ';expires=' + date;
 	document.cookie = cookie;
 }
 

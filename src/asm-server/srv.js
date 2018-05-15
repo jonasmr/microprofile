@@ -25,6 +25,7 @@ const server = http.createServer((req, res) => {
 		res.write("Command '" + Command);
 		res.write("'         Known [show, full, add]\n");
 	}
+	console.log("got commmand "+ Command + " url " + req.url);
 
 	var Client = mongo.MongoClient;
 	Client.connect(ServerURL, function(err, client) {

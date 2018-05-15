@@ -281,6 +281,9 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #endif
 
 
+#define MICROPROFILE_MAJOR_VERSION 2
+#define MICROPROFILE_MINOR_VERSION 5
+
 
 
 #ifndef MICROPROFILE_USE_THREAD_NAME_CALLBACK
