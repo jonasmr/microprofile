@@ -2273,7 +2273,8 @@ function FilterMatch(FilterArray, value)
 function AddPreset(Name)
 {
 	var O = {};
-	O.p = {Name:"{}"};
+	O[Name] = {};
+	O.p = O;
 	O.r = {};
 	AddPresets(O);
 }
@@ -2388,6 +2389,15 @@ function OnLoadPreset(NewSettings, Apply, RO)
 			Settings[idx] = NewSettings[idx];
 		}
 	}
+	if(Settings.Instrumented && Apply)
+	{
+		var Msg = "D" + Settings.Instrumented.length + " ";
+		for(var i = 0; i < Settings.Instrumented.length; ++i)
+		{
+			Msg += Settings.Instrumented[i] + "!";
+		}
+		WSSendMessage(Msg);
+	}
 	if(Settings.ViewActive >= 0)
 	{
 		ResizeCanvas();
@@ -2402,7 +2412,12 @@ function LoadPreset(Name, RO)
 
 function SavePreset(Name)
 {
-	Name = Name.replace(",","_");
+	var n1 = Name;
+	Name = Name.replace(/[ ,."']/g,"_");
+	if(Name.match(/^[0-9]/))
+	{
+		Name = "_" + Name;
+	}
 	AddPreset(Name);
 	var Timers = [];
 	var Groups = [];
@@ -2429,7 +2444,7 @@ function SavePreset(Name)
 	Settings.Instrumented = [];
 	for(var i = 0; i < Math.min(FunctionNamesInstrumented.length, FunctionModulesInstrumented.length); ++i)
 	{
-		Settings.Instrumented.push(FunctionNamesInstrumented[i] + "!" + FunctionModulesInstrumented[i]);
+		Settings.Instrumented.push(FunctionModulesInstrumented[i] + "!" + FunctionNamesInstrumented[i]);
 	}
 
 	var JsonSettings = JSON.stringify(Settings);

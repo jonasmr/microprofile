@@ -361,7 +361,7 @@ void MicroProfileSymbolQuerySendResult(MpSocket Connection);
 void MicroProfileSymbolSendFunctionNames(MpSocket Connection);
 void MicroProfileSymbolSendErrors(MpSocket Connection);
 const char* MicroProfileSymbolModuleGetString(uint32_t nIndex);
-
+void MicroProfileInstrumentWithoutSymbols(const char** pModules, const char** pSymbols, uint32_t nNumSymbols);
 #endif
 
 struct MicroProfileFunctionQuery;
@@ -5534,7 +5534,7 @@ void MicroProfileParseSettings(const char* pFileName, T CB)
 			int nLen = 0;
 			*ppName = pPos;
 
-			while(pPos != pEnd && (isalpha(*pPos) || isdigit(*pPos)))
+			while(pPos != pEnd && (isalpha(*pPos) || isdigit(*pPos) || *pPos == '_'))
 			{
 				nLen++;
 				pPos++;
@@ -5876,6 +5876,61 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 			MicroProfileWebSocketClearTimers();
 			break;
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
+		case 'D': //instrumentation without loading queryable symbols.
+			{
+				printf("got INSTRUMENT Message: %s\n", (const char*)&Bytes[0]);
+				char* pGet = (char*)&Bytes[1];
+				uint32_t nNumArguments = 0;
+				int r = sscanf(pGet, "%d", &nNumArguments);
+				if(r != 1)
+				{
+					printf("failed to parse..\n");
+					break;
+				}
+				while(' ' == *pGet || (*pGet >= '0' && *pGet <='9'))
+				{
+					pGet++;
+				}
+				if(nNumArguments > 200)
+					nNumArguments = 200;
+				uint32_t nParsedArguments = 0;
+				const char* pModule = 0;
+				const char* pSymbol = 0;
+				const char** pModules = (const char**)(alloca(sizeof(const char*) * nNumArguments));
+				const char** pSymbols = (const char**)(alloca(sizeof(const char*) * nNumArguments));
+				auto Next = [&pGet]() -> const char*
+				{
+					const char* pRet = pGet;
+					pGet = (char*)strchr(pRet, '!');
+					if(!pGet)
+					{
+						return 0;
+					}
+					*pGet++ = '\0';
+					return (const char*)pRet;
+				};
+				do
+				{
+					pModule = Next();
+					pSymbol = Next();
+					if(pModule && pSymbol)
+					{
+						pModules[nParsedArguments] = pModule;
+						pSymbols[nParsedArguments] = pSymbol;
+						printf("found symbol %s   ::: %s \n", pModule, pSymbol);
+						nParsedArguments++;
+						if(nParsedArguments == nNumArguments)
+						{
+							break;
+						}
+
+					}
+				}while(pGet);
+
+				MicroProfileInstrumentWithoutSymbols(pModules, pSymbols, nParsedArguments);
+
+				break;
+			}
 		case 'I':
 		case 'i':
 			{
@@ -10454,6 +10509,10 @@ void MicroProfileIterateSymbols(Callback CB)
 
 }
 
+void MicroProfileInstrumentWithoutSymbols(const char** pModules, const char** pSymbols, uint32_t nNumSymbols)
+{
+	printf("TODO: Not implemented\n");
+}
 
 
 
@@ -10940,6 +10999,14 @@ static void* MicroProfileAllocExecutableMemory(size_t s)
 	// printf("Allocating %zu  %p\n", s, pMem);
 	return pMem;
 }
+
+
+void MicroProfileInstrumentWithoutSymbols(const char** pModules, const char** pSymbols, uint32_t nNumSymbols)
+{
+	printf("TODO: Not implemented\n");
+}
+
+
 #endif
 #endif
 

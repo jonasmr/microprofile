@@ -9197,7 +9197,8 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "function AddPreset(Name)\n"
 "{\n"
 "	var O = {};\n"
-"	O.p = {Name:\"{}\"};\n"
+"	O[Name] = {};\n"
+"	O.p = O;\n"
 "	O.r = {};\n"
 "	AddPresets(O);\n"
 "}\n"
@@ -9312,6 +9313,15 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "			Settings[idx] = NewSettings[idx];\n"
 "		}\n"
 "	}\n"
+"	if(Settings.Instrumented && Apply)\n"
+"	{\n"
+"		var Msg = \"D\" + Settings.Instrumented.length + \" \";\n"
+"		for(var i = 0; i < Settings.Instrumented.length; ++i)\n"
+"		{\n"
+"			Msg += Settings.Instrumented[i] + \"!\";\n"
+"		}\n"
+"		WSSendMessage(Msg);\n"
+"	}\n"
 "	if(Settings.ViewActive >= 0)\n"
 "	{\n"
 "		ResizeCanvas();\n"
@@ -9326,7 +9336,12 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "\n"
 "function SavePreset(Name)\n"
 "{\n"
-"	Name = Name.replace(\",\",\"_\");\n"
+"	var n1 = Name;\n"
+"	Name = Name.replace(/[ ,.\"\']/g,\"_\");\n"
+"	if(Name.match(/^[0-9]/))\n"
+"	{\n"
+"		Name = \"_\" + Name;\n"
+"	}\n"
 "	AddPreset(Name);\n"
 "	var Timers = [];\n"
 "	var Groups = [];\n"
@@ -9353,7 +9368,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	Settings.Instrumented = [];\n"
 "	for(var i = 0; i < Math.min(FunctionNamesInstrumented.length, FunctionModulesInstrumented.length); ++i)\n"
 "	{\n"
-"		Settings.Instrumented.push(FunctionNamesInstrumented[i] + \"!\" + FunctionModulesInstrumented[i]);\n"
+"		Settings.Instrumented.push(FunctionModulesInstrumented[i] + \"!\" + FunctionNamesInstrumented[i]);\n"
 "	}\n"
 "\n"
 "	var JsonSettings = JSON.stringify(Settings);\n"
@@ -9702,7 +9717,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "}\n"
 "function GetAutoCaptureString()\n"
 "{\n"
-"	if(AutoCaptureSourceIndex >= 0)\n"
+"	";
+
+const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
+const char g_MicroProfileHtmlLive_begin_2[] =
+"if(AutoCaptureSourceIndex >= 0)\n"
 "	{\n"
 "		if(AutoCaptureSourceIndex >= EnabledArray.length)\n"
 "		{\n"
@@ -9718,11 +9737,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	return \"Frame Time\";\n"
 "}\n"
 "\n"
-"function AutoCapture";
-
-const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
-const char g_MicroProfileHtmlLive_begin_2[] =
-"SourceRoll(Direction, Tweak, SetDirect)\n"
+"function AutoCaptureSourceRoll(Direction, Tweak, SetDirect)\n"
 "{\n"
 "	if(SetDirect)\n"
 "	{\n"
@@ -11072,7 +11087,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "		if(ToolTipCallback && SubMenuActive == -1)\n"
 "		{\n"
 "			var Strings = ToolTipCallback(CanvasDetailedView, MouseX, MouseY);\n"
-"			if(Strings)\n"
+"			if(Str";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+"ings)\n"
 "			{\n"
 "				DrawToolTip(Strings, CanvasDetailedView, MouseX, MouseY);\n"
 "			}\n"
@@ -11085,11 +11104,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	if(Settings.AutomaticReference)\n"
 "	{\n"
 "		if( Math.abs(ReferenceGraph - ReferenceGraphAutomatic) > 0.02 ||\n"
-"			Math.abs(ReferenceHistory - ReferenceHistoryAutomatic) > 0.";
-
-const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
-const char g_MicroProfileHtmlLive_begin_3[] =
-"02)\n"
+"			Math.abs(ReferenceHistory - ReferenceHistoryAutomatic) > 0.02)\n"
 "		{\n"
 "			RequestDraw();\n"
 "		}\n"
@@ -12607,7 +12622,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "			X += CounterNameWidth;\n"
 "			X += CounterValueWidth - FontWidth;\n"
 "			context.textAlign = \'right\';\n"
-"			context.fillText(Counter.formatted, X, Y+Height-FontAscent);\n"
+"			";
+
+const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
+const char g_MicroProfileHtmlLive_begin_4[] =
+"context.fillText(Counter.formatted, X, Y+Height-FontAscent);\n"
 "			context.textAlign = \'left\';\n"
 "			X += FontWidth * 4;\n"
 "			var Y0 = Y + 1;\n"
@@ -12616,11 +12635,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "				context.fillText(Counter.formattedlimit, X, Y+Height-FontAscent);\n"
 "				X += CounterLimitWidth;\n"
 "				var X0 = X + 1;\n"
-"				context.fillStyle ";
-
-const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
-const char g_MicroProfileHtmlLive_begin_4[] =
-"= \'white\';\n"
+"				context.fillStyle = \'white\';\n"
 "				context.fillRect(X0, Y0, Counter.boxprc * (CounterWidth-2), Height-2);\n"
 "				context.fillStyle = bgcolor;\n"
 "				context.fillRect(X0+1, Y0+1, Counter.boxprc * (CounterWidth-4), Height-4);\n"
