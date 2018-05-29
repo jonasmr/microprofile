@@ -8274,7 +8274,6 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter, MicroProfileHookFunc leave, MicroProfilePatchError* pError);
 template<typename Callback>
 void MicroProfileIterateSymbols(Callback CB);
-
 const char* MicroProfileGetUnmangledSymbolName(void* pFunction);
 
 
@@ -10512,7 +10511,11 @@ void MicroProfileIterateSymbols(Callback CB)
 		}
 		SymCleanup(GetCurrentProcess());
 	}
+}
 
+const char* MicroProfileGetUnmangledSymbolName(void* pFunction)
+{
+	return "??";
 }
 
 void MicroProfileInstrumentWithoutSymbols(const char** pModules, const char** pSymbols, uint32_t nNumSymbols)
@@ -11495,6 +11498,7 @@ void MicroProfileHashTableTest()
 			}
 		}while(bFound);
 		MP_BREAK();
+		return (uint64_t)0;
 	};
 
 
