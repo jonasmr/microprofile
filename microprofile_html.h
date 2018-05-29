@@ -7271,8 +7271,9 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "\n"
 "var SymbolState;\n"
 "\n"
-"var FunctionNamesInstrumented = [];\n"
-"var FunctionModulesInstrumented = [];\n"
+"var FunctionsInstrumented = [];\n"
+"var FunctionsInstrumentedUnmangled = [];\n"
+"var FunctionsInstrumentedModule = [];\n"
 "var PopupsAllowed = 0;\n"
 "\n"
 "\n"
@@ -8254,12 +8255,12 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "				case 5: KeyFunc = function (a) { return TimerArray[a].spike; }; break;\n"
 "				case 6: KeyFunc = function (a) { return TimerArray[a].callaverage; }; break;\n"
 "				case 7: KeyFunc = function (a) { return TimerArray[a].callcount; }; break;\n"
-"				case 8: KeyFunc = function (a) { return TimerArray[a].exclaverage; }; break;\n"
-"				case 9: Key";
+"				case 8: KeyFunc = function (a) { return TimerArray[a].e";
 
 const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
 const char g_MicroProfileHtmlLive_begin_1[] =
-"Func = function (a) { return TimerArray[a].exclmax; }; break;\n"
+"xclaverage; }; break;\n"
+"				case 9: KeyFunc = function (a) { return TimerArray[a].exclmax; }; break;\n"
 "			}\n"
 "			var Flip = Settings.SortColumnOrderFlip == 1 ? -1 : 1;\n"
 "			OrderArray.sort(function(a,b) { return Flip * (KeyFunc(b) - KeyFunc(a)); } );\n"
@@ -9091,7 +9092,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	MenuItems.push(MakeMenuItem(\"Control\", function(){EnableMenu(SubMenuGroup); } ));\n"
 "	MenuItems.push(MakeMenuItem(\"Timers\", function(){EnableMenu(SubMenuTimers); } ));\n"
 "	MenuItems.push(MakeMenuItem(\"Functions\", function(){EnableMenu(SubMenuFunctions); } ));\n"
-"	MenuItems.push(MakeMenuItem(\"Patched\", function(){EnableMenu(SubMenuPatched); }, function(){ return FunctionNamesInstrumented.length > 0;} ));\n"
+"	MenuItems.push(MakeMenuItem(\"Patched\", function(){EnableMenu(SubMenuPatched); }, function(){ return FunctionsInstrumented.length > 0;} ));\n"
 "	MenuItems.push(MakeMenuItem(\"Settings\", function(){ EnableMenu(SubMenuSettings); } ));\n"
 "	MenuItems.push(MakeMenuItem(\"Views\", function(){ EnableMenu(SubMenuViews); } ));\n"
 "	MenuItems.push(MakeMenuItem(\"Presets\", function(){ EnableMenu(SubMenuPresets); } ));\n"
@@ -9198,9 +9199,10 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "{\n"
 "	var O = {};\n"
 "	O[Name] = {};\n"
-"	O.p = O;\n"
-"	O.r = {};\n"
-"	AddPresets(O);\n"
+"	var OO = {};\n"
+"	OO.p = O;\n"
+"	OO.r = {};\n"
+"	AddPresets(OO);\n"
 "}\n"
 "function JSONTryParse(str)\n"
 "{\n"
@@ -9313,14 +9315,18 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "			Settings[idx] = NewSettings[idx];\n"
 "		}\n"
 "	}\n"
-"	if(Settings.Instrumented && Apply)\n"
+"\n"
+"	if(Settings.FunctionsInstrumented && Apply)\n"
 "	{\n"
-"		var Msg = \"D\" + Settings.Instrumented.length + \" \";\n"
-"		for(var i = 0; i < Settings.Instrumented.length; ++i)\n"
+"		if(Settings.FunctionsInstrumented.length == Settings.FunctionsInstrumentedModule.length && Settings.FunctionsInstrumented.length == Settings.FunctionsInstrumentedUnmangled.length)\n"
 "		{\n"
-"			Msg += Settings.Instrumented[i] + \"!\";\n"
+"			var Msg = \"D\" + Settings.FunctionsInstrumented.length + \" \";\n"
+"			for(var i = 0; i < Settings.FunctionsInstrumented.length; ++i)\n"
+"			{\n"
+"				Msg += Settings.FunctionsInstrumentedModule[i] + \"!\" + Settings.FunctionsInstrumentedUnmangled[i] + \"!\";\n"
+"			}\n"
+"			WSSendMessage(Msg);\n"
 "		}\n"
-"		WSSendMessage(Msg);\n"
 "	}\n"
 "	if(Settings.ViewActive >= 0)\n"
 "	{\n"
@@ -9365,11 +9371,18 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	Settings.Timers = Timers;\n"
 "	Settings.Groups = Groups;\n"
 "	Settings.PresetName = Name;\n"
-"	Settings.Instrumented = [];\n"
-"	for(var i = 0; i < Math.min(FunctionNamesInstrumented.length, FunctionModulesInstrumented.length); ++i)\n"
+"	let Clone = function(A)\n"
 "	{\n"
-"		Settings.Instrumented.push(FunctionModulesInstrumented[i] + \"!\" + FunctionNamesInstrumented[i]);\n"
-"	}\n"
+"		let N = Array(A.length);\n"
+"		for(var i = 0; i < A.length; ++i)\n"
+"		{\n"
+"			N[i] = A[i];\n"
+"		}\n"
+"		return N;\n"
+"	};\n"
+"	Settings.FunctionsInstrumented = Clone(FunctionsInstrumented);\n"
+"	Settings.FunctionsInstrumentedModule = Clone(FunctionsInstrumentedModule);\n"
+"	Settings.FunctionsInstrumentedUnmangled = Clone(FunctionsInstrumentedUnmangled);\n"
 "\n"
 "	var JsonSettings = JSON.stringify(Settings);\n"
 "	console.log(\'settings stored \' + JsonSettings);\n"
@@ -9399,7 +9412,6 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	\n"
 "	var M = CreateMenuState(SizeInfo);\n"
 "	var context = CanvasDetailedView.getContext(\'2d\');\n"
-"	context.fillRect(M.x, M.y, Width, SizeInfo.h);\n"
 "\n"
 "	var SettingsCached;\n"
 "	var SettingsCachedY = 0;\n"
@@ -9695,7 +9707,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	}\n"
 "	else if(Direction)\n"
 "	{\n"
-"		Settings.AutoCaptureTheshold = NextValue(AutoCaptureThesholdPresets, Settings.AutoCaptureTheshold, Direction);\n"
+"		Settings.AutoCaptureTheshold = NextValue(AutoCaptureThesholdPresets, Settings.AutoCaptu";
+
+const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
+const char g_MicroProfileHtmlLive_begin_2[] =
+"reTheshold, Direction);\n"
 "	}\n"
 "}\n"
 "\n"
@@ -9717,11 +9733,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "}\n"
 "function GetAutoCaptureString()\n"
 "{\n"
-"	";
-
-const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
-const char g_MicroProfileHtmlLive_begin_2[] =
-"if(AutoCaptureSourceIndex >= 0)\n"
+"	if(AutoCaptureSourceIndex >= 0)\n"
 "	{\n"
 "		if(AutoCaptureSourceIndex >= EnabledArray.length)\n"
 "		{\n"
@@ -10474,7 +10486,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	var Y = SizeInfo.y;\n"
 "	var Width = SizeInfo.w;\n"
 "	Width = Math.max(300, Width);\n"
-"	Width = 10+ MeasureArray(Width, FunctionNamesInstrumented, function(s, i){return s + \" \" + FunctionModulesInstrumented[i];} );\n"
+"	Width = 10+ MeasureArray(Width, FunctionsInstrumented, function(s, i){return s + \" \" + FunctionsInstrumentedModule[i];} );\n"
 "\n"
 "	if(Width + SizeInfo.x + 50 > nWidth)\n"
 "	{\n"
@@ -10524,10 +10536,10 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "		var cidx = StringColor(Str); \n"
 "		return \"hsl(\" + cidx + \",50%, 70%)\";\n"
 "	};\n"
-"	for(var i = 0; i < FunctionNamesInstrumented.length; ++i)\n"
+"	for(var i = 0; i < FunctionsInstrumented.length; ++i)\n"
 "	{\n"
-"		var Name = FunctionNamesInstrumented[i];\n"
-"		var ModuleName = FunctionModulesInstrumented[i];\n"
+"		var Name = FunctionsInstrumented[i];\n"
+"		var ModuleName = FunctionsInstrumentedModule[i];\n"
 "		if(FilterMatch(FilterArray, ModuleName + \" \" + Name))\n"
 "		{\n"
 "\n"
@@ -11073,7 +11085,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	Strings.push(\"Receives\");\n"
 "	Strings.push(\"\" + WSReceive);\n"
 "	Strings.push(\"SendBytes\");\n"
-"	Strings.push(\"\" + WSSendBytes);\n"
+"	Stri";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+"ngs.push(\"\" + WSSendBytes);\n"
 "	Strings.push(\"ReceiveBytes\");\n"
 "	Strings.push(\"\" + WSReceiveBytes);\n"
 "	Strings.push(\"Seconds\");\n"
@@ -11087,11 +11103,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "		if(ToolTipCallback && SubMenuActive == -1)\n"
 "		{\n"
 "			var Strings = ToolTipCallback(CanvasDetailedView, MouseX, MouseY);\n"
-"			if(Str";
-
-const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
-const char g_MicroProfileHtmlLive_begin_3[] =
-"ings)\n"
+"			if(Strings)\n"
 "			{\n"
 "				DrawToolTip(Strings, CanvasDetailedView, MouseX, MouseY);\n"
 "			}\n"
@@ -11213,8 +11225,9 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "	FunctionQueryPending = 0;\n"
 "	FunctionQueryReceived = 0;\n"
 "	FunctionQueryLastRequest = 0;\n"
-"	FunctionNamesInstrumented = [];\n"
-"	FunctionModulesInstrumented = [];\n"
+"	FunctionsInstrumented = [];\n"
+"	FunctionsInstrumentedModule = [];\n"
+"	FunctionsInstrumentedUnmangled = [];\n"
 "\n"
 "	FilterInputTimersValue = \"\";\n"
 "	FilterInputGroupsValue = \"\";\n"
@@ -11789,8 +11802,10 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "	{\n"
 "		for(var i = 0; i < Obj.v.length; ++i)\n"
 "		{\n"
-"			FunctionNamesInstrumented.push(Obj.v[i][0]);\n"
-"			FunctionModulesInstrumented.push(Obj.v[i][1]);\n"
+"			FunctionsInstrumented.push(Obj.v[i][0]);\n"
+"			FunctionsInstrumentedModule.push(Obj.v[i][1]);\n"
+"			FunctionsInstrumentedUnmangled.push(Obj.v[i][2]);\n"
+"\n"
 "		}\n"
 "	}\n"
 "	else if(k == MSG_INSTRUMENT_ERROR)\n"
@@ -12608,7 +12623,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "			nColorIndex = 1-nColorIndex;\n"
 "			var HeightExpanded = Counter.Expanded ? Height * 5 : Height\n"
 "\n"
-"			bMouseIn = LocalMouseY >= Y && LocalMouseY < Y + HeightExpanded;\n"
+"			bMouseIn = LocalMouseY >= Y && Loc";
+
+const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
+const char g_MicroProfileHtmlLive_begin_4[] =
+"alMouseY < Y + HeightExpanded;\n"
 "			if(bMouseIn)\n"
 "			{\n"
 "				nHoverCounter = Index;\n"
@@ -12622,11 +12641,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "			X += CounterNameWidth;\n"
 "			X += CounterValueWidth - FontWidth;\n"
 "			context.textAlign = \'right\';\n"
-"			";
-
-const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
-const char g_MicroProfileHtmlLive_begin_4[] =
-"context.fillText(Counter.formatted, X, Y+Height-FontAscent);\n"
+"			context.fillText(Counter.formatted, X, Y+Height-FontAscent);\n"
 "			context.textAlign = \'left\';\n"
 "			X += FontWidth * 4;\n"
 "			var Y0 = Y + 1;\n"

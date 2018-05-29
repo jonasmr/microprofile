@@ -880,6 +880,7 @@ struct MicroProfile
 	void* 							FunctionsInstrumented[MICROPROFILE_MAX_DYNAMIC_TOKENS];
 	const char*						FunctionsInstrumentedName[MICROPROFILE_MAX_DYNAMIC_TOKENS];
 	const char*						FunctionsInstrumentedModuleNames[MICROPROFILE_MAX_DYNAMIC_TOKENS];
+	const char* 					FunctionsInstrumentedUnmangled[MICROPROFILE_MAX_DYNAMIC_TOKENS];
 	uint32_t 						WSFunctionsInstrumentedSent;
 	MicroProfileSymbolState 		SymbolState;
 
@@ -8274,6 +8275,9 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 template<typename Callback>
 void MicroProfileIterateSymbols(Callback CB);
 
+const char* MicroProfileGetUnmangledSymbolName(void* pFunction);
+
+
 #if 1
 #define STRING_MATCH_SIZE 64
 typedef uint64_t uint_string_match;
@@ -9173,6 +9177,7 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, co
 		S.FunctionsInstrumented[S.DynamicTokenIndex] = pFunction;
 		S.FunctionsInstrumentedName[S.DynamicTokenIndex] = MicroProfileStrDup(pFunctionName);
 		S.FunctionsInstrumentedModuleNames[S.DynamicTokenIndex] = MicroProfileStrDup(pModuleName);
+		S.FunctionsInstrumentedUnmangled[S.DynamicTokenIndex] = MicroProfileGetUnmangledSymbolName(pFunction);
 		S.DynamicTokenIndex++;
 
 		uint16_t nGroup = MicroProfileGetGroupIndex(Tok);
@@ -9875,7 +9880,8 @@ void MicroProfileSymbolSendFunctionNames(MpSocket Connection)
 		{
 			const char* pString = S.FunctionsInstrumentedName[i];
 			const char* pModuleString = S.FunctionsInstrumentedModuleNames[i];
-			MicroProfileWSPrintf(bFirst ? "[\"%s\",\"%s\"]" : ",[\"%s\",\"%s\"]", pString, pModuleString);
+			const char* pUnmangled = S.FunctionsInstrumentedUnmangled[i];
+			MicroProfileWSPrintf(bFirst ? "[\"%s\",\"%s\",\"%s\"]" : ",[\"%s\",\"%s\",\"%s\"]", pString, pModuleString, pUnmangled);
 			bFirst = false;
 		}
 		MicroProfileWSPrintf("]}");
@@ -10883,6 +10889,31 @@ int MicroProfileFindFunctionName(const char* pStr, const char** ppStart)
 	return nCount;
 }
 
+const char* MicroProfileDemangleSymbol(const char* pSymbol)
+{
+	static unsigned long size = 128;
+	static char* pTempBuffer = (char*)malloc(size); // needs to be malloc because demangle function might realloc it.
+	unsigned long len = size;
+	int ret = 0;
+	char* pBuffer = pTempBuffer;
+	pBuffer = abi::__cxa_demangle(pSymbol, pTempBuffer, &len, &ret);
+	if(ret == 0)
+	{
+		if(pBuffer != pTempBuffer)
+		{
+			pTempBuffer = pBuffer;
+			if(len < size)
+				__builtin_trap();
+			size = len;
+		}
+		return pTempBuffer;
+	}
+	else
+	{
+		return pSymbol;
+	}
+}
+
 
 template<typename Callback>
 void MicroProfileIterateSymbols(Callback CB)
@@ -10896,8 +10927,6 @@ void MicroProfileIterateSymbols(Callback CB)
 	kern_return_t kr;
 	vm_region_submap_info_64 vbr;
 	mach_msg_type_number_t vbrcount = sizeof(vbr)/4;
-	static unsigned long size = 128;
-	static char* pTempBuffer = (char*)malloc(size); // needs to be malloc because demangle function might realloc it.
 
 	intptr_t nCurrentModule = -1;
 	uint32_t nCurrentModuleId = -1;
@@ -10905,26 +10934,34 @@ void MicroProfileIterateSymbols(Callback CB)
 
 	auto OnFunction = [&](void* addr, void* addrend, const char* pSymbol, const char* pModuleName, void* pModuleAddr) -> bool
 	{
-		unsigned long len = size;
-		int ret = 0;
-		char* pBuffer = pTempBuffer;
-		pBuffer = abi::__cxa_demangle(pSymbol, pTempBuffer, &len, &ret);
-		const char* pStr = nullptr;
-		if(ret == 0)
-		{
-			if(pBuffer != pTempBuffer)
-			{
-				pTempBuffer = pBuffer;
-				if(len < size)
-					__builtin_trap();
-				size = len;
-			}
-			pStr = pTempBuffer;
-		}
-		else
-		{
-			pStr = pSymbol;
-		}
+		// unsigned long len = size;
+		// int ret = 0;
+		// char* pBuffer = pTempBuffer;
+		// pBuffer = abi::__cxa_demangle(pSymbol, pTempBuffer, &len, &ret);
+		// if(pBuffer && 0 != strstr(pBuffer, "MicroProfileStringsInit"))
+		// {
+		// 	printf("*************** MicroProfileStringsInit\n");
+		// 	printf("SYM %s\n", pBuffer);
+		// 	printf("SYM %s\n", pSymbol);
+		// 	printf("***************\n");
+		// }
+		const char* pStr = MicroProfileDemangleSymbol(pSymbol);;
+		// if(ret == 0)
+		// {
+		// 	if(pBuffer != pTempBuffer)
+		// 	{
+		// 		pTempBuffer = pBuffer;
+		// 		if(len < size)
+		// 			__builtin_trap();
+		// 		size = len;
+		// 	}
+		// 	pStr = pTempBuffer;
+		// }
+		// else
+		// {
+		// 	pStr = pSymbol;
+		// }
+		// cons
 		int l = MicroProfileTrimFunctionName(pStr, &FunctionName[0], &FunctionName[1024]);
 		if(nCurrentModule != (intptr_t)pModuleAddr)
 		{
@@ -11000,10 +11037,38 @@ static void* MicroProfileAllocExecutableMemory(size_t s)
 	return pMem;
 }
 
+const char* MicroProfileGetUnmangledSymbolName(void* pFunction)
+{
+	dl_info di;
+	int r = 0;
+	r = dladdr(pFunction, &di);
+	if(r)
+	{
+		return MicroProfileStrDup(di.dli_sname);
+	}
+	else
+	{
+		return 0;
+	}
+
+}
 
 void MicroProfileInstrumentWithoutSymbols(const char** pModules, const char** pSymbols, uint32_t nNumSymbols)
 {
-	printf("TODO: Not implemented\n");
+	void* M = dlopen(0, 0);
+	for(uint32_t i = 0; i < nNumSymbols; ++i)
+	{
+		// printf("trying to find symbol %s\n", pSym);
+		void* s = dlsym(M, pSymbols[i]);
+		printf("sym returned %p\n", s);
+		if(s)
+		{
+			uint32_t nColor = MicroProfileColorFromString(pSymbols[i]);
+			const char* pDemangled = MicroProfileDemangleSymbol(pSymbols[i]);
+			MicroProfileInstrumentFunction(s, pModules[i], pDemangled, nColor);
+		}
+	}
+	dlclose(M);
 }
 
 

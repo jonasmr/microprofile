@@ -351,8 +351,9 @@ var SYMBOLSTATE_DONE = 2;
 
 var SymbolState;
 
-var FunctionNamesInstrumented = [];
-var FunctionModulesInstrumented = [];
+var FunctionsInstrumented = [];
+var FunctionsInstrumentedUnmangled = [];
+var FunctionsInstrumentedModule = [];
 var PopupsAllowed = 0;
 
 
@@ -2167,7 +2168,7 @@ function InitMenu()
 	MenuItems.push(MakeMenuItem("Control", function(){EnableMenu(SubMenuGroup); } ));
 	MenuItems.push(MakeMenuItem("Timers", function(){EnableMenu(SubMenuTimers); } ));
 	MenuItems.push(MakeMenuItem("Functions", function(){EnableMenu(SubMenuFunctions); } ));
-	MenuItems.push(MakeMenuItem("Patched", function(){EnableMenu(SubMenuPatched); }, function(){ return FunctionNamesInstrumented.length > 0;} ));
+	MenuItems.push(MakeMenuItem("Patched", function(){EnableMenu(SubMenuPatched); }, function(){ return FunctionsInstrumented.length > 0;} ));
 	MenuItems.push(MakeMenuItem("Settings", function(){ EnableMenu(SubMenuSettings); } ));
 	MenuItems.push(MakeMenuItem("Views", function(){ EnableMenu(SubMenuViews); } ));
 	MenuItems.push(MakeMenuItem("Presets", function(){ EnableMenu(SubMenuPresets); } ));
@@ -2274,9 +2275,10 @@ function AddPreset(Name)
 {
 	var O = {};
 	O[Name] = {};
-	O.p = O;
-	O.r = {};
-	AddPresets(O);
+	var OO = {};
+	OO.p = O;
+	OO.r = {};
+	AddPresets(OO);
 }
 function JSONTryParse(str)
 {
@@ -2389,14 +2391,18 @@ function OnLoadPreset(NewSettings, Apply, RO)
 			Settings[idx] = NewSettings[idx];
 		}
 	}
-	if(Settings.Instrumented && Apply)
+
+	if(Settings.FunctionsInstrumented && Apply)
 	{
-		var Msg = "D" + Settings.Instrumented.length + " ";
-		for(var i = 0; i < Settings.Instrumented.length; ++i)
+		if(Settings.FunctionsInstrumented.length == Settings.FunctionsInstrumentedModule.length && Settings.FunctionsInstrumented.length == Settings.FunctionsInstrumentedUnmangled.length)
 		{
-			Msg += Settings.Instrumented[i] + "!";
+			var Msg = "D" + Settings.FunctionsInstrumented.length + " ";
+			for(var i = 0; i < Settings.FunctionsInstrumented.length; ++i)
+			{
+				Msg += Settings.FunctionsInstrumentedModule[i] + "!" + Settings.FunctionsInstrumentedUnmangled[i] + "!";
+			}
+			WSSendMessage(Msg);
 		}
-		WSSendMessage(Msg);
 	}
 	if(Settings.ViewActive >= 0)
 	{
@@ -2441,11 +2447,18 @@ function SavePreset(Name)
 	Settings.Timers = Timers;
 	Settings.Groups = Groups;
 	Settings.PresetName = Name;
-	Settings.Instrumented = [];
-	for(var i = 0; i < Math.min(FunctionNamesInstrumented.length, FunctionModulesInstrumented.length); ++i)
+	let Clone = function(A)
 	{
-		Settings.Instrumented.push(FunctionModulesInstrumented[i] + "!" + FunctionNamesInstrumented[i]);
-	}
+		let N = Array(A.length);
+		for(var i = 0; i < A.length; ++i)
+		{
+			N[i] = A[i];
+		}
+		return N;
+	};
+	Settings.FunctionsInstrumented = Clone(FunctionsInstrumented);
+	Settings.FunctionsInstrumentedModule = Clone(FunctionsInstrumentedModule);
+	Settings.FunctionsInstrumentedUnmangled = Clone(FunctionsInstrumentedUnmangled);
 
 	var JsonSettings = JSON.stringify(Settings);
 	console.log('settings stored ' + JsonSettings);
@@ -2475,7 +2488,6 @@ function DrawMenuPresets()
 	
 	var M = CreateMenuState(SizeInfo);
 	var context = CanvasDetailedView.getContext('2d');
-	context.fillRect(M.x, M.y, Width, SizeInfo.h);
 
 	var SettingsCached;
 	var SettingsCachedY = 0;
@@ -3546,7 +3558,7 @@ function DrawMenuPatched()
 	var Y = SizeInfo.y;
 	var Width = SizeInfo.w;
 	Width = Math.max(300, Width);
-	Width = 10+ MeasureArray(Width, FunctionNamesInstrumented, function(s, i){return s + " " + FunctionModulesInstrumented[i];} );
+	Width = 10+ MeasureArray(Width, FunctionsInstrumented, function(s, i){return s + " " + FunctionsInstrumentedModule[i];} );
 
 	if(Width + SizeInfo.x + 50 > nWidth)
 	{
@@ -3596,10 +3608,10 @@ function DrawMenuPatched()
 		var cidx = StringColor(Str); 
 		return "hsl(" + cidx + ",50%, 70%)";
 	};
-	for(var i = 0; i < FunctionNamesInstrumented.length; ++i)
+	for(var i = 0; i < FunctionsInstrumented.length; ++i)
 	{
-		var Name = FunctionNamesInstrumented[i];
-		var ModuleName = FunctionModulesInstrumented[i];
+		var Name = FunctionsInstrumented[i];
+		var ModuleName = FunctionsInstrumentedModule[i];
 		if(FilterMatch(FilterArray, ModuleName + " " + Name))
 		{
 
@@ -4281,8 +4293,9 @@ function WSOpen()
 	FunctionQueryPending = 0;
 	FunctionQueryReceived = 0;
 	FunctionQueryLastRequest = 0;
-	FunctionNamesInstrumented = [];
-	FunctionModulesInstrumented = [];
+	FunctionsInstrumented = [];
+	FunctionsInstrumentedModule = [];
+	FunctionsInstrumentedUnmangled = [];
 
 	FilterInputTimersValue = "";
 	FilterInputGroupsValue = "";
@@ -4857,8 +4870,10 @@ function WSMessage()
 	{
 		for(var i = 0; i < Obj.v.length; ++i)
 		{
-			FunctionNamesInstrumented.push(Obj.v[i][0]);
-			FunctionModulesInstrumented.push(Obj.v[i][1]);
+			FunctionsInstrumented.push(Obj.v[i][0]);
+			FunctionsInstrumentedModule.push(Obj.v[i][1]);
+			FunctionsInstrumentedUnmangled.push(Obj.v[i][2]);
+
 		}
 	}
 	else if(k == MSG_INSTRUMENT_ERROR)
