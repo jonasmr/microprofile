@@ -1921,7 +1921,7 @@ MicroProfileToken MicroProfileCounterTokenInit(int nParent)
 	S.CounterInfo[nResult].pName = nullptr;
 	if(nParent >= 0)
 	{
-		MP_ASSERT(nParent < S.nNumCounters);
+		MP_ASSERT(nParent < (int)S.nNumCounters);
 		S.CounterInfo[nResult].nSibling = S.CounterInfo[nParent].nFirstChild;
 		S.CounterInfo[nResult].nLevel = S.CounterInfo[nParent].nLevel + 1;
 		S.CounterInfo[nParent].nFirstChild = nResult;
@@ -1935,7 +1935,7 @@ MicroProfileToken MicroProfileCounterTokenInit(int nParent)
 void MicroProfileCounterTokenInitName(MicroProfileToken nToken, const char* pName)
 {
 	MP_ASSERT(0 == S.CounterInfo[nToken].pName);
-	S.CounterInfo[nToken].nNameLen = strlen(pName);
+	S.CounterInfo[nToken].nNameLen = (uint16_t)strlen(pName);
 	S.CounterInfo[nToken].pName = MicroProfileStringInternLower(pName);
 }
 
@@ -8634,7 +8634,7 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 	const uint32_t nUsableRegisters = RegToBit(R_RAX) | RegToBit(R_R10) | RegToBit(R_R11);
 #endif
 
-	uint32_t nBytesToMove = 0;
+	int nBytesToMove = 0;
 	for(i = 0; i < nCount; ++i)
 	{
 		nBytesToMove += Instructions[i].size;
@@ -9189,7 +9189,7 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, co
 	else
 	{
 		bool bFound = false;
-		for(uint32_t i = 0; i < S.nNumPatchErrors; ++i)
+		for(int i = 0; i < S.nNumPatchErrors; ++i)
 		{
 			if(Err.nCodeSize == S.PatchErrors[i].nCodeSize && 0 == memcmp(Err.Code, S.PatchErrors[i].Code, Err.nCodeSize))
 			{
@@ -9202,7 +9202,7 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, co
 			memcpy(&S.PatchErrors[S.nNumPatchErrors++], &Err, sizeof(Err));
 		}
 		bFound = false;
-		for(uint32_t i = 0; i < S.nNumPatchErrorFunctions; ++i)
+		for(int i = 0; i < S.nNumPatchErrorFunctions; ++i)
 		{
 			if(0 == strcmp(pFunctionName, S.PatchErrorFunctionNames[i]))
 			{
@@ -9898,14 +9898,14 @@ void MicroProfileSymbolSendErrors(MpSocket Connection)
 		MicroProfileWSPrintStart(Connection);
 		MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{\"version\":\"%d.%d\",\"data\":[", MSG_INSTRUMENT_ERROR, MICROPROFILE_MAJOR_VERSION, MICROPROFILE_MINOR_VERSION);
 		bool bFirst = true;
-		for(uint32_t i = 0; i < S.nNumPatchErrors; ++i)
+		for(int i = 0; i < S.nNumPatchErrors; ++i)
 		{
 			MicroProfilePatchError& E = S.PatchErrors[i];
 			(void)E;
 			if(!bFirst)
 				MicroProfileWSPrintf(",");
 			MicroProfileWSPrintf("{\"code\":\"");
-			for(uint32_t i = 0; i < E.nCodeSize; ++i)
+			for(int i = 0; i < E.nCodeSize; ++i)
 				MicroProfileWSPrintf("%02x", E.Code[i] & 0xff);
 			MicroProfileWSPrintf("\",\"message\":\"%s\",\"already\":%d}", &E.Message[0], E.AlreadyInstrumented);
 			bFirst = false;
@@ -9913,7 +9913,7 @@ void MicroProfileSymbolSendErrors(MpSocket Connection)
 
 		MicroProfileWSPrintf("],\"functions\":[");
 		bFirst = true;
-		for(uint32_t i = 0; i < S.nNumPatchErrorFunctions; ++i)
+		for(int i = 0; i < S.nNumPatchErrorFunctions; ++i)
 		{
 			if(!bFirst)
 				MicroProfileWSPrintf(",");
@@ -10515,16 +10515,104 @@ void MicroProfileIterateSymbols(Callback CB)
 
 const char* MicroProfileGetUnmangledSymbolName(void* pFunction)
 {
-	return "??";
+	HANDLE h = GetCurrentProcess();
+	SymCleanup(h);
+	SymSetOptions(SYMOPT_UNDNAME);
+	const char* pStr = 0;
+	if(SymInitialize(h, NULL, TRUE))
+	{
+
+		char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
+		PSYMBOL_INFO pSymbol = (PSYMBOL_INFO)buffer;
+
+		pSymbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+		pSymbol->MaxNameLen = MAX_SYM_NAME;
+		DWORD64 off = 0;
+		if(SymFromAddr(h, (DWORD64)pFunction, &off, pSymbol))
+		{
+			pStr = MicroProfileStrDup(pSymbol->Name);
+			OutputDebugStringA(pStr);
+			OutputDebugStringA(" <<< \n");
+		}
+		else
+		{
+DWORD error = GetLastError();
+    printf("SymFromAddr returned error : %d\n", error);
+
+		}
+		SymCleanup(h);
+	}
+	if(!pStr)
+	{
+		OutputDebugStringA("MISSING!!!!\n");
+		return MicroProfileStrDup("??");
+
+	}
+	else
+	{
+		return pStr;
+	}
+
+
+}
+
+static void* g_pFunctionFoundHack = 0;
+static const char* g_pFunctionpNameFound = 0;
+static char g_Demangled[512];
+BOOL MicroProfileQueryContextEnumSymbols1 (
+  _In_     PSYMBOL_INFO pSymInfo,
+  _In_     ULONG        SymbolSize,
+  _In_opt_ PVOID        UserContext)
+{
+	 if(pSymInfo->Tag == 5 || pSymInfo->Tag == 10)
+	 {
+	 	char str[200];
+	 	snprintf(str, sizeof(str)-1, "%s : %p\n", pSymInfo->Name, (void*)pSymInfo->Address);
+	 	OutputDebugStringA(str);
+		g_pFunctionpNameFound = pSymInfo->Name;
+		g_pFunctionFoundHack = (void*)pSymInfo->Address;
+		return FALSE;
+	 }
+	return TRUE;
+};
+
+const char* MicroProfileDemangleSymbol(const char* pSymbol)
+{
+	return pSymbol; //todo: for some reasons all symbols im seaing right now are already undecorated?
 }
 
 void MicroProfileInstrumentWithoutSymbols(const char** pModules, const char** pSymbols, uint32_t nNumSymbols)
 {
-	printf("TODO: Not implemented\n");
+	char SymString[512];
+	HANDLE h = GetCurrentProcess();
+	SymCleanup(h);
+	SymSetOptions(SYMOPT_UNDNAME);
+	const char* pStr = 0;
+	if(SymInitialize(h, NULL, TRUE))
+	{
+//		QueryCallbackBase* pBase = &Context;
+		for(uint32_t i = 0; i < nNumSymbols; ++i)
+		{
+			int nCount = snprintf(SymString, sizeof(SymString)-1, "%s!%s", pModules[i], pSymbols[i]);
+			if(nCount <= sizeof(SymString)-1)
+			{
+				g_pFunctionFoundHack = 0;
+				if(SymEnumSymbols(GetCurrentProcess(), 0, SymString, MicroProfileQueryContextEnumSymbols1, 0))
+				{
+					if(g_pFunctionFoundHack)
+					{
+ 						uint32_t nColor = MicroProfileColorFromString(pSymbols[i]);
+						const char* pDemangled = pSymbols[i];//MicroProfileDemangleSymbol(pSymbols[i]);
+ 						MicroProfileInstrumentFunction(g_pFunctionFoundHack, pModules[i], pDemangled, nColor);
+
+
+					}
+				}
+			}
+		}
+		SymCleanup(GetCurrentProcess());
+	}
 }
-
-
-
 
 #endif
 
@@ -11316,12 +11404,12 @@ void MicroProfileStringsDestroy(MicroProfileStrings* pStrings)
 
 const char* MicroProfileStringIntern(const char* pStr)
 {
-	return MicroProfileStringIntern(pStr, strlen(pStr), 0);
+	return MicroProfileStringIntern(pStr, (uint32_t)strlen(pStr), 0);
 }
 
 const char* MicroProfileStringInternLower(const char* pStr)
 {
-	return MicroProfileStringIntern(pStr, strlen(pStr), ESTRINGINTERN_LOWERCASE);
+	return MicroProfileStringIntern(pStr, (uint32_t)strlen(pStr), ESTRINGINTERN_LOWERCASE);
 }
 
 const char* MicroProfileStringIntern(const char* pStr_, uint32_t nLen, uint32_t nFlags)
