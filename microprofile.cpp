@@ -8638,7 +8638,7 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 	for(i = 0; i < nCount; ++i)
 	{
 		nBytesToMove += Instructions[i].size;
-		if(nBytesToMove > nLimit)
+		if(nBytesToMove >= nLimit)
 			break;
 	}
 	*pBytesSrc = nBytesToMove;

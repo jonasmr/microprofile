@@ -1,3 +1,34 @@
-p r menu 
-white space
-find det rigtige navn plus symbol
+check/fix vs 2017
+instrument crash ved flip
+
+
+00007FF66F861E90 48 89 4C 24 08       mov         qword ptr [rsp+8],rcx  
+00007FF66F861E95 55                   push        rbp  
+00007FF66F861E96 57                   push        rdi  
+00007FF66F861E97 48 81 EC E8 00 00 00 sub         rsp,0E8h  
+00007FF66F861E9E 48 8D 6C 24 20       lea         rbp,[rsp+20h]  
+00007FF66F861EA3 48 8B FC             mov         rdi,rsp  
+00007FF66F861EA6 B9 3A 00 00 00       mov         ecx,3Ah  
+00007FF66F861EAB B8 CC CC CC CC       mov         eax,0CCCCCCCCh  
+00007FF66F861EB0 F3 AB                rep stos    dword ptr [rdi]  
+
+
+RAX = 0000000000000002 
+RBX = 0000000000000000 
+RCX = 0000000000000000 
+RDX = FFFFFFFFFFFFFFFF RSI = 0000000000000000 RDI = 000000923B0FFA18 R8  = 0000000000000005 R9  = 00007FFFEF310000 R10 = 000000923B0FF5C7 R11 = 000000923B0FF058 R12 = 0000000000000000 R13 = 0000000000000000 R14 = 0000000000000000 R15 = 0000000000000000 RIP = 00007FF66F861E90 RSP = 000000923B0FF798 RBP = 000000923B0FF7C0 EFL = 00000244 
+
+
+
+00007FF66F861E90 48 B8 00 00 53 47 AE 01 00 00 mov         rax,1AE47530000h  
+00007FF66F861E9A FF E0                jmp         rax  
+00007FF66F861E9C 90                   nop  
+00007FF66F861E9D 90                   nop  
+00007FF66F861E9E 90                   nop  
+00007FF66F861E9F 90                   nop  
+00007FF66F861EA0 90                   nop  
+00007FF66F861EA1 90                   nop  
+00007FF66F861EA2 90                   nop  
+00007FF66F861EA3 48 8B FC             mov         rdi,rsp  
+00007FF66F861EA6 B9 3A 00 00 00       mov         ecx,3Ah  
+00007FF66F861EAB B8 CC CC CC CC       mov         eax,0CCCCCCCCh  
