@@ -1490,7 +1490,7 @@ MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 {
 	MicroProfileScopeLock L(MicroProfileMutex());
  
- 	if(S.nNumLogs == MICROPROFILE_MAX_THREADS)
+ 	if(S.nNumLogs == MICROPROFILE_MAX_THREADS && S.nFreeListHead != -1)
 	{
 		printf("recycling thread logs\n");
 		//reuse the oldest.
@@ -10463,7 +10463,7 @@ BOOL MicroProfileQueryContextEnumSymbols (
   _In_     ULONG        SymbolSize,
   _In_opt_ PVOID        UserContext)
 {
-	 if(pSymInfo->Tag == 5)
+	 if(pSymInfo->Tag == 5 || pSymInfo->Tag == 10)
 	 {
 
 		char FunctionName[1024];
@@ -10490,10 +10490,7 @@ void MicroProfileIterateSymbols(Callback CB)
 {
 	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileIterateSymbols", MP_PINK3);
 	QueryCallbackImpl<Callback> Context(CB);
-	HANDLE h = GetCurrentProcess();
-	SymCleanup(h);
-	SymSetOptions(SYMOPT_UNDNAME);
-	if(SymInitialize(h, NULL, TRUE))
+	if(MicroProfileSymInit())
 	{
 		// printf("symbols loaded!\n");
 		// API_VERSION* pv = ImagehlpApiVersion();
@@ -10503,23 +10500,48 @@ void MicroProfileIterateSymbols(Callback CB)
 		if (SymEnumerateModules64(GetCurrentProcess(), (PSYM_ENUMMODULES_CALLBACK64)MicroProfileEnumModules, NULL))
 		{
 		}
-		// SymSetOptions(SYMOPT_DEBUG|SYMOPT_DEFERRED_LOADS);
 		QueryCallbackBase* pBase = &Context;
 		if(SymEnumSymbols(GetCurrentProcess(), 0, "*!*", MicroProfileQueryContextEnumSymbols, pBase))
 		{
 
 		}
-		SymCleanup(GetCurrentProcess());
+		MicroProfileSymCleanup();
 	}
 }
 
+static int MicroProfileWin32SymInitCount = 0;
+static int MicroProfileWin32SymInitSuccess = 0;
+bool MicroProfileSymInit()
+{
+	if (0 == MicroProfileWin32SymInitCount++)
+	{
+		auto h = GetCurrentProcess();
+		SymCleanup(h);
+		SymSetOptions(SYMOPT_DEBUG | SYMOPT_DEFERRED_LOADS);
+		if (SymInitialize(h, 0, TRUE))
+		{
+			MicroProfileWin32SymInitSuccess = 1;
+		}
+		else
+		{
+			MicroProfileWin32SymInitSuccess = 0;
+		}
+	}
+	return MicroProfileWin32SymInitSuccess != 0;
+}
+void MicroProfileSymCleanup()
+{
+	if (0 == --MicroProfileWin32SymInitCount)
+	{
+		MicroProfileWin32SymInitSuccess = 0;
+		SymCleanup(GetCurrentProcess());
+	}
+}
 const char* MicroProfileGetUnmangledSymbolName(void* pFunction)
 {
 	HANDLE h = GetCurrentProcess();
-	SymCleanup(h);
-	SymSetOptions(SYMOPT_UNDNAME);
 	const char* pStr = 0;
-	if(SymInitialize(h, NULL, TRUE))
+	if(MicroProfileSymInit())
 	{
 
 		char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
@@ -10536,24 +10558,21 @@ const char* MicroProfileGetUnmangledSymbolName(void* pFunction)
 		}
 		else
 		{
-DWORD error = GetLastError();
-    printf("SymFromAddr returned error : %d\n", error);
+			DWORD error = GetLastError();
+			printf("SymFromAddr returned error : %d\n", error);
 
 		}
-		SymCleanup(h);
+		MicroProfileSymCleanup();
 	}
 	if(!pStr)
 	{
 		OutputDebugStringA("MISSING!!!!\n");
 		return MicroProfileStrDup("??");
-
 	}
 	else
 	{
 		return pStr;
 	}
-
-
 }
 
 static void* g_pFunctionFoundHack = 0;
@@ -10584,33 +10603,28 @@ const char* MicroProfileDemangleSymbol(const char* pSymbol)
 void MicroProfileInstrumentWithoutSymbols(const char** pModules, const char** pSymbols, uint32_t nNumSymbols)
 {
 	char SymString[512];
-	HANDLE h = GetCurrentProcess();
-	SymCleanup(h);
-	SymSetOptions(SYMOPT_UNDNAME);
 	const char* pStr = 0;
-	if(SymInitialize(h, NULL, TRUE))
+	if(MicroProfileSymInit())
 	{
-//		QueryCallbackBase* pBase = &Context;
+		HANDLE h = GetCurrentProcess();
 		for(uint32_t i = 0; i < nNumSymbols; ++i)
 		{
 			int nCount = snprintf(SymString, sizeof(SymString)-1, "%s!%s", pModules[i], pSymbols[i]);
 			if(nCount <= sizeof(SymString)-1)
 			{
 				g_pFunctionFoundHack = 0;
-				if(SymEnumSymbols(GetCurrentProcess(), 0, SymString, MicroProfileQueryContextEnumSymbols1, 0))
+				if(SymEnumSymbols(h, 0, SymString, MicroProfileQueryContextEnumSymbols1, 0))
 				{
 					if(g_pFunctionFoundHack)
 					{
  						uint32_t nColor = MicroProfileColorFromString(pSymbols[i]);
 						const char* pDemangled = pSymbols[i];//MicroProfileDemangleSymbol(pSymbols[i]);
  						MicroProfileInstrumentFunction(g_pFunctionFoundHack, pModules[i], pDemangled, nColor);
-
-
 					}
 				}
 			}
 		}
-		SymCleanup(GetCurrentProcess());
+		MicroProfileSymCleanup();
 	}
 }
 

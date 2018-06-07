@@ -2,6 +2,14 @@ check/fix vs 2017
 instrument crash ved flip
 
 
+5
+1
+1
+7 14
+
+
+
+
 00007FF66F861E90 48 89 4C 24 08       mov         qword ptr [rsp+8],rcx  
 00007FF66F861E95 55                   push        rbp  
 00007FF66F861E96 57                   push        rdi  
@@ -13,11 +21,42 @@ instrument crash ved flip
 00007FF66F861EB0 F3 AB                rep stos    dword ptr [rdi]  
 
 
+000001AE47530081 48 89 4C 24 08       mov         qword ptr [rsp+8],rcx  
+000001AE47530086 55                   push        rbp  
+000001AE47530087 57                   push        rdi  
+000001AE47530088 48 81 EC E8 00 00 00 sub         rsp,0E8h  
+000001AE4753008F 48 B8 A3 1E 86 6F F6 7F 00 00 mov         rax,7FF66F861EA3h  
+000001AE47530099 FF E0                jmp         rax  
+
+
+LEA mangler
+
+
 RAX = 0000000000000002 
 RBX = 0000000000000000 
 RCX = 0000000000000000 
-RDX = FFFFFFFFFFFFFFFF RSI = 0000000000000000 RDI = 000000923B0FFA18 R8  = 0000000000000005 R9  = 00007FFFEF310000 R10 = 000000923B0FF5C7 R11 = 000000923B0FF058 R12 = 0000000000000000 R13 = 0000000000000000 R14 = 0000000000000000 R15 = 0000000000000000 RIP = 00007FF66F861E90 RSP = 000000923B0FF798 RBP = 000000923B0FF7C0 EFL = 00000244 
+RDX = FFFFFFFFFFFFFFFF
+RSI = 0000000000000000
+RDI = 000000923B0FFA18
+R8  = 0000000000000005
+R9  = 00007FFFEF310000
+R10 = 000000923B0FF5C7
+R11 = 000000923B0FF058
+R12 = 0000000000000000
+R13 = 0000000000000000
+R14 = 0000000000000000
+R15 = 0000000000000000
+RIP = 00007FF66F861E90
+RSP = 000000923B0FF798
+    0x000000923b0ff798
+RBP = 000000923B0FF7C0 EFL = 00000244 
 
+
+
+RAX = 0000000000000002 RBX = 0000000000000000 RCX = 0000000000000000 RDX = FFFFFFFFFFFFFFFF RSI = 0000000000000000 RDI = 000000923B0FFA18 R8  = 0000000000000005 R9  = 00007FFFEF310000 R10 = 000000923B0FF5C7 R11 = 000000923B0FF058 R12 = 0000000000000000 R13 = 0000000000000000 R14 = 0000000000000000 R15 = 0000000000000000 RIP = 00007FF66F861E90 RSP = 000000923B0FF798 RBP = 000000923B0FF7C0 EFL = 00000244 
+
+
+00007FF66F86A449
 
 
 00007FF66F861E90 48 B8 00 00 53 47 AE 01 00 00 mov         rax,1AE47530000h  
@@ -32,3 +71,52 @@ RDX = FFFFFFFFFFFFFFFF RSI = 0000000000000000 RDI = 000000923B0FFA18 R8  
 00007FF66F861EA3 48 8B FC             mov         rdi,rsp  
 00007FF66F861EA6 B9 3A 00 00 00       mov         ecx,3Ah  
 00007FF66F861EAB B8 CC CC CC CC       mov         eax,0CCCCCCCCh  
+
+
+
+
+
+	if(0)
+	{
+
+
+		HANDLE h = GetCurrentProcess();
+		SymCleanup(h);
+		SymSetOptions(SYMOPT_DEBUG | SYMOPT_DEFERRED_LOADS);
+		if (SymInitialize(h, NULL, FALSE))
+		{
+			LPAPI_VERSION av = ImagehlpApiVersion();
+			printf("API VERSION IS %d.%d :: %d  (%d)\n", av->MajorVersion, av->MinorVersion, av->Revision, av->Reserved);
+			// printf("symbols loaded!\n");
+			// API_VERSION* pv = ImagehlpApiVersion();
+			// printf("VERSION %d.%d.%d\n", pv->MajorVersion, pv->MinorVersion, pv->Revision);
+
+			if (SymEnumerateModules64(h, (PSYM_ENUMMODULES_CALLBACK64)Modules_CB, NULL))
+			{
+				int a = 0;
+			}
+			DWORD64 BaseOfDll = SymLoadModuleEx(
+				h,
+				NULL,
+				"../x64/Debug/noui.exe",
+				NULL,
+				0,
+				0,
+				NULL,
+				0);
+
+			//// SymSetOptions(SYMOPT_DEBUG|SYMOPT_DEFERRED_LOADS);
+			//QueryCallbackBase* pBase = &Context;  
+			if (SymEnumSymbols(h, 0, "*!*", Symbols_CB, 0))
+			{
+				printf("enum symbols OK!\n");
+			}
+			else
+			{
+				printf("enum symbols FAIL!\n");
+			}
+			SymCleanup(GetCurrentProcess());
+		}
+	}
+
+s
