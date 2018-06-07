@@ -10517,7 +10517,8 @@ bool MicroProfileSymInit()
 	{
 		auto h = GetCurrentProcess();
 		SymCleanup(h);
-		SymSetOptions(SYMOPT_DEBUG | SYMOPT_DEFERRED_LOADS);
+		SymSetOptions( //SYMOPT_DEBUG |
+					   SYMOPT_DEFERRED_LOADS);
 		if (SymInitialize(h, 0, TRUE))
 		{
 			MicroProfileWin32SymInitSuccess = 1;
