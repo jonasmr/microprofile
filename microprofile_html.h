@@ -8572,11 +8572,18 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	}\n"
 "	return Math.abs(h);\n"
 "}\n"
-"function StringToColor(s)\n"
+"\n"
+"function StringColorIndex(Name)\n"
 "{\n"
-"	var h = StringHash(s);\n"
-"	var cidx = h % 360;\n"
-"	return \"hsl(\" + cidx + \",50%, 70%)\"; //note: matching code constants in microprofile.cpp: MicroProfileColorFromString\n"
+"	var h = StringHash(Name);\n"
+"	var cidx = Math.floor(360*(h  / (1<<32-1)) );\n"
+"	return cidx;\n"
+"}\n"
+"\n"
+"function ColorFromString(Name, S, L)\n"
+"{\n"
+"	var H = StringColorIndex(Name);\n"
+"	return \"hsl(\" + H + \",\" + S + \"%, \" + L+ \"%)\";\n"
 "}\n"
 "\n"
 "function LerpColor(v)\n"
@@ -9707,11 +9714,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	}\n"
 "	else if(Direction)\n"
 "	{\n"
-"		Settings.AutoCaptureTheshold = NextValue(AutoCaptureThesholdPresets, Settings.AutoCaptu";
+"		Settings.AutoCaptureTheshold = Ne";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-"reTheshold, Direction);\n"
+"xtValue(AutoCaptureThesholdPresets, Settings.AutoCaptureTheshold, Direction);\n"
 "	}\n"
 "}\n"
 "\n"
@@ -11083,13 +11090,13 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	Strings.push(\"Sends\");\n"
 "	Strings.push(\"\" + WSSend);\n"
 "	Strings.push(\"Receives\");\n"
-"	Strings.push(\"\" + WSReceive);\n"
-"	Strings.push(\"SendBytes\");\n"
-"	Stri";
+"	Strings.p";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-"ngs.push(\"\" + WSSendBytes);\n"
+"ush(\"\" + WSReceive);\n"
+"	Strings.push(\"SendBytes\");\n"
+"	Strings.push(\"\" + WSSendBytes);\n"
 "	Strings.push(\"ReceiveBytes\");\n"
 "	Strings.push(\"\" + WSReceiveBytes);\n"
 "	Strings.push(\"Seconds\");\n"
@@ -11341,6 +11348,10 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "}\n"
 "function AddTimer(T)\n"
 "{\n"
+"	if(!T.color || T.color == \"\")\n"
+"	{\n"
+"		T.color = ColorFromString(T.name, 40, 50);\n"
+"	}\n"
 "	var idx = TimerArray.length;\n"
 "	var existing = GetTimer(T.id);\n"
 "	if(existing)\n"
@@ -12619,15 +12630,15 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "		if(Counter.idtype == TYPE_COUNTER)\n"
 "		{\n"
 "			var Indent = CounterIndent(Counter.depth-1);\n"
-"			var X = 0;\n"
-"			nColorIndex = 1-nColorIndex;\n"
-"			var HeightExpanded = Counter.Expanded ? Height * 5 : Height\n"
-"\n"
-"			bMouseIn = LocalMouseY >= Y && Loc";
+"			var X = ";
 
 const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
 const char g_MicroProfileHtmlLive_begin_4[] =
-"alMouseY < Y + HeightExpanded;\n"
+"0;\n"
+"			nColorIndex = 1-nColorIndex;\n"
+"			var HeightExpanded = Counter.Expanded ? Height * 5 : Height\n"
+"\n"
+"			bMouseIn = LocalMouseY >= Y && LocalMouseY < Y + HeightExpanded;\n"
 "			if(bMouseIn)\n"
 "			{\n"
 "				nHoverCounter = Index;\n"

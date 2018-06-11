@@ -1648,11 +1648,18 @@ function StringHash(s) //note: matching code in microprofile.cpp: uint32_t Micro
 	}
 	return Math.abs(h);
 }
-function StringToColor(s)
+
+function StringColorIndex(Name)
 {
-	var h = StringHash(s);
-	var cidx = h % 360;
-	return "hsl(" + cidx + ",50%, 70%)"; //note: matching code constants in microprofile.cpp: MicroProfileColorFromString
+	var h = StringHash(Name);
+	var cidx = Math.floor(360*(h  / (1<<32-1)) );
+	return cidx;
+}
+
+function ColorFromString(Name, S, L)
+{
+	var H = StringColorIndex(Name);
+	return "hsl(" + H + "," + S + "%, " + L+ "%)";
 }
 
 function LerpColor(v)
@@ -4409,6 +4416,10 @@ function MeasureWidth(str)
 }
 function AddTimer(T)
 {
+	if(!T.color || T.color == "")
+	{
+		T.color = ColorFromString(T.name, 40, 50);
+	}
 	var idx = TimerArray.length;
 	var existing = GetTimer(T.id);
 	if(existing)

@@ -6354,7 +6354,14 @@ void MicroProfileWebSocketSendEntry(uint32_t id, uint32_t parent, const char* pN
 	MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
 	MicroProfileWSPrintf("\"name\":\"%s\",", pName);
 	MicroProfileWSPrintf("\"e\":%d,", nEnabled);	
-	MicroProfileWSPrintf("\"color\":\"#%02x%02x%02x\"", MICROPROFILE_UNPACK_RED(nColor) & 0xff, MICROPROFILE_UNPACK_GREEN(nColor) & 0xff, MICROPROFILE_UNPACK_BLUE(nColor) & 0xff);
+	if(nColor == 0x42)
+	{
+		MicroProfileWSPrintf("\"color\":\"\"");
+	}
+	else
+	{
+		MicroProfileWSPrintf("\"color\":\"#%02x%02x%02x\"", MICROPROFILE_UNPACK_RED(nColor) & 0xff, MICROPROFILE_UNPACK_GREEN(nColor) & 0xff, MICROPROFILE_UNPACK_BLUE(nColor) & 0xff);
+	}
 	MicroProfileWSPrintf("}}");
 	MicroProfileWSFlush();
 }
