@@ -1,5 +1,16 @@
-check/fix vs 2017
-instrument crash ved flip
+fix threadnames to not be <implement getthreadname..>
+simplify demos, and move current demo to something else
+fixed graph bar heights
+auto adjust in capture
+Excl. average appears to be call exclusive average.
+Actual timing in table view?
+fixup ordering in timing view
+unknown enable message
+
+
+*check/fix vs 2017
+*instrument crash ved flip
+
 
 
 5

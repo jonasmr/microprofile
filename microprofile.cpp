@@ -747,7 +747,8 @@ struct MicroProfile
 	uint64_t				AggregateExclusive[MICROPROFILE_MAX_TIMERS];
 	uint64_t				AggregateMaxExclusive[MICROPROFILE_MAX_TIMERS];
 
-
+	uint32_t 				FrameThreadGroupValid[MICROPROFILE_MAX_THREADS/32 + 1];
+	uint64_t					FrameThreadGroup[MICROPROFILE_MAX_THREADS][MICROPROFILE_MAX_GROUPS];
 	uint64_t 				FrameGroup[MICROPROFILE_MAX_GROUPS];
 	uint64_t 				AccumGroup[MICROPROFILE_MAX_GROUPS];
 	uint64_t 				AccumGroupMax[MICROPROFILE_MAX_GROUPS];
@@ -1207,6 +1208,7 @@ MICROPROFILE_DEFINE(g_MicroProfileAccumulate, "MicroProfile", "Accumulate", MP_G
 MICROPROFILE_DEFINE(g_MicroProfileContextSwitchSearch,"MicroProfile", "ContextSwitchSearch", MP_GREEN4);
 MICROPROFILE_DEFINE(g_MicroProfileGpuSubmit, "MicroProfile", "MicroProfileGpuSubmit", MP_HOTPINK2);
 MICROPROFILE_DEFINE(g_MicroProfileSendLoop, "MicroProfile", "MicroProfileSocketSendLoop", MP_GREEN4);
+MICROPROFILE_DEFINE_LOCAL_ATOMIC_COUNTER(g_MicroProfileBytesPerFlip, "microprofile/bytesperflip");
 
 
 
@@ -2603,6 +2605,7 @@ void MicroProfileFlip(void* pContext)
 
 void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 {
+	MICROPROFILE_COUNTER_LOCAL_UPDATE_SET_ATOMIC(g_MicroProfileBytesPerFlip);
 	#if 0
 	//verify LogEntry wraps correctly
 	MicroProfileLogEntry c = MP_LOG_TICK_MASK-5000;
@@ -2816,22 +2819,30 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 			}
 			{
 				MICROPROFILE_SCOPE(g_MicroProfileThreadLoop);
+				memset(S.FrameThreadGroupValid, 0, sizeof(S.FrameThreadGroupValid));
+
+
 				for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
 				{
 					MicroProfileThreadLog* pLog = S.Pool[i];
+					//todo: only touch for groups that have actual data in them
+					//todo: verify that the frames match
+
+					uint64_t* nGroupTicks = &S.FrameThreadGroup[i][0];
 					if(!pLog) 
 						continue;
 
 					uint8_t* pGroupStackPos = &pLog->nGroupStackPos[0];
-					int64_t nGroupTicks[MICROPROFILE_MAX_GROUPS] = {0};
-
 
 					uint32_t nPut = pFrameNext->nLogStart[i];
 					uint32_t nGet = pFrameCurrent->nLogStart[i];
 					uint32_t nRange[2][2] = { {0, 0}, {0, 0}, };
 					MicroProfileGetRange(nPut, nGet, nRange);
-
-
+					if(nPut != nGet)
+					{
+						S.FrameThreadGroupValid[i / 32] |= 1 << (i %32);
+						memset(nGroupTicks, 0, sizeof(S.FrameThreadGroup[i]));
+					}
 					//fetch gpu results.
 					if(pLog->nGpu)
 					{
@@ -2895,21 +2906,23 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 									pChildTickStack[nStackPos] += nTicks;
 
 									uint32_t nTimerIndex = MicroProfileLogGetTimerIndex(LE);
+									int64_t nTicksExclusive = (nTicks-nChildTicks);
 									S.Frame[nTimerIndex].nTicks += nTicks;
-									S.FrameExclusive[nTimerIndex] += (nTicks-nChildTicks);
+									S.FrameExclusive[nTimerIndex] += nTicksExclusive;
 									S.Frame[nTimerIndex].nCount += 1;
 
 									MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
-									uint8_t nGroupStackPos = pGroupStackPos[nGroup];
-									if(nGroupStackPos)
-									{
-										nGroupStackPos--;
-										if(0 == nGroupStackPos)
-										{
-											nGroupTicks[nGroup] += nTicks;
-										}
-										pGroupStackPos[nGroup] = nGroupStackPos;
-									}
+									nGroupTicks[nGroup] += nTicksExclusive;
+									// uint8_t nGroupStackPos = pGroupStackPos[nGroup];
+									// if(nGroupStackPos)
+									// {
+									// 	nGroupStackPos--;
+									// 	if(0 == nGroupStackPos)
+									// 	{
+									// 		nGroupTicks[nGroup] += nTicks;
+									// 	}
+									// 	pGroupStackPos[nGroup] = nGroupStackPos;
+									// }
 								}
 							}
 							else if(MP_LOG_PAYLOAD == nType)
@@ -5057,6 +5070,7 @@ void* MicroProfileSocketSenderThread(void*)
 		if(nSendAmount)
 		{
 			MICROPROFILE_SCOPE(g_MicroProfileSendLoop);
+			MICROPROFILE_COUNTER_LOCAL_ADD_ATOMIC(g_MicroProfileBytesPerFlip, nSendAmount);
 			if(!MicroProfileSocketSend2(S.WebSockets[0], &S.WSBuf.SendBuffer[nSendStart], nSendAmount))
 			{
 				S.nSocketFail = 1;
@@ -5810,7 +5824,7 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 		recv(Connection, (char*)&Mask[0], 4, 0);
 	}
 
-
+	MICROPROFILE_COUNTER_LOCAL_ADD_ATOMIC(g_MicroProfileBytesPerFlip, nSize);
 	if(nSize+1 > BytesAllocated)
 	{
 		Bytes = (unsigned char*)MP_REALLOC(Bytes, nSize+1);
@@ -6103,10 +6117,91 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
 		MicroProfileWSPrintf(",\"s\":{\"s\":%d,\"l\":%d,\"q\":%d}", S.SymbolState.nState.load(), S.SymbolState.nSymbolsLoaded.load(), S.pPendingQuery ? 1 : 0);
 #endif 
+		auto WriteTickArray = [fTickToMsCpu](uint64_t* pFrameGroup)
+		{
+			MicroProfileWSPrintf("[");
+			int f = 0;
+			for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
+			{
+				uint64_t nTick = pFrameGroup[i];
+				if(nTick)
+				{
+					MicroProfileWSPrintf("%c%f", f ? ',' : ' ', nTick * fTickToMsCpu);
+					f = 1;
+				}
+			}
+			MicroProfileWSPrintf("]");
+		};
+		auto WriteIndexArray = [](uint64_t* pFrameGroup)
+		{
+			MicroProfileWSPrintf("[");
+			int f = 0;
+			for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
+			{
+				uint64_t nTick = pFrameGroup[i];
+				if(nTick)
+				{
+					MicroProfileWSPrintf("%c%d", f ?  ',' : ' ', i);
+					f = 1;
+				}
+			}
+			MicroProfileWSPrintf("]");
+
+		};
+
+		MicroProfileWSPrintf(",\"g\":");
+		WriteTickArray(S.FrameGroup);
+		MicroProfileWSPrintf(",\"gi\":");
+		WriteIndexArray(S.FrameGroup);
+		MicroProfileWSPrintf(",\"gt\":[");
+		int f = 0;
+		for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
+		{
+			if(0 != (S.FrameThreadGroupValid[i/32] & (1<< (i%32))))
+			{
+				if(!f)
+					MicroProfileWSPrintf("{");
+				else
+					MicroProfileWSPrintf(",{");
+				MicroProfileWSPrintf("\"i\":%d,\"g\":", i);
+				WriteTickArray(&S.FrameThreadGroup[i][0]);
+				MicroProfileWSPrintf(",\"gi\":");
+				WriteIndexArray(&S.FrameThreadGroup[i][0]);
+				MicroProfileWSPrintf("}");
+				f = 1;
+			}
+		}
+		MicroProfileWSPrintf("]");
+
+
+				// int f = 0;
+		// for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
+		// {
+		// 	uint64_t nTick = S.FrameGroup[i];
+		// 	if(nTick)
+		// 	{
+		// 		MicroProfileWSPrintf("%c%f", f ? ',' : ' ', nTick * fTickToMsCpu);
+		// 		f = 1;
+		// 	}
+		// }
+		// f = 0;
+		// MicroProfileWSPrintf("],\"gi\":[");
+		// for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
+		// {
+		// 	uint64_t nTick = S.FrameGroup[i];
+		// 	if(nTick)
+		// 	{
+		// 		MicroProfileWSPrintf("%c%d", f ?  ',' : ' ', i);
+		// 		f = 1;
+		// 	}
+		// }
+		// MicroProfileWSPrintf("]");
+
 		if(S.nFrameCurrent != S.WebSocketFrameLast[0])
 		{
 			MicroProfileWSPrintf(",\"x\":{");
 			int nTimer = S.WebSocketTimers;
+			// printf("T : ");
 			while(-1 != nTimer)
 			{
 				MicroProfileTimerInfo& TI = S.TimerInfo[nTimer];
@@ -6115,6 +6210,7 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 				fTime = fTickToMs * S.Frame[nTimer].nTicks;
 				float fCount = (float)S.Frame[nTimer].nCount;
 				float fTimeExcl = fTickToMs * S.FrameExclusive[nTimer];
+				// printf("%4.2f, ", fTimeExcl);
 				if(!MicroProfileGroupActive(TI.nGroupIndex))
 				{
 					fTime = fCount = fTimeExcl = 0.f;
@@ -6122,6 +6218,7 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 				nTimer = TI.nWSNext;
 				MicroProfileWSPrintf("\"%d\":[%f,%f,%f]%c", id, fTime, fTimeExcl, fCount, nTimer == -1 ? ' ' : ',');
 			}
+			// printf("\n");
 			MicroProfileWSPrintf("}");
 		}
 		MicroProfileWSPrintf("}}");
