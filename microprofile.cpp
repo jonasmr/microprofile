@@ -6004,6 +6004,13 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 		case 'q':
 			MicroProfileSymbolQueryFunctions(Connection, 1+(const char*)Bytes);
 			break;
+#else
+		case 'D':
+		case 'I':
+		case 'i':
+		case 'S':
+		case 'q':
+			break;
 #endif
 		default:
 			printf("got unknown message size %lld: '%s'\n", (long long)nSize, Bytes);

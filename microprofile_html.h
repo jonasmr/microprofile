@@ -11855,7 +11855,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "\n"
 "function WSMessage()\n"
 "{\n"
-"	console.log(event.data);\n"
+"	// console.log(event.data);\n"
 "	var Obj = JSON.parse(event.data);\n"
 "	WSReceive++;\n"
 "	WSReceiveBytes += event.data.length;\n"
@@ -12586,11 +12586,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "	}\n"
 "}\n"
 "\n"
-"function FormatCounte";
+"function FormatCou";
 
 const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
 const char g_MicroProfileHtmlLive_begin_4[] =
-"r(Format, Counter)\n"
+"nter(Format, Counter)\n"
 "{\n"
 "	if(!Counter)\n"
 "	{\n"

@@ -4923,7 +4923,7 @@ function ProcessFrame(F, Inactive)
 
 function WSMessage()
 {
-	console.log(event.data);
+	// console.log(event.data);
 	var Obj = JSON.parse(event.data);
 	WSReceive++;
 	WSReceiveBytes += event.data.length;
