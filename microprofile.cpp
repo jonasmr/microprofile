@@ -748,8 +748,15 @@ struct MicroProfile
 	uint64_t				AggregateMaxExclusive[MICROPROFILE_MAX_TIMERS];
 
 	uint32_t 				FrameThreadGroupValid[MICROPROFILE_MAX_THREADS/32 + 1];
-	uint64_t					FrameThreadGroup[MICROPROFILE_MAX_THREADS][MICROPROFILE_MAX_GROUPS];
-	uint64_t 				FrameGroup[MICROPROFILE_MAX_GROUPS];
+	struct GroupTime
+	{
+		uint64_t nTicks;
+		uint64_t nTicksExclusive;
+		uint32_t nCount;
+	};
+
+	GroupTime				FrameThreadGroup[MICROPROFILE_MAX_THREADS][MICROPROFILE_MAX_GROUPS];
+	GroupTime 				FrameGroup[MICROPROFILE_MAX_GROUPS];
 	uint64_t 				AccumGroup[MICROPROFILE_MAX_GROUPS];
 	uint64_t 				AccumGroupMax[MICROPROFILE_MAX_GROUPS];
 
@@ -2803,7 +2810,7 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 		}
 
 		{
-			uint64_t* pFrameGroup = &S.FrameGroup[0];
+			MicroProfile::GroupTime* pFrameGroup = &S.FrameGroup[0];
 			{
 				MICROPROFILE_SCOPE(g_MicroProfileClear);
 				for(uint32_t i = 0; i < S.nTotalTimers; ++i)
@@ -2814,7 +2821,9 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 				}
 				for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
 				{
-					pFrameGroup[i] = 0;
+					pFrameGroup[i].nTicks = 0;
+					pFrameGroup[i].nTicksExclusive = 0;
+					pFrameGroup[i].nCount = 0;
 				}
 			}
 			{
@@ -2825,10 +2834,7 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 				for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
 				{
 					MicroProfileThreadLog* pLog = S.Pool[i];
-					//todo: only touch for groups that have actual data in them
-					//todo: verify that the frames match
-
-					uint64_t* nGroupTicks = &S.FrameThreadGroup[i][0];
+					MicroProfile::GroupTime* pGroupTime = &S.FrameThreadGroup[i][0];
 					if(!pLog) 
 						continue;
 
@@ -2841,7 +2847,7 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 					if(nPut != nGet)
 					{
 						S.FrameThreadGroupValid[i / 32] |= 1 << (i %32);
-						memset(nGroupTicks, 0, sizeof(S.FrameThreadGroup[i]));
+						memset(pGroupTime, 0, sizeof(S.FrameThreadGroup[i]));
 					}
 					//fetch gpu results.
 					if(pLog->nGpu)
@@ -2912,7 +2918,9 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 									S.Frame[nTimerIndex].nCount += 1;
 
 									MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
-									nGroupTicks[nGroup] += nTicksExclusive;
+									pGroupTime[nGroup].nTicks += nTicks;
+									pGroupTime[nGroup].nTicksExclusive += nTicksExclusive;
+									pGroupTime[nGroup].nCount += 1;
 									// uint8_t nGroupStackPos = pGroupStackPos[nGroup];
 									// if(nGroupStackPos)
 									// {
@@ -2941,8 +2949,14 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 					}
 					for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
 					{
-						pLog->nGroupTicks[j] += nGroupTicks[j];
-						pFrameGroup[j] += nGroupTicks[j];
+						pLog->nGroupTicks[j] += pGroupTime[j].nTicks;
+
+						if((S.FrameThreadGroupValid[i/32] & (1 << (i%32))) != 0)
+						{
+							pFrameGroup[j].nTicks += pGroupTime[j].nTicks;
+							pFrameGroup[j].nTicksExclusive += pGroupTime[j].nTicksExclusive;
+							pFrameGroup[j].nCount += pGroupTime[j].nCount;
+						}
 					}
 					pLog->nStackPos = nStackPos;
 
@@ -2975,8 +2989,8 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 
 				for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
 				{
-					S.AccumGroup[i] += pFrameGroup[i];
-					S.AccumGroupMax[i] = MicroProfileMax(S.AccumGroupMax[i], pFrameGroup[i]);
+					S.AccumGroup[i] += pFrameGroup[i].nTicks;
+					S.AccumGroupMax[i] = MicroProfileMax(S.AccumGroupMax[i], pFrameGroup[i].nTicks);
 				}
 			}
 			for(uint32_t i = 0; i < MICROPROFILE_MAX_GRAPHS; ++i)
@@ -6124,31 +6138,40 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
 		MicroProfileWSPrintf(",\"s\":{\"s\":%d,\"l\":%d,\"q\":%d}", S.SymbolState.nState.load(), S.SymbolState.nSymbolsLoaded.load(), S.pPendingQuery ? 1 : 0);
 #endif 
-		auto WriteTickArray = [fTickToMsCpu](uint64_t* pFrameGroup)
+
+		 // fTime, fTimeExcl, fCount, nTimer == -1 ? ' ' : ','
+		auto WriteTickArray = [fTickToMsCpu](MicroProfile::GroupTime* pFrameGroup)
 		{
 			MicroProfileWSPrintf("[");
 			int f = 0;
 			for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
 			{
-				uint64_t nTick = pFrameGroup[i];
-				if(nTick)
+				uint64_t nCount = pFrameGroup[i].nCount;
+				if(nCount)
 				{
-					MicroProfileWSPrintf("%c%f", f ? ',' : ' ', nTick * fTickToMsCpu);
+					uint64_t nTicks = pFrameGroup[i].nTicks;
+					uint64_t nTicksExcl = pFrameGroup[i].nTicksExclusive;
+					uint64_t nCount = pFrameGroup[i].nCount;
+					MicroProfileWSPrintf("%c[%f,%f,%f]", f ? ',' : ' ', nTicks * fTickToMsCpu, nTicksExcl * fTickToMsCpu, nCount);
+					// uint32_t id = MicroProfileWebSocketIdPack(TYPE_GROUP, i);
+					// printf("[%f, %s, %d] ", nTicks * fTickToMsCpu, S.GroupInfo[i].pName, i);
 					f = 1;
 				}
 			}
 			MicroProfileWSPrintf("]");
 		};
-		auto WriteIndexArray = [](uint64_t* pFrameGroup)
+		auto WriteIndexArray = [](MicroProfile::GroupTime* pFrameGroup)
 		{
 			MicroProfileWSPrintf("[");
 			int f = 0;
 			for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
 			{
-				uint64_t nTick = pFrameGroup[i];
-				if(nTick)
+				uint64_t nCount = pFrameGroup[i].nTicksExclusive;
+				if(nCount)
 				{
-					MicroProfileWSPrintf("%c%d", f ?  ',' : ' ', i);
+					uint32_t id = MicroProfileWebSocketIdPack(TYPE_GROUP, i);
+					MicroProfileWSPrintf("%c%d", f ?  ',' : ' ', id);
+					// printf("%d
 					f = 1;
 				}
 			}

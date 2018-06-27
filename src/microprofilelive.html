@@ -1266,13 +1266,23 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 
 		context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
 		context.fillRect(0, Y, NameWidth, Height);
-		context.textAlign = 'right';
-		context.fillStyle = Timer.color;
-		context.fillText(Timer.name, NameWidth - 5, YText);
-		context.textAlign = 'left';
-		context.fillStyle = 'white';
-		var ParentName = TimerArray[Timer.parent].name;
-		context.fillText(ParentName, 1, YText);
+		if(Timer.idtype == TYPE_GROUP)
+		{
+			context.textAlign = 'left';
+			context.fillStyle = Timer.color;
+			context.fillText(Timer.name, 1, YText);
+		}
+		else
+		{
+			context.textAlign = 'right';
+			context.fillStyle = Timer.color;
+			context.fillText(Timer.name, NameWidth - 5, YText);
+			context.textAlign = 'left';
+			let P = TimerArray[Timer.parent];
+			context.fillStyle = P.color;
+			var ParentName = P.name;
+			context.fillText(ParentName, 1, YText);
+		}
 	}
 	function FilterMatch(FilterArray, value)
 	{
@@ -1369,15 +1379,33 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 		}
 	}
 
+	let ColorHigh = '#85929e';
+
+
 	for(var i = 0; i < OrderArray.length; ++i)
 	{
 		var idx = OrderArray[i];
 		var T = TimerArray[idx];
-		DrawTimerRow(idx, 1);
-		Y += Height;
+		if(T.idtype == TYPE_GROUP)
+		{
+			DrawTimerRow(idx, 1);
+			Y += Height;
+		}
 	}
+	let SplitY = Y;
+
+	for(var i = 0; i < OrderArray.length; ++i)
+	{
+		var idx = OrderArray[i];
+		var T = TimerArray[idx];
+		if(T.idtype != TYPE_GROUP)
+		{
+			DrawTimerRow(idx, 1);
+			Y += Height;
+		}
+	}
+
 	var X = 0;
-	// context.fillStyle = nBackColorOffset;
 	context.fillStyle = nBackColorOffset;
 	context.fillRect(0, 0, Width, 2*Height);
 	context.fillStyle = 'white';
@@ -1409,7 +1437,6 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 	DrawHeaderSplitSingle(StrCount, OffsetY);
 	SplitX[2] = X;
 
-	let ColorHigh = '#85929e';
 	context.fillStyle = 'white';
 	for(var i = 0; i < SplitX.length; ++i)
 	{
@@ -1444,6 +1471,10 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 	}
 	context.fillStyle = ColorHigh;
 	context.fillRect(0, 2*Height-1, nWidth, 2);
+
+	context.fillStyle = ColorHigh;
+	context.fillRect(0, SplitY-1, nWidth, 2);
+
 
 	ProfileLeave();
 }
@@ -1580,10 +1611,18 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 	}
 	if(Split)
 	{
+		let IsGroup = function(id)
+		{
+			var idx = GetTimer(id);
+			return TimerArray[idx].idtype == TYPE_GROUP;
+		};
 		var NumGraphs = 0;
 		for(var key in TimerMap)
 		{
-			NumGraphs++;
+			if(!IsGroup(key))
+			{
+				NumGraphs++;
+			}
 		}
 		if(NumGraphs)
 		{
@@ -1595,46 +1634,110 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 			{
 				var idx = GetTimer(key);
 				var TimerState = TimerMap[key];
-				var Reference = Settings.AutomaticReference ? TimerState.historymaxsoft : ReferenceGraph;
-				var fHeightScale2 = gh / Reference;
+				if(!IsGroup(key))
+				{
+					var Reference = Settings.AutomaticReference ? TimerState.historymaxsoft : ReferenceGraph;
+					var fHeightScale2 = gh / Reference;
 
+					var Time = TimerState.Time;
+					var color = TimerArray[idx].color;
+					var X = w - Time.length*fWidth;
+					var Y = hstart + gh;
+					var YStart = Y;
+					context.globalAlpha = 1;
+					context.fillStyle = nBackColorsDark[cidx];
+					cidx = 1-cidx;
+					context.fillRect(0, hstart, w, gh);
+					context.strokeStyle = color;
+					context.fillStyle = color;
+					context.beginPath();
+					context.moveTo(X,Y);
+					for(var i = 0; i < Time.length; ++i)
+					{
+						Y = Math.max(YStart - Time[i] * fHeightScale2, hstart);
+						context.lineTo(X, Y);
+						X += fWidth;
+					}
+					context.stroke();
+					if(Settings.FancyGraph)
+					{
+						context.lineTo(X, YStart);
+						context.globalAlpha = 0.2;
+						context.fill();
+						context.globalAlpha = 1;
+					}
+					context.fillStyle = 'wheat';
+					context.textAlign='right';
+					context.fillText(FormatTime(Reference) + 'ms', nWidth, hstart + FontHeight);
+					context.textAlign='left';
+					context.fillText(TimerArray[idx].name, 0, hstart + FontHeight);
+
+					if(HighlightFrame >= 0)
+					{
+						var X = w - Time.length * fWidth + fWidth * HighlightFrame;
+						var Y = YStart - Math.min(Time[HighlightFrame], Reference) * fHeightScale2;
+						context.strokeStyle = color;
+						context.beginPath();
+						var CrossX = X;
+						var CrossY = Y;
+						context.moveTo(CrossX-2, CrossY-2);
+						context.lineTo(CrossX+2, CrossY+2);
+						context.moveTo(CrossX+2, CrossY-2);
+						context.lineTo(CrossX-2, CrossY+2);
+						context.stroke();
+						TimerState.tooltipy = Math.min(YStart - BoxHeight, Y) + View.y;
+					}
+					hstart += gh;
+				}
+			}
+		}
+	}
+	else
+	{
+		var Keys = [];
+		for(var key in TimerMap)
+		{
+			if(!IsGroup(key))
+			{
+				var idx = GetTimer(key);
+				var TimerState = TimerMap[key];
 				var Time = TimerState.Time;
 				var color = TimerArray[idx].color;
 				var X = w - Time.length*fWidth;
-				var Y = hstart + gh;
-				var YStart = Y;
-				context.globalAlpha = 1;
-				context.fillStyle = nBackColorsDark[cidx];
-				cidx = 1-cidx;
-				context.fillRect(0, hstart, w, gh);
+				var Y = h;
 				context.strokeStyle = color;
 				context.fillStyle = color;
+
 				context.beginPath();
 				context.moveTo(X,Y);
 				for(var i = 0; i < Time.length; ++i)
 				{
-					Y = Math.max(YStart - Time[i] * fHeightScale2, hstart);
+					Y = h - Time[i] * fHeightScale;
 					context.lineTo(X, Y);
 					X += fWidth;
 				}
 				context.stroke();
 				if(Settings.FancyGraph)
 				{
-					context.lineTo(X, YStart);
+					context.lineTo(X, h);
 					context.globalAlpha = 0.05;
 					context.fill();
 					context.globalAlpha = 1;
 				}
-				context.fillStyle = 'wheat';
-				context.textAlign='right';
-				context.fillText(FormatTime(Reference) + 'ms', nWidth, hstart + FontHeight);
-				context.textAlign='left';
-				context.fillText(TimerArray[idx].name, 0, hstart + FontHeight);
-
-				if(HighlightFrame >= 0)
+			}
+		}
+		if(HighlightFrame >= 0)
+		{
+			for(var key in TimerMap)
+			{
+				if(!IsGroup(key))
 				{
-					var X = w - Time.length * fWidth + fWidth * HighlightFrame;
-					var Y = YStart - Math.min(Time[HighlightFrame], Reference) * fHeightScale2;
+					var idx = GetTimer(key);
+					var TimerState = TimerMap[key];
+					var Time = TimerState.Time;
+					var color = TimerArray[idx].color;
+					var X = w - Time.length*fWidth + fWidth * HighlightFrame;
+					var Y = h - Time[HighlightFrame] * fHeightScale;
 					context.strokeStyle = color;
 					context.beginPath();
 					var CrossX = X;
@@ -1644,62 +1747,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 					context.moveTo(CrossX+2, CrossY-2);
 					context.lineTo(CrossX-2, CrossY+2);
 					context.stroke();
-					TimerState.tooltipy = Math.min(YStart - BoxHeight, Y) + View.y;
 				}
-				hstart += gh;
-			}
-		}
-	}
-	else
-	{
-		var Keys = [];
-		for(var key in TimerMap)
-		{
-			var idx = GetTimer(key);
-			var TimerState = TimerMap[key];
-			var Time = TimerState.Time;
-			var color = TimerArray[idx].color;
-			var X = w - Time.length*fWidth;
-			var Y = h;
-			context.strokeStyle = color;
-			context.fillStyle = color;
-
-			context.beginPath();
-			context.moveTo(X,Y);
-			for(var i = 0; i < Time.length; ++i)
-			{
-				Y = h - Time[i] * fHeightScale;
-				context.lineTo(X, Y);
-				X += fWidth;
-			}
-			context.stroke();
-			if(Settings.FancyGraph)
-			{
-				context.lineTo(X, h);
-				context.globalAlpha = 0.05;
-				context.fill();
-				context.globalAlpha = 1;
-			}
-		}
-		if(HighlightFrame >= 0)
-		{
-			for(var key in TimerMap)
-			{
-				var idx = GetTimer(key);
-				var TimerState = TimerMap[key];
-				var Time = TimerState.Time;
-				var color = TimerArray[idx].color;
-				var X = w - Time.length*fWidth + fWidth * HighlightFrame;
-				var Y = h - Time[HighlightFrame] * fHeightScale;
-				context.strokeStyle = color;
-				context.beginPath();
-				var CrossX = X;
-				var CrossY = Y;
-				context.moveTo(CrossX-2, CrossY-2);
-				context.lineTo(CrossX+2, CrossY+2);
-				context.moveTo(CrossX+2, CrossY-2);
-				context.lineTo(CrossX-2, CrossY+2);
-				context.stroke();
 			}
 		}
 		context.fillStyle = 'wheat';
@@ -2463,6 +2511,7 @@ function OnLoadPreset(NewSettings, Apply, RO)
 				{
 					var FullName = Groups[i];
 					EnableByName(FullName, TYPE_GROUP);
+
 				}
 			}
 		}
@@ -3346,7 +3395,9 @@ function DrawMenuTimer()
 	for(var i = 0; i < TimerArray.length; ++i)
 	{
 		var v = TimerArray[i];
-		if(v.idtype == TYPE_TIMER)
+		if(v.idtype == TYPE_TIMER
+		 //|| v.idtype == TYPE_GROUP
+		 )
 		{
 			var Name = v.name;
 			var ParentName = TimerArray[v.parent].name;
@@ -4787,16 +4838,13 @@ function ProcessFrame(F, Inactive)
 			T.exclmax = FD.TimeExclMax[Pos];
 			T.exclmin = FD.TimeExclMin[Pos];
 		}
-		for(var id in F.x)
+		let UpdateFrameDataInternal = function(id, Time, TimeExcl, Count)
 		{
 			var FD = GetFrameData(id);
-			var Data = F.x[id];
-			var Time = Data[0];
-			var TimeExcl = Data[1];
-			var Count = Data[2];
 			PushIntoArray(FD.Time, Time);
 			PushIntoArray(FD.TimeExcl, TimeExcl);
 			PushIntoArray(FD.Count, Count);
+			// console.log("FT EX ", TimeExcl);
 			FD.historymax = FindMaxTime(FD.Time);
 
 			if(FD.Aggregate > Settings.AggregateFrames && Settings.AggregateFrames > 0)
@@ -4876,14 +4924,32 @@ function ProcessFrame(F, Inactive)
 			if(Settings.AggregateFrames <= 0)
 			{
 				SetTimersInArray(FD, id);
-			}
+			}			
+		};
+
+		for(var id in F.x)
+		{
+			var Data = F.x[id];
+			var Time = Data[0];
+			var TimeExcl = Data[1];
+			var Count = Data[2];
+			UpdateFrameDataInternal(id, Data[0], Data[1], Data[2]);
+		}
+
+		var groups = {};
+		for(var i = 0; i < F.g.length; ++i)
+		{
+			var id = F.gi[i];
+			groups[id] = 1;
+			var t = F.g[i];
+			UpdateFrameDataInternal(id, t[0], t[1], t[2]);
 		}
 
 		var ToDelete = new Array();
 		for(var id in FrameData.TimerMap)
 		{
-			FD = FrameData.TimerMap[id];
-			if(!F.x[id])
+			let FD = FrameData.TimerMap[id];
+			if(!F.x[id] && !groups[id])
 			{
 				PushIntoArray(FD.Time,0.0);
 				PushIntoArray(FD.TimeExcl, 0.0);
