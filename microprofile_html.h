@@ -8586,7 +8586,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "					if(Settings.FancyGraph)\n"
 "					{\n"
 "						context.lineTo(X, YStart);\n"
-"						context.globalAlpha = 0.2;\n"
+"						context.globalAlpha = 0.35;\n"
 "						context.fill();\n"
 "						context.globalAlpha = 1;\n"
 "					}\n"
@@ -9223,11 +9223,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	MenuItems.push(MakeMenuItem(\"Patched\", function(){EnableMenu(SubMenuPatched); }, function(){ return FunctionsInstrumented.length > 0;} ));\n"
 "	MenuItems.push(MakeMenuItem(\"Settings\", function(){ EnableMenu(SubMenuSettings); } ));\n"
 "	MenuItems.push(MakeMenuItem(\"Views\", function(){ EnableMenu(SubMenuViews); } ));\n"
-"	MenuItems.push(MakeMenuItem(\"Presets\", function(){ EnableMenu(SubMenuPresets); } ));\n"
-"";
+"	MenuItems.push(MakeMenuItem(\"Presets\", function(){ EnableMenu(SubMenuPresets); } ));";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
+"\n"
 "	MenuItems.push(MakeMenuItem(\"Columns\", function(){ EnableMenu(SubMenuColumns); } ));\n"
 "}\n"
 "function DrawTopMenu()\n"
@@ -10687,11 +10687,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "				TextY = Y+BoxHeight-FontAscent;\n"
 "\n"
 "				context.fillStyle = bgcolor;\n"
-"				context.fill";
+"				context.fil";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-"Rect(X, Y, Width, BoxHeight);\n"
+"lRect(X, Y, Width, BoxHeight);\n"
 "				context.fillStyle = Color;\n"
 "				context.textAlign = \'right\';\n"
 "				context.fillText(Name, X + Width - 2, TextY);\n"
@@ -11765,7 +11765,6 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "\n"
 "			T.time = FD.Time[Pos];\n"
 "			T.excl = FD.Time[Pos];\n"
-"			console.log(\"updating \" + id + \" \" + T.name + \" \" + T.excl);\n"
 "			T.average = FD.TimeAvg[Pos];\n"
 "			T.max = FD.TimeMax[Pos];\n"
 "			T.total = FD.TimeTotal[Pos];\n"
@@ -12102,14 +12101,14 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "}\n"
 "function MouseDragSelectRange()\n"
 "{\n"
-"	return MouseDragState == MouseDragMove && (MouseDragButton == 3 || ";
+"	return MouseDragState == MouseDragMove && (MouseDragButton == 3 || (MouseDragKeyShift&&MouseDragKeyCtrl));\n"
+"}\n"
+"\n"
+"function MouseHandle";
 
 const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
 const char g_MicroProfileHtmlLive_begin_4[] =
-"(MouseDragKeyShift&&MouseDragKeyCtrl));\n"
-"}\n"
-"\n"
-"function MouseHandleDrag()\n"
+"Drag()\n"
 "{\n"
 "	if(MouseDragTarget == CanvasDetailedView)\n"
 "	{\n"
