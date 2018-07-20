@@ -18,7 +18,7 @@
     	{
     		"name":"demo_simple",
     		"osx" : {
-						"shell_cmd": "make",
+						"shell_cmd": "make embed",
 						"file_regex": "(...*?):([0-9]*):([0-9]*):",
 						"working_dir": "${project_path}/demo/simple"
 					}

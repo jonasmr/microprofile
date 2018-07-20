@@ -84,9 +84,9 @@ void ExclusiveTest()
 		// #endif	
 
 		{
-					MICROPROFILE_SCOPEI("exclusive-test", "inner", MP_PINK);
+					MICROPROFILE_SCOPEI("exclusive-test", "inner", MP_GREEN);
 					spinsleep(2000);
-					MICROPROFILE_SCOPEI("exclusive-test-2", "inner-2", MP_PINK);
+					MICROPROFILE_SCOPEI("exclusive-test-2", "inner-2", MP_CYAN);
 					spinsleep(2000);
 
 		// 	nUs = 2000;
@@ -124,6 +124,24 @@ int main(int argc, char* argv[])
 	while(!g_nQuit)
 	{
 		MICROPROFILE_SCOPE(MAIN);
+		{
+			MICROPROFILE_SCOPEI("exclusive-test", "stable0", MP_WHEAT);
+			spinsleep(2000);
+		}
+		static int x = 0;
+		if(x++ % 20 < 10)
+		{
+			MICROPROFILE_SCOPEI("exclusive-test", "stable1", MP_GREEN3);
+			spinsleep(50000 + rand()%2000);
+		}
+		else
+		{
+			spinsleep(40000);
+			MICROPROFILE_SCOPEI("exclusive-test", "stable1", MP_GREEN3);
+			spinsleep(10000 + rand()%2000);
+		}
+
+
 #ifdef _WIN32
 		Sleep(10)
 #else
