@@ -1,10 +1,11 @@
 * Thread Group Exclusive time
-Tooltip for thread
-fixup menu
-black bg under name
+* Tooltip for thread
+* fixup menu
 remove enable timers or functions message
+only send while view is active
 figure out why exlusive time is adding to more than 1
 unify colors
+black bg under name
 fix bug with clipping
 
 
