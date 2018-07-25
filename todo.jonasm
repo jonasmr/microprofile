@@ -1,3 +1,13 @@
+* Thread Group Exclusive time
+Tooltip for thread
+fixup menu
+black bg under name
+remove enable timers or functions message
+figure out why exlusive time is adding to more than 1
+unify colors
+fix bug with clipping
+
+
 fix threadnames to not be <implement getthreadname..>
 fixed graph bar heights
 auto adjust in capture
@@ -9,12 +19,13 @@ do non excl avg for groups
 call count for groups?
 groups should be grouped.
 mark infinite aggrrgate time in table
-
 live timings only show up after first aggregate is hit
 
-disable group graphs
 
 
+
+
+*disable group graphs
 *group draw correctly
 *simplify demos, and move current demo to something else
 *Excl. average appears to be call exclusive average.

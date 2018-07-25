@@ -6151,10 +6151,8 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 				{
 					uint64_t nTicks = pFrameGroup[i].nTicks;
 					uint64_t nTicksExcl = pFrameGroup[i].nTicksExclusive;
-					uint64_t nCount = pFrameGroup[i].nCount;
-					MicroProfileWSPrintf("%c[%f,%f,%f]", f ? ',' : ' ', nTicks * fTickToMsCpu, nTicksExcl * fTickToMsCpu, nCount);
-					// uint32_t id = MicroProfileWebSocketIdPack(TYPE_GROUP, i);
-					// printf("[%f, %s, %d] ", nTicks * fTickToMsCpu, S.GroupInfo[i].pName, i);
+					float fCount = (float)pFrameGroup[i].nCount;
+					MicroProfileWSPrintf("%c[%f,%f,%f]", f ? ',' : ' ', nTicks * fTickToMsCpu, nTicksExcl * fTickToMsCpu, fCount);
 					f = 1;
 				}
 			}
@@ -6171,7 +6169,6 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 				{
 					uint32_t id = MicroProfileWebSocketIdPack(TYPE_GROUP, i);
 					MicroProfileWSPrintf("%c%d", f ?  ',' : ' ', id);
-					// printf("%d
 					f = 1;
 				}
 			}
@@ -6193,7 +6190,8 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 					MicroProfileWSPrintf("{");
 				else
 					MicroProfileWSPrintf(",{");
-				MicroProfileWSPrintf("\"i\":%d,\"g\":", i);
+				MicroProfileThreadLog* pLog = S.Pool[i];
+				MicroProfileWSPrintf("\"i\":%d,\"n\":\"%s\",\"g\":", i, pLog->ThreadName);
 				WriteTickArray(&S.FrameThreadGroup[i][0]);
 				MicroProfileWSPrintf(",\"gi\":");
 				WriteIndexArray(&S.FrameThreadGroup[i][0]);
@@ -6202,30 +6200,6 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 			}
 		}
 		MicroProfileWSPrintf("]");
-
-
-				// int f = 0;
-		// for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
-		// {
-		// 	uint64_t nTick = S.FrameGroup[i];
-		// 	if(nTick)
-		// 	{
-		// 		MicroProfileWSPrintf("%c%f", f ? ',' : ' ', nTick * fTickToMsCpu);
-		// 		f = 1;
-		// 	}
-		// }
-		// f = 0;
-		// MicroProfileWSPrintf("],\"gi\":[");
-		// for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
-		// {
-		// 	uint64_t nTick = S.FrameGroup[i];
-		// 	if(nTick)
-		// 	{
-		// 		MicroProfileWSPrintf("%c%d", f ?  ',' : ' ', i);
-		// 		f = 1;
-		// 	}
-		// }
-		// MicroProfileWSPrintf("]");
 
 		if(S.nFrameCurrent != S.WebSocketFrameLast[0])
 		{

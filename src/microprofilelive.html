@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <html>
 <head>
-<title>MicroProfile Capture</title>
+<title>MicroProfile Live</title>
 <style>
 /* about css: http://bit.ly/1eMQ42U */
 body {margin: 0px;padding: 0px; font: 12px Courier New;background-color:#343434; color:white;overflow:hidden;}
@@ -194,13 +194,13 @@ var ProfileFpsCount = 0;
 var ProfileLastTimeStamp = new Date();
 var PlotfArray = new Array();
 
-var ConnectionStr = ["x", "|", "x", "-" ];
+var ConnectionStr = ["\\", "|", "/", "-" ];
 var ConnectionIdx = 0;
 var EnabledArray = [];
 
 
 var FrameData = {};
-var FrameCount = 256;
+var FRAME_COUNT = 256;
 var FramePending = 0;
 
 var WSConnected = 0;
@@ -259,19 +259,20 @@ var WidthTree = 0;
 Settings.ViewActive = 0;
 Settings.ViewCompressed = 0;
 Settings.AllowHighDPI = 1;
-var ViewNames = ["Graph", "Graph", "Bars", "Bars", "Bars", "Counters"];
-var ViewNames2 = ["[split]", "[single]", "[table]", "[all]", "[single]", ""];
+var ViewNames = ["Graph", "Graph", "Graph", "Bars", "Bars", "Bars", "Counters"];
+var ViewNames2 = ["[split]", "[single]", "[group/thread]","[table]", "[all]", "[single]", ""];
 
 var VIEW_GRAPH_SPLIT = 0;
 var VIEW_GRAPH = 1;
-var VIEW_BAR = 2;
-var VIEW_BAR_ALL = 3;
-var VIEW_BAR_SINGLE = 4;
-var VIEW_COUNTERS = 5;
-var VIEW_SIZE = 6;
+var VIEW_GRAPH_THREAD_GROUP = 2;
+var VIEW_BAR = 3;
+var VIEW_BAR_ALL = 4;
+var VIEW_BAR_SINGLE = 5;
+var VIEW_COUNTERS = 6;
+var VIEW_SIZE = 7;
 
 
-Settings.FancyGraph = 1;
+// Settings.FancyGraph = 1;
 Settings.AutomaticReference = 1;
 Cookie.CodeReportMode = 0; // 0: prompt, 1:always send, 2: never send, never prompt
 
@@ -359,6 +360,7 @@ var FunctionsInstrumentedUnmangled = [];
 var FunctionsInstrumentedModule = [];
 var PopupsAllowed = 0;
 
+var ThreadInfo = {};
 
 function ConvertHslToRGB(h, s, l) //from https://gist.github.com/mjackson/5311256
 {
@@ -971,7 +973,7 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 
 	var fHeightScale = h / ReferenceTime;
 	var MouseDragging = 0;
-	var fWidth = w / FrameCount;
+	var fWidth = w / FRAME_COUNT;
 	var Keys = [];
 	var X = DrawXLeft;
 	var offset = 0;
@@ -1479,7 +1481,10 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 
 	ProfileLeave();
 }
-
+function DrawGraphThreadGroup(View, LocalMouseX, LocalMouseY, SubIndex)
+{
+	DrawGraphThreadExclusive(View, LocalMouseX, LocalMouseY, SubIndex);
+}
 function DrawGraphSplit(View, LocalMouseX, LocalMouseY, SubIndex)
 {
 	DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, 1);
@@ -1488,6 +1493,203 @@ function DrawGraphSingle(View, LocalMouseX, LocalMouseY, SubIndex)
 {
 	DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, 0);
 }
+
+
+function DrawGraphThreadExclusive(View, LocalMouseX, LocalMouseY, SubIndex, Split)
+{
+	var TimerMap = FrameData.TimerMap;
+	if(!TimerMap)
+		return;
+
+	ProfileEnter("DrawGraphThreadExclusive");
+	var Canvas = View.Canvas[View.BackBuffer];
+	var context = Canvas.getContext('2d');
+	context.clearRect(0, 0, View.w, View.h);
+
+	var h = View.h;
+	var w = View.w;
+	var fHeightScale = h / ReferenceGraph;
+	var MouseDragging = 0;
+	var fWidth = w / FRAME_COUNT;
+	var MouseTime = ReferenceGraph * (1-(LocalMouseY / h));
+	var HighlightKey = 0;
+	var HighlightFrame = -1;
+
+
+	var NumGraphs = 0;
+	for(let k in ThreadInfo)
+	{
+		NumGraphs++;
+	}
+	// NumGraphs = 0;
+	if(NumGraphs)
+	{
+		let hstart = 0;
+		let gh = h / NumGraphs;
+		let cidx = 1;
+		let Count = FRAME_COUNT;
+		let Last = AllocClearedArray(Count);
+		let FT = FrameData.Time;
+		let RcpFT = AllocClearedArray(Count);
+		if(FT.length != RcpFT.length)
+			debugger;
+		for(let k = 0; k < RcpFT.length; ++k)
+		{
+			if(FT[k] != 0)
+			{
+				RcpFT[k] = 1.0 / FT[k];
+			}
+			else
+			{
+				RcpFT[k] = 0;
+			}
+		}
+
+		for(let k in ThreadInfo)
+		{
+			for(let j = 0; j < Last.length; ++j)
+				Last[j] = 0.0;
+			let TI = ThreadInfo[k];
+			let X = 0;
+			let Y = hstart + gh;
+			var YStart = Y;
+			if(LocalMouseX >= 0 && LocalMouseY >= hstart && LocalMouseX < w && LocalMouseY <= Y)
+			{
+				HighlightKey = k;
+				HighlightFrame = Math.floor(FRAME_COUNT * LocalMouseX / w);	
+			}
+
+
+			context.globalAlpha = 1;
+			context.fillStyle = nBackColorsDark[cidx];
+			cidx = 1-cidx;
+			context.fillRect(0, hstart, w, gh);
+			context.strokeStyle = 'white';
+			context.fillStyle = 'white';
+			for(let l = 0; l < TI.a.length; ++l)
+			{
+				X = 0;
+				let a = TI.a[l];
+				if(a.length != Count)
+				{
+					console.log("should not happen!\n");
+					debugger;
+				}
+				let idx = GetTimer(TI.ids[l]);
+				let c = TimerArray[idx].color;
+				context.strokeStyle = c;
+				context.fillStyle = c;
+				context.beginPath();
+
+				for(let m = Last.length-1;m >= 0; m--)
+				{
+					let XX = X + fWidth * m;
+					Y = Math.max(YStart - Last[m] * gh, hstart);
+					if(m == Last.length-1)
+					{
+						context.moveTo(XX, Y);
+					}
+					else
+					{
+						context.lineTo(XX, Y);
+					}
+				}
+
+				for(let m = 0; m < a.length; ++m)
+				{
+
+					let h = a[m] * RcpFT[m];
+					if(h > 1)
+					{
+						h = 1;
+						//todo...
+						// console.log("should not happen");
+					}
+					let hm = h + Last[m];
+					if(hm > 1)
+					{
+						hm = 1;
+						//todo...
+						// console.log("should not happen");
+					}
+					Y = Math.max(YStart - hm * gh, hstart);
+					context.lineTo(X, Y);
+					X += fWidth;
+					Last[m] = hm;
+				}
+				context.fill();
+
+			}
+			context.fillStyle = 'wheat';
+			context.textAlign='right';
+			context.fillText('100%', nWidth, hstart + FontHeight);
+			context.textAlign='left';
+			context.fillText(TI.n, 0, hstart + FontHeight);
+			hstart += gh;
+		}
+	}
+
+	if(HighlightKey != 0 && SubMenuActive == -1)
+	{
+		ToolTipCallback = function(canvas, x, y)
+		{
+			let TI = ThreadInfo[HighlightKey];
+			let ret = [];
+			let colors = [];
+			for(let l = 0; l < TI.a.length; ++l)
+			{
+				let a = TI.a[l];
+				let idx = GetTimer(TI.ids[l]);
+				let c = TimerArray[idx].color;
+				colors.push(c);
+				ret.push(TimerArray[idx].name);
+				let t = FormatTime(a[HighlightFrame]) + 'ms';
+				colors.push('white');
+				ret.push(t);
+			}
+			return {c:colors, a:ret};
+			// return ["fisk", "hest", "test", "geeeed"]	;
+			// var TimerMap = FrameData.TimerMap;
+			// var context = canvas.getContext('2d');
+			// context.font = Font;
+			// var XPos = x - 20;
+			// for(var key in TimerMap)
+			// {
+			// 	var idx = GetTimer(key);
+			// 	var T = TimerArray[idx];
+			// 	var TimerState = TimerMap[key];
+			// 	var Time = TimerState.Time;
+			// 	if(TimerState.tooltipysoft)
+			// 	{
+			// 		var RATE = 0.05;
+			// 		if(Math.abs(TimerState.tooltipysoft - TimerState.tooltipy) > 6)
+			// 		{
+			// 			TimerState.tooltipysoft = TimerState.tooltipy * RATE + TimerState.tooltipysoft * (1-RATE);
+			// 		}
+			// 	}
+			// 	else
+			// 	{
+			// 		TimerState.tooltipysoft = TimerState.tooltipy;
+			// 	}
+			// 	var Y = TimerState.tooltipysoft;
+			// 	var str = "2000";//'' + FormatTime(Time[index]) + 'ms';
+			// 	var w = context.measureText(str, XPos, Y).width;
+			// 	var X = Math.max(0, XPos - w);
+			// 	context.fillStyle = 'black';
+			// 	context.fillRect(X - 1, Y-1 , w+2, BoxHeight+2);
+			// 	context.fillStyle = 'white';
+			// 	context.textAlign = 'right';
+			// 	context.fillText(str, X + w, Y+BoxHeight-2);
+
+			// }
+		}
+	}
+
+	ProfileLeave();
+}
+
+
+
 
 function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 {
@@ -1504,7 +1706,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 	var w = View.w;
 	var fHeightScale = h / ReferenceGraph;
 	var MouseDragging = 0;
-	var fWidth = w / FrameCount;
+	var fWidth = w / FRAME_COUNT;
 	var HighlightFrame = -1;
 	var GraphKey = null;
 	var GraphBest = 0;
@@ -1512,7 +1714,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 
 	if(LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1)
 	{
-		var index = Math.floor(FrameCount * LocalMouseX / w);
+		var index = Math.floor(FRAME_COUNT * LocalMouseX / w);
 		HighlightFrame = index;
 		for(var key in TimerMap)
 		{
@@ -1568,6 +1770,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 			else
 			{
 				var StringArray = [];
+				var ColorArray = [];
 				var TimerMap = FrameData.TimerMap;
 				for(var key in TimerMap)
 				{
@@ -1577,42 +1780,18 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 						var T = TimerArray[idx];
 						var TimerState = TimerMap[key];
 						var Time = TimerState.Time;
+						ColorArray.push(TimerArray[idx].color);
 						StringArray.push('' + T.name);
+						ColorArray.push('white');
 						StringArray.push('' + FormatTime(Time[index]) + 'ms') ;
 					}
 				}
-				return StringArray;	
+				return {c:ColorArray,a:StringArray};	
 			}
 		}
 
 	}
-	if(GraphKey&&0)
-	{
-		//solid graph
-		var idx = GetTimer(GraphKey);
-		var T = TimerArray[idx];
-		var TimerState = TimerMap[GraphKey];
-		var Time = TimerState.Time;
-		var color = TimerArray[idx].color;
-		var X = w - Time.length*fWidth;
-		var Y = h;
-		context.globalAlpha = 0.1;
-		context.strokeStyle = color;
-		context.fillStyle = color;
-		context.beginPath();
-		context.moveTo(X,Y);
-		for(var i = 0; i < Time.length; ++i)
-		{
-			Y = h - Time[i] * fHeightScale;
-			context.lineTo(X, Y);
-			X += fWidth;
-		}
-		context.lineTo(X, h);
-		context.closePath();
-		context.fill();
-		context.globalAlpha = 1;
-		context.stroke();
-	}
+
 	if(Split)
 	{
 		var NumGraphs = 0;
@@ -2153,7 +2332,7 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 	if(!FrameData.Time)
 		return;
 	var fHeight = View.h;
-	var fWidth = nWidth / FrameCount;
+	var fWidth = nWidth / FRAME_COUNT;
 	var fHeightScale = fHeight / ReferenceHistory;
 	var fX = 0;
 	var FrameIndex = -1;
@@ -2166,17 +2345,17 @@ function DrawHistory(View, LocalMouseX, LocalMouseY)
 	
 	if(MouseDragActiveXEnd > MouseDragActiveXStart)
 	{
-		var idx0 = Math.ceil(FrameCount * MouseDragActiveXStart / nWidth);
-		var idx1 = Math.floor(FrameCount * MouseDragActiveXEnd / nWidth);
-		idx0 = Clamp(idx0, 0, FrameCount-1);
-		idx1 = Clamp(idx1, 0, FrameCount-1);
+		var idx0 = Math.ceil(FRAME_COUNT * MouseDragActiveXStart / nWidth);
+		var idx1 = Math.floor(FRAME_COUNT * MouseDragActiveXEnd / nWidth);
+		idx0 = Clamp(idx0, 0, FRAME_COUNT-1);
+		idx1 = Clamp(idx1, 0, FRAME_COUNT-1);
 		id0 = FrameData.Ids[idx0];
 		id1 = FrameData.Ids[idx1];
 	}
 
 
 	var ToolTipFrame = -1;
-	for(var i = 0; i < FrameCount; i++)
+	for(var i = 0; i < FRAME_COUNT; i++)
 	{
 		var fMs = FrameData.Time[i];
 		var fPrc = (fMs - GreenTime) * LerpDist;
@@ -2582,10 +2761,10 @@ function Capture()
 	var ext = '' + Settings.CaptureFrames;
 	if(MouseDragActiveXEnd > MouseDragActiveXStart)
 	{
-		var idx0 = Math.ceil(FrameCount * MouseDragActiveXStart / nWidth);
-		var idx1 = Math.floor(FrameCount * MouseDragActiveXEnd / nWidth);
-		idx0 = Clamp(idx0, 0, FrameCount-1);
-		idx1 = Clamp(idx1, 0, FrameCount-1);
+		var idx0 = Math.ceil(FRAME_COUNT * MouseDragActiveXStart / nWidth);
+		var idx1 = Math.floor(FRAME_COUNT * MouseDragActiveXEnd / nWidth);
+		idx0 = Clamp(idx0, 0, FRAME_COUNT-1);
+		idx1 = Clamp(idx1, 0, FRAME_COUNT-1);
 		var id0 = FrameData.Ids[idx0];
 		var id1 = FrameData.Ids[idx1];
 		ext = 'r/'+id0+'/'+id1;
@@ -2617,6 +2796,7 @@ function DrawTopMenu()
 		{
 			if(Settings.ViewActive == VIEW_GRAPH_SPLIT || 
 				Settings.ViewActive == VIEW_GRAPH || 
+				Settings.ViewActive == VIEW_GRAPH_THREAD_GROUP ||
 				Settings.ViewActive == VIEW_COUNTERS)
 			{
 				continue;
@@ -2841,21 +3021,32 @@ function OnLoadPreset(NewSettings, Apply, RO)
 		ResizeCanvas();
 	}
 }
-
+function SanitizeString(s)
+{
+	let r = "";
+	for(let i = 0; i < s.length; ++i)
+	{
+		let c = s[i];
+		if(!((c>='a' && c<='z') || (c >='A' && c <= 'Z') || (c >= '0' && c <= '9')))
+		{
+			r += '_';
+		}
+		else
+		{
+			r += c;
+		}
+	}
+	return r;
+}
 function LoadPreset(Name, RO)
 {
-	Name = Name.replace(",","_");
+	Name = SanitizeString(Name);
 	WSSendMessage((RO?"m":"l")+Name);
 }
 
 function SavePreset(Name)
 {
-	var n1 = Name;
-	Name = Name.replace(/[ ,."']/g,"_");
-	if(Name.match(/^[0-9]/))
-	{
-		Name = "_" + Name;
-	}
+	Name = SanitizeString(Name);
 	AddPreset(Name);
 	var Timers = [];
 	var Groups = [];
@@ -3098,6 +3289,11 @@ function ActivateView(idx)
 	else if(idx == VIEW_GRAPH)
 	{
 		MainView.DisplayFunc = DrawGraphSingle;
+		MainView.visible = true;
+	}
+	else if(idx == VIEW_GRAPH_THREAD_GROUP)
+	{
+		MainView.DisplayFunc = DrawGraphThreadGroup;
 		MainView.visible = true;
 	}
 	else if(idx == VIEW_BAR)
@@ -3596,10 +3792,10 @@ function DrawMenuSettings()
 	AggregateTweak = DrawMenuRoll(M, "Aggregate Frames", GetAggregateString(), '', AggregateRoll, AggregateTweak, 'int');
 	ReferenceTimeTweak = DrawMenuRoll(M, "Reference Time", Settings.ReferenceTime, '', ReferenceRoll, ReferenceTimeTweak, 'int');
 	TargetTimeTweak = DrawMenuRoll(M, "Target Time", Settings.TargetTime, '', TargetRoll, TargetTimeTweak, 'int');
-	if(DrawMenuElement(M, Settings.FancyGraph, "Fancy Graph", Settings.FancyGraph, 'white'))
-	{
-		Settings.FancyGraph = 1-Settings.FancyGraph;
-	}
+	// if(DrawMenuElement(M, Settings.FancyGraph, "Fancy Graph", Settings.FancyGraph, 'white'))
+	// {
+	// 	Settings.FancyGraph = 1-Settings.FancyGraph;
+	// }
 	if(DrawMenuElement(M, Settings.AutomaticReference, "Automatic Reference Time", Settings.AutomaticReference, 'white'))
 	{
 		Settings.AutomaticReference = 1-Settings.AutomaticReference;
@@ -3639,14 +3835,9 @@ function DrawMenuSettings()
 		WriteCookie();
 	}
 
-
-
-
 	SizeInfo.h = M.y - SizeInfo.y;
 	return SizeInfo;
-
 }
-
 
 function MoveFilterInputDiv(x, y, w)
 {
@@ -3660,6 +3851,7 @@ function MoveFilterInputDiv(x, y, w)
 		FilterInput.style['width'] = w + 'px';
 	}
 }
+
 function DrawMenuTimer()
 {
 	if(FilterInputValueLast != FilterInput.value)
@@ -4942,9 +5134,10 @@ function ResetFrameData()
 {
 	FrameData = {};
 	FrameData.TimerMap = {};
-	FrameData.Time = AllocClearedArray(FrameCount);
-	FrameData.Ids = AllocClearedArray(FrameCount);
-	FrameData.Frozen = AllocClearedArray(FrameCount);
+	FrameData.Time = AllocClearedArray(FRAME_COUNT);
+	FrameData.Ids = AllocClearedArray(FRAME_COUNT);
+	FrameData.Frozen = AllocClearedArray(FRAME_COUNT);
+	FrameData.ThreadTime = {};
 }
 function GetFrameData(id)
 {
@@ -4955,9 +5148,9 @@ function GetFrameData(id)
 	else
 	{
 		var FD = {};
-		FD.Count = AllocClearedArray(FrameCount);
-		FD.Time = AllocClearedArray(FrameCount);
-		FD.TimeExcl = AllocClearedArray(FrameCount);
+		FD.Count = AllocClearedArray(FRAME_COUNT);
+		FD.Time = AllocClearedArray(FRAME_COUNT);
+		FD.TimeExcl = AllocClearedArray(FRAME_COUNT);
 		//Ag
 		FD.TimeMax = AllocClearedArray(AggregateHistorySize);
 		FD.TimeMin = AllocClearedArray(AggregateHistorySize);
@@ -5256,6 +5449,59 @@ function ProcessFrame(F, Inactive)
 			var t = F.g[i];
 			UpdateFrameDataInternal(id, t[0], t[1], t[2], 1);
 		}
+		
+		let UpdateThreadInfo = function(o)
+		{
+			let sn = SanitizeString(o.n);
+			let TI = ThreadInfo[sn];
+			if(!TI)
+			{
+				TI = { ids:o.gi, a:[], n:o.n, sn:sn };
+				for(let i = 0; i < TI.ids.length; ++i)
+				{
+					TI.a.push(AllocClearedArray(FRAME_COUNT));
+				}
+				ThreadInfo[sn] = TI;
+			}
+			for(let i = 0; i < TI.a.length; ++i)
+			{
+				PushIntoArray(TI.a[i], 0);
+			}
+			for(let i = 0; i < o.gi.length; ++i)
+			{
+				let id = o.gi[i];
+				let t = o.g[i][1];
+				let te = FrameData.Time[FrameData.Time.length-1];
+				if(t > te)
+				{
+					console.log("fail!");
+					// debugger;
+				}
+				let idx = TI.ids.indexOf(id);
+				if(-1 == idx)
+				{
+					TI.ids.push(id);
+					let a = AllocClearedArray(FRAME_COUNT);
+					a[a.length-1] = o.g[i][1];
+					TI.a.push(a);
+				}
+				else
+				{
+					let l = TI.a[idx].length;
+					TI.a[idx][l-1] = o.g[i][1];
+				}
+			}
+		};
+		if(F.gt && F.gt.length)
+		{
+			for(let i = 0; i < F.gt.length; ++i)
+			{
+				let o = F.gt[i];
+				UpdateThreadInfo(o);
+			}
+		}
+
+
 
 		var ToDelete = new Array();
 		for(var id in FrameData.TimerMap)
@@ -5935,15 +6181,22 @@ function DrawToolTip(StringArray, Canvas, x, y)
 	{
 		return;
 	}
+	let colors;
+	let a = StringArray;
+	if(StringArray.c)
+	{
+		a = StringArray.a;
+		colors = StringArray.c;
+	}
 	var context = Canvas.getContext('2d');
 	context.font = Font;
-	var WidthArray = Array(StringArray.length);
+	var WidthArray = Array(a.length);
 	var nMaxWidth = 0;
 	var nHeight = 0;
-	for(var i = 0; i < StringArray.length; i += 2)
+	for(var i = 0; i < a.length; i += 2)
 	{
-		var nWidth0 = context.measureText(StringArray[i]).width;
-		var nWidth1 = context.measureText(StringArray[i+1]).width;
+		var nWidth0 = context.measureText(a[i]).width;
+		var nWidth1 = context.measureText(a[i+1]).width;
 		var nSum = nWidth0 + nWidth1;
 		WidthArray[i] = nWidth0;
 		WidthArray[i+1] = nWidth1;
@@ -5974,12 +6227,18 @@ function DrawToolTip(StringArray, Canvas, x, y)
 	var XPos = x;
 	var XPosRight = x + nMaxWidth;
 	var YPos = y + BoxHeight-2;
-	for(i = 0; i < StringArray.length; i += 2)
+	context.fillStyle = 'white';
+	for(i = 0; i < a.length; i += 2)
 	{
-		context.fillText(StringArray[i], XPos, YPos);
-		context.fillText(StringArray[i+1], XPosRight - WidthArray[i+1], YPos);
+		if(colors)
+			context.fillStyle = colors[i];
+		context.fillText(a[i], XPos, YPos);
+		if(colors)
+			context.fillStyle = colors[i+1];
+		context.fillText(a[i+1], XPosRight - WidthArray[i+1], YPos);
 		YPos += BoxHeight;
 	}
+	context.fillStyle = 'white';
 }
 
 function DrawPlotf(Canvas)
