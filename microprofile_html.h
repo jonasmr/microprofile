@@ -8572,40 +8572,6 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "				ret.push(t);\n"
 "			}\n"
 "			return {c:colors, a:ret};\n"
-"			// return [\"fisk\", \"hest\", \"test\", \"geeeed\"]	;\n"
-"			// var TimerMap = FrameData.TimerMap;\n"
-"			// var context = canvas.getContext(\'2d\');\n"
-"			// context.font = Font;\n"
-"			// var XPos = x - 20;\n"
-"			// for(var key in TimerMap)\n"
-"			// {\n"
-"			// 	var idx = GetTimer(key);\n"
-"			// 	var T = TimerArray[idx];\n"
-"			// 	var TimerState = TimerMap[key];\n"
-"			// 	var Time = TimerState.Time;\n"
-"			// 	if(TimerState.tooltipysoft)\n"
-"			// 	{\n"
-"			// 		var RATE = 0.05;\n"
-"			// 		if(Math.abs(TimerState.tooltipysoft - TimerState.tooltipy) > 6)\n"
-"			// 		{\n"
-"			// 			TimerState.tooltipysoft = TimerState.tooltipy * RATE + TimerState.tooltipysoft * (1-RATE);\n"
-"			// 		}\n"
-"			// 	}\n"
-"			// 	else\n"
-"			// 	{\n"
-"			// 		TimerState.tooltipysoft = TimerState.tooltipy;\n"
-"			// 	}\n"
-"			// 	var Y = TimerState.tooltipysoft;\n"
-"			// 	var str = \"2000\";//\'\' + FormatTime(Time[index]) + \'ms\';\n"
-"			// 	var w = context.measureText(str, XPos, Y).width;\n"
-"			// 	var X = Math.max(0, XPos - w);\n"
-"			// 	context.fillStyle = \'black\';\n"
-"			// 	context.fillRect(X - 1, Y-1 , w+2, BoxHeight+2);\n"
-"			// 	context.fillStyle = \'white\';\n"
-"			// 	context.textAlign = \'right\';\n"
-"			// 	context.fillText(str, X + w, Y+BoxHeight-2);\n"
-"\n"
-"			// }\n"
 "		}\n"
 "	}\n"
 "\n"
@@ -9300,7 +9266,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "		if(bMouse && !MouseDragging)\n"
 "		{\n"
 "			context.fillStyle = FRAME_HISTORY_COLOR_GPU;\n"
-"			ToolTipFrame = i;\n"
+"			ToolTipFrame ";
+
+const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
+const char g_MicroProfileHtmlLive_begin_2[] =
+"= i;\n"
 "		}\n"
 "		else\n"
 "		{\n"
@@ -10782,7 +10752,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "\n"
 "function DrawMenuTimer()\n"
 "{\n"
-"	if(FilterInputValueLast != FilterInput.value)\n"
+"	if(FilterInputValu";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+"eLast != FilterInput.value)\n"
 "	{\n"
 "		nOffsetMenuTimers = 0;\n"
 "	}\n"
@@ -12195,7 +12169,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "	if(!Inactive)\n"
 "	{\n"
 "		var TriggerAutoCapture = 0;\n"
-"		PushIntoArray(FrameData.Time, F.t);\n"
+"		PushIntoArr";
+
+const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
+const char g_MicroProfileHtmlLive_begin_4[] =
+"ay(FrameData.Time, F.t);\n"
 "		PushIntoArray(FrameData.Ids, F.f);\n"
 "		PushIntoArray(FrameData.Frozen, IsFrozen ? 1 : 0);\n"
 "		var CaptureId = null;\n"
