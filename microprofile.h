@@ -627,7 +627,7 @@ MICROPROFILE_API void MicroProfileGpuInitGL();
 #if MICROPROFILE_USE_THREAD_NAME_CALLBACK
 MICROPROFILE_API const char* MicroProfileGetThreadName(char* pzName);
 #else
-#define MicroProfileGetThreadName(a) "<implement MicroProfileGetThreadName to get threadnames>"
+#define MicroProfileGetThreadName(a) 0
 #endif
 
 

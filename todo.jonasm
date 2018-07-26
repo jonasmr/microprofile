@@ -4,8 +4,7 @@
 * remove enable timers or functions message
 * only send while view is active
 
-unify colors
-black bg under name
+* unify colors
 fix bug with clipping
 
 mark infinite aggrrgate time in table
@@ -23,7 +22,7 @@ single group stuff.
 
 
 
-
+% black bg under name
 % call count for groups?
 % groups should be grouped.
 

@@ -1542,10 +1542,18 @@ MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 		MP_ASSERT(S.nNumLogs < MICROPROFILE_MAX_THREADS);
 		S.Pool[S.nNumLogs++] = pLog;	
 	}
-	int len = (int)strlen(pName);
-	int maxlen = sizeof(pLog->ThreadName)-1;
-	len = len < maxlen ? len : maxlen;
-	memcpy(&pLog->ThreadName[0], pName, len);
+	int len = 0;
+	if(pName)
+	{
+		len = (int)strlen(pName);
+		int maxlen = sizeof(pLog->ThreadName)-1;
+		len = len < maxlen ? len : maxlen;
+		memcpy(&pLog->ThreadName[0], pName, len);
+	}
+	else
+	{
+		len = snprintf(&pLog->ThreadName[0], sizeof(pLog->ThreadName)-1, "TID:[%lld]", MP_GETCURRENTTHREADID());	
+	}
 	pLog->ThreadName[len] = '\0';
 	pLog->nThreadId = MP_GETCURRENTTHREADID();
 	pLog->nFreeListNext = -1;
