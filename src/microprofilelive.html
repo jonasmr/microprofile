@@ -4880,6 +4880,7 @@ function WSOpen()
 	FunctionQueryArray = [];
 
 	ResetFrameData();
+	window.document.title = "MP " + WSHost;
 
 	if(PresetToLoad && PresetToLoad != "")
 	{
@@ -5605,6 +5606,7 @@ function WSClose()
 {
 	console.log('WSClose');
 	WSIsOpen = 0;
+	window.document.title = "MicroProfile Live";
 	FilterInputDiv.style['display'] = 'none';
 }
 function WSSendMessage(msgid)

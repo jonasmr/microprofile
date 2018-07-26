@@ -11812,6 +11812,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "	FunctionQueryArray = [];\n"
 "\n"
 "	ResetFrameData();\n"
+"	window.document.title = \"MP \" + WSHost;\n"
 "\n"
 "	if(PresetToLoad && PresetToLoad != \"\")\n"
 "	{\n"
@@ -12531,16 +12532,17 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "}\n"
 "function WSError()\n"
 "{\n"
-"	console.log(\'WSError\');\n"
-"}\n"
-"function WSClose()\n"
-"{\n"
-"	console.l";
+"	console.log(\'WSE";
 
 const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
 const char g_MicroProfileHtmlLive_begin_4[] =
-"og(\'WSClose\');\n"
+"rror\');\n"
+"}\n"
+"function WSClose()\n"
+"{\n"
+"	console.log(\'WSClose\');\n"
 "	WSIsOpen = 0;\n"
+"	window.document.title = \"MicroProfile Live\";\n"
 "	FilterInputDiv.style[\'display\'] = \'none\';\n"
 "}\n"
 "function WSSendMessage(msgid)\n"
