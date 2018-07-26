@@ -1,24 +1,31 @@
 * Thread Group Exclusive time
 * Tooltip for thread
 * fixup menu
-*remove enable timers or functions message
+* remove enable timers or functions message
 * only send while view is active
-figure out why exlusive time is adding to more than 1
+
 unify colors
 black bg under name
 fix bug with clipping
-fix threadnames to not be <implement getthreadname..>
-fixed graph bar heights
-auto adjust in capture
 
-dont draw groups in non-table views.
-single group stuff.
-
-do non excl avg for groups
-call count for groups?
-groups should be grouped.
 mark infinite aggrrgate time in table
 live timings only show up after first aggregate is hit
+
+fix threadnames to not be <implement getthreadname..>
+figure out why exlusive time is adding to more than 1
+
+auto adjust in capture
+
+single group stuff.
+
+* dont draw groups in non-table views.
+* do non excl avg for groups
+
+
+
+
+% call count for groups?
+% groups should be grouped.
 
 
 

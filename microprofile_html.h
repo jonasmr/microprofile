@@ -7191,6 +7191,8 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "var VIEW_COUNTERS = 6;\n"
 "var VIEW_SIZE = 7;\n"
 "\n"
+"var GRAPH_ALPHA = 0.5;\n"
+"\n"
 "\n"
 "// Settings.FancyGraph = 1;\n"
 "Settings.AutomaticReference = 1;\n"
@@ -8264,12 +8266,12 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "		if(Settings.SortColumn<0)\n"
 "		{\n"
 "			var KeyFunc = null;\n"
-"			switch(Settings.SortColumn)\n"
-"			";
+"			switch(";
 
 const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
 const char g_MicroProfileHtmlLive_begin_1[] =
-"{\n"
+"Settings.SortColumn)\n"
+"			{\n"
 "				case -2: KeyFunc = function (a) { return TimerArray[a].name; }; break;\n"
 "				case -1: KeyFunc = function (a) { return TimerArray[TimerArray[a].parent].name; }; break;\n"
 "			}\n"
@@ -8727,13 +8729,10 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "						X += fWidth;\n"
 "					}\n"
 "					context.stroke();\n"
-"					if(Settings.FancyGraph)\n"
-"					{\n"
-"						context.lineTo(X, YStart);\n"
-"						context.globalAlpha = 0.35;\n"
-"						context.fill();\n"
-"						context.globalAlpha = 1;\n"
-"					}\n"
+"					context.lineTo(X, YStart);\n"
+"					context.globalAlpha = GRAPH_ALPHA;\n"
+"					context.fill();\n"
+"					context.globalAlpha = 1;\n"
 "					context.fillStyle = \'wheat\';\n"
 "					context.textAlign=\'right\';\n"
 "					context.fillText(FormatTime(Reference) + \'ms\', nWidth, hstart + FontHeight);\n"
@@ -8817,8 +8816,6 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "					}\n"
 "					i++;\n"
 "				}\n"
-"\n"
-"\n"
 "			}\n"
 "			for(let i = 0; i < g.length; ++i)\n"
 "			{\n"
@@ -9033,7 +9030,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "						{\n"
 "							context.strokeStyle = e.c;\n"
 "							context.fillStyle = e.c;\n"
-"							context.globalAlpha = 0.5;\n"
+"							context.globalAlpha = GRAPH_ALPHA;\n"
 "							context.beginPath();\n"
 "							context.moveTo(xs[0], ytop[0]);\n"
 "							for(let k = 1; k < xs.length; ++k)\n"
@@ -9045,10 +9042,6 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "								context.lineTo(xs[k], ybot[k]);\n"
 "							}\n"
 "							context.fill();\n"
-"\n"
-"							context.globalAlpha = 1.0;\n"
-"\n"
-"							\n"
 "							context.beginPath();\n"
 "							context.moveTo(xs[0], ytop[0]);\n"
 "							for(let k = 1; k < xs.length; ++k)\n"
@@ -9086,18 +9079,13 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "						X += fWidth;\n"
 "					}\n"
 "					context.stroke();\n"
-"					if(Settings.FancyGraph)\n"
-"					{\n"
-"						context.lineTo(X, h);\n"
-"						context.globalAlpha = 0.75;\n"
-"						context.fill();\n"
-"						context.globalAlpha = 1;\n"
-"					}\n"
+"					context.lineTo(X, h);\n"
+"					context.globalAlpha = GRAPH_ALPHA;\n"
+"					context.fill();\n"
+"					context.globalAlpha = 1;\n"
 "				}\n"
 "			}\n"
 "		}\n"
-"\n"
-"\n"
 "		if(HighlightFrame >= 0)\n"
 "		{\n"
 "			for(var key in TimerMap)\n"
@@ -9667,12 +9655,12 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	MenuItems = [];\n"
 "	MenuItems.push(MakeMenuItem(\"Control\", function(){EnableMenu(SubMenuGroup); } ));\n"
 "	MenuItems.push(MakeMenuItem(\"Timers\", function(){EnableMenu(SubMenuTimers); } ));\n"
-"	MenuItems.push(MakeMen";
+"	MenuItems.push(MakeMenuItem(\"Functions\", function(){EnableMenu(SubMenuFunctions); } ));\n"
+"	MenuItems.push(MakeMenuItem(\"";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-"uItem(\"Functions\", function(){EnableMenu(SubMenuFunctions); } ));\n"
-"	MenuItems.push(MakeMenuItem(\"Patched\", function(){EnableMenu(SubMenuPatched); }, function(){ return FunctionsInstrumented.length > 0;} ));\n"
+"Patched\", function(){EnableMenu(SubMenuPatched); }, function(){ return FunctionsInstrumented.length > 0;} ));\n"
 "	MenuItems.push(MakeMenuItem(\"Settings\", function(){ EnableMenu(SubMenuSettings); } ));\n"
 "	MenuItems.push(MakeMenuItem(\"Views\", function(){ EnableMenu(SubMenuViews); } ));\n"
 "	MenuItems.push(MakeMenuItem(\"Presets\", function(){ EnableMenu(SubMenuPresets); } ));\n"
@@ -10686,10 +10674,6 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	AggregateTweak = DrawMenuRoll(M, \"Aggregate Frames\", GetAggregateString(), \'\', AggregateRoll, AggregateTweak, \'int\');\n"
 "	ReferenceTimeTweak = DrawMenuRoll(M, \"Reference Time\", Settings.ReferenceTime, \'\', ReferenceRoll, ReferenceTimeTweak, \'int\');\n"
 "	TargetTimeTweak = DrawMenuRoll(M, \"Target Time\", Settings.TargetTime, \'\', TargetRoll, TargetTimeTweak, \'int\');\n"
-"	// if(DrawMenuElement(M, Settings.FancyGraph, \"Fancy Graph\", Settings.FancyGraph, \'white\'))\n"
-"	// {\n"
-"	// 	Settings.FancyGraph = 1-Settings.FancyGraph;\n"
-"	// }\n"
 "	if(DrawMenuElement(M, Settings.AutomaticReference, \"Automatic Reference Time\", Settings.AutomaticReference, \'white\'))\n"
 "	{\n"
 "		Settings.AutomaticReference = 1-Settings.AutomaticReference;\n"
@@ -11118,11 +11102,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "\n"
 "	var StringColor = function(Name)\n"
 "	{\n"
-"		var h = StringHash(Nam";
-
-const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
-const char g_MicroProfileHtmlLive_begin_3[] =
-"e);\n"
+"		var h = StringHash(Name);\n"
 "		var cidx = h % 360;\n"
 "		return cidx;\n"
 "	};\n"
@@ -11135,6 +11115,10 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "	for(var i = 0; i < FunctionsInstrumented.length; ++i)\n"
 "	{\n"
 "		var Name = FunctionsInstrumented[i];\n"
+"";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
 "		var ModuleName = FunctionsInstrumentedModule[i];\n"
 "		if(FilterMatch(FilterArray, ModuleName + \" \" + Name))\n"
 "		{\n"
@@ -12533,11 +12517,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "				console.log(\"opening url \" + url);\n"
 "				iframe.setAttribute(\"src\", url);\n"
 "				iframe.style.width = \"100x\";\n"
-"				i";
-
-const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
-const char g_MicroProfileHtmlLive_begin_4[] =
-"frame.style.height = \"100px\";\n"
+"				iframe.style.height = \"100px\";\n"
 "				document.body.appendChild(iframe);\n"
 "			}\n"
 "		}\n"
@@ -12555,7 +12535,11 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "}\n"
 "function WSClose()\n"
 "{\n"
-"	console.log(\'WSClose\');\n"
+"	console.l";
+
+const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
+const char g_MicroProfileHtmlLive_begin_4[] =
+"og(\'WSClose\');\n"
 "	WSIsOpen = 0;\n"
 "	FilterInputDiv.style[\'display\'] = \'none\';\n"
 "}\n"

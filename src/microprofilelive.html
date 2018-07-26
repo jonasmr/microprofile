@@ -271,6 +271,8 @@ var VIEW_BAR_SINGLE = 5;
 var VIEW_COUNTERS = 6;
 var VIEW_SIZE = 7;
 
+var GRAPH_ALPHA = 0.5;
+
 
 // Settings.FancyGraph = 1;
 Settings.AutomaticReference = 1;
@@ -1803,13 +1805,10 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 						X += fWidth;
 					}
 					context.stroke();
-					if(Settings.FancyGraph)
-					{
-						context.lineTo(X, YStart);
-						context.globalAlpha = 0.35;
-						context.fill();
-						context.globalAlpha = 1;
-					}
+					context.lineTo(X, YStart);
+					context.globalAlpha = GRAPH_ALPHA;
+					context.fill();
+					context.globalAlpha = 1;
 					context.fillStyle = 'wheat';
 					context.textAlign='right';
 					context.fillText(FormatTime(Reference) + 'ms', nWidth, hstart + FontHeight);
@@ -1893,8 +1892,6 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 					}
 					i++;
 				}
-
-
 			}
 			for(let i = 0; i < g.length; ++i)
 			{
@@ -2109,7 +2106,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 						{
 							context.strokeStyle = e.c;
 							context.fillStyle = e.c;
-							context.globalAlpha = 0.5;
+							context.globalAlpha = GRAPH_ALPHA;
 							context.beginPath();
 							context.moveTo(xs[0], ytop[0]);
 							for(let k = 1; k < xs.length; ++k)
@@ -2121,10 +2118,6 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 								context.lineTo(xs[k], ybot[k]);
 							}
 							context.fill();
-
-							context.globalAlpha = 1.0;
-
-							
 							context.beginPath();
 							context.moveTo(xs[0], ytop[0]);
 							for(let k = 1; k < xs.length; ++k)
@@ -2162,18 +2155,13 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 						X += fWidth;
 					}
 					context.stroke();
-					if(Settings.FancyGraph)
-					{
-						context.lineTo(X, h);
-						context.globalAlpha = 0.75;
-						context.fill();
-						context.globalAlpha = 1;
-					}
+					context.lineTo(X, h);
+					context.globalAlpha = GRAPH_ALPHA;
+					context.fill();
+					context.globalAlpha = 1;
 				}
 			}
 		}
-
-
 		if(HighlightFrame >= 0)
 		{
 			for(var key in TimerMap)
@@ -3758,10 +3746,6 @@ function DrawMenuSettings()
 	AggregateTweak = DrawMenuRoll(M, "Aggregate Frames", GetAggregateString(), '', AggregateRoll, AggregateTweak, 'int');
 	ReferenceTimeTweak = DrawMenuRoll(M, "Reference Time", Settings.ReferenceTime, '', ReferenceRoll, ReferenceTimeTweak, 'int');
 	TargetTimeTweak = DrawMenuRoll(M, "Target Time", Settings.TargetTime, '', TargetRoll, TargetTimeTweak, 'int');
-	// if(DrawMenuElement(M, Settings.FancyGraph, "Fancy Graph", Settings.FancyGraph, 'white'))
-	// {
-	// 	Settings.FancyGraph = 1-Settings.FancyGraph;
-	// }
 	if(DrawMenuElement(M, Settings.AutomaticReference, "Automatic Reference Time", Settings.AutomaticReference, 'white'))
 	{
 		Settings.AutomaticReference = 1-Settings.AutomaticReference;
