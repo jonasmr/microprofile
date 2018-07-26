@@ -4964,12 +4964,14 @@ enum
 {
 	VIEW_GRAPH_SPLIT = 0,
 	VIEW_GRAPH = 1,
-	VIEW_BAR = 2,
-	VIEW_BAR_ALL = 3,
-	VIEW_BAR_SINGLE = 4,
-	VIEW_COUNTERS = 5,
-	VIEW_SIZE = 6,
+	VIEW_GRAPH_THREAD_GROUP = 2,
+	VIEW_BAR = 3,
+	VIEW_BAR_ALL = 4,
+	VIEW_BAR_SINGLE = 5,
+	VIEW_COUNTERS = 6,
+	VIEW_SIZE = 7,
 };
+
 void MicroProfileSocketDumpState()
 {
 	fd_set Read, Write, Error;
@@ -6180,26 +6182,29 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 		WriteTickArray(S.FrameGroup);
 		MicroProfileWSPrintf(",\"gi\":");
 		WriteIndexArray(S.FrameGroup);
-		MicroProfileWSPrintf(",\"gt\":[");
-		int f = 0;
-		for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
+		if(S.nWSViewMode == VIEW_GRAPH_THREAD_GROUP)
 		{
-			if(0 != (S.FrameThreadGroupValid[i/32] & (1<< (i%32))))
+			MicroProfileWSPrintf(",\"gt\":[");
+			int f = 0;
+			for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
 			{
-				if(!f)
-					MicroProfileWSPrintf("{");
-				else
-					MicroProfileWSPrintf(",{");
-				MicroProfileThreadLog* pLog = S.Pool[i];
-				MicroProfileWSPrintf("\"i\":%d,\"n\":\"%s\",\"g\":", i, pLog->ThreadName);
-				WriteTickArray(&S.FrameThreadGroup[i][0]);
-				MicroProfileWSPrintf(",\"gi\":");
-				WriteIndexArray(&S.FrameThreadGroup[i][0]);
-				MicroProfileWSPrintf("}");
-				f = 1;
+				if(0 != (S.FrameThreadGroupValid[i/32] & (1<< (i%32))))
+				{
+					if(!f)
+						MicroProfileWSPrintf("{");
+					else
+						MicroProfileWSPrintf(",{");
+					MicroProfileThreadLog* pLog = S.Pool[i];
+					MicroProfileWSPrintf("\"i\":%d,\"n\":\"%s\",\"g\":", i, pLog->ThreadName);
+					WriteTickArray(&S.FrameThreadGroup[i][0]);
+					MicroProfileWSPrintf(",\"gi\":");
+					WriteIndexArray(&S.FrameThreadGroup[i][0]);
+					MicroProfileWSPrintf("}");
+					f = 1;
+				}
 			}
+			MicroProfileWSPrintf("]");
 		}
-		MicroProfileWSPrintf("]");
 
 		if(S.nFrameCurrent != S.WebSocketFrameLast[0])
 		{

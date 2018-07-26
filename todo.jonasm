@@ -1,14 +1,12 @@
 * Thread Group Exclusive time
 * Tooltip for thread
 * fixup menu
-remove enable timers or functions message
-only send while view is active
+*remove enable timers or functions message
+* only send while view is active
 figure out why exlusive time is adding to more than 1
 unify colors
 black bg under name
 fix bug with clipping
-
-
 fix threadnames to not be <implement getthreadname..>
 fixed graph bar heights
 auto adjust in capture
