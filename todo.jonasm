@@ -1,27 +1,25 @@
+
+fix bug with clipping
+verify frame tail clip
+
+gpu subtractive to handle cpu spinning.
+mark infinite aggrrgate time in table
+live timings only show up after first aggregate is hit
+auto adjust in capture
+fix context switch trace g2 bug
+
+
+* figure out why exlusive time is adding to more than 1
+* Proper handling off cross frame timers.
+* dont draw groups in non-table views.
+* do non excl avg for groups
 * Thread Group Exclusive time
 * Tooltip for thread
 * fixup menu
 * remove enable timers or functions message
 * only send while view is active
-
 * unify colors
-fix bug with clipping
-
-mark infinite aggrrgate time in table
-live timings only show up after first aggregate is hit
-
-fix threadnames to not be <implement getthreadname..>
-figure out why exlusive time is adding to more than 1
-
-auto adjust in capture
-
-single group stuff.
-
-* dont draw groups in non-table views.
-* do non excl avg for groups
-
-
-
+* fix threadnames to not be <implement getthreadname..>
 % black bg under name
 % call count for groups?
 % groups should be grouped.
