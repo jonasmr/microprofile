@@ -268,7 +268,7 @@ int main(int argc, char* argv[])
 	MICROPROFILE_TIMELINE_TOKEN(htok);
 	MICROPROFILE_TIMELINE_TOKEN(htok2);
 
-	MICROPROFILE_REGISTER_GROUP("ThreadSafe", "Category0", MP_WHITE);
+	MICROPROFILE_REGISTER_GROUP("ThreadSafe", "Category0", MP_PALEGREEN);
 
 #if TEST_MANY_GROUPS
 	RegisterGroups();

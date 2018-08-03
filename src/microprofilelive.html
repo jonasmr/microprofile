@@ -1601,18 +1601,20 @@ function DrawGraphThreadExclusive(View, LocalMouseX, LocalMouseY, SubIndex, Spli
 				{
 
 					let h = a[m] * RcpFT[m];
-					if(h > 1)
+					if(h > 1.1)
 					{
+						console.log("should not happen ", a[m], RcpFT[m], h);
+						debugger;
 						h = 1;
 						//todo...
-						// console.log("should not happen");
 					}
 					let hm = h + Last[m];
-					if(hm > 1)
+					if(hm > 1.1)
 					{
+						console.log("should not happen ", hm, h, Last[m]);
+						debugger;
 						hm = 1;
 						//todo...
-						// console.log("should not happen");
 					}
 					Y = Math.max(YStart - hm * gh, hstart);
 					context.lineTo(X, Y);
@@ -4880,7 +4882,7 @@ function WSOpen()
 	FunctionQueryArray = [];
 
 	ResetFrameData();
-	window.document.title = "MP " + WSHost;
+	window.document.title = "MP:" + WSHost;
 
 	if(PresetToLoad && PresetToLoad != "")
 	{
@@ -5414,10 +5416,6 @@ function ProcessFrame(F, Inactive)
 				}
 				ThreadInfo[sn] = TI;
 			}
-			for(let i = 0; i < TI.a.length; ++i)
-			{
-				PushIntoArray(TI.a[i], 0);
-			}
 			for(let i = 0; i < o.gi.length; ++i)
 			{
 				let id = o.gi[i];
@@ -5445,6 +5443,16 @@ function ProcessFrame(F, Inactive)
 		};
 		if(F.gt && F.gt.length)
 		{
+			for(let key in ThreadInfo)
+			{
+				let TI = ThreadInfo[key];
+				for(let i = 0; i < TI.a.length; ++i)
+				{
+					PushIntoArray(TI.a[i], 0);
+				}
+			}
+
+
 			for(let i = 0; i < F.gt.length; ++i)
 			{
 				let o = F.gt[i];
@@ -5470,7 +5478,7 @@ function ProcessFrame(F, Inactive)
 			{
 				FD.EmptyFrames = 0;
 			}
-			FD.FrameTime = FD.Time[FD.Time.length-1];
+			FD.FrameTime = FD.Time[FD.Time.length-1]; //Fix her..?
 			FD.AggregateTime = FD.Time[FD.Time.length-1];
 
 			if(FD.EmptyFrames == FD.Time.length)

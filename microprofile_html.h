@@ -8525,18 +8525,20 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "				{\n"
 "\n"
 "					let h = a[m] * RcpFT[m];\n"
-"					if(h > 1)\n"
+"					if(h > 1.1)\n"
 "					{\n"
+"						console.log(\"should not happen \", a[m], RcpFT[m], h);\n"
+"						debugger;\n"
 "						h = 1;\n"
 "						//todo...\n"
-"						// console.log(\"should not happen\");\n"
 "					}\n"
 "					let hm = h + Last[m];\n"
-"					if(hm > 1)\n"
+"					if(hm > 1.1)\n"
 "					{\n"
+"						console.log(\"should not happen \", hm, h, Last[m]);\n"
+"						debugger;\n"
 "						hm = 1;\n"
 "						//todo...\n"
-"						// console.log(\"should not happen\");\n"
 "					}\n"
 "					Y = Math.max(YStart - hm * gh, hstart);\n"
 "					context.lineTo(X, Y);\n"
@@ -9655,12 +9657,12 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	MenuItems = [];\n"
 "	MenuItems.push(MakeMenuItem(\"Control\", function(){EnableMenu(SubMenuGroup); } ));\n"
 "	MenuItems.push(MakeMenuItem(\"Timers\", function(){EnableMenu(SubMenuTimers); } ));\n"
-"	MenuItems.push(MakeMenuItem(\"Functions\", function(){EnableMenu(SubMenuFunctions); } ));\n"
-"	MenuItems.push(MakeMenuItem(\"";
+"	MenuItems.push(MakeMenuItem(\"Functions\", function()";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-"Patched\", function(){EnableMenu(SubMenuPatched); }, function(){ return FunctionsInstrumented.length > 0;} ));\n"
+"{EnableMenu(SubMenuFunctions); } ));\n"
+"	MenuItems.push(MakeMenuItem(\"Patched\", function(){EnableMenu(SubMenuPatched); }, function(){ return FunctionsInstrumented.length > 0;} ));\n"
 "	MenuItems.push(MakeMenuItem(\"Settings\", function(){ EnableMenu(SubMenuSettings); } ));\n"
 "	MenuItems.push(MakeMenuItem(\"Views\", function(){ EnableMenu(SubMenuViews); } ));\n"
 "	MenuItems.push(MakeMenuItem(\"Presets\", function(){ EnableMenu(SubMenuPresets); } ));\n"
@@ -11112,13 +11114,13 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "		var cidx = StringColor(Str); \n"
 "		return \"hsl(\" + cidx + \",50%, 70%)\";\n"
 "	};\n"
-"	for(var i = 0; i < FunctionsInstrumented.length; ++i)\n"
-"	{\n"
-"		var Name = FunctionsInstrumented[i];\n"
-"";
+"	for(var i = 0; i < FunctionsI";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
+"nstrumented.length; ++i)\n"
+"	{\n"
+"		var Name = FunctionsInstrumented[i];\n"
 "		var ModuleName = FunctionsInstrumentedModule[i];\n"
 "		if(FilterMatch(FilterArray, ModuleName + \" \" + Name))\n"
 "		{\n"
@@ -11812,7 +11814,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "	FunctionQueryArray = [];\n"
 "\n"
 "	ResetFrameData();\n"
-"	window.document.title = \"MP \" + WSHost;\n"
+"	window.document.title = \"MP:\" + WSHost;\n"
 "\n"
 "	if(PresetToLoad && PresetToLoad != \"\")\n"
 "	{\n"
@@ -12346,10 +12348,6 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "				}\n"
 "				ThreadInfo[sn] = TI;\n"
 "			}\n"
-"			for(let i = 0; i < TI.a.length; ++i)\n"
-"			{\n"
-"				PushIntoArray(TI.a[i], 0);\n"
-"			}\n"
 "			for(let i = 0; i < o.gi.length; ++i)\n"
 "			{\n"
 "				let id = o.gi[i];\n"
@@ -12377,6 +12375,16 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "		};\n"
 "		if(F.gt && F.gt.length)\n"
 "		{\n"
+"			for(let key in ThreadInfo)\n"
+"			{\n"
+"				let TI = ThreadInfo[key];\n"
+"				for(let i = 0; i < TI.a.length; ++i)\n"
+"				{\n"
+"					PushIntoArray(TI.a[i], 0);\n"
+"				}\n"
+"			}\n"
+"\n"
+"\n"
 "			for(let i = 0; i < F.gt.length; ++i)\n"
 "			{\n"
 "				let o = F.gt[i];\n"
@@ -12402,7 +12410,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "			{\n"
 "				FD.EmptyFrames = 0;\n"
 "			}\n"
-"			FD.FrameTime = FD.Time[FD.Time.length-1];\n"
+"			FD.FrameTime = FD.Time[FD.Time.length-1]; //Fix her..?\n"
 "			FD.AggregateTime = FD.Time[FD.Time.length-1];\n"
 "\n"
 "			if(FD.EmptyFrames == FD.Time.length)\n"
@@ -12519,7 +12527,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "				iframe.setAttribute(\"src\", url);\n"
 "				iframe.style.width = \"100x\";\n"
 "				iframe.style.height = \"100px\";\n"
-"				document.body.appendChild(iframe);\n"
+"				document.body.append";
+
+const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
+const char g_MicroProfileHtmlLive_begin_4[] =
+"Child(iframe);\n"
 "			}\n"
 "		}\n"
 "		console.log(\"got error \"+ JSON.stringify(Obj.v));\n"
@@ -12532,11 +12544,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "}\n"
 "function WSError()\n"
 "{\n"
-"	console.log(\'WSE";
-
-const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
-const char g_MicroProfileHtmlLive_begin_4[] =
-"rror\');\n"
+"	console.log(\'WSError\');\n"
 "}\n"
 "function WSClose()\n"
 "{\n"
