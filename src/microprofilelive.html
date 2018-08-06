@@ -5362,6 +5362,7 @@ function ProcessFrame(F, Inactive)
 			T.exclaverage = FD.TimeExclAvg[Pos];
 			T.exclmax = FD.TimeExclMax[Pos];
 			T.exclmin = FD.TimeExclMin[Pos];
+			T.average = FD.TimeAvg[Pos];
 		};
 		function SetTimersInArray(FD, id)
 		{
@@ -5370,8 +5371,7 @@ function ProcessFrame(F, Inactive)
 			var T = TimerArray[idx];
 			T.time = FD.Time[Pos];
 			T.excl = FD.TimeExcl[Pos];
-			T.average = FD.TimeAvg[Pos];
-
+			T.count = FD.Count[Pos];
 
 		};
 		let UpdateFrameDataInternal = function(id, Time, TimeExcl, Count, bIsGroup)
