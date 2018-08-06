@@ -5044,6 +5044,7 @@ function AddTimer(T)
 	{
 		T.color = ColorFromString(T.name, 40, 50);
 	}
+	console.log("Added timer", T.name);
 	var idx = TimerArray.length;
 	var existing = GetTimer(T.id);
 	if(existing)
@@ -5052,20 +5053,23 @@ function AddTimer(T)
 	}
 	else
 	{
-		T.time = 0;
-		T.excl = 0;
-		T.average = 0;
-		T.max = 0;
-		T.min = 0;
-		T.total = 0;
-		T.exclaverage = 0;
-		T.exclmax = 0;
-		T.excltotal = 0;
-		T.spike = 0;
-		T.callaverage = 0;
-		T.callexclaverage = 0;
-		T.callcount = 0;
 		TimerArray[idx] = T;
+	}
+	if(null == TimerArray[idx].average)
+	{
+		TimerArray[idx].time = 0;
+		TimerArray[idx].excl = 0;
+		TimerArray[idx].average = 0;
+		TimerArray[idx].max = 0;
+		TimerArray[idx].min = 0;
+		TimerArray[idx].total = 0;
+		TimerArray[idx].exclaverage = 0;
+		TimerArray[idx].exclmax = 0;
+		TimerArray[idx].excltotal = 0;
+		TimerArray[idx].spike = 0;
+		TimerArray[idx].callaverage = 0;
+		TimerArray[idx].callexclaverage = 0;
+		TimerArray[idx].callcount = 0;
 	}
 	var w = MeasureWidth(T.name);
 	var idtype = SplitIdTop(T.id);
