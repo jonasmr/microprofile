@@ -1,7 +1,4 @@
-clear inf aggregate does not work in table view.
-kill AggregateHistorySize totally.
-live timings only show up after first aggregate is hit
-mark infinite aggrrgate time in table
+
 gpu subtractive to handle cpu spinning.
 detailed view negative visualisation
 Hide negative groups. force turn on when others are on
@@ -11,7 +8,12 @@ auto adjust in capture
 fix context switch trace g2 bug
 flame mode button from menu doesn't redraw
 default sorting in tableview is unstable
+if sort column is not visible, revert to main column
 
+in default view everything is closed. it should be open.
+
+* mark infinite aggrrgate time in table
+* clear inf aggregate does not work in table view.
 * Negative counters
 * figure out why exlusive time is adding to more than 1
 * Proper handling off cross frame timers.

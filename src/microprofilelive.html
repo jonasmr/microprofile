@@ -301,9 +301,8 @@ var X7BarFirstView = -1;
 
 var ViewBarMaxMsTextLength = 0;
 
-Settings.SortColumn = 0;
 Settings.SortColumnOrderFlip = 0;
-Settings.SortColumnMouseOver = "";
+Settings.SortColumnName = "";
 var SortColumnMouseOverNext = "";
 
 
@@ -1103,7 +1102,7 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 	}
 	function HeaderString(Header)
 	{
-		if(Header == Settings.SortColumnMouseOver)
+		if(Header == Settings.SortColumnName)
 		{
 			return Header + (Settings.SortColumnOrderFlip ? '<' : '>');
 		}
@@ -1224,27 +1223,11 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 	function DrawTimerRow(idx, showgroup)
 	{
 		R = 0;
-		var Timer = TimerArray[idx];
-		var key = Timer.id;
+		var T = TimerArray[idx];
+		var key = T.id;
 		var FD = TimerMap[key];
 		var AggregateIndex = Settings.AggregateFrames <= 0 ? AggregateHistorySize-1 : AggregateHistorySize-2;
 	
-
-		var Average = FD.TimeAvg[AggregateIndex];
-		var Max = FD.TimeMax[AggregateIndex];
-		var Min = FD.TimeMin[AggregateIndex];
-		var ExclusiveMax = FD.TimeExclMax[AggregateIndex];
-		let l = FD.Time.length-1;
-		var Time = FD.Time[l];
-		var Excl = FD.TimeExcl[l];
-		var ExclusiveAverage = FD.TimeExclAvg[AggregateIndex];
-		var ExclusiveTotal = FD.TimeExclTotal[AggregateIndex];
-
-		var Total = FD.TimeTotal[AggregateIndex];
-		var CallCount = FD.CallCount[AggregateIndex];
-		var CallAverage = CallCount > 0 ? (Total / CallCount) : 0;	
-		var CallExclAverage = FD.TimeCallExclAvg[AggregateIndex];
-		var Spike = (Average == 0 || Max == 0) ? 0 : (100*Max/Average);	
 		var YText = Y+Height-FontAscent;
 		X = NameWidth + XBase;
 
@@ -1253,38 +1236,38 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 		context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
 		context.fillRect(0, Y, Width, FontHeight+2);
 
-		DrawTimer(Time, Timer.color);
-		DrawTimer(Excl, Timer.color);
+		DrawTimer(T.time, T.color);
+		DrawTimer(T.excl, T.color);
 
-		DrawTimer(Average, Timer.color);
-		DrawTimer(Max,Timer.color);
-		DrawTimer(Min,Timer.color);
-		DrawTimer(Total,Timer.color);
+		DrawTimer(T.average, T.color);
+		DrawTimer(T.max, T.color);
+		DrawTimer(T.min, T.color);
+		DrawTimer(T.total, T.color);
 
-		DrawTimer(ExclusiveAverage, Timer.color);
-		DrawTimer(ExclusiveMax, Timer.color);
-		DrawTimer(ExclusiveTotal, Timer.color);
+		DrawTimer(T.exclaverage, T.color);
+		DrawTimer(T.exclmax, T.color);
+		DrawTimer(T.excltotal, T.color);
 
-		DrawCount(Spike.toFixed(2) + '%');
-		DrawTimer(CallAverage,Timer.color);
-		DrawTimer(CallExclAverage,Timer.color);
-		DrawCount('' + CallCount);
+		DrawCount(T.spike.toFixed(2) + '%');
+		DrawTimer(T.callaverage, T.color);
+		DrawTimer(T.callexclaverage, T.color);
+		DrawCount('' + T.callcount);
 
 		context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
 		context.fillRect(0, Y, NameWidth, Height);
-		if(Timer.idtype == TYPE_GROUP)
+		if(T.idtype == TYPE_GROUP)
 		{
 			context.textAlign = 'left';
-			context.fillStyle = Timer.color;
-			context.fillText(Timer.name, 1, YText);
+			context.fillStyle = T.color;
+			context.fillText(T.name, 1, YText);
 		}
 		else
 		{
 			context.textAlign = 'right';
-			context.fillStyle = Timer.color;
-			context.fillText(Timer.name, NameWidth - 5, YText);
+			context.fillStyle = T.color;
+			context.fillText(T.name, NameWidth - 5, YText);
 			context.textAlign = 'left';
-			let P = TimerArray[Timer.parent];
+			let P = TimerArray[T.parent];
 			context.fillStyle = P.color;
 			var ParentName = P.name;
 			context.fillText(ParentName, 1, YText);
@@ -1342,46 +1325,109 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 	Y += OffsetY;
 	XBase = XBase - nOffsetBarsX;
 
-	if(Settings.SortColumn)
+	if(1)
 	{
-		if(Settings.SortColumn<0)
+		let Flip = Settings.SortColumnOrderFlip == 1 ? -1 : 1;
+		let StringCompare = function(Key)
 		{
-			var KeyFunc = null;
-			switch(Settings.SortColumn)
+			let F = function(A, B)
 			{
-				case -2: KeyFunc = function (a) { return TimerArray[a].name; }; break;
-				case -1: KeyFunc = function (a) { return TimerArray[TimerArray[a].parent].name; }; break;
-			}
-			var Flip = Settings.SortColumnOrderFlip == 1 ? -1 : 1;
-			OrderArray.sort(function(a,b) { 
-				var s1 = KeyFunc(a);
-				var s2 = KeyFunc(b);
-				return Flip * s1.localeCompare(s2); 
-			});
+				let s1 = Key(A);
+				let s2 = Key(B);
+				return Flip * s2.localeCompare(s1);
+			};
+			return F;
+		};
+		let NumberCompare = function(Key)
+		{
+			let F = function(A, B)
+			{
+				let v0 = Key(B);
+				let v1 = Key(A);
+				return Flip * (v0 - v1);
+					//Key(B) - Key(A));
+			};
+			return F;
+		};
+		let N = Settings.SortColumnName;
+		if(N == StrTime)
+		{
+			let Do = function()
+			{
+				for(var i = 0; i < OrderArray.length; ++i)
+				{
+					let t = TimerArray[OrderArray[i]];
+					console.log("", i, OrderArray[i], t.name, t.id, t.time);
+				};
+
+			};
+			// Do();
+			OrderArray.sort( NumberCompare( function (a) { 
+				return TimerArray[a].time; 
+			} ) );
+			// Do();
+		}
+		else if(N == StrExclusive)
+		{
+			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].excl; } ) );
+		}
+		else if(N == StrAverage)
+		{
+			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].average; } ) );
+		}
+		else if(N == StrMax)
+		{
+			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].max; } ) );
+		}
+		else if(N == StrTotal)
+		{
+			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].total; } ) );
+		}			
+		else if(N == StrMin)
+		{
+			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].min; } ) );
+		}
+		else if(N == StrSpike)
+		{
+			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].spike; } ) );
+		}
+		else if(N == StrCallAverage)
+		{
+			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].callaverage; } ) );
+		}
+		else if(N == StrCount)
+		{
+			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].count; } ) );
+		}
+		else if(N == StrExclAverage)
+		{
+			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].exclaverage; } ) );
+		}
+		else if(N == StrExclMax)
+		{
+			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].exclmax; } ) );
+		}
+		else if(N == StrExclTotal)
+		{
+			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].excltotal; } ) );
+		}
+		else if(N == StrGroup)
+		{
+			OrderArray.sort( StringCompare( function (a) { return TimerArray[TimerArray[a].parent].name; } ) );
+		}
+		else if(N == StrTimer)
+		{
+			OrderArray.sort( StringCompare( function (a) { return TimerArray[a].name; } ) );
 		}
 		else
 		{
-			var KeyFunc = null;
-			switch(Settings.SortColumn)
+			if(N != "")
 			{
-				case 1: KeyFunc = function (a) { return TimerArray[a].time; }; break;
-				case 2: KeyFunc = function (a) { return TimerArray[a].excl; }; break;
-				//aggregate
-				case 3: KeyFunc = function (a) { return TimerArray[a].average; }; break;
-				case 4: KeyFunc = function (a) { return TimerArray[a].max; }; break;
-				case 5: KeyFunc = function (a) { return TimerArray[a].min; }; break;
-				case 6: KeyFunc = function (a) { return TimerArray[a].total; }; break;
-				case 7: KeyFunc = function (a) { return TimerArray[a].exclaverage; }; break;
-				case 8: KeyFunc = function (a) { return TimerArray[a].exclmax; }; break;
-				case 9: KeyFunc = function (a) { return TimerArray[a].excltotal; }; break;
-				case 10: KeyFunc = function (a) { return TimerArray[a].spike; }; break;
-				//call aggregate
-				case 11: KeyFunc = function (a) { return TimerArray[a].callaverage; }; break;
-				case 12: KeyFunc = function (a) { return TimerArray[a].callexclaverage; }; break;
-				case 13: KeyFunc = function (a) { return TimerArray[a].callcount; }; break;
+				console.log("unhandle sortkey", N);
+				debugger;
 			}
-			var Flip = Settings.SortColumnOrderFlip == 1 ? -1 : 1;
-			OrderArray.sort(function(a,b) { return Flip * (KeyFunc(b) - KeyFunc(a)); } );
+
+			OrderArray.sort( StringCompare( function (a) { return TimerArray[a].sortkey; } ) );
 		}
 	}
 
@@ -5006,6 +5052,19 @@ function AddTimer(T)
 	}
 	else
 	{
+		T.time = 0;
+		T.excl = 0;
+		T.average = 0;
+		T.max = 0;
+		T.min = 0;
+		T.total = 0;
+		T.exclaverage = 0;
+		T.exclmax = 0;
+		T.excltotal = 0;
+		T.spike = 0;
+		T.callaverage = 0;
+		T.callexclaverage = 0;
+		T.callcount = 0;
 		TimerArray[idx] = T;
 	}
 	var w = MeasureWidth(T.name);
@@ -5049,6 +5108,11 @@ function AddTimer(T)
 		{
 			WidthTree = TimerArray[idx].wtree;
 		}
+		TimerArray[idx].sortkey = Parent.name + " __ " + T.name;
+	}
+	else
+	{
+		TimerArray[idx].sortkey = T.name;
 	}
 	TimerArray[idx].wparent = wparent;
 	TimerArray[idx].wtotal = wparent + w;
@@ -5276,16 +5340,13 @@ function ProcessFrame(F, Inactive)
 			else
 				GraphTimeMax = MaxTime > GraphTimeMax ? MaxTime : GraphTimeMax;
 			return MaxTime;
-		}
-		function SetTimersInArray(FD, id)
+		};
+		function SetAggregateTimersInArray(FD, id)
 		{
 			var idx = GetTimer(id);
 			var Pos = AggregateHistorySize-1;
 			var T = TimerArray[idx];
 
-			T.time = FD.Time[Pos];
-			T.excl = FD.TimeExcl[Pos];
-			T.average = FD.TimeAvg[Pos];
 			T.max = FD.TimeMax[Pos];
 			T.total = FD.TimeTotal[Pos];
 			T.excltotal = FD.TimeExclTotal[Pos];
@@ -5297,7 +5358,18 @@ function ProcessFrame(F, Inactive)
 			T.exclaverage = FD.TimeExclAvg[Pos];
 			T.exclmax = FD.TimeExclMax[Pos];
 			T.exclmin = FD.TimeExclMin[Pos];
-		}
+		};
+		function SetTimersInArray(FD, id)
+		{
+			var idx = GetTimer(id);
+			var Pos = FD.Time.length-1;
+			var T = TimerArray[idx];
+			T.time = FD.Time[Pos];
+			T.excl = FD.TimeExcl[Pos];
+			T.average = FD.TimeAvg[Pos];
+
+
+		};
 		let UpdateFrameDataInternal = function(id, Time, TimeExcl, Count, bIsGroup)
 		{
 			var FD = GetFrameData(id);
@@ -5309,7 +5381,7 @@ function ProcessFrame(F, Inactive)
 
 			if((FD.Aggregate > Settings.AggregateFrames && Settings.AggregateFrames > 0) || AggregateCurrent == 0)
 			{
-				SetTimersInArray(FD, id);
+				SetAggregateTimersInArray(FD, id);
 				FD.Aggregate = 0;
 				FD.AggregateSum = 0;
 				FD.AggregateMax = 0;
@@ -5333,8 +5405,6 @@ function ProcessFrame(F, Inactive)
 				
 				FD.TimeCallExclAvg.shift();
 				FD.TimeCallExclAvg.push(0);
-
-// callexclaverage
 
 				FD.CallCount.shift();
 				FD.CallCount.push(0);
@@ -5383,8 +5453,9 @@ function ProcessFrame(F, Inactive)
 
 			if(Settings.AggregateFrames <= 0)
 			{
-				SetTimersInArray(FD, id);
-			}			
+				SetAggregateTimersInArray(FD, id);
+			}
+			SetTimersInArray(FD, id);			
 		};
 
 		for(var id in F.x)
@@ -5936,7 +6007,7 @@ function MouseSortClick()
 	{
 		if(SortColumnMouseOverNext)
 		{
-			if(SortColumnMouseOverNext == Settings.SortColumnMouseOver)
+			if(SortColumnMouseOverNext == Settings.SortColumnName)
 			{
 				Settings.SortColumnOrderFlip =  1 - Settings.SortColumnOrderFlip;
 			}
@@ -5945,52 +6016,8 @@ function MouseSortClick()
 				Settings.SortColumnOrderFlip = 0;
 			}
 
-			Settings.SortColumnMouseOver = SortColumnMouseOverNext;
+			Settings.SortColumnName = SortColumnMouseOverNext;
 			SortColumnMouseOverNext = null;
-			if(Settings.SortColumnMouseOver == StrAverage)
-			{
-				Settings.SortColumn = 1;
-			}
-			else if(Settings.SortColumnMouseOver == StrMax)
-			{
-				Settings.SortColumn = 2;
-			}
-			else if(Settings.SortColumnMouseOver == StrTotal)
-			{
-				Settings.SortColumn = 3;
-			}			
-			else if(Settings.SortColumnMouseOver == StrMin)
-			{
-				Settings.SortColumn = 4;
-			}
-			else if(Settings.SortColumnMouseOver == StrSpike)
-			{
-				Settings.SortColumn = 5;
-			}
-			else if(Settings.SortColumnMouseOver == StrCallAverage)
-			{
-				Settings.SortColumn = 6;
-			}
-			else if(Settings.SortColumnMouseOver == StrCount)
-			{
-				Settings.SortColumn = 7;
-			}
-			else if(Settings.SortColumnMouseOver == StrExclAverage)
-			{
-				Settings.SortColumn = 8;
-			}
-			else if(Settings.SortColumnMouseOver == StrExclMax)
-			{
-				Settings.SortColumn = 9;
-			}
-			else if(Settings.SortColumnMouseOver == StrGroup)
-			{
-				Settings.SortColumn = -1;
-			}
-			else if(Settings.SortColumnMouseOver == StrTimer)
-			{
-				Settings.SortColumn = -2;
-			}
 		}
 	}
 }
@@ -6086,8 +6113,7 @@ function KeyUp(evt)
 		}
 
 		MouseDragActiveXStart = MouseDragActiveXEnd = -1;
-		Settings.SortColumn = 0;
-		Settings.SortColumnMouseOver = "";
+		Settings.SortColumnName = "";
 		ShowHelp(0);
 	}
 	if(k == 192)
