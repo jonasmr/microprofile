@@ -1,14 +1,17 @@
 
-fix bug with clipping
-verify frame tail clip
-
-gpu subtractive to handle cpu spinning.
-mark infinite aggrrgate time in table
+kill AggregateHistorySize totally.
 live timings only show up after first aggregate is hit
+mark infinite aggrrgate time in table
+gpu subtractive to handle cpu spinning.
+detailed view negative visualisation
+Hide negative groups. force turn on when others are on
+
+fix bug with clipping
 auto adjust in capture
 fix context switch trace g2 bug
+flame mode button from menu doesnt redraw
 
-
+* Negative counters
 * figure out why exlusive time is adding to more than 1
 * Proper handling off cross frame timers.
 * dont draw groups in non-table views.

@@ -63,48 +63,42 @@ void spinsleep(int64_t nUs)
 
 void ExclusiveTest()
 {
+	static int hest = 0;
+	int NEGLAST = -1;
 	while(!g_nQuit)
 	{
 		MICROPROFILE_SCOPEI("exclusive-test", "outer", MP_PINK);
-		spinsleep(2000);
-		// uint64_t nUs = 2000;
-		// // MICROPROFILE_COUNTER_LOCAL_ADD_ATOMIC(ThreadSpinSleep, 1);
-		// MICROPROFILE_SCOPEI("spin","sleep", 0xffff);
-		// #if MICROPROFILE_ENABLED
-		// float fToMs = MicroProfileTickToMsMultiplierCpu();
-		// int64_t nTickStart = MicroProfileTick();
-		// float fElapsed = 0;
-		// float fTarget = nUs / 1000000.f;
-		// do
-		// {
-		// 	int64_t nTickEnd = MicroProfileTick();
-		// 	fElapsed = (nTickEnd - nTickStart) * fToMs;
-
-		// }while(fElapsed < fTarget);
-		// #endif	
-
+		spinsleep(5000);
+		int NEG = hest++ % 100 > 50?1:0; 
+		if(NEG != NEGLAST)
 		{
-					MICROPROFILE_SCOPEI("exclusive-test", "inner", MP_GREEN);
-					spinsleep(2000);
-					MICROPROFILE_SCOPEI("exclusive-test-2", "inner-2", MP_CYAN);
-					spinsleep(2000);
-
-		// 	nUs = 2000;
-		// 	MICROPROFILE_SCOPEI("spin","sleep", 0xffff);
-		// #if MICROPROFILE_ENABLED
-		// 	float fToMs = MicroProfileTickToMsMultiplierCpu();
-		// 	int64_t nTickStart = MicroProfileTick();
-		// 	float fElapsed = 0;
-		// 	float fTarget = nUs / 1000000.f;
-		// 	do
-		// 	{
-		// 		int64_t nTickEnd = MicroProfileTick();
-		// 		fElapsed = (nTickEnd - nTickStart) * fToMs;
-
-		// 	}while(fElapsed < fTarget);
-		// #endif	
-
-
+			NEGLAST = NEG;
+		}
+		{
+			MICROPROFILE_SCOPEI("exclusive-test", "inner", MP_GREEN);
+			spinsleep(2500);
+			if(NEG)
+			{
+				MICROPROFILE_ENTER_NEGATIVE();
+			}
+			spinsleep(2500);
+			if(NEG)
+			{
+				MICROPROFILE_LEAVE_NEGATIVE();
+			}
+			{
+				MICROPROFILE_SCOPEI("exclusive-test-2", "inner-2", MP_CYAN);
+				spinsleep(2500);
+			}
+			if(NEG)
+			{
+				MICROPROFILE_ENTER_NEGATIVE();
+			}
+			spinsleep(2500);
+			if(NEG)
+			{
+				MICROPROFILE_LEAVE_NEGATIVE();
+			}
 		}
 	}
 }

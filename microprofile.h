@@ -213,6 +213,10 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #define MICROPROFILE_ENTER_TOKEN(var) MicroProfileEnter(token)
 #define MICROPROFILE_ENTERI(group, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MICROPROFILE_INVALID_TOKEN; if(MICROPROFILE_INVALID_TOKEN == MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__)){MicroProfileGetTokenC(&MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), group, name, color, MicroProfileTokenTypeCpu);} MicroProfileEnter(MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__))
 #define MICROPROFILE_LEAVE() MicroProfileLeave()
+#define MICROPROFILE_ENTER_NEGATIVE() MicroProfileEnterNegative()
+#define MICROPROFILE_LEAVE_NEGATIVE() MicroProfileLeave()
+#define MICROPROFILE_ENTER_NEGATIVEGPU(c) MicroProfileEnterNegativeGpu(c)
+#define MICROPROFILE_LEAVE_NEGATIVEGPU(c) MicroProfileLeaveGpu(c)
 #define MICROPROFILE_GPU_ENTER(var) MicroProfileEnterGpu(g_mp_##var, MicroProfileGetGlobalGpuThreadLog())
 #define MICROPROFILE_GPU_ENTER_TOKEN(token) MicroProfileEnterGpu(token, MicroProfileGetGlobalGpuThreadLog())
 #define MICROPROFILE_GPU_ENTERI(group, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MICROPROFILE_INVALID_TOKEN; if(MICROPROFILE_INVALID_TOKEN == MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__)){MicroProfileGetTokenC(&MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), group, name, color, MicroProfileTokenTypeGpu);} MicroProfileEnterGpu(MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), MicroProfileGetGlobalGpuThreadLog())
@@ -468,6 +472,8 @@ MICROPROFILE_API void MicroProfileEnter(MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileLeave();
 MICROPROFILE_API void MicroProfileEnterGpu(MicroProfileToken nToken, struct MicroProfileThreadLogGpu* pLog);
 MICROPROFILE_API void MicroProfileLeaveGpu(struct MicroProfileThreadLogGpu* pLog);
+MICROPROFILE_API void MicroProfileEnterNegative();
+MICROPROFILE_API void MicroProfileEnterNegativeGpu(struct MicroProfileThreadLogGpu* pLog);
 MICROPROFILE_API uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, uint32_t nStrLen, int bIsStaticString);
 MICROPROFILE_API uint32_t MicroProfileTimelineEnter(uint32_t nColor, const char* pStr);
 MICROPROFILE_API uint32_t MicroProfileTimelineEnterf(uint32_t nColor, const char* pStr, ...);
