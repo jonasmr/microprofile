@@ -878,7 +878,7 @@ const char g_MicroProfileHtml_end_0[] =
 "{\n"
 "	var ulThreadMenu = document.getElementById(\'ThreadSubMenu\');\n"
 "	var as = ulThreadMenu.getElementsByTagName(\'a\');\n"
-"	for(var i = 0; i < as.length; ++i)\n"
+"	for(let i = 0; i < as.length; ++i)\n"
 "	{\n"
 "		var elem = as[i];\n"
 "		var inner = elem.innerText;\n"
@@ -897,6 +897,15 @@ const char g_MicroProfileHtml_end_0[] =
 "			elem.style[\'text-decoration\'] = \'none\';\n"
 "		}\n"
 "	}\n"
+"	for(let i = 0; i < S.ThreadNames.length; ++i)\n"
+"	{\n"
+"		let n = S.ThreadNames[i];\n"
+"		if(0 != ThreadsActive[n])\n"
+"		{\n"
+"			ThreadsActive[n] = 1;\n"
+"		}\n"
+"	}\n"
+"\n"
 "}\n"
 "\n"
 "function ToggleThread(ThreadName, All)\n"
@@ -1840,17 +1849,17 @@ const char g_MicroProfileHtml_end_0[] =
 "	DrawFlashMessage(context);\n"
 "}\n"
 "\n"
-"function DrawDetailedFrameHistory()\n"
+"function DrawDetailedFrameHis";
+
+const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
+const char g_MicroProfileHtml_end_1[] =
+"tory()\n"
 "{\n"
 "	ProfileEnter(\"DrawDetailedFrameHistory\");\n"
 "	var x = HistoryViewMouseX;\n"
 "\n"
 "	var context = CanvasHistory.getContext(\'2d\');\n"
-"	context.clearR";
-
-const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
-const char g_MicroProfileHtml_end_1[] =
-"ect(0, 0, CanvasHistory.width, CanvasHistory.height);\n"
+"	context.clearRect(0, 0, CanvasHistory.width, CanvasHistory.height);\n"
 "\n"
 "	var fHeight = nHistoryHeight;\n"
 "	var fWidth = nWidth / S.Frames.length;\n"
@@ -3065,7 +3074,11 @@ const char g_MicroProfileHtml_end_1[] =
 "			var ThreadIn = CSwitchThreadInOutCpu[j];\n"
 "			var ThreadOut = CSwitchThreadInOutCpu[j+1];\n"
 "			var Cpu = CSwitchThreadInOutCpu[j+2];\n"
-"			if(TimeIn < 0)\n"
+"			if";
+
+const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
+const char g_MicroProfileHtml_end_2[] =
+"(TimeIn < 0)\n"
 "			{\n"
 "				if(ThreadIn == ThreadId)\n"
 "				{\n"
@@ -3075,11 +3088,7 @@ const char g_MicroProfileHtml_end_1[] =
 "			else\n"
 "			{\n"
 "				if(ThreadOut == ThreadId)\n"
-"				";
-
-const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
-const char g_MicroProfileHtml_end_2[] =
-"{\n"
+"				{\n"
 "					var TimeOut = S.CSwitchTime[i];\n"
 "					CSArrayIn.push(TimeIn);\n"
 "					CSArrayOut.push(TimeOut);\n"
@@ -4405,7 +4414,11 @@ const char g_MicroProfileHtml_end_2[] =
 "function MoveTo(fMoveBegin, fMoveEnd, YTop, YBottom)\n"
 "{\n"
 "	var nOffsetYBottom = YBottom - nHeight;\n"
-"	var nOffsetYDest = nOffsetY;\n"
+"	var nOffsetYDes";
+
+const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
+const char g_MicroProfileHtml_end_3[] =
+"t = nOffsetY;\n"
 "	if(nOffsetYDest < nOffsetYBottom)\n"
 "	{\n"
 "		nOffsetYDest = nOffsetYBottom;\n"
@@ -4414,10 +4427,6 @@ const char g_MicroProfileHtml_end_2[] =
 "	{	\n"
 "		nOffsetYDest = YTop;\n"
 "	}\n"
-"";
-
-const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
-const char g_MicroProfileHtml_end_3[] =
 "	var fRange = fDetailedRange;\n"
 "	var fMinRange = (fMoveEnd-fMoveBegin) * 2.0;\n"
 "	if(fRange < fMinRange)\n"
@@ -6012,18 +6021,18 @@ const char g_MicroProfileHtml_end_3[] =
 "	for(var i = 0; i < S.Frames.length; i++)\n"
 "	{\n"
 "		S.Frames[i].LogStart = new Array(nNumLogs);	\n"
-"		LogStartArray[i] = S.Frames[i].LogStart;\n"
+"		LogStartArray[i] = S.Frames[i].Log";
+
+const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
+const char g_MicroProfileHtml_end_4[] =
+"Start;\n"
 "\n"
 "		S.Frames[i].LogEnd = new Array(nNumLogs);\n"
 "	}\n"
 "	var MinDelta = Array(nNumLogs);\n"
 "	for(nLog = 0; nLog < nNumLogs; nLog++)\n"
 "	{\n"
-"		MinDelta[n";
-
-const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
-const char g_MicroProfileHtml_end_4[] =
-"Log] = 0;\n"
+"		MinDelta[nLog] = 0;\n"
 "		var Discard = 0;\n"
 "		var TypeArray = new Array();\n"
 "		var TimeArray = new Array();\n"

@@ -7,10 +7,10 @@ Hide negative groups. force turn on when others are on
 fix bug with clipping
 auto adjust in capture
 fix context switch trace g2 bug
-flame mode button from menu doesn't redraw
 
-in default view everything is closed. it should be open.
-
+* in default view everything is closed. it should be open.
+* flame mode button from menu doesn't redraw
+* flame mode button from menu doesn't redraw
 * if sort column is not visible, revert to main column
 * default sorting in tableview is unstable
 * mark infinite aggrrgate time in table

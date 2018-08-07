@@ -864,7 +864,7 @@ function UpdateThreadMenu()
 {
 	var ulThreadMenu = document.getElementById('ThreadSubMenu');
 	var as = ulThreadMenu.getElementsByTagName('a');
-	for(var i = 0; i < as.length; ++i)
+	for(let i = 0; i < as.length; ++i)
 	{
 		var elem = as[i];
 		var inner = elem.innerText;
@@ -883,6 +883,15 @@ function UpdateThreadMenu()
 			elem.style['text-decoration'] = 'none';
 		}
 	}
+	for(let i = 0; i < S.ThreadNames.length; ++i)
+	{
+		let n = S.ThreadNames[i];
+		if(0 != ThreadsActive[n])
+		{
+			ThreadsActive[n] = 1;
+		}
+	}
+
 }
 
 function ToggleThread(ThreadName, All)
