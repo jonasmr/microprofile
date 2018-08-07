@@ -1174,6 +1174,13 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 	{
 		if(Settings.BarColumnEnabledTable[R])
 		{
+			if(null == Value)
+			{
+				X += nWidthBars + ColumnsWidth[R];
+				console.log("Should not happen2\n");
+				debugger;
+				return;
+			}
 			var Prc = Value * RcpReferenceTime;
 			var YText = Y+Height-FontAscent;
 			if(Prc > 1)
@@ -1248,7 +1255,7 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 		DrawTimer(T.exclmax, T.color);
 		DrawTimer(T.excltotal, T.color);
 
-		DrawCount(T.spike.toFixed(2) + '%');
+		DrawCount((T.spike?T.spike.toFixed(2):"0") + '%');
 		DrawTimer(T.callaverage, T.color);
 		DrawTimer(T.callexclaverage, T.color);
 		DrawCount('' + T.callcount);
@@ -5055,22 +5062,19 @@ function AddTimer(T)
 	{
 		TimerArray[idx] = T;
 	}
-	if(null == TimerArray[idx].average)
-	{
-		TimerArray[idx].time = 0;
-		TimerArray[idx].excl = 0;
-		TimerArray[idx].average = 0;
-		TimerArray[idx].max = 0;
-		TimerArray[idx].min = 0;
-		TimerArray[idx].total = 0;
-		TimerArray[idx].exclaverage = 0;
-		TimerArray[idx].exclmax = 0;
-		TimerArray[idx].excltotal = 0;
-		TimerArray[idx].spike = 0;
-		TimerArray[idx].callaverage = 0;
-		TimerArray[idx].callexclaverage = 0;
-		TimerArray[idx].callcount = 0;
-	}
+	TimerArray[idx].time = 0;
+	TimerArray[idx].excl = 0;
+	TimerArray[idx].average = 0;
+	TimerArray[idx].max = 0;
+	TimerArray[idx].min = 0;
+	TimerArray[idx].total = 0;
+	TimerArray[idx].exclaverage = 0;
+	TimerArray[idx].exclmax = 0;
+	TimerArray[idx].excltotal = 0;
+	TimerArray[idx].spike = 0;
+	TimerArray[idx].callaverage = 0;
+	TimerArray[idx].callexclaverage = 0;
+	TimerArray[idx].callcount = 0;
 	var w = MeasureWidth(T.name);
 	var idtype = SplitIdTop(T.id);
 	var idelement = SplitIdBottom(T.id);

@@ -6339,18 +6339,16 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 		MicroProfileWSPrintf(",\"s\":{\"s\":%d,\"l\":%d,\"q\":%d}", S.SymbolState.nState.load(), S.SymbolState.nSymbolsLoaded.load(), S.pPendingQuery ? 1 : 0);
 #endif 
 
-		 // fTime, fTimeExcl, fCount, nTimer == -1 ? ' ' : ','
 		auto WriteTickArray = [fTickToMsCpu,fTickToMsGpu](MicroProfile::GroupTime* pFrameGroup)
 		{
 			MicroProfileWSPrintf("[");
 			int f = 0;
 			for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
 			{
-				uint64_t nCount = pFrameGroup[i].nCount;
-				if(nCount)
+				uint64_t nTicksExcl = pFrameGroup[i].nTicksExclusive;
+				if(nTicksExcl)
 				{
 					uint64_t nTicks = pFrameGroup[i].nTicks;
-					uint64_t nTicksExcl = pFrameGroup[i].nTicksExclusive;
 					float fCount = (float)pFrameGroup[i].nCount;
 					float fToMs = S.GroupInfo[i].Type == MicroProfileTokenTypeCpu ? fTickToMsCpu : fTickToMsGpu;
 
@@ -6366,8 +6364,8 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 			int f = 0;
 			for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
 			{
-				uint64_t nCount = pFrameGroup[i].nTicksExclusive;
-				if(nCount)
+				uint64_t nTicksExcl = pFrameGroup[i].nTicksExclusive;
+				if(nTicksExcl)
 				{
 					uint32_t id = MicroProfileWebSocketIdPack(TYPE_GROUP, i);
 					MicroProfileWSPrintf("%c%d", f ?  ',' : ' ', id);

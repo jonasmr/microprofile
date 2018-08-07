@@ -8094,6 +8094,13 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "	{\n"
 "		if(Settings.BarColumnEnabledTable[R])\n"
 "		{\n"
+"			if(null == Value)\n"
+"			{\n"
+"				X += nWidthBars + ColumnsWidth[R];\n"
+"				console.log(\"Should not happen2\\n\");\n"
+"				debugger;\n"
+"				return;\n"
+"			}\n"
 "			var Prc = Value * RcpReferenceTime;\n"
 "			var YText = Y+Height-FontAscent;\n"
 "			if(Prc > 1)\n"
@@ -8168,7 +8175,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "		DrawTimer(T.exclmax, T.color);\n"
 "		DrawTimer(T.excltotal, T.color);\n"
 "\n"
-"		DrawCount(T.spike.toFixed(2) + \'%\');\n"
+"		DrawCount((T.spike?T.spike.toFixed(2):\"0\") + \'%\');\n"
 "		DrawTimer(T.callaverage, T.color);\n"
 "		DrawTimer(T.callexclaverage, T.color);\n"
 "		DrawCount(\'\' + T.callcount);\n"
@@ -9274,7 +9281,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	{\n"
 "		var idx0 = Math.ceil(FRAME_COUNT * MouseDragActiveXStart / nWidth);\n"
 "		var idx1 = Math.floor(FRAME_COUNT * MouseDragActiveXEnd / nWidth);\n"
-"		idx0 = Clamp(idx0, 0, FRAME_COUNT-1);\n"
+"		idx0 = Clamp(idx0, 0, FRAME_COUN";
+
+const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
+const char g_MicroProfileHtmlLive_begin_2[] =
+"T-1);\n"
 "		idx1 = Clamp(idx1, 0, FRAME_COUNT-1);\n"
 "		id0 = FrameData.Ids[idx0];\n"
 "		id1 = FrameData.Ids[idx1];\n"
@@ -10759,7 +10770,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	if(DrawMenuElement(M, Cookie.CodeReportMode == 2, \"Code Report: Never Report\", Cookie.CodeReportMode == 2 ? 1 : 0, \'white\'))\n"
 "	{\n"
 "		Cookie.CodeReportMode = 2;\n"
-"		WriteCookie();\n"
+"		WriteCookie()";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+";\n"
 "	}\n"
 "\n"
 "	SizeInfo.h = M.y - SizeInfo.y;\n"
@@ -11987,22 +12002,19 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "	{\n"
 "		TimerArray[idx] = T;\n"
 "	}\n"
-"	if(null == TimerArray[idx].average)\n"
-"	{\n"
-"		TimerArray[idx].time = 0;\n"
-"		TimerArray[idx].excl = 0;\n"
-"		TimerArray[idx].average = 0;\n"
-"		TimerArray[idx].max = 0;\n"
-"		TimerArray[idx].min = 0;\n"
-"		TimerArray[idx].total = 0;\n"
-"		TimerArray[idx].exclaverage = 0;\n"
-"		TimerArray[idx].exclmax = 0;\n"
-"		TimerArray[idx].excltotal = 0;\n"
-"		TimerArray[idx].spike = 0;\n"
-"		TimerArray[idx].callaverage = 0;\n"
-"		TimerArray[idx].callexclaverage = 0;\n"
-"		TimerArray[idx].callcount = 0;\n"
-"	}\n"
+"	TimerArray[idx].time = 0;\n"
+"	TimerArray[idx].excl = 0;\n"
+"	TimerArray[idx].average = 0;\n"
+"	TimerArray[idx].max = 0;\n"
+"	TimerArray[idx].min = 0;\n"
+"	TimerArray[idx].total = 0;\n"
+"	TimerArray[idx].exclaverage = 0;\n"
+"	TimerArray[idx].exclmax = 0;\n"
+"	TimerArray[idx].excltotal = 0;\n"
+"	TimerArray[idx].spike = 0;\n"
+"	TimerArray[idx].callaverage = 0;\n"
+"	TimerArray[idx].callexclaverage = 0;\n"
+"	TimerArray[idx].callcount = 0;\n"
 "	var w = MeasureWidth(T.name);\n"
 "	var idtype = SplitIdTop(T.id);\n"
 "	var idelement = SplitIdBottom(T.id);\n"
@@ -12162,11 +12174,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "		T.formatted = FormatCounter(T.format, value);\n"
 "		var boxprc = 1.0;\n"
 "		var counterprc = 0;\n"
-"		if(T";
-
-const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
-const char g_MicroProfileHtmlLive_begin_4[] =
-".limit)\n"
+"		if(T.limit)\n"
 "		{\n"
 "			counterprc = value / T.limit;\n"
 "			if(counterprc > 1.0)\n"
@@ -12174,7 +12182,11 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "				boxprc = 1.0 / counterprc;\n"
 "				counterprc = 1.0;\n"
 "			}\n"
-"			counterprc = Math.max(counterprc, 0.0);\n"
+"			counterprc = Math.max(counterprc, 0.0);";
+
+const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
+const char g_MicroProfileHtmlLive_begin_4[] =
+"\n"
 "\n"
 "		}\n"
 "		T.boxprc = boxprc;\n"
