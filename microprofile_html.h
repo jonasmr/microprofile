@@ -1217,7 +1217,8 @@ const char g_MicroProfileHtml_end_0[] =
 "function ToggleDetailedFlameMode()\n"
 "{\n"
 "	DrawDetailedFlameMode = (DrawDetailedFlameMode+1)%3;\n"
-"}	RequestRedraw();\n"
+"	RequestRedraw();\n"
+"}	\n"
 "\n"
 "function ToggleDetailedSecondReverse()\n"
 "{\n"
@@ -1845,11 +1846,11 @@ const char g_MicroProfileHtml_end_0[] =
 "	var x = HistoryViewMouseX;\n"
 "\n"
 "	var context = CanvasHistory.getContext(\'2d\');\n"
-"	context.clearRec";
+"	context.clearR";
 
 const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
 const char g_MicroProfileHtml_end_1[] =
-"t(0, 0, CanvasHistory.width, CanvasHistory.height);\n"
+"ect(0, 0, CanvasHistory.width, CanvasHistory.height);\n"
 "\n"
 "	var fHeight = nHistoryHeight;\n"
 "	var fWidth = nWidth / S.Frames.length;\n"
@@ -3074,11 +3075,11 @@ const char g_MicroProfileHtml_end_1[] =
 "			else\n"
 "			{\n"
 "				if(ThreadOut == ThreadId)\n"
-"				{\n"
-"";
+"				";
 
 const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
 const char g_MicroProfileHtml_end_2[] =
+"{\n"
 "					var TimeOut = S.CSwitchTime[i];\n"
 "					CSArrayIn.push(TimeIn);\n"
 "					CSArrayOut.push(TimeOut);\n"
@@ -4413,11 +4414,11 @@ const char g_MicroProfileHtml_end_2[] =
 "	{	\n"
 "		nOffsetYDest = YTop;\n"
 "	}\n"
-"	v";
+"";
 
 const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
 const char g_MicroProfileHtml_end_3[] =
-"ar fRange = fDetailedRange;\n"
+"	var fRange = fDetailedRange;\n"
 "	var fMinRange = (fMoveEnd-fMoveBegin) * 2.0;\n"
 "	if(fRange < fMinRange)\n"
 "	{\n"
@@ -6018,11 +6019,11 @@ const char g_MicroProfileHtml_end_3[] =
 "	var MinDelta = Array(nNumLogs);\n"
 "	for(nLog = 0; nLog < nNumLogs; nLog++)\n"
 "	{\n"
-"		MinDelta[nLo";
+"		MinDelta[n";
 
 const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
 const char g_MicroProfileHtml_end_4[] =
-"g] = 0;\n"
+"Log] = 0;\n"
 "		var Discard = 0;\n"
 "		var TypeArray = new Array();\n"
 "		var TimeArray = new Array();\n"

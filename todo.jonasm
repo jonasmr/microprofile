@@ -1,5 +1,6 @@
 
 gpu subtractive to handle cpu spinning.
+
 detailed view negative visualisation
 Hide negative groups. force turn on when others are on
 
@@ -7,11 +8,11 @@ fix bug with clipping
 auto adjust in capture
 fix context switch trace g2 bug
 flame mode button from menu doesn't redraw
-default sorting in tableview is unstable
-if sort column is not visible, revert to main column
 
 in default view everything is closed. it should be open.
 
+* if sort column is not visible, revert to main column
+* default sorting in tableview is unstable
 * mark infinite aggrrgate time in table
 * clear inf aggregate does not work in table view.
 * Negative counters
