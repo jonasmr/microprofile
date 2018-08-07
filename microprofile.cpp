@@ -6340,7 +6340,7 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 #endif 
 
 		 // fTime, fTimeExcl, fCount, nTimer == -1 ? ' ' : ','
-		auto WriteTickArray = [fTickToMsCpu](MicroProfile::GroupTime* pFrameGroup)
+		auto WriteTickArray = [fTickToMsCpu,fTickToMsGpu](MicroProfile::GroupTime* pFrameGroup)
 		{
 			MicroProfileWSPrintf("[");
 			int f = 0;
@@ -6352,7 +6352,9 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 					uint64_t nTicks = pFrameGroup[i].nTicks;
 					uint64_t nTicksExcl = pFrameGroup[i].nTicksExclusive;
 					float fCount = (float)pFrameGroup[i].nCount;
-					MicroProfileWSPrintf("%c[%f,%f,%f]", f ? ',' : ' ', nTicks * fTickToMsCpu, nTicksExcl * fTickToMsCpu, fCount);
+					float fToMs = S.GroupInfo[i].Type == MicroProfileTokenTypeCpu ? fTickToMsCpu : fTickToMsGpu;
+
+					MicroProfileWSPrintf("%c[%f,%f,%f]", f ? ',' : ' ', nTicks * fToMs, nTicksExcl * fToMs, fCount);
 					f = 1;
 				}
 			}
