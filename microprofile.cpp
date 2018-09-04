@@ -169,7 +169,11 @@ typedef uint64_t MicroProfileThreadIdType;
 void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 {
 	void* p; 
-	posix_memalign(&p, nAlign, nSize); 
+	int result = posix_memalign(&p, nAlign, nSize); 
+	if (result != 0)
+	{
+		return nullptr;
+	}
 	return p;
 }
 
@@ -222,7 +226,11 @@ typedef uint64_t MicroProfileThreadIdType;
 void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 {
 	void* p;
-	posix_memalign(&p, nAlign, nSize);
+	int result = posix_memalign(&p, nAlign, nSize);
+	if (result != 0)
+	{
+		return nullptr;
+	}
 	return p;
 }
 void MicroProfileFreeAligned(void* pMem)
