@@ -1815,13 +1815,13 @@ void MicroProfileTimelineLeaveStatic(const char* pStr)
 	}
 }
 
-uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, int nStrLen, int bIsStaticString)
+uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, size_t nStrLen, int bIsStaticString)
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileTimelineMutex());
 	MicroProfileThreadLog* pLog = &S.TimelineLog;
 	MP_ASSERT(pStr[nStrLen] == '\0');
-	uint32_t nStringQwords = (nStrLen + 6) / 7;
-	uint32_t nNumMessages = nStringQwords;
+	size_t nStringQwords = (nStrLen + 6) / 7;
+	size_t nNumMessages = nStringQwords;
 
 	uint32_t nPut = pLog->nPut.load(std::memory_order_relaxed);
 	uint32_t nNextPos = (nPut + 1) % MICROPROFILE_BUFFER_SIZE;
@@ -1866,10 +1866,10 @@ uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, in
 		pLog->Log[nPut++] = LEEnter; nPut %= MICROPROFILE_BUFFER_SIZE;
 		pLog->Log[nPut++] = LEColor; nPut %= MICROPROFILE_BUFFER_SIZE;
 		pLog->Log[nPut++] = LEId; nPut %= MICROPROFILE_BUFFER_SIZE;
-		int nCharsLeft = nStrLen;
+		size_t nCharsLeft = nStrLen;
 		while(nCharsLeft>0)
 		{
-			int nCount = MicroProfileMin(nCharsLeft, 7);
+			size_t nCount = MicroProfileMin(nCharsLeft, (size_t)7);
 			uint64_t LEPayload = MicroProfileMakeLogPayload(pStr, nCount);
 			pLog->Log[nPut++] = LEPayload; nPut %= MICROPROFILE_BUFFER_SIZE;
 			pStr += nCount;
