@@ -2532,8 +2532,7 @@ void MicroProfileFlip(void* pContext)
 
 							if(MP_LOG_ENTER == nType)
 							{
-								int nTimer = MicroProfileLogGetTimerIndex(LE);
-								MP_ASSERT(nTimer>=0);
+								uint64_t nTimer = MicroProfileLogGetTimerIndex(LE);
 								MP_ASSERT(nTimer < S.nTotalTimers);
 								uint32_t nGroup = pTimerToGroup[nTimer];
 								MP_ASSERT(nStackPos < MICROPROFILE_STACK_MAX);
@@ -2546,7 +2545,7 @@ void MicroProfileFlip(void* pContext)
 							}
 							else if(MP_LOG_LEAVE == nType)
 							{
-								int nTimer = MicroProfileLogGetTimerIndex(LE);
+								uint64_t nTimer = MicroProfileLogGetTimerIndex(LE);
 								MP_ASSERT(nTimer < S.nTotalTimers);
 								MP_ASSERT(nTimer >= 0);
 								uint32_t nGroup = pTimerToGroup[nTimer];
