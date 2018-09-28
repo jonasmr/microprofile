@@ -59,7 +59,19 @@ void spinsleep(int64_t nUs)
 
 	}while(fElapsed < fTarget);
 }
-
+void LongTest()
+{
+	while(!g_nQuit)
+	{
+		{
+			MICROPROFILE_SCOPEI("exclusive-test", "long-100ms", MP_WHEAT);
+			spinsleep(250000);
+		}
+		{
+			spinsleep(250000);
+		}
+	}
+}
 
 void ExclusiveTest()
 {
@@ -112,7 +124,10 @@ int main(int argc, char* argv[])
 	MicroProfileSetEnableAllGroups(true);
 	MicroProfileSetForceMetaCounters(true);
 
-	std::thread T(ExclusiveTest);
+	std::thread T(0?LongTest:ExclusiveTest);
+
+
+	// std::thread T(ExclusiveTest);
 
 
 	while(!g_nQuit)
@@ -126,21 +141,22 @@ int main(int argc, char* argv[])
 		if(x++ % 20 < 10)
 		{
 			MICROPROFILE_SCOPEI("exclusive-test", "stable1", MP_GREEN3);
-			spinsleep(50000 + rand()%2000);
+			spinsleep(2000);
 		}
 		else
 		{
-			spinsleep(40000);
+			spinsleep(4000);
 			MICROPROFILE_SCOPEI("exclusive-test", "stable1", MP_GREEN3);
-			spinsleep(10000 + rand()%2000);
+			spinsleep(2000);
 		}
+		// spinsleep(2000);
 
 
-#ifdef _WIN32
-		Sleep(10)
-#else
+// #ifdef _WIN32
+// 		Sleep(10)
+// #else
 		usleep(30000);
-#endif
+// #endif
 		MicroProfileFlip(0);
 		static bool once = false;
 		if(!once)

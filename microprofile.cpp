@@ -453,8 +453,8 @@ struct MicroProfileContextSwitch
 
 struct MicroProfileFrameState
 {
-	int64_t nFrameStartCpu;
-	uint32_t nFrameStartGpu;
+	uint64_t nFrameStartCpu;
+	uint64_t nFrameStartGpu;
 	uint64_t nFrameId;
 	uint32_t nGpuPending;
 	uint32_t nLogStart[MICROPROFILE_MAX_THREADS];
@@ -521,13 +521,13 @@ struct MicroProfileThreadLog
 	uint32_t 				nIdleFrames;
 
 	MicroProfileLogEntry 	nStackLogEntry[MICROPROFILE_STACK_MAX];
-	int64_t					nChildTickStack[MICROPROFILE_STACK_MAX+1];
+	uint64_t					nChildTickStack[MICROPROFILE_STACK_MAX+1];
 	int32_t					nStackPos;
 
 
 	uint8_t					nGroupStackPos[MICROPROFILE_MAX_GROUPS];
-	int64_t 				nGroupTicks[MICROPROFILE_MAX_GROUPS];
-	int64_t 				nAggregateGroupTicks[MICROPROFILE_MAX_GROUPS];
+	uint64_t 				nGroupTicks[MICROPROFILE_MAX_GROUPS];
+	uint64_t 				nAggregateGroupTicks[MICROPROFILE_MAX_GROUPS];
 	enum
 	{
 		THREAD_MAX_LEN = 64,
@@ -998,8 +998,8 @@ inline void MicroProfileGetLogPayload(uint64_t nMessage, char* pData)
 
 inline int64_t MicroProfileLogTickDifference(MicroProfileLogEntry Start, MicroProfileLogEntry End)
 {
-	uint64_t nStart = Start;
-	uint64_t nEnd = End;
+	int64_t nStart = Start;
+	int64_t nEnd = End;
 	int64_t nDifference = ((nEnd << 16) - (nStart << 16));
 	return nDifference >> 16;
 }
@@ -1028,7 +1028,10 @@ inline int64_t MicroProfileLogTickMin(MicroProfileLogEntry A, MicroProfileLogEnt
 		return A;
 	}
 }
-
+inline int64_t MicroProfileLogTickClamp(uint64_t T, uint64_t min, uint64_t max)
+{
+	return MicroProfileLogTickMin(MicroProfileLogTickMax(T, min), max);
+}
 
 inline int64_t MicroProfileLogGetTick(MicroProfileLogEntry e)
 {
@@ -1386,7 +1389,7 @@ void MicroProfileInit()
 		for(int i = 0; i < MICROPROFILE_MAX_FRAME_HISTORY; ++i)
 		{
 			S.Frames[i].nFrameStartCpu = nTick;
-			S.Frames[i].nFrameStartGpu = (uint32_t)-1;
+			S.Frames[i].nFrameStartGpu = MICROPROFILE_INVALID_TICK;
 		}
 		S.nWebServerDataSent = (uint64_t)-1;
 		S.WebSocketTimers = -1;
@@ -1587,7 +1590,7 @@ MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 	}
 	else
 	{
-		len = snprintf(&pLog->ThreadName[0], sizeof(pLog->ThreadName)-1, "TID:[%" PRId64 "]", MP_GETCURRENTTHREADID());	
+		len = snprintf(&pLog->ThreadName[0], sizeof(pLog->ThreadName)-1, "TID:[%" PRId64 "]", (int64_t)MP_GETCURRENTTHREADID());	
 	}
 	pLog->ThreadName[len] = '\0';
 	pLog->nThreadId = MP_GETCURRENTTHREADID();
@@ -2762,7 +2765,6 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 		uint32_t nFrameNext = (S.nFrameCurrent+1) % MICROPROFILE_MAX_FRAME_HISTORY;
 		S.nFrameNext = nFrameNext;
 
-		/// C N ....MICROPROFILE_GPU_FRAME_DELAY... P
 
 		uint32_t nContextSwitchPut = S.nContextSwitchPut;
 		if(S.nContextSwitchLastPut < nContextSwitchPut)
@@ -2780,9 +2782,7 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 		MicroProfileFrameState* pFrameNext = &S.Frames[nFrameNext];
 		const int64_t nTickStartFrame = pFrameCurrent->nFrameStartCpu;
 		const int64_t nTickEndFrame = pFrameNext->nFrameStartCpu;
-		#if MICROPROFILE_TICK_VALIDATE_FRAME_TIME
-		int64_t nTOCKDelta = nTickEndFrame - nTickStartFrame;
-		#endif
+
 		pFrameCurrent->nGpuPending = 0;
 		pFramePut->nGpuPending = 1;
 		
@@ -2793,11 +2793,12 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 			const float fDumpTimeThreshold = 1000.f * 60 * 60 * 24 * 365.f; // if time above this, then we're handling uninitialized counters
 			int nDumpNextFrame = 0;
 			float fTimeGpu = 0.f;
-			if(pFrameNext->nFrameStartGpu != -1)
+			if(pFrameNext->nFrameStartGpu != MICROPROFILE_INVALID_TICK)
 			{
 
 				uint64_t nTickCurrent = pFrameCurrent->nFrameStartGpu;
 				uint64_t nTickNext = pFrameNext->nFrameStartGpu = MicroProfileGpuGetTimeStamp((uint32_t)pFrameNext->nFrameStartGpu);
+				nTickCurrent = MicroProfileLogTickMin(nTickCurrent, nTickNext);
 				float fTime = 1000.f * (nTickNext - nTickCurrent) / MicroProfileTicksPerSecondGpu();
 				fTime = fTimeGpu;
 				if(S.fDumpGpuSpike > 0.f && fTime > S.fDumpGpuSpike && fTime < fDumpTimeThreshold)
@@ -2818,14 +2819,21 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 			}
 		}
 
-		if(pFrameCurrent->nFrameStartGpu == -1)
-			pFrameCurrent->nFrameStartGpu = pFrameNext->nFrameStartGpu + 1; 
 
-		uint64_t nFrameStartCpu = pFrameCurrent->nFrameStartCpu;
-		uint64_t nFrameEndCpu = pFrameNext->nFrameStartCpu;
+		const uint64_t nTickEndFrameGpu_ = pFrameNext->nFrameStartGpu;
+		const uint64_t nTickStartFrameGpu_ = pFrameCurrent->nFrameStartGpu;
+		const bool bGpuFrameInvalid = nTickEndFrameGpu_ == MICROPROFILE_INVALID_TICK || nTickStartFrameGpu_ == MICROPROFILE_INVALID_TICK;
+		const uint64_t nTickEndFrameGpu = bGpuFrameInvalid ? 1 : nTickEndFrameGpu_;
+		const uint64_t nTickStartFrameGpu = bGpuFrameInvalid ? 2 : nTickStartFrameGpu_;
+
+		#define MP_ASSERT_LE_WRAP(l,g) MP_ASSERT( (g-l) < 0x8000000000000000)
+
+		// uint64_t nFrameStartCpu = pFrameCurrent->nFrameStartCpu;
+		// uint64_t nFrameEndCpu = pFrameNext->nFrameStartCpu;
 
 		{
-			uint64_t nTick = nFrameEndCpu - nFrameStartCpu;
+			MP_ASSERT_LE_WRAP(nTickStartFrame, nTickEndFrame);
+			uint64_t nTick = nTickEndFrame - nTickStartFrame;
 			S.nFlipTicks = nTick;
 			S.nFlipAggregate += nTick;
 			S.nFlipMax = MicroProfileMax(S.nFlipMax, nTick);
@@ -2849,7 +2857,7 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 					while(nStart != nPut)
 					{
 						int64_t LE = pLog->Log[nStart];
-						int64_t nDifference = MicroProfileLogTickDifference(LE, nFrameEndCpu);
+						int64_t nDifference = MicroProfileLogTickDifference(LE, nTickEndFrame);
 						if(nDifference > 0)
 						{
 							nStart = (nStart+1)%MICROPROFILE_BUFFER_SIZE;
@@ -2945,8 +2953,13 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 					MicroProfileThreadLog* pLog = S.Pool[i];
 					if(!pLog) 
 						continue;
+					bool bGpu = pLog->nGpu != 0;
+					int64_t nTickStartLog = bGpu ? nTickStartFrameGpu : nTickStartFrame;
+					int64_t nTickEndLog = bGpu ? nTickEndFrameGpu : nTickEndFrame;
+
 					MicroProfile::GroupTime* pFrameGroupThread = &S.FrameGroupThread[i][0];
-					const uint32_t nTimerNegative = pLog->nGpu ? S.nTimerNegativeGpuIndex : S.nTimerNegativeCpuIndex;
+
+					const uint32_t nTimerNegative = bGpu ? S.nTimerNegativeGpuIndex : S.nTimerNegativeCpuIndex;
 
 					uint8_t* pGroupStackPos = &pLog->nGroupStackPos[0];
 
@@ -2961,7 +2974,7 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 					}
 					
 					uint64_t* pStackLog = &pLog->nStackLogEntry[0];
-					int64_t* pChildTickStack = &pLog->nChildTickStack[1];
+					uint64_t* pChildTickStack = &pLog->nChildTickStack[1];
 					int32_t nStackPos = pLog->nStackPos;
 					for(uint32_t i = 0; i < nStackPos; ++i)
 					{
@@ -3000,28 +3013,17 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 								uint32_t nGroup = pTimerToGroup[nTimer];
 								MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
 								MP_ASSERT(nStackPos);
-								int64_t nTicks;
+								uint64_t nTicks;
 								{
 									nStackPos--;
-									int64_t nTickStart = MicroProfileLogTickMax(pStackLog[nStackPos], nTickStartFrame); 
-									int64_t nNegative = nNegativeStack[nStackPos];
+									uint64_t nTickStart = MicroProfileLogTickClamp(pStackLog[nStackPos], nTickStartLog, nTickEndLog); 
+									uint64_t nNegative = nNegativeStack[nStackPos];
 									nNegativeStack[nStackPos] = 0;
+									uint64_t nClamped = MicroProfileLogTickClamp(LE, nTickStartLog, nTickEndLog);
+									nTicks = MicroProfileLogTickDifference(nTickStart, nClamped);
+									MP_ASSERT(nTicks < 0x8000000000000000);
 
-									nTicks = MicroProfileLogTickDifference(nTickStart, LE);
-									int64_t nChildTicks = pChildTickStack[nStackPos];
-									int64_t nTickStartDiffXX = MicroProfileLogTickDifference(nTickStartFrame, nTickEndFrame); (void)nTickStartDiffXX;
-									#if MICROPROFILE_TICK_VALIDATE_FRAME_TIME
-									int64_t nDiff = MicroProfileLogTickMin(LE, nTickEndFrame);(void)nDiff;
-									if(MicroProfileLogTickMin(LE, nTickEndFrame) == nTickEndFrame)
-									{
-										MP_BREAK();
-									}
-									int64_t nTickStartDiff = MicroProfileLogTickDifference(nTickStartFrame, nTickStart); (void)nTickStartDiff;
-									int64_t nTickStartDiff0 = MicroProfileLogTickDifference(nTickStartFrame, LE); (void)nTickStartDiff0;
-									int64_t nTickEndDiff = MicroProfileLogTickDifference(nTickStart, nTickEndFrame); (void)nTickEndDiff;
-									int64_t nTickEndDiff0 = MicroProfileLogTickDifference(LE, nTickEndFrame); (void)nTickEndDiff0;
-									#endif
-									
+									uint64_t nChildTicks = pChildTickStack[nStackPos];
 
 									MP_ASSERT(nStackPos < MICROPROFILE_STACK_MAX);
 									if(nStackPos)
@@ -3030,8 +3032,11 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 									}
 
 									uint32_t nTimerIndex = MicroProfileLogGetTimerIndex(LE);
-									int64_t nTicksExclusive = (nTicks-nChildTicks);
+
 									MP_ASSERT(nTicks >= nNegative);
+									MP_ASSERT(nTicks >= nChildTicks);
+
+									uint64_t nTicksExclusive = (nTicks-nChildTicks);
 									S.Frame[nTimerIndex].nTicks += nTicks - nNegative;
 									S.FrameExclusive[nTimerIndex] += nTicksExclusive;
 									S.Frame[nTimerIndex].nCount += 1;
@@ -3040,20 +3045,6 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 									pFrameGroupThread[nGroup].nTicks += nTicks - nNegative;
 									pFrameGroupThread[nGroup].nTicksExclusive += nTicksExclusive;
 									pFrameGroupThread[nGroup].nCount += 1;
-									#if MICROPROFILE_TICK_VALIDATE_FRAME_TIME
-									{
-										float fToMs = MicroProfileTickToMsMultiplierCpu();
-										float t0 = nTicksExclusive * fToMs;
-										float t1 = pFrameGroupThread[nGroup].nTicksExclusive * fToMs;
-										float t2 = nTOCKDelta * fToMs;(void)t2;
-
-										if(nTicksExclusive > nTOCKDelta)
-										{
-											printf("FAIL 1, %f %f %f\n", t0, t1, t2);
-											MP_BREAK();
-										}
-									}
-									#endif
 								}
 								if(nTimer == nTimerNegative)
 								{
@@ -3073,9 +3064,9 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 					{
 
 						MicroProfileLogEntry LE = pStackLog[i];
-						int64_t nTickStart = MicroProfileLogTickMax(LE, nTickStartFrame); 
-						int64_t nTicks = MicroProfileLogTickDifference(nTickStart, nTickEndFrame);
-						int64_t nNegative = nNegativeStack[i];
+						uint64_t nTickStart = MicroProfileLogTickClamp(LE, nTickStartLog, nTickEndLog); 
+						uint64_t nTicks = MicroProfileLogTickDifference(nTickStart, nTickEndLog);
+						uint64_t nNegative = nNegativeStack[i];
 						nNegativeStack[i] = 0;
 						int64_t nChildTicks = pChildTickStack[i];
 						pChildTickStack[i] = 0; //consume..
@@ -3085,11 +3076,12 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 						{
 							pChildTickStack[i-1] += nTicks;
 						}
+						MP_ASSERT(nTicks >= nNegative);
+						MP_ASSERT(nTicks >= nChildTicks);
 
-						int nTimer = MicroProfileLogGetTimerIndex(LE);
-						uint32_t nGroup = pTimerToGroup[nTimer];
-						uint32_t nTimerIndex = MicroProfileLogGetTimerIndex(LE);
-						int64_t nTicksExclusive = (nTicks-nChildTicks);
+						uint32_t nTimerIndex = (uint32_t)MicroProfileLogGetTimerIndex(LE);
+						uint32_t nGroup = pTimerToGroup[nTimerIndex];
+						uint64_t nTicksExclusive = (nTicks-nChildTicks);
 						S.Frame[nTimerIndex].nTicks += nTicks - nNegative;
 						S.FrameExclusive[nTimerIndex] += nTicksExclusive;
 						S.Frame[nTimerIndex].nCount += 1;
@@ -3098,41 +3090,14 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 						pFrameGroupThread[nGroup].nTicks += nTicks - nNegative;
 						pFrameGroupThread[nGroup].nTicksExclusive += nTicksExclusive;
 						pFrameGroupThread[nGroup].nCount += 1;
-
-						#if MICROPROFILE_TICK_VALIDATE_FRAME_TIME
-						int64_t nTickStartDiffXX = MicroProfileLogTickDifference(nTickStartFrame, nTickEndFrame); (void)nTickStartDiffXX;									
-						int64_t nTickStartDiff = MicroProfileLogTickDifference(nTickStartFrame, nTickStart); (void)nTickStartDiff;
-						int64_t nTickStartDiff0 = MicroProfileLogTickDifference(nTickStartFrame, LE); (void)nTickStartDiff0;
-						int64_t nTickEndDiff = MicroProfileLogTickDifference(nTickStart, nTickEndFrame); (void)nTickEndDiff;
-						int64_t nTickEndDiff0 = MicroProfileLogTickDifference(LE, nTickEndFrame); (void)nTickEndDiff0;
-
-						{
-							float fToMs = MicroProfileTickToMsMultiplierCpu();
-							float t0 = nTicksExclusive * fToMs;
-							float t1 = pFrameGroupThread[nGroup].nTicksExclusive * fToMs;
-							float t2 = nTOCKDelta * fToMs;(void)t2;
-							(void)t0;(void)t1;
-							if(nTicksExclusive > nTOCKDelta)
-							{
-								printf("FAIL 2: %f %f %f\n", t0, t1, t2);//should never happen
-								MP_BREAK();
-							}
-							
-						}
-						#endif
-						if(nTimer == nTimerNegative)
+						if(nTimerIndex == nTimerNegative)
 						{
 							for(int j = 0; j < i; ++j)
 							{
 								nNegativeStack[i] += nTicks;
-								// printf("Add %lld %d\n", nTicks, i);
 							}
 						}
 					}
-					// for(uint32_t j = 0; j < nStackPos; ++j)
-					// {
-					// 	MP_ASSERT(nNegativeStack[j] == 0);
-					// }
 					pLog->nStackPos = nStackPos;
 					for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
 					{
@@ -3143,18 +3108,6 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 							pFrameGroup[j].nTicks += pFrameGroupThread[j].nTicks;
 							pFrameGroup[j].nTicksExclusive += pFrameGroupThread[j].nTicksExclusive;
 							pFrameGroup[j].nCount += pFrameGroupThread[j].nCount;
-
-
-							#if MICROPROFILE_TICK_VALIDATE_FRAME_TIME
-							if(pFrameGroupThread[j].nTicksExclusive > nTOCKDelta)
-							{
-								float fToMs = MicroProfileTickToMsMultiplierCpu();
-								float t0 = pFrameGroupThread[j].nTicksExclusive * fToMs;
-								float t1 = nTOCKDelta * fToMs;
-								printf("DELTA TOO BIG %5.2f %5.2f.    :: GR %d\n", t0, t1, j);
-								MP_BREAK();
-							}
-							#endif
 						}
 					}
 
@@ -7963,8 +7916,11 @@ uint64_t MicroProfileGpuGetTimeStamp(uint32_t nIndex)
 	uint32_t lala = S.pGPU->nQueryFrames[nQueryIndex];
 	//uprintf("read TS [%d <- %lld]\n", nQueryIndex, S.pGPU->nResults[nQueryIndex]);
 	MP_ASSERT((0xffff & lala) == nFrame);
-	
-	return S.pGPU->nResults[nQueryIndex];
+	uint64_t r = S.pGPU->nResults[nQueryIndex];
+	if(r == 0x7fffffffffffffff)
+	{
+		MP_BREAK();
+	}
 }
 
 uint64_t MicroProfileTicksPerSecondGpu()
@@ -10121,8 +10077,9 @@ void MicroProfileProcessQuery(MicroProfileFunctionQuery* pQuery)
 	float ToMS = MicroProfileTickToMsMultiplierCpu();
 	float TIME = (tend - t) * ToMS;
 	float TIME0 = (tt - t) * ToMS;
+	(void)TIME;
+	(void)TIME0;
 	printf(" %6.3fms [%6.3f]: %5d/%5d blocks tested. %5d symbols %5d/%5d string compares\n", TIME, TIME0, nBlocksTested, nBlocks, nSymbolsTested, nStringsTested, nStringsTested0);
-
 }
 
 void* MicroProfileQueryThread(void* p)
