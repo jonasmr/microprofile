@@ -2828,9 +2828,6 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 
 		#define MP_ASSERT_LE_WRAP(l,g) MP_ASSERT( (g-l) < 0x8000000000000000)
 
-		// uint64_t nFrameStartCpu = pFrameCurrent->nFrameStartCpu;
-		// uint64_t nFrameEndCpu = pFrameNext->nFrameStartCpu;
-
 		{
 			MP_ASSERT_LE_WRAP(nTickStartFrame, nTickEndFrame);
 			uint64_t nTick = nTickEndFrame - nTickStartFrame;
@@ -2956,6 +2953,17 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 					bool bGpu = pLog->nGpu != 0;
 					int64_t nTickStartLog = bGpu ? nTickStartFrameGpu : nTickStartFrame;
 					int64_t nTickEndLog = bGpu ? nTickEndFrameGpu : nTickEndFrame;
+
+					float fToMs = bGpu ? MicroProfileTickToMsMultiplierGpu() : MicroProfileTickToMsMultiplierCpu();	
+					float fFrameTime = fToMs * (nTickEndLog - nTickStartLog);
+					if(fFrameTime > 1000)
+					{
+						#ifdef _WIN32
+						OutputDebugString("very long frame\n");
+						#else
+						printf("very long frame\n");
+						#endif
+					}
 
 					MicroProfile::GroupTime* pFrameGroupThread = &S.FrameGroupThread[i][0];
 
