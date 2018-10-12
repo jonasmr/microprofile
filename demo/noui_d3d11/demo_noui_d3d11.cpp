@@ -471,7 +471,6 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
 void Render()
 {
 	MICROPROFILE_SCOPEI("Main", "Render", 0);
-	MICROPROFILE_SCOPEGPUI("Draw Total", 0xff00ff);
 	{
 		// Clear the back buffer 
 		g_pImmediateContext->ClearRenderTargetView( g_pRenderTargetView, Colors::MidnightBlue );
@@ -481,18 +480,41 @@ void Render()
 		g_pImmediateContext->PSSetShader( g_pPixelShader, nullptr, 0 );
 
 		{
-			MICROPROFILE_SCOPEGPUI("Draw0", 0xff00ff);
-			for(int i = 0; i < 50; ++i)
+			MICROPROFILE_SCOPEGPUI("DrawTotal", 0xff00ff);
+
 			{
-				g_pImmediateContext->Draw( 3, 0 );
+				MICROPROFILE_SCOPEGPUI("Draw0", 0xff00ff);
+				for(int i = 0; i < 50; ++i)
+				{
+					g_pImmediateContext->Draw( 3, 0 );
+				}
 			}
-		}
-		{
-			MICROPROFILE_SCOPEGPUI("Draw15567567", 0xff00ff);
-			for(int i = 0; i < 50; ++i)
+			static int flip = 0;
+			flip = (flip+1) % 100;
 			{
-				MICROPROFILE_SCOPEGPUI("Draw_INNER", 0x00);
-				g_pImmediateContext->Draw( 3, 0 );
+				MICROPROFILE_SCOPEGPUI("Draw Mid", 0xff00ff);
+				for(int i = 0; i < 50; ++i)
+				{
+					g_pImmediateContext->Draw( 3, 0 );
+				}
+
+				if(flip>50) //flip between subtracting every 50 frames
+					MICROPROFILE_ENTER_NEGATIVEGPU();
+				for(int i = 0; i < 50; ++i)
+				{
+					g_pImmediateContext->Draw( 3, 0 );
+				}
+				if(flip>50)
+					MICROPROFILE_LEAVE_NEGATIVEGPU();
+			}
+
+
+			{
+				MICROPROFILE_SCOPEGPUI("Draw1", 0xff00ff);
+				for(int i = 0; i < 50; ++i)
+				{
+						g_pImmediateContext->Draw( 3, 0 );
+				}
 			}
 		}
 
