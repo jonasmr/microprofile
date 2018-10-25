@@ -354,7 +354,7 @@ typedef std::thread* MicroProfileThread;
 struct MicroProfileSymbolDesc;
 void MicroProfileSymbolQueryFunctions(MpSocket Connection, const char* pFilter);
 void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, const char* pFunctionName, uint32_t nColor);
-bool MicroProfileSymbolInitialize(bool bStartLoad);
+bool MicroProfileSymbolInitialize(bool bStartLoad, const char* pModuleName = 0);
 MicroProfileSymbolDesc* MicroProfileSymbolFindFuction(void* pAddress);
 void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pModuleName, const char* pFunctionName);
 void MicroProfileSymbolQuerySendResult(MpSocket Connection);
@@ -362,6 +362,7 @@ void MicroProfileSymbolSendFunctionNames(MpSocket Connection);
 void MicroProfileSymbolSendErrors(MpSocket Connection);
 const char* MicroProfileSymbolModuleGetString(uint32_t nIndex);
 void MicroProfileInstrumentWithoutSymbols(const char** pModules, const char** pSymbols, uint32_t nNumSymbols);
+void MicroProfileSymbolUpdateModuleList();
 #endif
 
 struct MicroProfileFunctionQuery;
@@ -666,15 +667,32 @@ struct MicroProfileGpuTimerState
 #endif
 
 
-enum {
-	MICROPROFILE_SYMBOLSTATE_DEFAULT = 0,
-	MICROPROFILE_SYMBOLSTATE_LOADING = 1,
-	MICROPROFILE_SYMBOLSTATE_DONE = 2,
-};
+// enum {
+// 	MICROPROFILE_SYMBOLSTATE_DEFAULT = 0,
+// 	MICROPROFILE_SYMBOLSTATE_LOADING = 1,
+// 	MICROPROFILE_SYMBOLSTATE_DONE = 2,
+// };
+
 struct MicroProfileSymbolState
 {
-	std::atomic<int> nState;
+	std::atomic<int> nModuleLoadsFinished;
+	std::atomic<int> nModuleLoadsRequested;
 	std::atomic<int64_t> nSymbolsLoaded;
+};
+
+struct MicroProfileSymbolModule
+{
+	uint32_t nMatchOffset;
+	uint32_t nStringOffset;
+	void* pBaseString;
+	intptr_t nBaseAddr;
+	struct MicroProfileSymbolBlock* pSymbolBlock;
+
+
+	int64_t nSymbols;
+	std::atomic<int64_t> nSymbolsLoaded;
+	std::atomic<int> nModuleLoadRequested;
+	std::atomic<int> nModuleLoadFinished;
 };
 
 
@@ -898,25 +916,19 @@ struct MicroProfile
 	uint32_t 						WSFunctionsInstrumentedSent;
 	MicroProfileSymbolState 		SymbolState;
 
-	struct MicroProfileSymbolModule
-	{
-		uint32_t nMatchOffset;
-		uint32_t nStringOffset;
-		void* pBaseString;
-		intptr_t nBaseAddr;
-		struct MicroProfileSymbolBlock* pSymbolBlock;
-	};
 
 	MicroProfileSymbolModule		SymbolModules[MICROPROFILE_INSTRUMENT_MAX_MODULES];
 	char 							SymbolModuleNameBuffer[MICROPROFILE_INSTRUMENT_MAX_MODULE_CHARS];
 	int 							SymbolModuleNameOffset;
 	int 							SymbolNumModules;
+	int 							WSSymbolModulesSent;
 
 
 
 	MicroProfileFunctionQuery*  	pPendingQuery;
 	MicroProfileFunctionQuery*  	pFinishedQuery;
 	MicroProfileFunctionQuery*  	pQueryFreeList;
+	uint32_t 						nQueryProcessed;
 	uint32_t 						nNumQueryFree;
 	uint32_t 						nNumQueryAllocated;
 
@@ -5115,8 +5127,8 @@ enum
 	MSG_FUNCTION_RESULTS = 8, 
 	MSG_INACTIVE_FRAME = 9,
 	MSG_FUNCTION_NAMES = 10,
-	MSG_INSTRUMENT_ERROR = 11,
-
+	MSG_INSTRUMENT_ERROR = 11
+	// MSG_MODULE_NAME = 12,
 };
 
 enum
@@ -6179,12 +6191,17 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 		case 'q':
 			MicroProfileSymbolQueryFunctions(Connection, 1+(const char*)Bytes);
 			break;
+		case 'L':
+			printf("LOAD MODULE: '%s'\n", 1+(const char*)Bytes);
+			MicroProfileSymbolInitialize(true,1+(const char*)Bytes);
+			break;
 #else
 		case 'D':
 		case 'I':
 		case 'i':
 		case 'S':
 		case 'q':
+		case 'L':
 			break;
 #endif
 		default:
@@ -6239,7 +6256,18 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 	S.nJsonSettingsPending = 0;
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
 	S.WSFunctionsInstrumentedSent = 0;
+	S.WSSymbolModulesSent = 0;
+	{
+		uint64_t t0 = MP_TICK();
+
+
+		MicroProfileSymbolUpdateModuleList();
+		uint64_t t1 = MP_TICK();
+		float fTime = float(MicroProfileTickToMsMultiplierCpu()) * (t1-t0);
+		printf("update module list time %6.2fms\n", fTime);
+	}
 #endif
+
 	MicroProfileWebSocketSendState(Connection);
 	MicroProfileWebSocketSendPresets(Connection);
 	if(!S.nWSWasConnected)
@@ -6278,6 +6306,53 @@ void MicroProfileWebSocketSendCounters()
 	}
 }
 
+void MicroProfileSymbolSendModuleState()
+{
+	if(S.WSSymbolModulesSent != S.SymbolNumModules || 
+	0)//todo: tag when modulestate is updated.
+	{
+		MicroProfileWSPrintf(",\"M\":[");	
+		bool bFirst = true;
+		for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
+		{
+			MicroProfileSymbolModule& M = S.SymbolModules[i];
+			const char* pModuleName = (const char*)M.pBaseString;
+			uint64_t nBaseAddr = M.nBaseAddr;
+			uint32_t nNumSymbols = 0;
+			// const char* pModuleString = S.FunctionsInstrumentedModuleNames[i];
+			// const char* pUnmangled = S.FunctionsInstrumentedUnmangled[i];
+			#define FMT "{\"n\":\"%s\",\"a\":\"%llx\",\"s\":\"%d\"}"
+			MicroProfileWSPrintf(bFirst ? FMT : ("," FMT), pModuleName, nBaseAddr, nNumSymbols);
+			#undef FMT
+
+				// "{\"n\":\"%s\",\"a\":\"llx\",\"s\":\"%d\"}" : ",{\"%s\",\"%s\",\"%s\"}", pString, pModuleString, pUnmangled);
+			bFirst = false;
+		}
+		MicroProfileWSPrintf("]");
+		// MicroProfileWSFlush();
+		S.WSSymbolModulesSent = S.SymbolNumModules;
+	}
+}
+
+
+// void MicroProfileSymbolSendModules(MpSocket Connection, uint32_t nFirstModule)
+// {
+// 	MicroProfileWSPrintStart(Connection);
+
+// 	MicroProfileWSPrintEnd();	
+// }
+
+
+
+// 	if(S.WSSymbolModulesSent < S.SymbolNumModules)
+// 	{
+// 		MicroProfileSymbolSendModules(Connection, S.WSSymbolModulesSent);
+// 		S.WSSymbolModulesSent = S.SymbolNumModules;
+// 	}
+
+
+
+
 void MicroProfileWebSocketSendFrame(MpSocket Connection)
 {
 	if(S.nFrameCurrent != S.WebSocketFrameLast[0] || S.nFrozen)
@@ -6297,7 +6372,13 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 		double fTime = nFrameTicks * fTickToMsCpu;
 		MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{\"t\":%f,\"f\":%lld,\"a\":%d,\"fr\":%d,\"m\":%d", MSG_FRAME, fTime, nFrame, MicroProfileGetCurrentAggregateFrames(), S.nFrozen, S.nWSViewMode);
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
-		MicroProfileWSPrintf(",\"s\":{\"s\":%d,\"l\":%d,\"q\":%d}", S.SymbolState.nState.load(), S.SymbolState.nSymbolsLoaded.load(), S.pPendingQuery ? 1 : 0);
+		MicroProfileWSPrintf(",\"s\":{\"n\":%d,\"f\":%d,\"r\":%d,\"l\":%d,\"q\":%d}", 
+			S.SymbolNumModules,
+			S.SymbolState.nModuleLoadsFinished.load(),
+			S.SymbolState.nModuleLoadsRequested.load(),
+			S.SymbolState.nSymbolsLoaded.load(), 
+			S.pPendingQuery ? 1 : 0);
+		MicroProfileSymbolSendModuleState();
 #endif 
 
 		auto WriteTickArray = [fTickToMsCpu,fTickToMsGpu](MicroProfile::GroupTime* pFrameGroup)
@@ -6400,7 +6481,12 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 		MicroProfileWSPrintStart(Connection);
 		MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{\"fr\":%d,\"m\":%d", MSG_INACTIVE_FRAME, S.nFrozen, S.nWSViewMode);
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
-		MicroProfileWSPrintf(",\"s\":{\"s\":%d,\"l\":%d,\"q\":%d}", S.SymbolState.nState.load(), S.SymbolState.nSymbolsLoaded.load(), S.pPendingQuery ? 1 : 0);
+		MicroProfileWSPrintf(",\"s\":{\"n\":%d,\"f\":%d,\"r\":%d,\"l\":%d,\"q\":%d}", 
+			S.SymbolNumModules,
+			S.SymbolState.nModuleLoadsFinished.load(),
+			S.SymbolState.nModuleLoadsRequested.load(),
+			S.SymbolState.nSymbolsLoaded.load(), 
+			S.pPendingQuery ? 1 : 0);
 #endif
 		MicroProfileWSPrintf("}}");
 		MicroProfileWSFlush();
@@ -8549,7 +8635,7 @@ void* MicroProfileX64FollowJump(void* pSrc);
 bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit, const int nMaxSize, char* pTrunk, intptr_t nTrunkSize, uint32_t nUsableJumpRegs, int* nBytesDest, int* nBytesSrc, uint32_t* pRegsWritten, uint32_t* nRetSafe) ;
 bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter, MicroProfileHookFunc leave, MicroProfilePatchError* pError);
 template<typename Callback>
-void MicroProfileIterateSymbols(Callback CB);
+void MicroProfileIterateSymbols(Callback CB, const char** pModuleNames, intptr_t* nAddrBegin, uint32_t nNumModules);
 const char* MicroProfileGetUnmangledSymbolName(void* pFunction);
 
 
@@ -9500,46 +9586,73 @@ void MicroProfileSymbolFreeDataInternal();
 void MicroProfileSymbolKickThread();
 void MicroProfileQueryJoinThread();
 
-bool MicroProfileSymbolInitialize(bool bStartLoad)
+bool MicroProfileSymbolInitialize(bool bStartLoad, const char* pModuleName)
 {
-	if(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_DEFAULT)
-	{
-		if(!bStartLoad)
-			return false;
-		{
-			MicroProfileScopeLock L(MicroProfileMutex());
-			S.SymbolState.nState.store(MICROPROFILE_SYMBOLSTATE_LOADING);
-			S.SymbolState.nSymbolsLoaded.store(0);
-		}
-		MicroProfileSymbolKickThread();
-		return false;
-	}
-	if(S.SymbolState.nState.load() == MICROPROFILE_SYMBOLSTATE_DONE)
-	{
-		MicroProfileQueryJoinThread();
-	}
-	if(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_DONE && bStartLoad)
-	{
-		MicroProfileSymbolFreeDataInternal();
-		{
-			MicroProfileScopeLock L(MicroProfileMutex());
-			S.SymbolState.nState.store(MICROPROFILE_SYMBOLSTATE_LOADING);	
-			S.SymbolState.nSymbolsLoaded.store(0);
-		}
-		MicroProfileSymbolKickThread();
-		return false;
 
-	}
-	else
+	// int nRequests = 0;
 	{
-		return S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_DONE;
+		MicroProfileScopeLock L(MicroProfileMutex());
+		for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
+		{
+			if(0 == pModuleName || 0 == strcmp(pModuleName, (const char*)S.SymbolModules[i].pBaseString))
+			{
+				if(0 == S.SymbolModules[i].nModuleLoadRequested.exchange(1))
+				{
+					S.SymbolState.nModuleLoadsRequested.fetch_add(1);
+				}
+			}
+		}
 	}
+
+	//todo: unload modules
+	MicroProfileSymbolKickThread();
+	return S.SymbolState.nModuleLoadsRequested.load() == S.SymbolState.nModuleLoadsFinished.load();
+
+
+
+	// if(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_DEFAULT)
+	// {
+	// 	if(!bStartLoad)
+	// 		return false;
+	// 	{
+	// 		MicroProfileScopeLock L(MicroProfileMutex());
+	// 		S.SymbolState.nState.store(MICROPROFILE_SYMBOLSTATE_LOADING);
+	// 		S.SymbolState.nSymbolsLoaded.store(0);
+	// 	}
+	// 	MicroProfileSymbolKickThread();
+	// 	return false;
+	// }
+	// if(nRequests)
+	// {
+	// }
+	// if(S.SymbolState.nState.load() == MICROPROFILE_SYMBOLSTATE_DONE)
+	// {
+	// 	MicroProfileQueryJoinThread();
+	// }
+	// if(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_DONE && bStartLoad)
+	// {
+	// 	MicroProfileSymbolFreeDataInternal();
+	// 	{
+	// 		MicroProfileScopeLock L(MicroProfileMutex());
+	// 		S.SymbolState.nState.store(MICROPROFILE_SYMBOLSTATE_LOADING);	
+	// 		S.SymbolState.nSymbolsLoaded.store(0);
+	// 	}
+	// 	MicroProfileSymbolKickThread();
+	// 	return false;
+
+	// }
+	// else
+	// {
+	// 	return S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_DONE;
+	// }
 }
 
 void MicroProfileSymbolFreeDataInternal()
 {
 	{
-		MP_ASSERT(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_DONE);
+		printf("todod;....\n");
+		MP_BREAK();
+		// MP_ASSERT(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_DONE);
 
 		S.nNumPatchErrorFunctions = 0;
 		memset(S.PatchErrorFunctionNames, 0, sizeof(S.PatchErrorFunctionNames));
@@ -9756,6 +9869,8 @@ bool MicroProfileCharacterMatch(const MicroProfileStringMatchMask& Block, const 
 	return true;
 }
 
+
+//todo: stringintern this..
 uint32_t MicroProfileSymbolGetModule(const char* pString, intptr_t nBaseAddr)
 {
 	//search for matching string: this assumes the calling code does not reuse this memory.
@@ -9764,7 +9879,7 @@ uint32_t MicroProfileSymbolGetModule(const char* pString, intptr_t nBaseAddr)
 	{
 		if(S.SymbolModules[i].nBaseAddr == nBaseAddr)
 		{
-
+			//assert string is equal.
 			return i;
 		}
 	}
@@ -9801,6 +9916,7 @@ uint32_t MicroProfileSymbolGetModule(const char* pString, intptr_t nBaseAddr)
 		return 0;
 	memcpy(S.SymbolModuleNameOffset + & S.SymbolModuleNameBuffer[0], pTrimmedString, nLen);
 
+	MP_ASSERT(S.SymbolNumModules < MICROPROFILE_INSTRUMENT_MAX_MODULES);
 	S.SymbolModules[S.SymbolNumModules].nMatchOffset = 0;
 	S.SymbolModules[S.SymbolNumModules].nStringOffset = S.SymbolModuleNameOffset;
 	S.SymbolModules[S.SymbolNumModules].pBaseString = (void*)pString;
@@ -9823,7 +9939,8 @@ const char* MicroProfileSymbolModuleGetString(uint32_t nIndex)
 
 void MicroProfileSymbolInitializeInternal()
 {
-	MP_ASSERT(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_LOADING);
+
+	// MP_ASSERT(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_LOADING);
 	for(int i = 0; i < S.SymbolNumModules; ++i)
 	{
 		MP_ASSERT(0 == S.SymbolModules[i].pSymbolBlock);
@@ -9927,6 +10044,7 @@ void MicroProfileSymbolInitializeInternal()
 		{
 			E.pShortName = E.pName;
 		}
+		printf("Got symbol %s\n", E.pName);
 		E.nMask = MicroProfileCharacterMaskString(E.pShortName);
 		MicroProfileCharacterMaskString2(E.pShortName, pActiveBlock->MatchMask);
 
@@ -9936,13 +10054,26 @@ void MicroProfileSymbolInitializeInternal()
 		{
 			MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Ignored", 1);
 		}
-		//usleep(10000);
+		usleep(10000);
 		S.SymbolState.nSymbolsLoaded.fetch_add(1);
 		MP_ASSERT((intptr_t)E.pShortName >= (intptr_t)&E); //assert pointer arithmetic is correct.
-
 	};
-	MicroProfileIterateSymbols(SymbolCallback);
-	S.SymbolState.nState.store(MICROPROFILE_SYMBOLSTATE_DONE);
+	const char* pModuleName[MICROPROFILE_INSTRUMENT_MAX_MODULES];
+	intptr_t nModuleStart[MICROPROFILE_INSTRUMENT_MAX_MODULES];
+	// intptr_t nModuleSize[MICROPROFILE_INSTRUMENT_MAX_MODULES];
+	uint32_t nNumModulesRequested = 0;
+	for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
+	{
+		if(S.SymbolModules[i].nModuleLoadRequested.load() != 0 && S.SymbolModules[i].nModuleLoadFinished.load() == 0)
+		{
+			pModuleName[nNumModulesRequested] = (const char*)S.SymbolModules[i].pBaseString;
+			nModuleStart[nNumModulesRequested] = S.SymbolModules[i].nBaseAddr;
+			// nModuleSize[nNumModulesRequested] = S.SymbolModules[i].nSize;
+			nNumModulesRequested++;
+		}
+	}
+	MicroProfileIterateSymbols(SymbolCallback, pModuleName, nModuleStart, nNumModulesRequested);
+	S.SymbolState.nModuleLoadsFinished.fetch_add(nNumModulesRequested);
 }
 
 
@@ -10094,31 +10225,42 @@ void MicroProfileProcessQuery(MicroProfileFunctionQuery* pQuery)
 void* MicroProfileQueryThread(void* p)
 {
 	MicroProfileOnThreadCreate("MicroProfileSymbolThread");
-	{	
-		MicroProfileScopeLock L(MicroProfileMutex());
-
-		while(S.pPendingQuery != nullptr || S.SymbolState.nState.load() == MICROPROFILE_SYMBOLSTATE_LOADING)
+	{
+		while(1)
 		{
-			if(S.SymbolState.nState == MICROPROFILE_SYMBOLSTATE_LOADING)
+			MicroProfileSleep(100);	// todo:: EVENT
+			MicroProfileScopeLock L(MicroProfileMutex());
+			if(S.pPendingQuery != nullptr)
+			{
+				MICROPROFILE_SCOPEI("MicroProfile", "SymbolQuery", MP_WHEAT);
+				MicroProfileFunctionQuery* pQuery = S.pPendingQuery;
+				S.pPendingQuery = pQuery->pNext;
+				pQuery->pNext = 0;
+				if(pQuery->QueryId > S.nQueryProcessed) //	
+				{
+					L.Unlock();
+				
+					MicroProfileProcessQuery(pQuery);
+					
+					L.Lock();
+					S.nQueryProcessed = pQuery->QueryId;
+					pQuery->pNext = S.pFinishedQuery;
+					S.pFinishedQuery = pQuery;
+					// printf("processed query %d\n", S.nQueryProcessed);
+				}
+				else
+				{
+					// printf("skipping old query %d\n", pQuery->QueryId);
+					MicroProfileFreeFunctionQuery(pQuery);
+				}
+			}
+			if(S.SymbolState.nModuleLoadsRequested.load() != S.SymbolState.nModuleLoadsFinished.load())
 			{
 				L.Unlock();
 				MicroProfileSymbolInitializeInternal();
 				L.Lock();
-				continue;
 			}
-			MICROPROFILE_SCOPEI("MicroProfile", "SymbolQuery", MP_WHEAT);
-			MicroProfileFunctionQuery* pQuery = S.pPendingQuery;
-			S.pPendingQuery = pQuery->pNext;
-			pQuery->pNext = 0;
-			L.Unlock();
-		
-			MicroProfileProcessQuery(pQuery);
-			
-			L.Lock();
-			pQuery->pNext = S.pFinishedQuery;
-			S.pFinishedQuery = pQuery;
-
-		}
+		}	
 
 		S.SymbolThreadFinished = 1;
 	}
@@ -10137,7 +10279,7 @@ void MicroProfileQueryJoinThread()
 }
 void MicroProfileSymbolKickThread()
 {
-	MicroProfileQueryJoinThread();
+	// MicroProfileQueryJoinThread();
 	if(S.SymbolThreadRunning == 0)
 	{
 		S.SymbolThreadRunning = 1;
@@ -10166,6 +10308,7 @@ void MicroProfileSymbolSendFunctionNames(MpSocket Connection)
 	
 		S.WSFunctionsInstrumentedSent = S.DynamicTokenIndex;
 	}
+
 }
 
 void MicroProfileSymbolSendErrors(MpSocket Connection)
@@ -10236,6 +10379,7 @@ void MicroProfileSymbolQuerySendResult(MpSocket Connection)
 
 	if(pQuery)
 	{
+		printf("Sending result for query %d\n", pQuery->QueryId);
 		MicroProfileWSPrintStart(Connection);
 		MicroProfileWSPrintf("{\"k\":\"%d\",\"q\":%d,\"v\":[", MSG_FUNCTION_RESULTS, pQuery->QueryId);	
 		bool bFirst = true;
@@ -10763,7 +10907,7 @@ BOOL MicroProfileQueryContextEnumSymbols (
 
 
 template<typename Callback>
-void MicroProfileIterateSymbols(Callback CB)
+void MicroProfileIterateSymbols(Callback CB, const char** pModuleNames, intptr_t* nAddrBegin, uint32_t nNumModules)
 {
 	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileIterateSymbols", MP_PINK3);
 	QueryCallbackImpl<Callback> Context(CB);
@@ -11299,7 +11443,7 @@ const char* MicroProfileDemangleSymbol(const char* pSymbol)
 
 
 template<typename Callback>
-void MicroProfileIterateSymbols(Callback CB)
+void MicroProfileIterateSymbols(Callback CB, const char** pModuleName, intptr_t* nModuleBase, uint32_t nNumModules)
 {
 	char FunctionName[1024];
 	(void)FunctionName;
@@ -11363,39 +11507,66 @@ void MicroProfileIterateSymbols(Callback CB)
 			addr_prev = vmoffset + vmsize;
 			if(0 != (vbr.protection&VM_PROT_EXECUTE))
 			{
-				dl_info di;
-				int r = 0;
-				r = dladdr( (void*)vmoffset, &di);
-				if(r)
+				bool bProcessModule = true;
+				if(nNumModules)
 				{
-					OnFunction(di.dli_saddr, (void*)addr_prev, di.dli_sname, di.dli_fname, di.dli_fbase);
+					printf("searching for module.. \n");
+					bProcessModule = false;
+					for(uint32_t i = 0; i < nNumModules; ++i)
+					{
+						if(vmoffset == nModuleBase[i])
+						{
+							printf("found module! %p %s\n", (void*)nModuleBase[i], pModuleName[i]);
+							bProcessModule = true;
+							break;
+						}
+
+					}
 				}
-				intptr_t addr = vmoffset + vmsize-1;
-				//for(int i = 0; i < 10000; ++i)
-				while(1)
+				if(bProcessModule)
 				{
-					r = dladdr( (void*)(addr), &di);
+					dl_info di;
+					int r = 0;
+					r = dladdr( (void*)vmoffset, &di);
 					if(r)
 					{
-						if(!di.dli_sname)
+
+
+						OnFunction(di.dli_saddr, (void*)addr_prev, di.dli_sname, di.dli_fname, di.dli_fbase);
+					}
+					intptr_t addr = vmoffset + vmsize-1;
+					//for(int i = 0; i < 10000; ++i)
+					while(1)
+					{
+						r = dladdr( (void*)(addr), &di);
+						if(r)
+						{
+							if(!di.dli_sname)
+							{
+								break;
+							}
+							OnFunction(di.dli_saddr, (void*)addr_prev, di.dli_sname, di.dli_fname, di.dli_fbase);
+
+						}	
+						else
 						{
 							break;
 						}
-						OnFunction(di.dli_saddr, (void*)addr_prev, di.dli_sname, di.dli_fname, di.dli_fbase);
-
-					}	
-					else
-					{
-						break;
+						addr_prev = (vm_offset_t)di.dli_saddr;
+						addr = (intptr_t)di.dli_saddr-1;
+						if(di.dli_saddr<(void*)vmoffset)
+						{
+							break;
+						}
+						// usleep(10000);
 					}
-					addr_prev = (vm_offset_t)di.dli_saddr;
-					addr = (intptr_t)di.dli_saddr-1;
-					if(di.dli_saddr<(void*)vmoffset)
+					for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
 					{
-						break;
+						if(S.SymbolModules[i].nBaseAddr == vmoffset)
+						{
+							S.SymbolModules[i].nModuleLoadFinished.store(1);
+						}
 					}
-					// usleep(10000);
-
 				}
 			}
 		}
@@ -11403,6 +11574,82 @@ void MicroProfileIterateSymbols(Callback CB)
 		vbrcount = sizeof(vbr)/4;
 	}
 }
+
+
+
+
+void MicroProfileSymbolUpdateModuleList()
+{
+	char FunctionName[1024];
+	(void)FunctionName;
+	mach_port_name_t task = mach_task_self();
+    vm_map_offset_t vmoffset = 0;
+	mach_vm_size_t vmsize = 0;
+	uint32_t nd;
+	kern_return_t kr;
+	vm_region_submap_info_64 vbr;
+	mach_msg_type_number_t vbrcount = sizeof(vbr)/4;
+
+	// intptr_t nCurrentModule = -1;
+	// uint32_t nCurrentModuleId = -1;
+
+
+	vm_offset_t addr_prev = 0;
+
+	while(KERN_SUCCESS == (kr = mach_vm_region_recurse(task, &vmoffset, &vmsize, &nd, (vm_region_recurse_info_t)&vbr, &vbrcount)))
+	{
+		{
+			addr_prev = vmoffset + vmsize;
+			if(0 != (vbr.protection&VM_PROT_EXECUTE))
+			{
+				dl_info di;
+				int r = 0;
+				r = dladdr( (void*)vmoffset, &di);
+				if(r)
+				{
+					printf("[0x%p-0x%p] (0x%p) %s %s\n", (void*)vmoffset, (void*)addr_prev, di.dli_fbase, di.dli_fname, di.dli_sname);
+					MicroProfileSymbolGetModule(di.dli_fname, (intptr_t)vmoffset);
+				}
+				// intptr_t addr = vmoffset + vmsize-1;
+				// //for(int i = 0; i < 10000; ++i)
+				// while(1)
+				// {
+				// 	r = dladdr( (void*)(addr), &di);
+				// 	if(r)
+				// 	{
+				// 		if(!di.dli_sname)
+				// 		{
+				// 			break;
+				// 		}
+				// 		OnFunction(di.dli_saddr, (void*)addr_prev, di.dli_sname, di.dli_fname, di.dli_fbase);
+
+				// 	}	
+				// 	else
+				// 	{
+				// 		break;
+				// 	}
+				// 	addr_prev = (vm_offset_t)di.dli_saddr;
+				// 	addr = (intptr_t)di.dli_saddr-1;
+				// 	if(di.dli_saddr<(void*)vmoffset)
+				// 	{
+				// 		break;
+				// 	}
+				// 	// usleep(10000);
+
+				// }
+			}
+		}
+		vmoffset += vmsize;
+		vbrcount = sizeof(vbr)/4;
+	}
+}
+
+
+
+
+
+
+
 
 
 static void* MicroProfileAllocExecutableMemory(size_t s)
