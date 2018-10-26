@@ -4351,8 +4351,12 @@ function DrawMenuModules()
 	{
 		var Name = M[i].n;
 		var Count = M[i].s;
+		var Prc = M[i].p;
+		if(Prc<0||Prc>1)
+			Prc = 0;
 		let cidx = StringColor(Name);
 		let Color = "hsl(" + cidx + ",50%, 70%)";
+		let C1 = "hsl(" + cidx + ",30%, 40%)";
 		var N = Name;
 		if(N.length > MaxStringLength)
 		{
@@ -4369,6 +4373,11 @@ function DrawMenuModules()
 
 				context.fillStyle = bgcolor;
 				context.fillRect(X, Y, Width, BoxHeight);
+				if(Prc>0 && Prc <= 1)
+				{
+					context.fillStyle = C1;
+					context.fillRect(X, Y, Prc*Width, BoxHeight);
+				}
 				context.fillStyle = 'white';
 				context.textAlign = 'right';
 				context.fillText(Count + '', X + Width - 2, TextY);
@@ -4387,7 +4396,6 @@ function DrawMenuModules()
 	context.textAlign = 'left';
 	if(Selection != -1 && MouseReleased)
 	{
-		// console.log("Sending message", "L", M[Selection].n);
 		WSSendMessage("L" + M[Selection].n);
 	}
 	SizeInfo.h = Y-SizeInfo.y;

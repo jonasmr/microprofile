@@ -1,3 +1,6 @@
+osx: load so and verify it appears
+module progress
+string intern
 
 gpu subtractive to handle cpu spinning.
 

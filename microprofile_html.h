@@ -11293,8 +11293,12 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "	{\n"
 "		var Name = M[i].n;\n"
 "		var Count = M[i].s;\n"
+"		var Prc = M[i].p;\n"
+"		if(Prc<0||Prc>1)\n"
+"			Prc = 0;\n"
 "		let cidx = StringColor(Name);\n"
 "		let Color = \"hsl(\" + cidx + \",50%, 70%)\";\n"
+"		let C1 = \"hsl(\" + cidx + \",30%, 40%)\";\n"
 "		var N = Name;\n"
 "		if(N.length > MaxStringLength)\n"
 "		{\n"
@@ -11311,6 +11315,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "\n"
 "				context.fillStyle = bgcolor;\n"
 "				context.fillRect(X, Y, Width, BoxHeight);\n"
+"				if(Prc>0 && Prc <= 1)\n"
+"				{\n"
+"					context.fillStyle = C1;\n"
+"					context.fillRect(X, Y, Prc*Width, BoxHeight);\n"
+"				}\n"
 "				context.fillStyle = \'white\';\n"
 "				context.textAlign = \'right\';\n"
 "				context.fillText(Count + \'\', X + Width - 2, TextY);\n"
@@ -11329,7 +11338,6 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "	context.textAlign = \'left\';\n"
 "	if(Selection != -1 && MouseReleased)\n"
 "	{\n"
-"		// console.log(\"Sending message\", \"L\", M[Selection].n);\n"
 "		WSSendMessage(\"L\" + M[Selection].n);\n"
 "	}\n"
 "	SizeInfo.h = Y-SizeInfo.y;\n"
@@ -12186,7 +12194,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "	{\n"
 "		TimerArray[idx].parent = pidx;\n"
 "		var Parent = TimerArray[pidx];\n"
-"		var Sibling = Parent.firstchild;\n"
+"		var Sibling = Parent.firstc";
+
+const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
+const char g_MicroProfileHtmlLive_begin_4[] =
+"hild;\n"
 "		wparent = MeasureWidth(Parent.name);\n"
 "		Parent.firstchild = idx;\n"
 "		if(Sibling != -1)\n"
@@ -13641,7 +13653,11 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "		if(Index == 0 || (!Counter.closed && Counter.idtype == TYPE_COUNTER))\n"
 "		{\n"
 "			var ChildIndex = Counter.firstchild;\n"
-"			while(ChildIndex != -1)\n"
+"			while(ChildIndex !";
+
+const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
+const char g_MicroProfileHtmlLive_begin_5[] =
+"= -1)\n"
 "			{\n"
 "				DrawCounterRecursive(ChildIndex);\n"
 "				ChildIndex = TimerArray[ChildIndex].sibling;\n"

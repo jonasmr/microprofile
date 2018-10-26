@@ -685,7 +685,9 @@ struct MicroProfileSymbolModule
 	uint32_t nMatchOffset;
 	uint32_t nStringOffset;
 	void* pBaseString;
-	intptr_t nBaseAddr;
+	intptr_t nAddrBegin;
+	intptr_t nAddrEnd;
+	float fLoadPrc;
 	struct MicroProfileSymbolBlock* pSymbolBlock;
 
 
@@ -922,6 +924,7 @@ struct MicroProfile
 	int 							SymbolModuleNameOffset;
 	int 							SymbolNumModules;
 	int 							WSSymbolModulesSent;
+	std::atomic<int>				nSymbolsDirty;
 
 
 
@@ -6313,49 +6316,28 @@ void MicroProfileWebSocketSendCounters()
 
 void MicroProfileSymbolSendModuleState()
 {
-	if(S.WSSymbolModulesSent != S.SymbolNumModules || 
-	0)//todo: tag when modulestate is updated.
+	if(S.WSSymbolModulesSent != S.SymbolNumModules || S.nSymbolsDirty.load())//todo: tag when modulestate is updated.
 	{
+		S.nSymbolsDirty.exchange(0);
 		MicroProfileWSPrintf(",\"M\":[");	
 		bool bFirst = true;
 		for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
 		{
 			MicroProfileSymbolModule& M = S.SymbolModules[i];
 			const char* pModuleName = (const char*)M.pBaseString;
-			uint64_t nBaseAddr = M.nBaseAddr;
-			uint32_t nNumSymbols = 0;
-			// const char* pModuleString = S.FunctionsInstrumentedModuleNames[i];
-			// const char* pUnmangled = S.FunctionsInstrumentedUnmangled[i];
-			#define FMT "{\"n\":\"%s\",\"a\":\"%llx\",\"s\":\"%d\"}"
-			MicroProfileWSPrintf(bFirst ? FMT : ("," FMT), pModuleName, nBaseAddr, nNumSymbols);
+			uint64_t nAddrBegin = M.nAddrBegin;
+			// uint64_t nAddrEnd = M.nAddrEnd;
+			float fPrc = M.fLoadPrc;
+			uint64_t nNumSymbols = M.nSymbolsLoaded;
+			#define FMT "{\"n\":\"%s\",\"a\":\"%llx\",\"s\":\"%lld\", \"p\":%f}"
+			MicroProfileWSPrintf(bFirst ? FMT : ("," FMT), pModuleName, nAddrBegin, nNumSymbols, fPrc);
 			#undef FMT
-
-				// "{\"n\":\"%s\",\"a\":\"llx\",\"s\":\"%d\"}" : ",{\"%s\",\"%s\",\"%s\"}", pString, pModuleString, pUnmangled);
 			bFirst = false;
 		}
 		MicroProfileWSPrintf("]");
-		// MicroProfileWSFlush();
 		S.WSSymbolModulesSent = S.SymbolNumModules;
 	}
 }
-
-
-// void MicroProfileSymbolSendModules(MpSocket Connection, uint32_t nFirstModule)
-// {
-// 	MicroProfileWSPrintStart(Connection);
-
-// 	MicroProfileWSPrintEnd();	
-// }
-
-
-
-// 	if(S.WSSymbolModulesSent < S.SymbolNumModules)
-// 	{
-// 		MicroProfileSymbolSendModules(Connection, S.WSSymbolModulesSent);
-// 		S.WSSymbolModulesSent = S.SymbolNumModules;
-// 	}
-
-
 
 
 void MicroProfileWebSocketSendFrame(MpSocket Connection)
@@ -9875,14 +9857,29 @@ bool MicroProfileCharacterMatch(const MicroProfileStringMatchMask& Block, const 
 }
 
 
-//todo: stringintern this..
 uint32_t MicroProfileSymbolGetModule(const char* pString, intptr_t nBaseAddr)
+{
+
+	for(int i = 0; i < S.SymbolNumModules; ++i)
+	{
+		if(S.SymbolModules[i].nAddrBegin == nBaseAddr)
+		{
+			//assert string is equal.
+			return i;
+		}
+	}
+	MP_BREAK(); //should never happen.
+	return 0;
+}
+
+//todo: stringintern this..
+uint32_t MicroProfileSymbolInitModule(const char* pString, intptr_t nBaseAddr, intptr_t nAddrEnd)
 {
 	//search for matching string: this assumes the calling code does not reuse this memory.
 	//for the ones I've tested this is OK.
 	for(int i = 0; i < S.SymbolNumModules; ++i)
 	{
-		if(S.SymbolModules[i].nBaseAddr == nBaseAddr)
+		if(S.SymbolModules[i].nAddrBegin == nBaseAddr)
 		{
 			//assert string is equal.
 			return i;
@@ -9894,7 +9891,7 @@ uint32_t MicroProfileSymbolGetModule(const char* pString, intptr_t nBaseAddr)
 		if(S.SymbolModules[i].pBaseString == pString)
 		{
 
-			MP_ASSERT((intptr_t)pString == -2 || nBaseAddr == S.SymbolModules[i].nBaseAddr);
+			MP_ASSERT((intptr_t)pString == -2 || nBaseAddr == S.SymbolModules[i].nAddrBegin);
 			return i;
 		}
 	}
@@ -9925,7 +9922,9 @@ uint32_t MicroProfileSymbolGetModule(const char* pString, intptr_t nBaseAddr)
 	S.SymbolModules[S.SymbolNumModules].nMatchOffset = 0;
 	S.SymbolModules[S.SymbolNumModules].nStringOffset = S.SymbolModuleNameOffset;
 	S.SymbolModules[S.SymbolNumModules].pBaseString = (void*)pString;
-	S.SymbolModules[S.SymbolNumModules].nBaseAddr = nBaseAddr;
+	S.SymbolModules[S.SymbolNumModules].nAddrBegin = nBaseAddr;
+	S.SymbolModules[S.SymbolNumModules].nAddrEnd = nAddrEnd;
+	S.SymbolModules[S.SymbolNumModules].fLoadPrc = 0.f;
 
 	S.SymbolModuleNameOffset += nLen;
 	return S.SymbolNumModules++;
@@ -9991,7 +9990,6 @@ void MicroProfileSymbolInitializeInternal()
 			nIgnoreSymbol = 1;
 		}
 #endif
-		// printf("module addr %p\n", (void*)nModuleAddress);
 		uint32_t nModule = nModuleId;
 		MicroProfileSymbolBlock* pActiveBlock = S.SymbolModules[nModule].pSymbolBlock;
 		if(!pActiveBlock)
@@ -10049,7 +10047,10 @@ void MicroProfileSymbolInitializeInternal()
 		{
 			E.pShortName = E.pName;
 		}
-		printf("Got symbol %s\n", E.pName);
+		#define SYMDBG 0
+		#if SYMDBG
+		printf("Got symbol %llx    %llx    %llx %s\n", (int64_t)E.nAddress, (int64_t)S.SymbolModules[nModule].nAddrBegin, (int64_t)S.SymbolModules[nModule].nAddrEnd, E.pName);
+		#endif
 		E.nMask = MicroProfileCharacterMaskString(E.pShortName);
 		MicroProfileCharacterMaskString2(E.pShortName, pActiveBlock->MatchMask);
 
@@ -10059,26 +10060,50 @@ void MicroProfileSymbolInitializeInternal()
 		{
 			MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Ignored", 1);
 		}
+		#if SYMDBG
 		usleep(10000);
+		#endif
+		#undef SYMDBG
+		uint64_t nModuleAddrBegin = S.SymbolModules[nModule].nAddrBegin;
+		uint64_t nModuleAddrEnd = S.SymbolModules[nModule].nAddrEnd;
+		#ifdef _WIN32
+		uint64_t nAddrParse = nAddressEnd;
+		float fLoadPrc = float(nAddrParse - nModuleAddrBegin) / float(nModuleAddrEnd - nModuleAddrBegin);
+		#else
+		uint64_t nAddrParse = nAddress;
+		float fLoadPrc = float(nModuleAddrEnd - nAddrParse) / float(nModuleAddrEnd - nModuleAddrBegin);
+		#endif
+		S.SymbolModules[nModule].fLoadPrc = fLoadPrc;
+
+		S.SymbolModules[nModule].nSymbolsLoaded.fetch_add(1);
+		S.nSymbolsDirty.exchange(1);
 		S.SymbolState.nSymbolsLoaded.fetch_add(1);
 		MP_ASSERT((intptr_t)E.pShortName >= (intptr_t)&E); //assert pointer arithmetic is correct.
 	};
 	const char* pModuleName[MICROPROFILE_INSTRUMENT_MAX_MODULES];
 	intptr_t nModuleStart[MICROPROFILE_INSTRUMENT_MAX_MODULES];
-	// intptr_t nModuleSize[MICROPROFILE_INSTRUMENT_MAX_MODULES];
+	int nModuleLoad[MICROPROFILE_INSTRUMENT_MAX_MODULES];
 	uint32_t nNumModulesRequested = 0;
 	for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
 	{
 		if(S.SymbolModules[i].nModuleLoadRequested.load() != 0 && S.SymbolModules[i].nModuleLoadFinished.load() == 0)
 		{
 			pModuleName[nNumModulesRequested] = (const char*)S.SymbolModules[i].pBaseString;
-			nModuleStart[nNumModulesRequested] = S.SymbolModules[i].nBaseAddr;
-			// nModuleSize[nNumModulesRequested] = S.SymbolModules[i].nSize;
+			nModuleStart[nNumModulesRequested] = S.SymbolModules[i].nAddrBegin;
+			nModuleLoad[nNumModulesRequested] = i;
 			nNumModulesRequested++;
 		}
 	}
 	MicroProfileIterateSymbols(SymbolCallback, pModuleName, nModuleStart, nNumModulesRequested);
 	S.SymbolState.nModuleLoadsFinished.fetch_add(nNumModulesRequested);
+	for(uint32_t i = 0; i < nNumModulesRequested; ++i)
+	{
+		if(S.SymbolModules[nModuleLoad[i]].nModuleLoadRequested.load() == S.SymbolModules[nModuleLoad[i]].nModuleLoadFinished.load())
+		{
+			S.SymbolModules[nModuleLoad[i]].fLoadPrc = 1.0f;
+			S.nSymbolsDirty.exchange(1);
+		}
+	}
 }
 
 
@@ -10233,7 +10258,7 @@ void* MicroProfileQueryThread(void* p)
 	{
 		while(1)
 		{
-			MicroProfileSleep(100);	// todo:: EVENT
+			MicroProfileSleep(100);	// todo:: use an event instead
 			MicroProfileScopeLock L(MicroProfileMutex());
 			if(S.pPendingQuery != nullptr)
 			{
@@ -10241,7 +10266,7 @@ void* MicroProfileQueryThread(void* p)
 				MicroProfileFunctionQuery* pQuery = S.pPendingQuery;
 				S.pPendingQuery = pQuery->pNext;
 				pQuery->pNext = 0;
-				if(pQuery->QueryId > S.nQueryProcessed) //	
+				if(pQuery->QueryId > S.nQueryProcessed) 
 				{
 					L.Unlock();
 				
@@ -10251,11 +10276,9 @@ void* MicroProfileQueryThread(void* p)
 					S.nQueryProcessed = pQuery->QueryId;
 					pQuery->pNext = S.pFinishedQuery;
 					S.pFinishedQuery = pQuery;
-					// printf("processed query %d\n", S.nQueryProcessed);
 				}
 				else
 				{
-					// printf("skipping old query %d\n", pQuery->QueryId);
 					MicroProfileFreeFunctionQuery(pQuery);
 				}
 			}
@@ -11567,7 +11590,7 @@ void MicroProfileIterateSymbols(Callback CB, const char** pModuleName, intptr_t*
 					}
 					for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
 					{
-						if(S.SymbolModules[i].nBaseAddr == vmoffset)
+						if(S.SymbolModules[i].nAddrBegin == vmoffset)
 						{
 							S.SymbolModules[i].nModuleLoadFinished.store(1);
 						}
@@ -11613,7 +11636,7 @@ void MicroProfileSymbolUpdateModuleList()
 				if(r)
 				{
 					printf("[0x%p-0x%p] (0x%p) %s %s\n", (void*)vmoffset, (void*)addr_prev, di.dli_fbase, di.dli_fname, di.dli_sname);
-					MicroProfileSymbolGetModule(di.dli_fname, (intptr_t)vmoffset);
+					MicroProfileSymbolInitModule(di.dli_fname, (intptr_t)vmoffset, (intptr_t)vmoffset + vmsize);
 				}
 				// intptr_t addr = vmoffset + vmsize-1;
 				// //for(int i = 0; i < 10000; ++i)
