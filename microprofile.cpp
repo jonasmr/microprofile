@@ -809,13 +809,6 @@ struct MicroProfile
 	uint32_t nTimerNegativeCpuIndex;
 	uint32_t nTimerNegativeGpuIndex;
 
-	// uint32_t 				TimelineRangePut;
-	// struct 
-	// {
-	// 	uint32_t nIndex;
-	// 	uint32_t nToken;
-	// }						TimelineActive[MICROPROFILE_MAX_TIMELINE_ACTIVE];
-
 	uint32_t 				nFrameCurrent;
 	uint32_t 				nFrameCurrentIndex;
 	uint32_t 				nFramePut;
@@ -6267,8 +6260,6 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 	S.WSSymbolModulesSent = 0;
 	{
 		uint64_t t0 = MP_TICK();
-
-
 		MicroProfileSymbolUpdateModuleList();
 		uint64_t t1 = MP_TICK();
 		float fTime = float(MicroProfileTickToMsMultiplierCpu()) * (t1-t0);
@@ -6314,6 +6305,8 @@ void MicroProfileWebSocketSendCounters()
 	}
 }
 
+
+#if MICROPROFILE_DYNAMIC_INSTRUMENT
 void MicroProfileSymbolSendModuleState()
 {
 	if(S.WSSymbolModulesSent != S.SymbolNumModules || S.nSymbolsDirty.load())//todo: tag when modulestate is updated.
@@ -6338,6 +6331,7 @@ void MicroProfileSymbolSendModuleState()
 		S.WSSymbolModulesSent = S.SymbolNumModules;
 	}
 }
+#endif
 
 
 void MicroProfileWebSocketSendFrame(MpSocket Connection)
@@ -10047,7 +10041,7 @@ void MicroProfileSymbolInitializeInternal()
 		{
 			E.pShortName = E.pName;
 		}
-		#define SYMDBG 0
+		#define SYMDBG 1
 		#if SYMDBG
 		printf("Got symbol %llx    %llx    %llx %s\n", (int64_t)E.nAddress, (int64_t)S.SymbolModules[nModule].nAddrBegin, (int64_t)S.SymbolModules[nModule].nAddrEnd, E.pName);
 		#endif
@@ -10061,7 +10055,7 @@ void MicroProfileSymbolInitializeInternal()
 			MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Ignored", 1);
 		}
 		#if SYMDBG
-		usleep(10000);
+		MicroProfileSleep(10);
 		#endif
 		#undef SYMDBG
 		uint64_t nModuleAddrBegin = S.SymbolModules[nModule].nAddrBegin;
@@ -10881,7 +10875,30 @@ BOOL CALLBACK MicroProfileEnumModules(
   _In_opt_ PVOID   UserContext
 )
 {
-	MicroProfileSymbolGetModule(ModuleName, BaseOfDll);
+
+	MODULEINFO MI;
+	GetModuleInformation(GetCurrentProcess(), (HMODULE)BaseOfDll, &MI, sizeof(MI));
+	MEMORY_BASIC_INFORMATION64 B;
+	int r = VirtualQuery((LPCVOID)BaseOfDll, (MEMORY_BASIC_INFORMATION*)&B, sizeof(B));
+	char buffer[1024];
+	int r1 = GetLastError();
+	if(r == 0)
+	{
+		snprintf(buffer, sizeof(buffer)-1, "Error %d\n", r1);
+		OutputDebugString(buffer);
+		MP_BREAK();
+
+	}
+	// char buffer[1024];
+	snprintf(buffer, sizeof(buffer)-1, "MODULE %p, %d %s\n", BaseOfDll, MI.SizeOfImage, ModuleName);
+	OutputDebugStringA(buffer);
+	MicroProfileSymbolInitModule(ModuleName, BaseOfDll, BaseOfDll + MI.SizeOfImage);
+
+						//MicroProfileSymbolInitModule(di.dli_fname, (intptr_t)vmoffset, (intptr_t)vmoffset + vmsize);
+
+
+
+//	MicroProfileSymbolGetModule(ModuleName, BaseOfDll);
 	return true;
 }
 
@@ -10960,6 +10977,7 @@ void MicroProfileIterateSymbols(Callback CB, const char** pModuleNames, intptr_t
 
 static int MicroProfileWin32SymInitCount = 0;
 static int MicroProfileWin32SymInitSuccess = 0;
+
 bool MicroProfileSymInit()
 {
 	if (0 == MicroProfileWin32SymInitCount++)
@@ -11025,9 +11043,11 @@ const char* MicroProfileGetUnmangledSymbolName(void* pFunction)
 	}
 }
 
+
 static void* g_pFunctionFoundHack = 0;
 static const char* g_pFunctionpNameFound = 0;
 static char g_Demangled[512];
+
 BOOL MicroProfileQueryContextEnumSymbols1 (
   _In_     PSYMBOL_INFO pSymInfo,
   _In_     ULONG        SymbolSize,
@@ -11077,6 +11097,31 @@ void MicroProfileInstrumentWithoutSymbols(const char** pModules, const char** pS
 		MicroProfileSymCleanup();
 	}
 }
+
+
+
+void MicroProfileSymbolUpdateModuleList()
+{
+	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSymbolUpdateModuleList", MP_PINK3);
+//	QueryCallbackImpl<Callback> Context(CB);
+	if(MicroProfileSymInit())
+	{
+		MP_LOG("symbols loaded!\n");
+		API_VERSION* pv = ImagehlpApiVersion();
+		MP_LOG("VERSION %d.%d.%d\n", pv->MajorVersion, pv->MinorVersion, pv->Revision);
+
+		nLastModuleBaseWin32 = -1;
+		if (SymEnumerateModules64(GetCurrentProcess(), (PSYM_ENUMMODULES_CALLBACK64)MicroProfileEnumModules, NULL))
+		{
+			MP_LOG("SymEnumerateModules64 Succeeds!\n");
+		}
+		MicroProfileSymCleanup();
+	}
+}
+
+
+
+
 
 #endif
 
@@ -11603,27 +11648,19 @@ void MicroProfileIterateSymbols(Callback CB, const char** pModuleName, intptr_t*
 	}
 }
 
-
-
-
 void MicroProfileSymbolUpdateModuleList()
 {
 	char FunctionName[1024];
 	(void)FunctionName;
 	mach_port_name_t task = mach_task_self();
-    vm_map_offset_t vmoffset = 0;
+	vm_map_offset_t vmoffset = 0;
 	mach_vm_size_t vmsize = 0;
 	uint32_t nd;
 	kern_return_t kr;
 	vm_region_submap_info_64 vbr;
 	mach_msg_type_number_t vbrcount = sizeof(vbr)/4;
 
-	// intptr_t nCurrentModule = -1;
-	// uint32_t nCurrentModuleId = -1;
-
-
 	vm_offset_t addr_prev = 0;
-
 	while(KERN_SUCCESS == (kr = mach_vm_region_recurse(task, &vmoffset, &vmsize, &nd, (vm_region_recurse_info_t)&vbr, &vbrcount)))
 	{
 		{
@@ -11638,33 +11675,6 @@ void MicroProfileSymbolUpdateModuleList()
 					printf("[0x%p-0x%p] (0x%p) %s %s\n", (void*)vmoffset, (void*)addr_prev, di.dli_fbase, di.dli_fname, di.dli_sname);
 					MicroProfileSymbolInitModule(di.dli_fname, (intptr_t)vmoffset, (intptr_t)vmoffset + vmsize);
 				}
-				// intptr_t addr = vmoffset + vmsize-1;
-				// //for(int i = 0; i < 10000; ++i)
-				// while(1)
-				// {
-				// 	r = dladdr( (void*)(addr), &di);
-				// 	if(r)
-				// 	{
-				// 		if(!di.dli_sname)
-				// 		{
-				// 			break;
-				// 		}
-				// 		OnFunction(di.dli_saddr, (void*)addr_prev, di.dli_sname, di.dli_fname, di.dli_fbase);
-
-				// 	}	
-				// 	else
-				// 	{
-				// 		break;
-				// 	}
-				// 	addr_prev = (vm_offset_t)di.dli_saddr;
-				// 	addr = (intptr_t)di.dli_saddr-1;
-				// 	if(di.dli_saddr<(void*)vmoffset)
-				// 	{
-				// 		break;
-				// 	}
-				// 	// usleep(10000);
-
-				// }
 			}
 		}
 		vmoffset += vmsize;
