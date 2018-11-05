@@ -11361,8 +11361,10 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "	let SymbolStateString = \"Load all\";\n"
 "	let SymbolButtonActive = 1;\n"
 "	let SymbolSpinnerActive = 0;\n"
+"	let FinishedSymbols = 0;\n"
 "	if(SymbolState)\n"
 "	{\n"
+"		FinishedSymbols = SymbolState.f;\n"
 "		var s = SymbolState.s;\n"
 "		NumSymbols = SymbolState.l;\n"
 "		SymbolButtonActive = 1;\n"
@@ -11392,7 +11394,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "\n"
 "	context.textAlign = \'right\';\n"
 "	context.fillStyle = \'white\';\n"
-"	context.fillText(NumSymbols + \" Symbols \" + SymbolState.f + \"/\" + ModuleState.length + \" Modules\", X+Width-2, TextY);\n"
+"	context.fillText(NumSymbols + \" Symbols \" + FinishedSymbols + \"/\" + ModuleState.length + \" Modules\", X+Width-2, TextY);\n"
 "	context.textAlign = \'center\';\n"
 "\n"
 "	if(LoadButtonAnimation>0)\n"
@@ -12192,13 +12194,13 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "	var pidx = GetTimer(T.pid);\n"
 "	if(pidx >= 0 && !existing)\n"
 "	{\n"
-"		TimerArray[idx].parent = pidx;\n"
-"		var Parent = TimerArray[pidx];\n"
-"		var Sibling = Parent.firstc";
+"		TimerArray[idx].parent = pidx;";
 
 const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
 const char g_MicroProfileHtmlLive_begin_4[] =
-"hild;\n"
+"\n"
+"		var Parent = TimerArray[pidx];\n"
+"		var Sibling = Parent.firstchild;\n"
 "		wparent = MeasureWidth(Parent.name);\n"
 "		Parent.firstchild = idx;\n"
 "		if(Sibling != -1)\n"
@@ -13651,13 +13653,13 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "		}\n"
 "\n"
 "		if(Index == 0 || (!Counter.closed && Counter.idtype == TYPE_COUNTER))\n"
-"		{\n"
-"			var ChildIndex = Counter.firstchild;\n"
-"			while(ChildIndex !";
+"		";
 
 const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
 const char g_MicroProfileHtmlLive_begin_5[] =
-"= -1)\n"
+"{\n"
+"			var ChildIndex = Counter.firstchild;\n"
+"			while(ChildIndex != -1)\n"
 "			{\n"
 "				DrawCounterRecursive(ChildIndex);\n"
 "				ChildIndex = TimerArray[ChildIndex].sibling;\n"

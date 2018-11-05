@@ -6322,7 +6322,7 @@ void MicroProfileSymbolSendModuleState()
 			uint64_t nAddrBegin = M.nAddrBegin;
 			intptr_t nProgress = M.nProgress;
 			intptr_t nProgressTarget = M.nProgressTarget;
-			nProgressTarget = MicroProfileMax(1ll, M.nProgressTarget);
+			nProgressTarget = MicroProfileMax(intptr_t(1), M.nProgressTarget);
 			nProgress = MicroProfileMin(nProgressTarget, M.nProgress);
 			float fLoadPrc = M.nProgress / float(nProgressTarget);
 			uint64_t nNumSymbols = M.nSymbolsLoaded;
@@ -10914,7 +10914,7 @@ namespace
 
 static uint32_t nLastModuleIdWin32 = (uint32_t)-1;
 static intptr_t nLastModuleBaseWin32 = (intptr_t)-1;
-FILE* FISK = 0;
+
 
 BOOL MicroProfileQueryContextEnumSymbols (
   _In_     PSYMBOL_INFO pSymInfo,
@@ -10945,10 +10945,7 @@ BOOL MicroProfileQueryContextEnumSymbols (
 
 template<typename Callback>
 void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumModules)
-	
-	//intptr_t* nAddrBegin, intptr_t* nAddrEnd, uint32_t nNumModules)
 {
-	FISK = fopen("fisk.txt", "w");
 	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileIterateSymbols", MP_PINK3);
 	QueryCallbackImpl<Callback> Context(CB);
 	if(MicroProfileSymInit())
@@ -11016,7 +11013,6 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 		}
 		MicroProfileSymCleanup();
 	}
-	fclose(FISK);
 }
 
 static int MicroProfileWin32SymInitCount = 0;
@@ -11579,34 +11575,7 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 
 	auto OnFunction = [&](void* addr, void* addrend, const char* pSymbol, const char* pModuleName, void* pModuleAddr) -> bool
 	{
-		// unsigned long len = size;
-		// int ret = 0;
-		// char* pBuffer = pTempBuffer;
-		// pBuffer = abi::__cxa_demangle(pSymbol, pTempBuffer, &len, &ret);
-		// if(pBuffer && 0 != strstr(pBuffer, "MicroProfileStringsInit"))
-		// {
-		// 	printf("*************** MicroProfileStringsInit\n");
-		// 	printf("SYM %s\n", pBuffer);
-		// 	printf("SYM %s\n", pSymbol);
-		// 	printf("***************\n");
-		// }
 		const char* pStr = MicroProfileDemangleSymbol(pSymbol);;
-		// if(ret == 0)
-		// {
-		// 	if(pBuffer != pTempBuffer)
-		// 	{
-		// 		pTempBuffer = pBuffer;
-		// 		if(len < size)
-		// 			__builtin_trap();
-		// 		size = len;
-		// 	}
-		// 	pStr = pTempBuffer;
-		// }
-		// else
-		// {
-		// 	pStr = pSymbol;
-		// }
-		// cons
 		int l = MicroProfileTrimFunctionName(pStr, &FunctionName[0], &FunctionName[1024]);
 		if(nCurrentModule != (intptr_t)pModuleAddr)
 		{
@@ -11626,16 +11595,17 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 			if(0 != (vbr.protection&VM_PROT_EXECUTE))
 			{
 				bool bProcessModule = true;
+				int nModule = -1;
 				if(nNumModules)
 				{
-					printf("searching for module.. \n");
 					bProcessModule = false;
 					for(uint32_t i = 0; i < nNumModules; ++i)
 					{
-						if(vmoffset == nModuleBase[i])
+						intptr_t nBase = S.SymbolModules[nModules[i]].nAddrBegin;
+						if(vmoffset == nBase)
 						{
-							printf("found module! %p %s\n", (void*)nModuleBase[i], pModuleName[i]);
 							bProcessModule = true;
+							nModule = nModules[i];
 							break;
 						}
 
@@ -11643,17 +11613,15 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 				}
 				if(bProcessModule)
 				{
+					S.SymbolModules[nModule].nProgressTarget = S.SymbolModules[nModule].nAddrEnd - S.SymbolModules[nModule].nAddrBegin;
 					dl_info di;
 					int r = 0;
 					r = dladdr( (void*)vmoffset, &di);
 					if(r)
 					{
-
-
 						OnFunction(di.dli_saddr, (void*)addr_prev, di.dli_sname, di.dli_fname, di.dli_fbase);
 					}
 					intptr_t addr = vmoffset + vmsize-1;
-					//for(int i = 0; i < 10000; ++i)
 					while(1)
 					{
 						r = dladdr( (void*)(addr), &di);
@@ -11676,7 +11644,6 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 						{
 							break;
 						}
-						// usleep(10000);
 					}
 					for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
 					{
