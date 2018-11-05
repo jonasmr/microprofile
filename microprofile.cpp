@@ -688,7 +688,7 @@ struct MicroProfileSymbolModule
 	intptr_t nAddrBegin;
 	intptr_t nAddrEnd;
 	intptr_t nProgress;
-	float fLoadPrc;
+	intptr_t nProgressTarget;
 	struct MicroProfileSymbolBlock* pSymbolBlock;
 
 
@@ -3099,7 +3099,7 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 							pChildTickStack[i-1] += nTicks;
 						}
 						MP_ASSERT(nTicks >= nNegative);
-						MP_ASSERT(nTicks >= nChildTicks);
+						MP_ASSERT(nTicks >= (uint64_t)nChildTicks);
 
 						uint32_t nTimerIndex = (uint32_t)MicroProfileLogGetTimerIndex(LE);
 						uint32_t nGroup = pTimerToGroup[nTimerIndex];
@@ -6315,16 +6315,19 @@ void MicroProfileSymbolSendModuleState()
 		S.nSymbolsDirty.exchange(0);
 		MicroProfileWSPrintf(",\"M\":[");	
 		bool bFirst = true;
-		for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
+		for(int i = 0; i < S.SymbolNumModules; ++i)
 		{
 			MicroProfileSymbolModule& M = S.SymbolModules[i];
 			const char* pModuleName = (const char*)M.pBaseString;
 			uint64_t nAddrBegin = M.nAddrBegin;
-			// uint64_t nAddrEnd = M.nAddrEnd;
-			float fPrc = M.fLoadPrc;
+			intptr_t nProgress = M.nProgress;
+			intptr_t nProgressTarget = M.nProgressTarget;
+			nProgressTarget = MicroProfileMax(1ll, M.nProgressTarget);
+			nProgress = MicroProfileMin(nProgressTarget, M.nProgress);
+			float fLoadPrc = M.nProgress / float(nProgressTarget);
 			uint64_t nNumSymbols = M.nSymbolsLoaded;
 			#define FMT "{\"n\":\"%s\",\"a\":\"%llx\",\"s\":\"%lld\", \"p\":%f}"
-			MicroProfileWSPrintf(bFirst ? FMT : ("," FMT), pModuleName, nAddrBegin, nNumSymbols, fPrc);
+			MicroProfileWSPrintf(bFirst ? FMT : ("," FMT), pModuleName, nAddrBegin, nNumSymbols, fLoadPrc);
 			#undef FMT
 			bFirst = false;
 		}
@@ -8617,7 +8620,7 @@ void* MicroProfileX64FollowJump(void* pSrc);
 bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit, const int nMaxSize, char* pTrunk, intptr_t nTrunkSize, uint32_t nUsableJumpRegs, int* nBytesDest, int* nBytesSrc, uint32_t* pRegsWritten, uint32_t* nRetSafe) ;
 bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter, MicroProfileHookFunc leave, MicroProfilePatchError* pError);
 template<typename Callback>
-void MicroProfileIterateSymbols(Callback CB, const char** pModuleNames, intptr_t* nAddrBegin, intptr_t* nAddrEnd, uint32_t nNumModules);
+void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumModules);
 const char* MicroProfileGetUnmangledSymbolName(void* pFunction);
 
 
@@ -9571,11 +9574,11 @@ void MicroProfileQueryJoinThread();
 bool MicroProfileSymbolInitialize(bool bStartLoad, const char* pModuleName)
 {
 	if(!bStartLoad)
-		return S.SymbolState.nModuleLoadsFinished.load();
+		return S.SymbolState.nModuleLoadsFinished.load() != 0;
 	// int nRequests = 0;
 	{
 		MicroProfileScopeLock L(MicroProfileMutex());
-		for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
+		for(int i = 0; i < S.SymbolNumModules; ++i)
 		{
 			if(0 == pModuleName || 0 == strcmp(pModuleName, (const char*)S.SymbolModules[i].pBaseString))
 			{
@@ -9920,8 +9923,8 @@ uint32_t MicroProfileSymbolInitModule(const char* pString, intptr_t nBaseAddr, i
 	S.SymbolModules[S.SymbolNumModules].pBaseString = (void*)pString;
 	S.SymbolModules[S.SymbolNumModules].nAddrBegin = nBaseAddr;
 	S.SymbolModules[S.SymbolNumModules].nAddrEnd = nAddrEnd;
-	S.SymbolModules[S.SymbolNumModules].fLoadPrc = 0.f;
 	S.SymbolModules[S.SymbolNumModules].nProgress = 0;
+	S.SymbolModules[S.SymbolNumModules].nProgressTarget = 0;
 
 	S.SymbolModuleNameOffset += nLen;
 	return S.SymbolNumModules++;
@@ -9934,18 +9937,9 @@ const char* MicroProfileSymbolModuleGetString(uint32_t nIndex)
 	return S.SymbolModules[nIndex].nStringOffset + &S.SymbolModuleNameBuffer[0];
 }
 
-
-
-
-
 void MicroProfileSymbolInitializeInternal()
 {
-	for(int i = 0; i < S.SymbolNumModules; ++i)
-	{
-		MP_ASSERT(0 == S.SymbolModules[i].pSymbolBlock);
-
-	}
-	printf("Starting load...\n");
+	uprintf("Starting load...\n");
 	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSymbolInitialize", MP_CYAN);
 
 	auto AllocBlock = []() -> MicroProfileSymbolBlock*
@@ -10043,9 +10037,17 @@ void MicroProfileSymbolInitializeInternal()
 		{
 			E.pShortName = E.pName;
 		}
-		#define SYMDBG 1
+		#define SYMDBG 0
 		#if SYMDBG
-		//printf("Got symbol %llx    %llx    %llx %s\n", (int64_t)E.nAddress, (int64_t)S.SymbolModules[nModule].nAddrBegin, (int64_t)S.SymbolModules[nModule].nAddrEnd, E.pName);
+		printf("Got symbol %lld %lld %f .. %llx    %llx    %llx %s\n", 
+			S.SymbolModules[nModule].nProgress,
+			S.SymbolModules[nModule].nProgressTarget,
+			S.SymbolModules[nModule].nProgressTarget ? float(S.SymbolModules[nModule].nProgress) / float(S.SymbolModules[nModule].nProgressTarget) : 0.f,
+			(int64_t)E.nAddress, (int64_t)S.SymbolModules[nModule].nAddrBegin, (int64_t)S.SymbolModules[nModule].nAddrEnd, E.pName);
+		if(E.nAddress < (int64_t)S.SymbolModules[nModule].nAddrBegin || E.nAddress > (int64_t)S.SymbolModules[nModule].nAddrEnd)
+		{
+			MP_BREAK();
+		}
 		#endif
 		E.nMask = MicroProfileCharacterMaskString(E.pShortName);
 		MicroProfileCharacterMaskString2(E.pShortName, pActiveBlock->MatchMask);
@@ -10056,55 +10058,46 @@ void MicroProfileSymbolInitializeInternal()
 		{
 			MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Ignored", 1);
 		}
+		MicroProfileSleep(1);
 		#if SYMDBG
-		//MicroProfileSleep(10);
+		MicroProfileSleep(10);
 		#endif
 		#undef SYMDBG
-		uint64_t nModuleAddrBegin = S.SymbolModules[nModule].nAddrBegin;
-		uint64_t nModuleAddrEnd = S.SymbolModules[nModule].nAddrEnd;
-		uint64_t nProgress = S.SymbolModules[nModule].nProgress;
 
-
-		uint64_t nAddrParse = nModuleAddrBegin + nProgress;
-		float fLoadPrc = float(nAddrParse - nModuleAddrBegin) / float(nModuleAddrEnd - nModuleAddrBegin);
-
-		printf("nprogress %llu\n", nProgress);
-		// printf(". xx. %llx , %f\n", nProgress, fLoadPrc);
-
-		S.SymbolModules[nModule].fLoadPrc = fLoadPrc;
 
 		S.SymbolModules[nModule].nSymbolsLoaded.fetch_add(1);
 		S.nSymbolsDirty.exchange(1);
 		S.SymbolState.nSymbolsLoaded.fetch_add(1);
 		MP_ASSERT((intptr_t)E.pShortName >= (intptr_t)&E); //assert pointer arithmetic is correct.
 	};
-	const char* pModuleName[MICROPROFILE_INSTRUMENT_MAX_MODULES];
-	intptr_t nModuleStart[MICROPROFILE_INSTRUMENT_MAX_MODULES];
-	intptr_t nModuleEnd[MICROPROFILE_INSTRUMENT_MAX_MODULES];
-	int nModuleLoad[MICROPROFILE_INSTRUMENT_MAX_MODULES];
-	uint32_t nNumModulesRequested = 0;
-	for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
+	do
 	{
-		if(S.SymbolModules[i].nModuleLoadRequested.load() != 0 && S.SymbolModules[i].nModuleLoadFinished.load() == 0)
+		uint32_t nModuleLoad[MICROPROFILE_INSTRUMENT_MAX_MODULES];
+		uint32_t nNumModulesRequested = 0;
+		for(int i = 0; i < S.SymbolNumModules; ++i)
 		{
-			pModuleName[nNumModulesRequested] = (const char*)S.SymbolModules[i].pBaseString;
-			nModuleStart[nNumModulesRequested] = S.SymbolModules[i].nAddrBegin;
-			nModuleEnd[nNumModulesRequested] = S.SymbolModules[i].nAddrEnd;
-			nModuleLoad[nNumModulesRequested] = i;
-			S.SymbolModules[i].nProgress = 0;
-			nNumModulesRequested++;
+			if(S.SymbolModules[i].nModuleLoadRequested.load() != 0 && S.SymbolModules[i].nModuleLoadFinished.load() == 0)
+			{
+				nModuleLoad[nNumModulesRequested] = i;
+				S.SymbolModules[i].nProgress = 0;
+				nNumModulesRequested++;
+			}
 		}
-	}
-	MicroProfileIterateSymbols(SymbolCallback, pModuleName, nModuleStart, nModuleEnd, nNumModulesRequested);
-	S.SymbolState.nModuleLoadsFinished.fetch_add(nNumModulesRequested);
-	for(uint32_t i = 0; i < nNumModulesRequested; ++i)
-	{
-		if(S.SymbolModules[nModuleLoad[i]].nModuleLoadRequested.load() == S.SymbolModules[nModuleLoad[i]].nModuleLoadFinished.load())
+		if(0 == nNumModulesRequested)
 		{
-			S.SymbolModules[nModuleLoad[i]].fLoadPrc = 1.0f;
-			S.nSymbolsDirty.exchange(1);
+			break;
 		}
-	}
+		MicroProfileIterateSymbols(SymbolCallback, nModuleLoad, nNumModulesRequested);
+		S.SymbolState.nModuleLoadsFinished.fetch_add(nNumModulesRequested);
+		for(uint32_t i = 0; i < nNumModulesRequested; ++i)
+		{
+			if(S.SymbolModules[nModuleLoad[i]].nModuleLoadRequested.load() == S.SymbolModules[nModuleLoad[i]].nModuleLoadFinished.load())
+			{
+				S.SymbolModules[nModuleLoad[i]].nProgress = S.SymbolModules[nModuleLoad[i]].nProgressTarget;
+				S.nSymbolsDirty.exchange(1);
+			}
+		}
+	}while(1);
 }
 
 
@@ -10896,36 +10889,7 @@ BOOL CALLBACK MicroProfileEnumModules(
 		MP_BREAK();
 
 	}
-	// char buffer[1024];
-	//printf("MODULE %p, %d %s\n", BaseOfDll, MI.SizeOfImage, ModuleName);
-
-
-	{{
-		// intptr_t b = BaseOfDll;
-		// intptr_t e = BaseOfDll + MI.SizeOfImage;
-		// while(b < e)
-		// {
-		// 	int r = VirtualQuery((LPCVOID)b, &B, sizeof(B));
-		// 	if(!r)
-		// 		break;
-		// 	printf("RANGE %p, %p .. %5.2fkb %08x, %08x\n", B.BaseAddress, intptr_t(B.BaseAddress) + B.RegionSize, B.RegionSize / 1024.f, B.State, B.Protect);
-
-
-
-		// 	b = intptr_t(B.BaseAddress) + B.RegionSize + 1;
-
-
-		// }
-
-	}}
-	// OutputDebugStringA(buffer);
 	MicroProfileSymbolInitModule(ModuleName, BaseOfDll, BaseOfDll + MI.SizeOfImage);
-
-						//MicroProfileSymbolInitModule(di.dli_fname, (intptr_t)vmoffset, (intptr_t)vmoffset + vmsize);
-
-
-
-//	MicroProfileSymbolGetModule(ModuleName, BaseOfDll);
 	return true;
 }
 
@@ -10957,23 +10921,18 @@ BOOL MicroProfileQueryContextEnumSymbols (
   _In_     ULONG        SymbolSize,
   _In_opt_ PVOID        UserContext)
 {
-
-
 	uint32_t nModuleId = nLastModuleIdWin32;
 	if(nLastModuleBaseWin32 != (intptr_t)pSymInfo->ModBase)
 	{
 		nLastModuleIdWin32 = nModuleId = MicroProfileSymbolGetModule((const char*)(intptr_t)-2, pSymInfo->ModBase);
 		nLastModuleBaseWin32 = (intptr_t)pSymInfo->ModBase;
 	}
-	S.SymbolModules[nModuleId].nProgress += pSymInfo->Size;
-	// fprintf(FISK, "%p : %p .. %4.2fkb %s\n", pSymInfo->Address, pSymInfo->Address + pSymInfo->Size, pSymInfo->Size / 1024.f, pSymInfo->Name);
 
 	 if(pSymInfo->Tag == 5 || pSymInfo->Tag == 10)
 	 {
 
 		char FunctionName[1024];
 		int ret = 0;
-		//char* pBuffer = pQ->TempBuffer;
 		int l = MicroProfileTrimFunctionName(pSymInfo->Name, &FunctionName[0], &FunctionName[1024]);
 		QueryCallbackBase* pCB = (QueryCallbackBase*)UserContext;
 
@@ -10985,7 +10944,9 @@ BOOL MicroProfileQueryContextEnumSymbols (
 
 
 template<typename Callback>
-void MicroProfileIterateSymbols(Callback CB, const char** pModuleNames, intptr_t* nAddrBegin, intptr_t* nAddrEnd, uint32_t nNumModules)
+void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumModules)
+	
+	//intptr_t* nAddrBegin, intptr_t* nAddrEnd, uint32_t nNumModules)
 {
 	FISK = fopen("fisk.txt", "w");
 	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileIterateSymbols", MP_PINK3);
@@ -11006,131 +10967,44 @@ void MicroProfileIterateSymbols(Callback CB, const char** pModuleNames, intptr_t
 			HANDLE hProcess = GetCurrentProcess();
 			char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
 			PSYMBOL_INFO pSymbol = (PSYMBOL_INFO)buffer;
-		uint64_t t0 = MP_TICK();
-
-
-
+			uint64_t t0 = MP_TICK();
 			for(uint32_t i = 0; i < nNumModules; ++i)
 			{
-				#if 0
-
-				{{
-					MEMORY_BASIC_INFORMATION B;
-					intptr_t b = nAddrBegin[i];
-					intptr_t e = nAddrEnd[i];
-
-
-	uint32_t nModuleId = MicroProfileSymbolGetModule((const char*)(intptr_t)-2, nAddrBegin[i]);
-				printf("loading for module %d\n", nModuleId);
-					while(b < e)
-					{
-						int r = VirtualQuery((LPCVOID)b, &B, sizeof(B));
-						if(!r)
-							break;
-
-
-
-						switch(B.Protect)
-						{
-							case PAGE_EXECUTE:
-							case PAGE_EXECUTE_READ:
-							case PAGE_EXECUTE_READWRITE:
-							case PAGE_EXECUTE_WRITECOPY:
-								// printf("RANGE %p, %p .. %5.2fkb %08x, %08x\n", B.BaseAddress, intptr_t(B.BaseAddress) + B.RegionSize, B.RegionSize / 1024.f, B.State, B.Protect);
-								intptr_t sb = intptr_t(B.BaseAddress);
-								intptr_t se = intptr_t(B.BaseAddress) + B.RegionSize;
-								while(sb < se)
-								{
-									intptr_t disp;
-									pSymbol->SizeOfStruct = sizeof(SYMBOL_INFO);
-									pSymbol->MaxNameLen = MAX_SYM_NAME;
-
-									if(SymFromAddr(hProcess, se-1, (DWORD64*)&disp, pSymbol))
-									{
-										intptr_t addr = se-1 - disp;
-										 if(pSymbol->Tag == 5 || pSymbol->Tag == 10)
-										 {
-
-											char FunctionName[1024];
-											int ret = 0;
-											//char* pBuffer = pQ->TempBuffer;
-											int l = MicroProfileTrimFunctionName(pSymbol->Name, &FunctionName[0], &FunctionName[1024]);
-											// QueryCallbackBase* pCB = (QueryCallbackBase*)UserContext;
-
-											pBase->CB(pSymbol->Name, l ? &FunctionName[0] : 0, (intptr_t)pSymbol->Address, pSymbol->Size + (intptr_t)pSymbol->Address, nModuleId);
-										 }
-
-
-
-
-										intptr_t next = addr-1;
-										se = next;
-									}
-									else
-									{
-										se -= 1;
-									}
-
-
-								}
-
-
-							break;
-						}
-
-
-
-						b = intptr_t(B.BaseAddress) + B.RegionSize + 1;
-
-
-					}
-
-				}}
-
-				#else
-
+				uint32_t nModule = nModules[i];
 				int64_t nBytes = 0;
 				MEMORY_BASIC_INFORMATION B;
-				intptr_t b = nAddrBegin[i];
-				intptr_t e = nAddrEnd[i];
 
-					while(b < e)
+				intptr_t b = S.SymbolModules[nModule].nAddrBegin;
+				intptr_t e = S.SymbolModules[nModule].nAddrEnd;
+				while(b < e)
+				{
+					int r = VirtualQuery((LPCVOID)b, &B, sizeof(B));
+					if(!r)
+						break;
+					switch(B.Protect)
 					{
-						int r = VirtualQuery((LPCVOID)b, &B, sizeof(B));
-						if(!r)
-							break;
-						switch(B.Protect)
-						{
-							case PAGE_EXECUTE:
-							case PAGE_EXECUTE_READ:
-							case PAGE_EXECUTE_READWRITE:
-							case PAGE_EXECUTE_WRITECOPY:
-							nBytes += B.RegionSize;
-															// printf("RANGE %p, %p .. %5.2fkb %08x, %08x\n", B.BaseAddress, intptr_t(B.BaseAddress) + B.RegionSize, B.RegionSize / 1024.f, B.State, B.Protect);
-
-
-
-
-						}
-						b = intptr_t(B.BaseAddress) + B.RegionSize;
+						case PAGE_EXECUTE:
+						case PAGE_EXECUTE_READ:
+						case PAGE_EXECUTE_READWRITE:
+						case PAGE_EXECUTE_WRITECOPY:
+						nBytes += B.RegionSize;
+						//printf("RANGE %p, %p .. %5.2fkb %08x, %08x\n", B.BaseAddress, (void*)(intptr_t(B.BaseAddress) + B.RegionSize), B.RegionSize / 1024.f, B.State, B.Protect);
 					}
-
-				printf("Expected code size %d\n", nBytes);
-
-
-				uprintf("ITERATE MODULES %p :: %s\n", nAddrBegin[i], pModuleNames[i]);
-				if(SymEnumSymbols(GetCurrentProcess(), nAddrBegin[i], "*", MicroProfileQueryContextEnumSymbols, pBase))
+					b = intptr_t(B.BaseAddress) + B.RegionSize;
+				}
+				S.SymbolModules[nModule].nProgressTarget = nBytes;
+				uprintf("ITERATE MODULES %p :: %s\n", S.SymbolModules[nModule].nAddrBegin, (const char*)S.SymbolModules[nModule].pBaseString);
+				if(SymEnumSymbols(GetCurrentProcess(), S.SymbolModules[nModule].nAddrBegin, "*", MicroProfileQueryContextEnumSymbols, pBase))
 				{
 					uprintf("SymEnumSymbols Succeeds!\n");
 				}
-				#endif
+				S.SymbolModules[nModule].nProgress = S.SymbolModules[nModule].nProgressTarget;
+				S.SymbolModules[nModule].nModuleLoadFinished.exchange(1);
 			}
 
 			uint64_t t1 = MP_TICK();
 			float fTime = float(MicroProfileTickToMsMultiplierCpu()) * (t1-t0);
-			printf("load symbol time %6.2fms\n", fTime);
-
-
+			uprintf("load symbol time %6.2fms\n", fTime);
 		}
 		else
 		{
@@ -11686,7 +11560,7 @@ const char* MicroProfileDemangleSymbol(const char* pSymbol)
 
 
 template<typename Callback>
-void MicroProfileIterateSymbols(Callback CB, const char** pModuleName, intptr_t* nModuleBase, intptr_t* nAddrEnd, uint32_t nNumModules)
+void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumModules)
 {
 	char FunctionName[1024];
 	(void)FunctionName;

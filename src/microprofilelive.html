@@ -4419,8 +4419,10 @@ function DrawSymbolHeaderMenu(context, X, Y, Width)
 	let SymbolStateString = "Load all";
 	let SymbolButtonActive = 1;
 	let SymbolSpinnerActive = 0;
+	let FinishedSymbols = 0;
 	if(SymbolState)
 	{
+		FinishedSymbols = SymbolState.f;
 		var s = SymbolState.s;
 		NumSymbols = SymbolState.l;
 		SymbolButtonActive = 1;
@@ -4450,7 +4452,7 @@ function DrawSymbolHeaderMenu(context, X, Y, Width)
 
 	context.textAlign = 'right';
 	context.fillStyle = 'white';
-	context.fillText(NumSymbols + " Symbols " + SymbolState.f + "/" + ModuleState.length + " Modules", X+Width-2, TextY);
+	context.fillText(NumSymbols + " Symbols " + FinishedSymbols + "/" + ModuleState.length + " Modules", X+Width-2, TextY);
 	context.textAlign = 'center';
 
 	if(LoadButtonAnimation>0)
