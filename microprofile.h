@@ -64,6 +64,7 @@ typedef uint16_t MicroProfileGroupId;
 #define MICROPROFILE_SCOPEGPU_TOKEN_L(Log, token) do{}while(0)
 #define MICROPROFILE_SCOPEGPU_L(Log, var) do{}while(0)
 #define MICROPROFILE_SCOPEGPUI_L(Log, name, color) do{}while(0)
+#define MICROPROFILE_CONDITIONAL_SCOPEI(condition, group, name, color) do{}while(0)
 #define MICROPROFILE_ENTER(var) do{}while(0)
 #define MICROPROFILE_ENTER_TOKEN(var) do{}while(0)
 #define MICROPROFILE_ENTERI(group, name, color) do{}while(0)
@@ -209,8 +210,9 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #define MICROPROFILE_SCOPEGPU_TOKEN_L(Log, token) MicroProfileScopeGpuHandler MICROPROFILE_TOKEN_PASTE(foo, __LINE__)(token, Log)
 #define MICROPROFILE_SCOPEGPU_L(Log, var) MicroProfileScopeGpuHandler MICROPROFILE_TOKEN_PASTE(foo, __LINE__)(g_mp_##var, Log)
 #define MICROPROFILE_SCOPEGPUI_L(Log, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MicroProfileGetToken("GPU", name, color,  MicroProfileTokenTypeGpu); MicroProfileScopeGpuHandler MICROPROFILE_TOKEN_PASTE(foo,__LINE__)( MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), Log)
+#define MICROPROFILE_CONDITIONAL_SCOPEI(condition, group, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp, __LINE__) = MicroProfileGetToken(group, name, color, MicroProfileTokenTypeCpu); MicroProfileConditionalScopeHandler MICROPROFILE_TOKEN_PASTE(foo, __LINE__)(MICROPROFILE_TOKEN_PASTE(g_mp, __LINE__), condition)
 #define MICROPROFILE_ENTER(var) MicroProfileEnter(g_mp_##var)
-#define MICROPROFILE_ENTER_TOKEN(var) MicroProfileEnter(token)
+#define MICROPROFILE_ENTER_TOKEN(token) MicroProfileEnter(token)
 #define MICROPROFILE_ENTERI(group, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MICROPROFILE_INVALID_TOKEN; if(MICROPROFILE_INVALID_TOKEN == MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__)){MicroProfileGetTokenC(&MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), group, name, color, MicroProfileTokenTypeCpu);} MicroProfileEnter(MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__))
 #define MICROPROFILE_LEAVE() MicroProfileLeave()
 #define MICROPROFILE_ENTER_NEGATIVE() MicroProfileEnterNegative()
@@ -679,6 +681,23 @@ struct MicroProfileScopeGpuHandler
 	~MicroProfileScopeGpuHandler()
 	{
 		MicroProfileGpuLeaveInternal(pLog, nToken, nTick);
+	}
+};
+
+struct MicroProfileConditionalScopeHandler
+{
+	MicroProfileToken nToken;
+	uint64_t nTick;
+	MicroProfileConditionalScopeHandler(MicroProfileToken token, bool condition) : nToken(token)
+	{
+		nTick = condition ? MicroProfileEnterInternal(token) : MICROPROFILE_INVALID_TOKEN;
+	}
+	~MicroProfileConditionalScopeHandler()
+	{
+		if (nTick != MICROPROFILE_INVALID_TOKEN)
+		{
+			MicroProfileLeaveInternal(nToken, nTick);
+		}
 	}
 };
 #endif //__cplusplus
