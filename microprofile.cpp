@@ -30,7 +30,7 @@
 #define MICROPROFILE_GPU_BUFFER_SIZE ((MICROPROFILE_PER_THREAD_GPU_BUFFER_SIZE)/sizeof(MicroProfileLogEntry))
 #define MICROPROFILE_MAX_CONTEXT_SWITCH_THREADS 256
 #define MICROPROFILE_STACK_MAX 32
-#define MICROPROFILE_WEBSOCKET_BUFFER_SIZE (10<<10)
+#define MICROPROFILE_WEBSOCKET_BUFFER_SIZE (64<<10)
 #define MICROPROFILE_INVALID_TICK ((uint64_t)-1)
 #define MICROPROFILE_INVALID_FRAME ((uint32_t)-1)
 #define MICROPROFILE_GROUP_MASK_ALL 0xffffffff
@@ -11024,8 +11024,8 @@ bool MicroProfileSymInit()
 	{
 		auto h = GetCurrentProcess();
 		SymCleanup(h);
-		SymSetOptions( //SYMOPT_DEBUG |
-					   SYMOPT_DEFERRED_LOADS);
+		//SymSetOptions( SYMOPT_DEBUG | SYMOPT_DEFERRED_LOADS);
+		SymSetOptions(SYMOPT_UNDNAME);
 		if (SymInitialize(h, 0, TRUE))
 		{
 			MicroProfileWin32SymInitSuccess = 1;
