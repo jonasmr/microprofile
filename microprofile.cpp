@@ -1009,6 +1009,12 @@ std::recursive_mutex& MicroProfileGetMutex()
 	return MicroProfileMutex();
 }
 
+inline std::recursive_mutex& MicroProfileSocketCloseMutex()
+{
+	static std::recursive_mutex Mutex;
+	return Mutex;
+}
+
 inline std::recursive_mutex& MicroProfileTimelineMutex()
 {
 	static std::recursive_mutex Mutex;
@@ -4711,7 +4717,7 @@ void* MicroProfileSocketSenderThread(void*)
 	MicroProfileOnThreadCreate("MicroProfileSocketSenderThread");
 	while(!S.nMicroProfileShutdown)
 	{
-		if(S.nSocketFail)
+		if(S.nSocketFail || !g_MicroProfile.nNumWebSockets || S.nMicroProfileShutdown)
 		{
 			MicroProfileSleep(100);
 			continue;
@@ -4737,6 +4743,12 @@ void* MicroProfileSocketSenderThread(void*)
 		if(nSendAmount)
 		{
 			MICROPROFILE_SCOPE(g_MicroProfileSendLoop);
+			MicroProfileScopeLock L(MicroProfileSocketCloseMutex());
+			if (S.nSocketFail || !g_MicroProfile.nNumWebSockets || S.nMicroProfileShutdown)
+			{
+				continue;
+			}
+
 			if(!MicroProfileSocketSend2(S.WebSockets[0], &S.WSBuf.SendBuffer[nSendStart], nSendAmount))
 			{
 				S.nSocketFail = 1;
@@ -5725,6 +5737,8 @@ void MicroProfileWebSocketFrame()
 
 		if(!bConnected)
 		{
+			MicroProfileScopeLock L(MicroProfileSocketCloseMutex());
+
 			#if MICROPROFILE_DEBUG
 			printf("removing socket %lld\n", (uint64_t)s);
 			#endif
