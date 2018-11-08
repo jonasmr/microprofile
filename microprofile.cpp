@@ -7929,6 +7929,7 @@ uint64_t MicroProfileGpuGetTimeStamp(uint32_t nIndex)
 	{
 		MP_BREAK();
 	}
+	return r;
 }
 
 uint64_t MicroProfileTicksPerSecondGpu()
