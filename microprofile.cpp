@@ -140,7 +140,9 @@ enum
 #define MP_FREE(p) MicroProfileFreeInternal(p)
 #define MP_ALLOC_OBJECT(T) (T*)MP_ALLOC(sizeof(T), alignof(T))
 
-
+#ifndef MICROPROFILE_DEBUG
+#define MICROPROFILE_DEBUG 1
+#endif
 
 
 
@@ -744,6 +746,7 @@ struct MicroProfile
 
 
 	int64_t nPauseTicks;
+	int64_t nContextSwitchLastPushed;
 
 	float fReferenceTime;
 	float fRcpReferenceTime;
@@ -2548,6 +2551,7 @@ void MicroProfileContextSwitchPut(MicroProfileContextSwitch* pContextSwitch)
 		uint32_t nPut = S.nContextSwitchPut;
 		S.ContextSwitch[nPut] = *pContextSwitch;
 		S.nContextSwitchPut = (S.nContextSwitchPut+1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE;
+		S.nContextSwitchLastPushed = pContextSwitch->nTicks;
 	}
 }
 
@@ -3467,6 +3471,7 @@ void MicroProfilePlatformMarkersSetEnabled(int bEnabled)
 	S.nPlatformMarkersEnabled = bEnabled ? 1 : 0;
 }
 
+#define MICROPROFILE_CONTEXT_SWITCH_SEARCH_DEBUG 1
 
 
 void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pContextSwitchEnd, uint64_t nBaseTicksCpu, uint64_t nBaseTicksEndCpu)
@@ -3477,6 +3482,21 @@ void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pC
 	nContextSwitchStart = nContextSwitchEnd = (nContextSwitchPut + MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE - 1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE;		
 	int64_t nSearchEnd = nBaseTicksEndCpu + MicroProfileMsToTick(30.f, MicroProfileTicksPerSecondCpu());
 	int64_t nSearchBegin = nBaseTicksCpu - MicroProfileMsToTick(30.f, MicroProfileTicksPerSecondCpu());
+
+#if MICROPROFILE_CONTEXT_SWITCH_SEARCH_DEBUG
+	int64_t lp  = S.nContextSwitchLastPushed;
+	uprintf("cswitch-search\n");
+	uprintf("Begin %" PRId64 " End %" PRId64 " Last %" PRId64 "\n", nSearchBegin, nSearchEnd, lp);
+
+	float fToMs = MicroProfileTickToMsMultiplierCpu();
+	uprintf("E    %6.2fms\n", fToMs * (nSearchEnd-nSearchBegin));
+	uprintf("LAST %6.2fms\n", fToMs * (lp-nSearchBegin));
+#endif
+
+
+
+
+
 	int64_t nMax = INT64_MIN;
 	int64_t nMin = INT64_MAX;
 	for(uint32_t i = 0; i < MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE; ++i)
@@ -3498,6 +3518,49 @@ void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pC
 	}
 	*pContextSwitchStart = nContextSwitchStart;
 	*pContextSwitchEnd = nContextSwitchEnd;
+
+#if MICROPROFILE_CONTEXT_SWITCH_SEARCH_DEBUG
+	{
+
+		MicroProfileContextSwitch& CS0 = S.ContextSwitch[0];
+		int64_t nMax = CS0.nTicks;
+		int64_t nMin = CS0.nTicks;
+		int64_t nBegin = 0;
+		int64_t nEnd = 0;
+		int nRanges = 0;
+		for(uint32_t i = 0; i < MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE;++i)
+		{
+			MicroProfileContextSwitch& CS = S.ContextSwitch[i];
+			int64_t nTicks = CS.nTicks;
+			float fMs = (nTicks - nMax) * fToMs;
+			if(fMs < 0 || fMs > 50)
+			{
+				//dump range here
+				uprintf("range [%5d,%5d] :: [%6.2f-%6.2f]\n", nBegin, nEnd, fToMs * (nMin-nSearchBegin),  fToMs * (nMax-nSearchBegin));
+
+
+				nEnd = nBegin = i;
+				nMax = nMin = CS.nTicks;
+				nRanges++;
+			}
+			else
+			{
+				nEnd = i;
+				nMax = MicroProfileMax(nTicks, nMax);
+
+			}
+		}
+	}
+
+
+
+	lp = S.nContextSwitchLastPushed;
+	uprintf("E    %6.2fms\n", fToMs * (nSearchEnd-nSearchBegin));
+	uprintf("LP2 %6.2fms\n", fToMs * (lp-nSearchBegin));
+#endif
+
+
+
 }
 
 
