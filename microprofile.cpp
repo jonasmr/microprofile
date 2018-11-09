@@ -746,7 +746,9 @@ struct MicroProfile
 
 
 	int64_t nPauseTicks;
+	std::atomic<int> nPauseSignal;
 	int64_t nContextSwitchLastPushed;
+	int64_t nContextSwitchLastIndexPushed;
 
 	float fReferenceTime;
 	float fRcpReferenceTime;
@@ -2551,7 +2553,22 @@ void MicroProfileContextSwitchPut(MicroProfileContextSwitch* pContextSwitch)
 		uint32_t nPut = S.nContextSwitchPut;
 		S.ContextSwitch[nPut] = *pContextSwitch;
 		S.nContextSwitchPut = (S.nContextSwitchPut+1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE;
+//		if(S.nContextSwitchPut < nPut)
+//		{
+////			uprintf("context switch wrap\n");
+//		}
+//		if(S.nContextSwitchPut % 4096 == 0)
+//		{
+//			uprintf("cswitch tick %x\n", S.nContextSwitchPut);
+//		}
 		S.nContextSwitchLastPushed = pContextSwitch->nTicks;
+	}else if(0 != S.nPauseTicks)
+	{
+		S.nPauseSignal = 1;
+	}
+	else
+	{
+		S.nPauseSignal = 0;
 	}
 }
 
@@ -3476,6 +3493,10 @@ void MicroProfilePlatformMarkersSetEnabled(int bEnabled)
 
 void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pContextSwitchEnd, uint64_t nBaseTicksCpu, uint64_t nBaseTicksEndCpu)
 {
+
+	//review search!!
+
+
 	MICROPROFILE_SCOPE(g_MicroProfileContextSwitchSearch);
 	uint32_t nContextSwitchPut = S.nContextSwitchPut;
 	uint64_t nContextSwitchStart, nContextSwitchEnd;
@@ -3521,6 +3542,7 @@ void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pC
 
 #if MICROPROFILE_CONTEXT_SWITCH_SEARCH_DEBUG
 	{
+		uprintf("contextswitch start %d %d\n", nContextSwitchStart, nContextSwitchEnd);
 
 		MicroProfileContextSwitch& CS0 = S.ContextSwitch[0];
 		int64_t nMax = CS0.nTicks;
@@ -3536,7 +3558,13 @@ void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pC
 			if(fMs < 0 || fMs > 50)
 			{
 				//dump range here
-				uprintf("range [%5d,%5d] :: [%6.2f-%6.2f]\n", nBegin, nEnd, fToMs * (nMin-nSearchBegin),  fToMs * (nMax-nSearchBegin));
+				uprintf("range [%5d:%5d] :: [%6.2f:%6.2f]                 [%p :: %p] .. ref %p\n", nBegin, nEnd, fToMs * (nMin-nSearchBegin),  
+					fToMs * (nMax-nSearchBegin),
+					nMin,
+					nMax,
+					nSearchBegin
+				
+				);
 
 
 				nEnd = nBegin = i;
@@ -3893,6 +3921,17 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 	memcpy(nActiveGroup, S.nActiveGroups, sizeof(S.nActiveGroups));
 	memset(S.nActiveGroups, 0, sizeof(S.nActiveGroups));
 	S.nPauseTicks = MP_TICK();
+	int c = 0;
+	while(0 == S.nPauseSignal)
+	{
+		MicroProfileSleep(100);
+		if(++c % 100 == 99)
+		{
+			uprintf("waiting for pause signal %d", c/100);
+		}
+	}
+
+	int64_t nPauseDone = MP_TICK();
 
 	MicroProfileCounterFetchCounters();
 	for(size_t i = 0; i < g_MicroProfileHtml_begin_count; ++i)
@@ -4635,6 +4674,8 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 #endif
 
 #undef pp
+
+	S.nPauseTicks = 0;
 }
 
 void MicroProfileWriteFile(void* Handle, size_t nSize, const char* pData)
