@@ -3488,7 +3488,7 @@ void MicroProfilePlatformMarkersSetEnabled(int bEnabled)
 	S.nPlatformMarkersEnabled = bEnabled ? 1 : 0;
 }
 
-#define MICROPROFILE_CONTEXT_SWITCH_SEARCH_DEBUG 1
+#define MICROPROFILE_CONTEXT_SWITCH_SEARCH_DEBUG MICROPROFILE_DEBUG
 
 
 void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pContextSwitchEnd, uint64_t nBaseTicksCpu, uint64_t nBaseTicksEndCpu)
