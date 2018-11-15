@@ -995,7 +995,7 @@ MICROPROFILE_DEFINE(g_MicroProfileThreadLoop, "MicroProfile", "ThreadLoop", MP_G
 MICROPROFILE_DEFINE(g_MicroProfileClear, "MicroProfile", "Clear", MP_GREEN4);
 MICROPROFILE_DEFINE(g_MicroProfileAccumulate, "MicroProfile", "Accumulate", MP_GREEN4);
 MICROPROFILE_DEFINE(g_MicroProfileContextSwitchSearch,"MicroProfile", "ContextSwitchSearch", MP_GREEN4);
-MICROPROFILE_DEFINE(g_MicroProfileGpuSubmit, "MicroProfile", "MicroProfileGpuSubmit", MP_HOTPINK2);
+//MICROPROFILE_DEFINE(g_MicroProfileGpuSubmit, "MicroProfile", "MicroProfileGpuSubmit", MP_HOTPINK2);
 MICROPROFILE_DEFINE(g_MicroProfileSendLoop, "MicroProfile", "MicroProfileSocketSendLoop", MP_GREEN4);
 
 
@@ -2101,7 +2101,7 @@ uint64_t MicroProfileGpuEnd(MicroProfileThreadLogGpu* pLog)
 void MicroProfileGpuSubmit(int nQueue, uint64_t nWork)
 {
 	MP_ASSERT(nQueue >= 0 && nQueue < MICROPROFILE_MAX_THREADS);
-	MICROPROFILE_SCOPE(g_MicroProfileGpuSubmit);
+	//MICROPROFILE_SCOPE(g_MicroProfileGpuSubmit);
 	uint32_t nStart = (uint32_t)nWork;
 	uint32_t nThreadLog = uint32_t(nWork >> 32);
 
