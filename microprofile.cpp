@@ -267,6 +267,8 @@ void MicroProfileFreeAligned(void* pMem)
 }
 
 #else
+
+#ifndef MICROPROFILE_CUSTOM_PLATFORM
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
@@ -302,6 +304,7 @@ void MicroProfileFreeAligned(void* pMem)
 {
 	free(pMem);
 }
+#endif
 
 #endif
 
@@ -5905,7 +5908,7 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 		MicroProfileWebSocketSendCounters();
 		MicroProfileWSPrintEnd();
 	}
-#if MICROPROFILE_DYNAMIC_INSTRUMENT	
+#if MICROPROFILE_DYNAMIC_INSTRUMENT
 	MicroProfileSymbolQuerySendResult(Connection);
 	MicroProfileSymbolSendFunctionNames(Connection);
 #endif
@@ -9528,7 +9531,6 @@ void MicroProfileProcessQuery(MicroProfileFunctionQuery* pQuery)
 
 void* MicroProfileQueryThread(void* p)
 {
-	//printf("query thread start\n");
 	MicroProfileOnThreadCreate("MicroProfileSymbolThread");
 	{	
 		MicroProfileScopeLock L(MicroProfileMutex());
@@ -9543,46 +9545,20 @@ void* MicroProfileQueryThread(void* p)
 				continue;
 			}
 			MICROPROFILE_SCOPEI("MicroProfile", "SymbolQuery", MP_WHEAT);
-			//printf("proc q\n");
 			MicroProfileFunctionQuery* pQuery = S.pPendingQuery;
 			S.pPendingQuery = pQuery->pNext;
 			pQuery->pNext = 0;
 			L.Unlock();
-			MicroProfileSymbolBlock* pSymbols = S.pSymbolBlock;
-			int nCnt = 0;
-			//printf("\n%05d :: %08d", 0, nCnt);
-
-			while(pSymbols && pQuery->nNumResults < MICROPROFILE_MAX_QUERY_RESULTS && 0 == S.pPendingQuery)
-			{
-				MICROPROFILE_SCOPEI("MicroProfile", "SymbolQueryLoop", MP_YELLOW);
-				{
-					for(uint32_t i = 0; i < pSymbols->nNumSymbols && Q.nNumResults < MICROPROFILE_MAX_QUERY_RESULTS && 0 == S.pPendingQuery; ++i)
-					{
-						MICROPROFILE_SCOPEI("MicroProfile", "SymbolQueryLoop22", MP_YELLOW);
-						MicroProfileSymbolDesc& E = pSymbols->Symbols[i];
-						if(0 == E.nIgnoreSymbol && MicroProfileStringMatch(E.pShortName, &Q.pFilterStrings[0], Q.nPatternLength, Q.nMaxFilter))
-						{
-							Q.Results[Q.nNumResults++] = &E;
-						}
-						//printf("\r%05d :: %08d", Q.nNumResults, nCnt++);
-						//fflush(stdout);
-						//for(uint64_t i = 0; i < 1000000; ++i)
-						//{
-						//}
-					}
-				
-				}
-				pSymbols = pSymbols->pNext;
-			}
+		
+			MicroProfileProcessQuery(pQuery);
+			
 			L.Lock();
-			//printf("query done.. %d\n", Q.nNumResults);
 			pQuery->pNext = S.pFinishedQuery;
 			S.pFinishedQuery = pQuery;
 
 		}
 
 		S.SymbolThreadFinished = 1;
-		//printf("query thread stopped\n");
 	}
 	MicroProfileOnThreadExit();
 	return 0;
@@ -10191,7 +10167,7 @@ void MicroProfileIterateSymbols(Callback CB)
 	QueryCallbackImpl<Callback> Context(CB);
 	HANDLE h = GetCurrentProcess();
 	SymCleanup(h);
-	SymSetOptions(0);
+	SymSetOptions(SYMOPT_UNDNAME);
 	if(SymInitialize(h, NULL, TRUE))
 	{
 		// printf("symbols loaded!\n");
