@@ -1236,6 +1236,11 @@ void MicroProfileDumpToFile();
 #define MICROPROFILE_DEBUG 0
 #endif
 
+#if MICROPROFILE_DEBUG
+#define uprintf(...) printf(__VA_ARGS__)
+#else
+#define uprintf(...) do{}while(0)
+#endif
 
 #define S g_MicroProfile
 
@@ -10219,7 +10224,7 @@ void MicroProfileProcessQuery(MicroProfileFunctionQuery* pQuery)
 	float TIME0 = (tt - t) * ToMS;
 	(void)TIME;
 	(void)TIME0;
-	printf(" %6.3fms [%6.3f]: %5d/%5d blocks tested. %5d symbols %5d/%5d string compares\n", TIME, TIME0, nBlocksTested, nBlocks, nSymbolsTested, nStringsTested, nStringsTested0);
+	uprintf(" %6.3fms [%6.3f]: %5d/%5d blocks tested. %5d symbols %5d/%5d string compares\n", TIME, TIME0, nBlocksTested, nBlocks, nSymbolsTested, nStringsTested, nStringsTested0);
 }
 
 void* MicroProfileQueryThread(void* p)
@@ -12264,6 +12269,7 @@ void MicroProfileHashTableTest()
 	MicroProfileHashTableDestroy(&Strings);
 }
 
+#undef uprintf
 
 #undef S
 #ifdef _WIN32
