@@ -3542,7 +3542,7 @@ void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pC
 
 #if MICROPROFILE_CONTEXT_SWITCH_SEARCH_DEBUG
 	{
-		uprintf("contextswitch start %d %d\n", nContextSwitchStart, nContextSwitchEnd);
+		uprintf("contextswitch start %" PRId64 " %" PRId64 "\n", nContextSwitchStart, nContextSwitchEnd);
 
 		MicroProfileContextSwitch& CS0 = S.ContextSwitch[0];
 		int64_t nMax = CS0.nTicks;
@@ -3558,11 +3558,11 @@ void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pC
 			if(fMs < 0 || fMs > 50)
 			{
 				//dump range here
-				uprintf("range [%5d:%5d] :: [%6.2f:%6.2f]                 [%p :: %p] .. ref %p\n", nBegin, nEnd, fToMs * (nMin-nSearchBegin),  
+				uprintf("range [%5" PRId64 ":%5" PRId64 "] :: [%6.2f:%6.2f]                 [%p :: %p] .. ref %p\n", nBegin, nEnd, fToMs * (nMin-nSearchBegin),  
 					fToMs * (nMax-nSearchBegin),
-					nMin,
-					nMax,
-					nSearchBegin
+					(void*)nMin,
+					(void*)nMax,
+					(void*)nSearchBegin
 				
 				);
 
@@ -3930,8 +3930,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 			uprintf("waiting for pause signal %d", c/100);
 		}
 	}
-
-	int64_t nPauseDone = MP_TICK();
 
 	MicroProfileCounterFetchCounters();
 	for(size_t i = 0; i < g_MicroProfileHtml_begin_count; ++i)
