@@ -445,7 +445,7 @@ ClearEnabled(Settings.BarColumnEnabledMulti);
 
 function Plotf(str)
 {
-	PlotfArray.push(str)
+	PlotfArray.push(str);
 }
 function PlotfClear()
 {
@@ -912,17 +912,17 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 		else if(SubIndex == 4)
 		{
 			Title = "Exclusive Max";
-			Property = "TimeExclMax"
+			Property = "TimeExclMax";
 		}
 		else if(SubIndex == 5)
 		{
 			Title = "Exclusive Min";
-			Property = "TimeExclMin"
+			Property = "TimeExclMin";
 		}
 		else if(SubIndex == 6)
 		{
 			Title = "Call Average";
-			Property = "TimeCallAvg"
+			Property = "TimeCallAvg";
 		}
 		else if(SubIndex == 7)
 		{
@@ -982,7 +982,7 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 	var Keys = [];
 	var X = DrawXLeft;
 	var offset = 0;
-	context.textAlign = 'center'
+	context.textAlign = 'center';
 	context.fillStyle = '#ffffff';
 	context.fillText(Title, w / 2.0, FontHeight);
 	context.textAlign = 'left';
@@ -1024,7 +1024,7 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 		var Color = BarColors[i];
 		var fPrc = Time / ReferenceTime;
 		if(fPrc > 1.0)
-			fPrc = 1.0
+			fPrc = 1.0;
 		var BarH = fPrc * BarHeight;
 
 		var X0 = X;
@@ -1064,6 +1064,55 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 	ProfileLeave();
 }
 
+function SortColumnFromName(Name)
+{
+	//should match switch in drawtableview
+	if(Name == StrAverage)
+	{
+		return 1;
+	}
+	else if(Name == StrMax)
+	{
+		return 2;
+	}
+	else if(Name == StrTotal)
+	{
+		return 3;
+	}			
+	else if(Name == StrMin)
+	{
+		return 4;
+	}
+	else if(Name == StrSpike)
+	{
+		return 5;
+	}
+	else if(Name == StrCallAverage)
+	{
+		return 6;
+	}
+	else if(Name == StrCount)
+	{
+		return 7;
+	}
+	else if(Name == StrExclAverage)
+	{
+		return 8;
+	}
+	else if(Name == StrExclMax)
+	{
+		return 9;
+	}
+	else if(Name == StrGroup)
+	{
+		return -1;
+	}
+	else if(Name == StrTimer)
+	{
+		return -2;
+	}
+	return 0;
+}
 
 function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 {
@@ -2297,7 +2346,7 @@ function LerpColor(v)
 	if(v < 0.5)
 	{
 		v *= 2;
-		var v0 = (1-v)
+		var v0 = (1-v);
 		R = R_0 * v0 + R_1 * v;
 		G = G_0 * v0 + G_1 * v;
 
@@ -2305,7 +2354,7 @@ function LerpColor(v)
 	else
 	{
 		v = (v-0.5) * 2;
-		var v0 = (1-v)
+		var v0 = (1-v);
 		R = R_1 * v0 + R_2 * v;
 		G = G_1 * v0 + G_2 * v;
 	}
@@ -2525,7 +2574,7 @@ function DrawMessage()
 		Y -= 60;
 	}
 	if(!HelpFade)
-		HelpFade = new Date()
+		HelpFade = new Date();
 	var HelpFadeTime = new Date() - HelpFade;
 	if(HelpFadeTime < 2000)
 	{
@@ -2702,7 +2751,7 @@ var FilterInputPatchedValue = '';
 function MakeMenuItem(name, f, visible)
 {
 	var Item = {};
-	Item.name = name
+	Item.name = name;
 	Item.f = f;
 	Item.w = name.length;
 	Item.x = 0;
@@ -2926,7 +2975,7 @@ function JSONTryParse(str)
 		}
 		catch(e){}
 	}
-	return {}
+	return {};
 }
 
 function ProcessPresets(Data, Names, Cache)
@@ -4079,7 +4128,7 @@ function SpinnerInit(Blur, Color)
 	Spinner.Circles.push(SpinnerCircle(2/4, 0, 0, 0, 0.14, 0.25));
 	Spinner.Fade = 0;
 	Spinner.Blur = Blur;
-	Spinner.Color = Color
+	Spinner.Color = Color;
 	return Spinner;
 }
 
@@ -4116,7 +4165,7 @@ function SpinnerDraw(Enable, context, Spinner, X, Y, w, h)
 		Spinner.Fade -= DT / 1000;
 	}
 	Spinner.Fade = Math.max(0, Spinner.Fade);
-	Spinner.Fade = Math.min(1, Spinner.Fade)
+	Spinner.Fade = Math.min(1, Spinner.Fade);
 	var F = Spinner.Fade * Spinner.Fade;
 
 	if(Spinner.Fade <= 0)
@@ -4434,13 +4483,9 @@ function DrawSymbolHeaderMenu(context, X, Y, Width)
 		}
 		else if(SymbolState.f != SymbolState.r)
 		{
-<<<<<<< HEAD
-			SymbolStateString = "Reload"
-=======
 			SymbolButtonActive = 0;
 			SymbolSpinnerActive = 1;
 			SymbolStateString = "Loading";
->>>>>>> 710c0db... WIP: debug info load per module
 		}
 		else if(SymbolState.f == ModuleState.length)
 		{
@@ -5800,7 +5845,7 @@ function WSMessage()
 	}
 	else if(k == MSG_INACTIVE_FRAME)
 	{
-		ProcessFrame(Obj.v, 1)
+		ProcessFrame(Obj.v, 1);
 	}
 	else if(k == MSG_FUNCTION_NAMES)
 	{
@@ -6335,7 +6380,7 @@ function KeyDown(evt)
 
 function SetupEvents()
 {
-	var mousewheelevt = (/Firefox/i.test(navigator.userAgent)) ? "DOMMouseScroll" : "mousewheel" //FF doesn't recognize mousewheel as of 
+	var mousewheelevt = (/Firefox/i.test(navigator.userAgent)) ? "DOMMouseScroll" : "mousewheel"; //FF doesn't recognize mousewheel as of 
 	CanvasDetailedView.addEventListener('mousemove', MouseMove, false);
 	CanvasDetailedView.addEventListener('mousedown', function(evt) { MouseButton(true, evt); });
 	CanvasDetailedView.addEventListener('mouseup', function(evt) { MouseButton(false, evt); } );
@@ -6530,7 +6575,7 @@ function FormatCounter(Format, Counter)
 			return str + Counter.toFixed(2) + '' + FormatCounterBytesExt[0];
 		}
 	}
-	return '?'
+	return '?';
 }
 function DrawCounterView(View, LocalMouseX, LocalMouseY, SubIndex)
 {
@@ -6601,7 +6646,7 @@ function DrawCounterView(View, LocalMouseX, LocalMouseY, SubIndex)
 			var Indent = CounterIndent(Counter.depth-1);
 			var X = 0;
 			nColorIndex = 1-nColorIndex;
-			var HeightExpanded = Counter.Expanded ? Height * 5 : Height
+			var HeightExpanded = Counter.Expanded ? Height * 5 : Height;
 
 			bMouseIn = LocalMouseY >= Y && LocalMouseY < Y + HeightExpanded;
 			if(bMouseIn)

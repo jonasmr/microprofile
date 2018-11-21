@@ -3944,7 +3944,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 	float fToMsCPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
 	float fToMsGPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondGpu());
 	float fAggregateMs = fToMsCPU * (nTicks - S.nAggregateFlipTick);
-	MicroProfilePrintf(CB, Handle, "var S = {};\n");
 	MicroProfilePrintf(CB, Handle, "S.DumpHost = '%s';\n", pHost ? pHost : "");
 	time_t CaptureTime;
 	time(&CaptureTime);
