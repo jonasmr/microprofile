@@ -7982,9 +7982,9 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "}\n"
 "\n"
 "\n"
-"function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)\n"
+"function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)\n"
 "{\n"
-"	ProfileEnter(\"DrawBarView\");\n"
+"	ProfileEnter(\"DrawTableView\");\n"
 "	var Canvas = View.Canvas[View.BackBuffer];\n"
 "	var context = Canvas.getContext(\'2d\');\n"
 "	var Height = BoxHeight;\n"
@@ -8147,15 +8147,16 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "		var Timer = TimerArray[idx];\n"
 "		var key = Timer.id;\n"
 "		var FD = TimerMap[key];\n"
-"		var AggregateIndex = Settings.AggregateFrames <= 0 ? AggregateHistorySize-1 : AggregateHistorySize-2; //fix med \n"
+"		var AggregateIndex = Settings.AggregateFrames <= 0 ? AggregateHistorySize-1 : AggregateHistorySize-2;\n"
 "	\n"
 "\n"
 "		var Average = FD.TimeAvg[AggregateIndex];\n"
 "		var Max = FD.TimeMax[AggregateIndex];\n"
 "		var Min = FD.TimeMin[AggregateIndex];\n"
 "		var ExclusiveMax = FD.TimeExclMax[AggregateIndex];\n"
-"		var Time = FD.Time[AggregateIndex];\n"
-"		var Excl = FD.TimeExcl[AggregateIndex];\n"
+"		let l = FD.Time.length-1;\n"
+"		var Time = FD.Time[l];\n"
+"		var Excl = FD.TimeExcl[l];\n"
 "		var ExclusiveAverage = FD.TimeExclAvg[AggregateIndex];\n"
 "		var ExclusiveTotal = FD.TimeExclTotal[AggregateIndex];\n"
 "\n"
@@ -8266,11 +8267,11 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "		if(Settings.SortColumn<0)\n"
 "		{\n"
 "			var KeyFunc = null;\n"
-"			switch(";
+"			switch(Setti";
 
 const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
 const char g_MicroProfileHtmlLive_begin_1[] =
-"Settings.SortColumn)\n"
+"ngs.SortColumn)\n"
 "			{\n"
 "				case -2: KeyFunc = function (a) { return TimerArray[a].name; }; break;\n"
 "				case -1: KeyFunc = function (a) { return TimerArray[TimerArray[a].parent].name; }; break;\n"
@@ -8342,7 +8343,8 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	X = NameWidth + XBase;\n"
 "	R = 0;\n"
 "\n"
-"	let Headers = [\"Per Frame\", \"Aggregate/\" + Settings.AggregateFrames + \" Frames\", \"Call/\" + Settings.AggregateFrames + \" Frames\"];\n"
+"	let Aggr = Settings.AggregateFrames <= 0 ? AggregateCurrent : Settings.AggregateFrames;\n"
+"	let Headers = [\"Per Frame\", \"Aggregate/\" + Aggr + \" Frames\", \"Call/\" + Aggr + \" Frames\"];\n"
 "	let SplitX = [0,0,0];\n"
 "\n"
 "	DrawHeaderSplit(StrTime,OffsetY);\n"
@@ -8447,7 +8449,6 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	{\n"
 "		NumGraphs++;\n"
 "	}\n"
-"	// NumGraphs = 0;\n"
 "	if(NumGraphs)\n"
 "	{\n"
 "		let hstart = 0;\n"
@@ -9657,11 +9658,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	MenuItems = [];\n"
 "	MenuItems.push(MakeMenuItem(\"Control\", function(){EnableMenu(SubMenuGroup); } ));\n"
 "	MenuItems.push(MakeMenuItem(\"Timers\", function(){EnableMenu(SubMenuTimers); } ));\n"
-"	MenuItems.push(MakeMenuItem(\"Functions\", function()";
+"	MenuItems.push(MakeMenuIte";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-"{EnableMenu(SubMenuFunctions); } ));\n"
+"m(\"Functions\", function(){EnableMenu(SubMenuFunctions); } ));\n"
 "	MenuItems.push(MakeMenuItem(\"Patched\", function(){EnableMenu(SubMenuPatched); }, function(){ return FunctionsInstrumented.length > 0;} ));\n"
 "	MenuItems.push(MakeMenuItem(\"Settings\", function(){ EnableMenu(SubMenuSettings); } ));\n"
 "	MenuItems.push(MakeMenuItem(\"Views\", function(){ EnableMenu(SubMenuViews); } ));\n"
@@ -10182,7 +10183,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	}\n"
 "	else if(idx == VIEW_BAR)\n"
 "	{\n"
-"		MainView.DisplayFunc = DrawBarView;\n"
+"		MainView.DisplayFunc = DrawTableView;\n"
 "		MainView.visible = true;\n"
 "	}\n"
 "	else if(idx == VIEW_COUNTERS)\n"
@@ -11114,11 +11115,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "		var cidx = StringColor(Str); \n"
 "		return \"hsl(\" + cidx + \",50%, 70%)\";\n"
 "	};\n"
-"	for(var i = 0; i < FunctionsI";
+"	fo";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-"nstrumented.length; ++i)\n"
+"r(var i = 0; i < FunctionsInstrumented.length; ++i)\n"
 "	{\n"
 "		var Name = FunctionsInstrumented[i];\n"
 "		var ModuleName = FunctionsInstrumentedModule[i];\n"
@@ -12154,6 +12155,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "		var CaptureId = null;\n"
 "		var AutoCapture = AutoCaptureEnabled && !IsFrozen;\n"
 "		AggregateCurrent = F.a;\n"
+"		//SetMessage(\"AGGR. \" + AggregateCurrent);\n"
 "		if(F.m != Settings.ViewActive)\n"
 "		{\n"
 "			WSSendMessage(\"v\" + Settings.ViewActive);\n"
@@ -12214,7 +12216,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "			var T = TimerArray[idx];\n"
 "\n"
 "			T.time = FD.Time[Pos];\n"
-"			T.excl = FD.Time[Pos];\n"
+"			T.excl = FD.TimeExcl[Pos];\n"
 "			T.average = FD.TimeAvg[Pos];\n"
 "			T.max = FD.TimeMax[Pos];\n"
 "			T.total = FD.TimeTotal[Pos];\n"
@@ -12237,7 +12239,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "			// console.log(\"FT EX \", TimeExcl);\n"
 "			FD.historymax = FindMaxTime(FD.Time, bIsGroup);\n"
 "\n"
-"			if(FD.Aggregate > Settings.AggregateFrames && Settings.AggregateFrames > 0)\n"
+"			if((FD.Aggregate > Settings.AggregateFrames && Settings.AggregateFrames > 0) || AggregateCurrent == 0)\n"
 "			{\n"
 "				SetTimersInArray(FD, id);\n"
 "				FD.Aggregate = 0;\n"
@@ -12524,14 +12526,14 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "				var iframe = document.createElement(\"iframe\");\n"
 "				iframe.onload = function(){document.body.removeChild(iframe); console.log(\"removed iframe\");};\n"
 "				console.log(\"opening url \" + url);\n"
-"				iframe.setAttribute(\"src\", url);\n"
-"				iframe.style.width = \"100x\";\n"
-"				iframe.style.height = \"100px\";\n"
-"				document.body.append";
+"				iframe.setAttribute(\"s";
 
 const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
 const char g_MicroProfileHtmlLive_begin_4[] =
-"Child(iframe);\n"
+"rc\", url);\n"
+"				iframe.style.width = \"100x\";\n"
+"				iframe.style.height = \"100px\";\n"
+"				document.body.appendChild(iframe);\n"
 "			}\n"
 "		}\n"
 "		console.log(\"got error \"+ JSON.stringify(Obj.v));\n"

@@ -1,4 +1,4 @@
-
+clear inf aggregate does not work in table view.
 kill AggregateHistorySize totally.
 live timings only show up after first aggregate is hit
 mark infinite aggrrgate time in table
@@ -9,7 +9,8 @@ Hide negative groups. force turn on when others are on
 fix bug with clipping
 auto adjust in capture
 fix context switch trace g2 bug
-flame mode button from menu doesnt redraw
+flame mode button from menu doesn't redraw
+default sorting in tableview is unstable
 
 * Negative counters
 * figure out why exlusive time is adding to more than 1

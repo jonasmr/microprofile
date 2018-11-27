@@ -1062,9 +1062,9 @@ function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
 }
 
 
-function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
+function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 {
-	ProfileEnter("DrawBarView");
+	ProfileEnter("DrawTableView");
 	var Canvas = View.Canvas[View.BackBuffer];
 	var context = Canvas.getContext('2d');
 	var Height = BoxHeight;
@@ -1227,15 +1227,16 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 		var Timer = TimerArray[idx];
 		var key = Timer.id;
 		var FD = TimerMap[key];
-		var AggregateIndex = Settings.AggregateFrames <= 0 ? AggregateHistorySize-1 : AggregateHistorySize-2; //fix med 
+		var AggregateIndex = Settings.AggregateFrames <= 0 ? AggregateHistorySize-1 : AggregateHistorySize-2;
 	
 
 		var Average = FD.TimeAvg[AggregateIndex];
 		var Max = FD.TimeMax[AggregateIndex];
 		var Min = FD.TimeMin[AggregateIndex];
 		var ExclusiveMax = FD.TimeExclMax[AggregateIndex];
-		var Time = FD.Time[AggregateIndex];
-		var Excl = FD.TimeExcl[AggregateIndex];
+		let l = FD.Time.length-1;
+		var Time = FD.Time[l];
+		var Excl = FD.TimeExcl[l];
 		var ExclusiveAverage = FD.TimeExclAvg[AggregateIndex];
 		var ExclusiveTotal = FD.TimeExclTotal[AggregateIndex];
 
@@ -1418,7 +1419,8 @@ function DrawBarView(View, LocalMouseX, LocalMouseY, SubIndex)
 	X = NameWidth + XBase;
 	R = 0;
 
-	let Headers = ["Per Frame", "Aggregate/" + Settings.AggregateFrames + " Frames", "Call/" + Settings.AggregateFrames + " Frames"];
+	let Aggr = Settings.AggregateFrames <= 0 ? AggregateCurrent : Settings.AggregateFrames;
+	let Headers = ["Per Frame", "Aggregate/" + Aggr + " Frames", "Call/" + Aggr + " Frames"];
 	let SplitX = [0,0,0];
 
 	DrawHeaderSplit(StrTime,OffsetY);
@@ -1523,7 +1525,6 @@ function DrawGraphThreadExclusive(View, LocalMouseX, LocalMouseY, SubIndex, Spli
 	{
 		NumGraphs++;
 	}
-	// NumGraphs = 0;
 	if(NumGraphs)
 	{
 		let hstart = 0;
@@ -3254,7 +3255,7 @@ function ActivateView(idx)
 	}
 	else if(idx == VIEW_BAR)
 	{
-		MainView.DisplayFunc = DrawBarView;
+		MainView.DisplayFunc = DrawTableView;
 		MainView.visible = true;
 	}
 	else if(idx == VIEW_COUNTERS)
@@ -5222,6 +5223,7 @@ function ProcessFrame(F, Inactive)
 		var CaptureId = null;
 		var AutoCapture = AutoCaptureEnabled && !IsFrozen;
 		AggregateCurrent = F.a;
+		//SetMessage("AGGR. " + AggregateCurrent);
 		if(F.m != Settings.ViewActive)
 		{
 			WSSendMessage("v" + Settings.ViewActive);
@@ -5282,7 +5284,7 @@ function ProcessFrame(F, Inactive)
 			var T = TimerArray[idx];
 
 			T.time = FD.Time[Pos];
-			T.excl = FD.Time[Pos];
+			T.excl = FD.TimeExcl[Pos];
 			T.average = FD.TimeAvg[Pos];
 			T.max = FD.TimeMax[Pos];
 			T.total = FD.TimeTotal[Pos];
@@ -5305,7 +5307,7 @@ function ProcessFrame(F, Inactive)
 			// console.log("FT EX ", TimeExcl);
 			FD.historymax = FindMaxTime(FD.Time, bIsGroup);
 
-			if(FD.Aggregate > Settings.AggregateFrames && Settings.AggregateFrames > 0)
+			if((FD.Aggregate > Settings.AggregateFrames && Settings.AggregateFrames > 0) || AggregateCurrent == 0)
 			{
 				SetTimersInArray(FD, id);
 				FD.Aggregate = 0;
