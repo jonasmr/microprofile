@@ -9464,7 +9464,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "		{\n"
 "			MSG(\"Paused: Enable groups in \'Control\' menu to unpause\");\n"
 "		}\n"
-"		if(TimersEnabled == 0 && Settings.ViewActive != VIEW_COUNTERS && Settings.ViewActive != VIEW_CONTEXTSWITCH && Settings.ViewActive != VIEW_GRAPH_THREAD_GROUP)\n"
+"		if(TimersEnabled == 0 && Settings.ViewActive != VIEW_COUNTERS && Settings.ViewActive != VIEW_GRAPH_THREAD_GROUP)\n"
 "		{\n"
 "			MSG(\"Enable Timers or Functions\");\n"
 "		}\n"
@@ -9703,11 +9703,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "{\n"
 "	MenuItems = [];\n"
 "	MenuItems.push(MakeMenuItem(\"Control\", function(){EnableMenu(SubMenuGroup); } ));\n"
-"	MenuItems.push(MakeMenuItem(\"";
+"	MenuItems.push(MakeMenuItem(\"Timers\", function(){EnableMenu(SubMenuTimers)";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-"Timers\", function(){EnableMenu(SubMenuTimers); } ));\n"
+"; } ));\n"
 "	MenuItems.push(MakeMenuItem(\"Functions\", function(){EnableMenu(SubMenuFunctions); } ));\n"
 "	MenuItems.push(MakeMenuItem(\"Patched\", function(){EnableMenu(SubMenuPatched); }, function(){ return FunctionsInstrumented.length > 0;} ));\n"
 "	MenuItems.push(MakeMenuItem(\"Settings\", function(){ EnableMenu(SubMenuSettings); } ));\n"
@@ -11157,13 +11157,13 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	};\n"
 "\n"
 "	var GetColor = function(Str)\n"
-"	";
+"	{\n"
+"		var cidx = StringColor(Str); \n"
+"		return \"h";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-"{\n"
-"		var cidx = StringColor(Str); \n"
-"		return \"hsl(\" + cidx + \",50%, 70%)\";\n"
+"sl(\" + cidx + \",50%, 70%)\";\n"
 "	};\n"
 "	for(var i = 0; i < FunctionsInstrumented.length; ++i)\n"
 "	{\n"
@@ -12585,12 +12585,12 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "		{\n"
 "			s = s + F[i] + \"\\n\";\n"
 "		}\n"
-"		s = s + \"\\n\\nPlease click \\\"OK\\\"to repor";
+"		s = s + \"\\n\\nPlease click \\\"OK\\\"to report the failed code segments\\n\"\n"
+"		s = s + \"this";
 
 const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
 const char g_MicroProfileHtmlLive_begin_4[] =
-"t the failed code segments\\n\"\n"
-"		s = s + \"this will open the following url in a hidden frame\\n\"\n"
+" will open the following url in a hidden frame\\n\"\n"
 "		s = s + url;\n"
 "		s = s + \"\\n-No additional data will be sent\\n-No symbol names will be sent\";\n"
 "		s = s + \"\\n[this popup can be auto-denied or auto-accepted from the settings menu]\";\n"
