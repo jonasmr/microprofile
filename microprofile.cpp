@@ -895,47 +895,47 @@ typedef void* (*MicroProfileThreadFunc)(void*);
 typedef pthread_t MicroProfileThread;
 void MicroProfileThreadStart(MicroProfileThread* pThread, MicroProfileThreadFunc Func)
 {	
-    pthread_attr_t Attr;
-    int r  = pthread_attr_init(&Attr);
-    MP_ASSERT(r == 0);
-    pthread_create(pThread, &Attr, Func, 0);
+	pthread_attr_t Attr;
+	int r  = pthread_attr_init(&Attr);
+	MP_ASSERT(r == 0);
+	pthread_create(pThread, &Attr, Func, 0);
 }
 void MicroProfileThreadJoin(MicroProfileThread* pThread)
 {
-    int r = pthread_join(*pThread, 0);
-    MP_ASSERT(r == 0);
+	int r = pthread_join(*pThread, 0);
+	MP_ASSERT(r == 0);
 }
 #elif defined(_WIN32)
 typedef HANDLE MicroProfileThread;
 DWORD _stdcall ThreadTrampoline(void* pFunc)
 {
-    MicroProfileThreadFunc F = (MicroProfileThreadFunc)pFunc;
-    return (uint32_t)(uintptr_t)F(0);
+	MicroProfileThreadFunc F = (MicroProfileThreadFunc)pFunc;
+	return (uint32_t)(uintptr_t)F(0);
 }
 
 void MicroProfileThreadStart(MicroProfileThread* pThread, MicroProfileThreadFunc Func)
 {	
-    *pThread = CreateThread(0, 0, ThreadTrampoline, Func, 0, 0);
+	*pThread = CreateThread(0, 0, ThreadTrampoline, Func, 0, 0);
 }
 void MicroProfileThreadJoin(MicroProfileThread* pThread)
 {
-    WaitForSingleObject(*pThread, INFINITE);
-    CloseHandle(*pThread);
+	WaitForSingleObject(*pThread, INFINITE);
+	CloseHandle(*pThread);
 }
 #else
 #include <thread>
 typedef std::thread* MicroProfileThread;
 inline void MicroProfileThreadStart(MicroProfileThread* pThread, MicroProfileThreadFunc Func)
 {
-    *pThread = MP_ALLOC_OBJECT(std::thread);
-    new (*pThread) std::thread(Func, nullptr);
+	*pThread = MP_ALLOC_OBJECT(std::thread);
+	new (*pThread) std::thread(Func, nullptr);
 }
 inline void MicroProfileThreadJoin(MicroProfileThread* pThread)
 {
-    (*pThread)->join();
-    (*pThread)->~thread();
+	(*pThread)->join();
+	(*pThread)->~thread();
 	MP_FREE(*pThread);
-    *pThread = 0;
+	*pThread = 0;
 }
 #endif
 #endif
@@ -4341,7 +4341,7 @@ void MicroProfileBase64Encode(char* pOut, const uint8_t* pIn, uint32_t nLen)
 		{
 			b |= (pIn[i + 1] & 0xF0) >> 4;
 			*o++ = CODES[b];
-            b = (pIn[i + 1] & 0x0F) << 2;
+			b = (pIn[i + 1] & 0x0F) << 2;
 			if (i + 2 < nLen)
 			{
 				b |= (pIn[i + 2] & 0xC0) >> 6;
@@ -4386,7 +4386,7 @@ static void MicroProfile_SHA1_Transform(uint32_t[5], const unsigned char[64]);
 
 #define blk0(i) (block->l[i] = htonl(block->l[i]))
 #define blk(i) (block->l[i&15] = rol(block->l[(i+13)&15]^block->l[(i+8)&15] \
-    ^block->l[(i+2)&15]^block->l[i&15],1))
+	^block->l[(i+2)&15]^block->l[i&15],1))
 
 #define R0(v,w,x,y,z,i) z+=((w&(x^y))^y)+blk0(i)+0x5A827999+rol(v,5);w=rol(w,30);
 #define R1(v,w,x,y,z,i) z+=((w&(x^y))^y)+blk(i)+0x5A827999+rol(v,5);w=rol(w,30);
@@ -4399,61 +4399,61 @@ static void MicroProfile_SHA1_Transform(uint32_t[5], const unsigned char[64]);
 
 static void MicroProfile_SHA1_Transform(uint32_t state[5], const unsigned char buffer[64])
 {
-    uint32_t a, b, c, d, e;
-    typedef union {
+	uint32_t a, b, c, d, e;
+	typedef union {
 	unsigned char c[64];
 	uint32_t l[16];
-    } CHAR64LONG16;
-    CHAR64LONG16 *block;
+	} CHAR64LONG16;
+	CHAR64LONG16 *block;
 
-    block = (CHAR64LONG16 *) buffer;
-    // Copy context->state[] to working vars
-    a = state[0];
-    b = state[1];
-    c = state[2];
-    d = state[3];
-    e = state[4];
-    // 4 rounds of 20 operations each. Loop unrolled. 
-    R0(a,b,c,d,e, 0); R0(e,a,b,c,d, 1); R0(d,e,a,b,c, 2); R0(c,d,e,a,b, 3);
-    R0(b,c,d,e,a, 4); R0(a,b,c,d,e, 5); R0(e,a,b,c,d, 6); R0(d,e,a,b,c, 7);
-    R0(c,d,e,a,b, 8); R0(b,c,d,e,a, 9); R0(a,b,c,d,e,10); R0(e,a,b,c,d,11);
-    R0(d,e,a,b,c,12); R0(c,d,e,a,b,13); R0(b,c,d,e,a,14); R0(a,b,c,d,e,15);
-    R1(e,a,b,c,d,16); R1(d,e,a,b,c,17); R1(c,d,e,a,b,18); R1(b,c,d,e,a,19);
-    R2(a,b,c,d,e,20); R2(e,a,b,c,d,21); R2(d,e,a,b,c,22); R2(c,d,e,a,b,23);
-    R2(b,c,d,e,a,24); R2(a,b,c,d,e,25); R2(e,a,b,c,d,26); R2(d,e,a,b,c,27);
-    R2(c,d,e,a,b,28); R2(b,c,d,e,a,29); R2(a,b,c,d,e,30); R2(e,a,b,c,d,31);
-    R2(d,e,a,b,c,32); R2(c,d,e,a,b,33); R2(b,c,d,e,a,34); R2(a,b,c,d,e,35);
-    R2(e,a,b,c,d,36); R2(d,e,a,b,c,37); R2(c,d,e,a,b,38); R2(b,c,d,e,a,39);
-    R3(a,b,c,d,e,40); R3(e,a,b,c,d,41); R3(d,e,a,b,c,42); R3(c,d,e,a,b,43);
-    R3(b,c,d,e,a,44); R3(a,b,c,d,e,45); R3(e,a,b,c,d,46); R3(d,e,a,b,c,47);
-    R3(c,d,e,a,b,48); R3(b,c,d,e,a,49); R3(a,b,c,d,e,50); R3(e,a,b,c,d,51);
-    R3(d,e,a,b,c,52); R3(c,d,e,a,b,53); R3(b,c,d,e,a,54); R3(a,b,c,d,e,55);
-    R3(e,a,b,c,d,56); R3(d,e,a,b,c,57); R3(c,d,e,a,b,58); R3(b,c,d,e,a,59);
-    R4(a,b,c,d,e,60); R4(e,a,b,c,d,61); R4(d,e,a,b,c,62); R4(c,d,e,a,b,63);
-    R4(b,c,d,e,a,64); R4(a,b,c,d,e,65); R4(e,a,b,c,d,66); R4(d,e,a,b,c,67);
-    R4(c,d,e,a,b,68); R4(b,c,d,e,a,69); R4(a,b,c,d,e,70); R4(e,a,b,c,d,71);
-    R4(d,e,a,b,c,72); R4(c,d,e,a,b,73); R4(b,c,d,e,a,74); R4(a,b,c,d,e,75);
-    R4(e,a,b,c,d,76); R4(d,e,a,b,c,77); R4(c,d,e,a,b,78); R4(b,c,d,e,a,79);
-    // Add the working vars back into context.state[] 
-    state[0] += a;
-    state[1] += b;
-    state[2] += c;
-    state[3] += d;
-    state[4] += e;
-    // Wipe variables 
-    a = b = c = d = e = 0;
+	block = (CHAR64LONG16 *) buffer;
+	// Copy context->state[] to working vars
+	a = state[0];
+	b = state[1];
+	c = state[2];
+	d = state[3];
+	e = state[4];
+	// 4 rounds of 20 operations each. Loop unrolled. 
+	R0(a,b,c,d,e, 0); R0(e,a,b,c,d, 1); R0(d,e,a,b,c, 2); R0(c,d,e,a,b, 3);
+	R0(b,c,d,e,a, 4); R0(a,b,c,d,e, 5); R0(e,a,b,c,d, 6); R0(d,e,a,b,c, 7);
+	R0(c,d,e,a,b, 8); R0(b,c,d,e,a, 9); R0(a,b,c,d,e,10); R0(e,a,b,c,d,11);
+	R0(d,e,a,b,c,12); R0(c,d,e,a,b,13); R0(b,c,d,e,a,14); R0(a,b,c,d,e,15);
+	R1(e,a,b,c,d,16); R1(d,e,a,b,c,17); R1(c,d,e,a,b,18); R1(b,c,d,e,a,19);
+	R2(a,b,c,d,e,20); R2(e,a,b,c,d,21); R2(d,e,a,b,c,22); R2(c,d,e,a,b,23);
+	R2(b,c,d,e,a,24); R2(a,b,c,d,e,25); R2(e,a,b,c,d,26); R2(d,e,a,b,c,27);
+	R2(c,d,e,a,b,28); R2(b,c,d,e,a,29); R2(a,b,c,d,e,30); R2(e,a,b,c,d,31);
+	R2(d,e,a,b,c,32); R2(c,d,e,a,b,33); R2(b,c,d,e,a,34); R2(a,b,c,d,e,35);
+	R2(e,a,b,c,d,36); R2(d,e,a,b,c,37); R2(c,d,e,a,b,38); R2(b,c,d,e,a,39);
+	R3(a,b,c,d,e,40); R3(e,a,b,c,d,41); R3(d,e,a,b,c,42); R3(c,d,e,a,b,43);
+	R3(b,c,d,e,a,44); R3(a,b,c,d,e,45); R3(e,a,b,c,d,46); R3(d,e,a,b,c,47);
+	R3(c,d,e,a,b,48); R3(b,c,d,e,a,49); R3(a,b,c,d,e,50); R3(e,a,b,c,d,51);
+	R3(d,e,a,b,c,52); R3(c,d,e,a,b,53); R3(b,c,d,e,a,54); R3(a,b,c,d,e,55);
+	R3(e,a,b,c,d,56); R3(d,e,a,b,c,57); R3(c,d,e,a,b,58); R3(b,c,d,e,a,59);
+	R4(a,b,c,d,e,60); R4(e,a,b,c,d,61); R4(d,e,a,b,c,62); R4(c,d,e,a,b,63);
+	R4(b,c,d,e,a,64); R4(a,b,c,d,e,65); R4(e,a,b,c,d,66); R4(d,e,a,b,c,67);
+	R4(c,d,e,a,b,68); R4(b,c,d,e,a,69); R4(a,b,c,d,e,70); R4(e,a,b,c,d,71);
+	R4(d,e,a,b,c,72); R4(c,d,e,a,b,73); R4(b,c,d,e,a,74); R4(a,b,c,d,e,75);
+	R4(e,a,b,c,d,76); R4(d,e,a,b,c,77); R4(c,d,e,a,b,78); R4(b,c,d,e,a,79);
+	// Add the working vars back into context.state[] 
+	state[0] += a;
+	state[1] += b;
+	state[2] += c;
+	state[3] += d;
+	state[4] += e;
+	// Wipe variables 
+	a = b = c = d = e = 0;
 }
 
 
 void MicroProfile_SHA1_Init(MicroProfile_SHA1_CTX *context)
 {
-    // SHA1 initialization constants 
-    context->state[0] = 0x67452301;
-    context->state[1] = 0xEFCDAB89;
-    context->state[2] = 0x98BADCFE;
-    context->state[3] = 0x10325476;
-    context->state[4] = 0xC3D2E1F0;
-    context->count[0] = context->count[1] = 0;
+	// SHA1 initialization constants 
+	context->state[0] = 0x67452301;
+	context->state[1] = 0xEFCDAB89;
+	context->state[2] = 0x98BADCFE;
+	context->state[3] = 0x10325476;
+	context->state[4] = 0xC3D2E1F0;
+	context->count[0] = context->count[1] = 0;
 }
 
 
@@ -4461,22 +4461,22 @@ void MicroProfile_SHA1_Init(MicroProfile_SHA1_CTX *context)
 
 void MicroProfile_SHA1_Update(MicroProfile_SHA1_CTX *context, const unsigned char *data, unsigned int len)
 {
-    unsigned int i, j;
+	unsigned int i, j;
 
-    j = (context->count[0] >> 3) & 63;
-    if ((context->count[0] += len << 3) < (len << 3)) context->count[1]++;
-    context->count[1] += (len >> 29);
-    i = 64 - j;
-    while (len >= i) {
+	j = (context->count[0] >> 3) & 63;
+	if ((context->count[0] += len << 3) < (len << 3)) context->count[1]++;
+	context->count[1] += (len >> 29);
+	i = 64 - j;
+	while (len >= i) {
 		memcpy(&context->buffer[j], data, i);
 		MicroProfile_SHA1_Transform(context->state, context->buffer);
 		data += i;
 		len -= i;
 		i = 64;
 		j = 0;
-    }
+	}
 
-    memcpy(&context->buffer[j], data, len);
+	memcpy(&context->buffer[j], data, len);
 }
 
 
@@ -4484,27 +4484,27 @@ void MicroProfile_SHA1_Update(MicroProfile_SHA1_CTX *context, const unsigned cha
 
 void MicroProfile_SHA1_Final(unsigned char digest[20], MicroProfile_SHA1_CTX *context)
 {
-    uint32_t i, j;
-    unsigned char finalcount[8];
+	uint32_t i, j;
+	unsigned char finalcount[8];
 
-    for (i = 0; i < 8; i++) {
-        finalcount[i] = (unsigned char)((context->count[(i >= 4 ? 0 : 1)]
-         >> ((3-(i & 3)) * 8) ) & 255);  // Endian independent
-    }
-    MicroProfile_SHA1_Update(context, (unsigned char *) "\200", 1);
-    while ((context->count[0] & 504) != 448) {
+	for (i = 0; i < 8; i++) {
+		finalcount[i] = (unsigned char)((context->count[(i >= 4 ? 0 : 1)]
+		 >> ((3-(i & 3)) * 8) ) & 255);  // Endian independent
+	}
+	MicroProfile_SHA1_Update(context, (unsigned char *) "\200", 1);
+	while ((context->count[0] & 504) != 448) {
 		MicroProfile_SHA1_Update(context, (unsigned char *) "\0", 1);
-    }
-    MicroProfile_SHA1_Update(context, finalcount, 8);  // Should cause a SHA1Transform()
-    for (i = 0; i < 20; i++) {
+	}
+	MicroProfile_SHA1_Update(context, finalcount, 8);  // Should cause a SHA1Transform()
+	for (i = 0; i < 20; i++) {
 		digest[i] = (unsigned char)((context->state[i>>2] >> ((3-(i & 3)) * 8) ) & 255);
-    }
-    // Wipe variables
-    i = j = 0;
-    memset(context->buffer, 0, 64);
-    memset(context->state, 0, 20);
-    memset(context->count, 0, 8);
-    memset(&finalcount, 0, 8);
+	}
+	// Wipe variables
+	i = j = 0;
+	memset(context->buffer, 0, 64);
+	memset(context->state, 0, 20);
+	memset(context->count, 0, 8);
+	memset(&finalcount, 0, 8);
 }
 
 
@@ -4583,12 +4583,12 @@ void MicroProfileSocketDumpState()
 	}
 	timeval tv;
 	tv.tv_sec = 0;
-    tv.tv_usec = 0;
+	tv.tv_usec = 0;
 
-    if(-1 == select(LastSocket, &Read, &Write, &Error, &tv))
-    {
-    	MP_ASSERT(0);
-    }
+	if(-1 == select(LastSocket, &Read, &Write, &Error, &tv))
+	{
+		MP_ASSERT(0);
+	}
 	for(uint32_t i = 0; i < S.nNumWebSockets; i++)
 	{
 		MpSocket s = S.WebSockets[i];
@@ -4630,9 +4630,9 @@ void MicroProfileSocketDumpState()
 		int r = getsockopt(s, SOL_SOCKET, SO_ERROR, (char*)&error_code, &error_code_size);
 		MP_ASSERT(r >= 0);
 		if (error_code != 0) {
-		    /* socket has a non zero error status */
-		    fprintf(stderr, "socket error: %d %s\n", (int)s, strerror(error_code));
-		    MP_ASSERT(0);
+			/* socket has a non zero error status */
+			fprintf(stderr, "socket error: %d %s\n", (int)s, strerror(error_code));
+			MP_ASSERT(0);
 		}
 #endif
 
@@ -4759,7 +4759,7 @@ bool MicroProfileSocketSend2(MpSocket Connection, const void* pMessage, int nLen
 	getsockopt(Connection, SOL_SOCKET, SO_ERROR, &error_code, &error_code_size);
 	if(error_code != 0)
 	{
-    	return false;
+		return false;
 	}
 #endif
 
@@ -5025,14 +5025,14 @@ void MicroProfileWebSocketCommand(uint32_t nCommand)
 			MicroProfileSetEnableAllGroups(!MicroProfileGetEnableAllGroups());
 			break;
 		case SETTING_CONTEXT_SWITCH_TRACE:
-		    if(!S.bContextSwitchRunning)
-		    {
-		    	MicroProfileStartContextSwitchTrace();
-		    }
-		    else
-		    {
-		    	MicroProfileStopContextSwitchTrace();
-		    }
+			if(!S.bContextSwitchRunning)
+			{
+				MicroProfileStartContextSwitchTrace();
+			}
+			else
+			{
+				MicroProfileStopContextSwitchTrace();
+			}
 			break;
 		case SETTING_PLATFORM_MARKERS:
 			MicroProfilePlatformMarkersSetEnabled(!MicroProfilePlatformMarkersGetEnabled());
@@ -5331,14 +5331,14 @@ void MicroProfileLoadPresets(const char* pSettingsName, bool bReadOnlyPreset)
 bool MicroProfileWebSocketReceive(MpSocket Connection)
 {
 
-     //  0                   1                   2                   3
-     //  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-     // +-+-+-+-+-------+-+-------------+-------------------------------+
-     // |F|R|R|R| opcode|M| Payload len |    Extended payload length    |
-     // |I|S|S|S|  (4)  |A|     (7)     |             (16/64)           |
-     // |N|V|V|V|       |S|             |   (if payload len==126/127)   |
-     // | |1|2|3|       |K|             |                               |
-     // +-+-+-+-+-------+-+-------------+ - - - - - - - - - - - - - - - +
+	//  0                   1                   2                   3
+	//  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+	// +-+-+-+-+-------+-+-------------+-------------------------------+
+	// |F|R|R|R| opcode|M| Payload len |    Extended payload length    |
+	// |I|S|S|S|  (4)  |A|     (7)     |             (16/64)           |
+	// |N|V|V|V|       |S|             |   (if payload len==126/127)   |
+	// | |1|2|3|       |K|             |                               |
+	// +-+-+-+-+-------+-+-------------+ - - - - - - - - - - - - - - - +
 	int r;
 	uint64_t nSize;
 	uint64_t nSizeBytes = 0;
@@ -5380,7 +5380,7 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 	if(nSizeBytes)
 	{
 		nSize = 0;
-        uint64_t MessageLength = 0;
+		uint64_t MessageLength = 0;
 
 		uint8_t BytesMessage[8];
 		r = recv(Connection, (char*)&BytesMessage[0], nSizeBytes, 0);
@@ -5392,9 +5392,9 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 			nSize += BytesMessage[i];			
 		}
 
-        for(uint32_t i = 0; i < nSizeBytes; i++)
-            MessageLength |= BytesMessage[i] << ((nSizeBytes - 1 - i) * 8);
-        MP_ASSERT(MessageLength == nSize);
+		for(uint32_t i = 0; i < nSizeBytes; i++)
+			MessageLength |= BytesMessage[i] << ((nSizeBytes - 1 - i) * 8);
+		MP_ASSERT(MessageLength == nSize);
 	}
 
 	if(h1.MASK)
@@ -5499,7 +5499,7 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 
 	uint8_t sha[20];
 	MicroProfile_SHA1_CTX ctx;
-    MicroProfile_SHA1_Init(&ctx);
+	MicroProfile_SHA1_Init(&ctx);
  	MicroProfile_SHA1_Update(&ctx, (unsigned char*)EncodeBuffer, nLen);
 	MicroProfile_SHA1_Final((unsigned char*)&sha[0], &ctx);
 	char HashOut[(2+sizeof(sha)/3)*4];
@@ -5625,12 +5625,12 @@ void MicroProfileWebSocketFrame()
 	}
 	timeval tv;
 	tv.tv_sec = 0;
-    tv.tv_usec = 0;
+	tv.tv_usec = 0;
 
-    if(-1 == select(LastSocket, &Read, &Write, &Error, &tv))
-    {
-    	MP_ASSERT(0);
-    }
+	if(-1 == select(LastSocket, &Read, &Write, &Error, &tv))
+	{
+		MP_ASSERT(0);
+	}
 	for(uint32_t i = 0; i < S.nNumWebSockets;)
 	{
 		MpSocket s = S.WebSockets[i];
@@ -5674,17 +5674,17 @@ void MicroProfileWebSocketFrame()
 			#endif
 
 #ifndef _WIN32
-        	shutdown(S.WebSockets[i], SHUT_WR);
+			shutdown(S.WebSockets[i], SHUT_WR);
 #else
 			shutdown(S.WebSockets[i], 1);
 #endif
-            char tmp[128];
-            int r = 1;
-            while(r > 0)
-            {
-                r = recv(S.WebSockets[i], tmp, sizeof(tmp), 0);
-            }
-            #ifdef _WIN32
+			char tmp[128];
+			int r = 1;
+			while(r > 0)
+			{
+				r = recv(S.WebSockets[i], tmp, sizeof(tmp), 0);
+			}
+			#ifdef _WIN32
 			closesocket(S.WebSockets[i]);
 			#else
 			close(S.WebSockets[i]);
@@ -6038,28 +6038,28 @@ int MicroProfileIsLocalThread(uint32_t nThreadId);
 
 void MicroProfileStartContextSwitchTrace()
 {
-    if(!S.bContextSwitchRunning && !S.nMicroProfileShutdown)
-    {
-        S.bContextSwitchRunning = true;
-        S.bContextSwitchStop = false;
-        MicroProfileThreadStart(&S.ContextSwitchThread, MicroProfileTraceThread);
-    }
+	if(!S.bContextSwitchRunning && !S.nMicroProfileShutdown)
+	{
+		S.bContextSwitchRunning = true;
+		S.bContextSwitchStop = false;
+		MicroProfileThreadStart(&S.ContextSwitchThread, MicroProfileTraceThread);
+	}
 }
 
 void MicroProfileJoinContextSwitchTrace()
 {
 	if(S.bContextSwitchStop)
 	{
-        MicroProfileThreadJoin(&S.ContextSwitchThread);
+		MicroProfileThreadJoin(&S.ContextSwitchThread);
 	}
 }
 
 void MicroProfileStopContextSwitchTrace()
 {
-    if(S.bContextSwitchRunning)
-    {
-        S.bContextSwitchStop = true;
-    }
+	if(S.bContextSwitchRunning)
+	{
+		S.bContextSwitchStop = true;
+	}
 }
 
 
