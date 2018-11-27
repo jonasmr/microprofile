@@ -227,14 +227,12 @@ typedef uint64_t MicroProfileThreadIdType;
 
 void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 {
-	if(nAlign < 8) MP_BREAK();
-	void* p;
-	int r = posix_memalign(&p, nAlign, nSize); 
-	(void)r;
-	// if(r)
-	// {
-	// 	printf("Error is %s\n", strerror(r));
-	// }
+	void* p; 
+	int result = posix_memalign(&p, nAlign, nSize); 
+	if(result != 0)
+	{
+		return nullptr;
+	}
 	return p;
 }
 
@@ -299,7 +297,11 @@ typedef uint64_t MicroProfileThreadIdType;
 void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 {
 	void* p;
-	posix_memalign(&p, nAlign, nSize);
+	int result = posix_memalign(&p, nAlign, nSize);
+	if (result != 0)
+	{
+		return nullptr;
+	}
 	return p;
 }
 void MicroProfileFreeAligned(void* pMem)
@@ -3035,9 +3037,8 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 
 							if(MP_LOG_ENTER == nType)
 							{
-								int nTimer = MicroProfileLogGetTimerIndex(LE);
-								MP_ASSERT(nTimer>=0);
-								MP_ASSERT(nTimer < (int)S.nTotalTimers);
+								uint64_t nTimer = MicroProfileLogGetTimerIndex(LE);
+								MP_ASSERT(nTimer < S.nTotalTimers);
 								uint32_t nGroup = pTimerToGroup[nTimer];
 								MP_ASSERT(nStackPos < MICROPROFILE_STACK_MAX);
 								MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
@@ -3050,9 +3051,8 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 							}
 							else if(MP_LOG_LEAVE == nType)
 							{
-								int nTimer = MicroProfileLogGetTimerIndex(LE);
-								MP_ASSERT(nTimer < (int)S.nTotalTimers);
-								MP_ASSERT(nTimer >= 0);
+								uint64_t nTimer = MicroProfileLogGetTimerIndex(LE);
+								MP_ASSERT(nTimer < S.nTotalTimers);
 								uint32_t nGroup = pTimerToGroup[nTimer];
 								MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
 								MP_ASSERT(nStackPos);

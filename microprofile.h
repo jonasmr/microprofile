@@ -50,6 +50,7 @@
 #define MICROPROFILE_ONCE
 
 #include <stdint.h>
+
 typedef uint64_t MicroProfileToken;
 typedef uint16_t MicroProfileGroupId;
 

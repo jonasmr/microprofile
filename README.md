@@ -90,13 +90,13 @@ builtin presets are presets, that are loaded from mppresets.builtin.cfg. They wo
 
 ![Alt text](images/live.png?raw=true "Live screenshot")
 
-#Capture view
+# Capture view
 Capturing in live view provides a complete view of what is recorded in the ring buffers over a set amount of frames. Please be aware if you capture to far behind, the markers you're are looking for might be overwritten, in which case there will be no markers. As the buffers are reused per thread, this is something that will happen on a per thread basis.
 
 
 ![Alt text](images/detailed.png?raw=true "Capture screenshot")
 
-#Example code
+# Example code
 * noframes: Using microprofile to profile an application without any concept of frames. dumps a capture at the end. No live view.
 * noui: frame based implementation. with live view. No gpu timing
 * noui_d3d11: frame based implementation, with live view and D3D11 gpu timers
