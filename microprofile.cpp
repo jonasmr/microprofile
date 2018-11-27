@@ -759,7 +759,7 @@ namespace
 			uint64_t LogEntry;
 		};
 	};
-};
+}
 inline MicroProfileLogEntry MicroProfileMakeLogPayload(const char* pData, size_t nSize)
 {
 	MP_ASSERT(nSize < 8);
