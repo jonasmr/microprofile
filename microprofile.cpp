@@ -760,7 +760,7 @@ namespace
 		};
 	};
 };
-inline MicroProfileLogEntry MicroProfileMakeLogPayload(const char* pData, uint64_t nSize)
+inline MicroProfileLogEntry MicroProfileMakeLogPayload(const char* pData, size_t nSize)
 {
 	MP_ASSERT(nSize < 8);
 	MicroProfilePayloadPack P;
