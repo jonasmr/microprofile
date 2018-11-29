@@ -3922,7 +3922,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 	memset(S.nActiveGroups, 0, sizeof(S.nActiveGroups));
 	S.nPauseTicks = MP_TICK();
 	int c = 0;
-	while(0 == S.nPauseSignal)
+	while(0 == S.nPauseSignal && S.bContextSwitchRunning && !S.bContextSwitchStop)
 	{
 		MicroProfileSleep(100);
 		if(++c % 100 == 99)
