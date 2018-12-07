@@ -10,7 +10,7 @@ void C_Test()
 	{
 		MICROPROFILE_ENTERI("C", "C_TEST_INNER", 0xff00ff);
 #ifndef _WIN32
-		usleep(10);
+		//usleep(10);
 #endif
 		MICROPROFILE_LEAVE();
 	}

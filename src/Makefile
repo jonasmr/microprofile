@@ -1,7 +1,7 @@
 
-CC=clang
-CPP=clang++
-LD=clang++
+CC ?= clang
+CXX ?= clang++
+LD = clang++
 TARGET=../microprofile_html.h
 
 all: $(TARGET)

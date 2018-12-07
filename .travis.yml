@@ -1,0 +1,29 @@
+os:
+  - linux
+  - osx
+  - windows
+compiler:
+  - gcc
+  - clang
+env:
+  - TARGET=noui
+  - TARGET=noui_c
+  - TARGET=noframes
+  #- TARGET=noui_gl
+matrix:
+  exclude:
+    - os: windows
+      compiler: clang
+    - os: windows
+      env: TARGET=noui_c
+    - os: windows
+      env: TARGET=noframes
+  include:
+    - os: windows
+      env: TARGET=noui_d3d11
+    - os: windows
+      env: TARGET=noui_d3d12
+    - os: windows
+      env: TARGET=noui_d3d12_multithreading
+language: cpp
+script: ./travis/build

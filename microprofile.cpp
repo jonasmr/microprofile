@@ -2077,7 +2077,7 @@ void MicroProfileGpuSubmit(int nQueue, uint64_t nWork)
 	{
 		nCount = pGpuLog->Log[nStart];
 	}
-	MP_ASSERT(nCount < MICROPROFILE_GPU_BUFFER_SIZE);
+	MP_ASSERT(nCount < (int64_t)MICROPROFILE_GPU_BUFFER_SIZE);
 	nStart++;
 	for(int32_t i = 0; i < nCount; ++i)
 	{
@@ -2423,20 +2423,17 @@ void MicroProfileFlip(void* pContext)
 		}
 
 		uint32_t* pTimerToGroup = &S.TimerToGroup[0];
-		uint32_t nPutStart[MICROPROFILE_MAX_THREADS];
 		for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
 		{
 			MicroProfileThreadLog* pLog = S.Pool[i];
 			if(!pLog)
 			{
 				pFramePut->nLogStart[i] = 0;
-				nPutStart[i] = (uint32_t)-1;
 			}
 			else
 			{
 				uint32_t nPut = pLog->nPut.load(std::memory_order_acquire);
 				pFramePut->nLogStart[i] = nPut;
-				nPutStart[i] = nPut;
 			}
 		}
 		{
@@ -5344,7 +5341,7 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 	uint64_t nSizeBytes = 0;
 	uint8_t Mask[4];
 	static unsigned char* Bytes = 0;
-	static char BytesAllocated = 0;
+	static uint64_t BytesAllocated = 0;
 	MicroProfileWebSocketHeader0 h0;
 	MicroProfileWebSocketHeader1 h1;
 	static_assert(sizeof(h0) == 1, "");
@@ -5384,7 +5381,7 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 
 		uint8_t BytesMessage[8];
 		r = recv(Connection, (char*)&BytesMessage[0], nSizeBytes, 0);
-		if(nSizeBytes != r)
+		if((int)nSizeBytes != r)
 			goto fail;
 		for(uint32_t i = 0; i < nSizeBytes; i++)
 		{
@@ -5831,7 +5828,7 @@ void MicroProfileWebSocketSendState(MpSocket C)
 		{
 			MicroProfileCounterInfo& CI = S.CounterInfo[i];
 			uint32_t id = MicroProfileWebSocketIdPack(TYPE_COUNTER, i);			
-			uint32_t parent = CI.nParent == (uint32_t)-1 ? 0 : MicroProfileWebSocketIdPack(TYPE_COUNTER, CI.nParent);
+			uint32_t parent = CI.nParent == -1 ? 0u : MicroProfileWebSocketIdPack(TYPE_COUNTER, CI.nParent);
 			MicroProfileWebSocketSendCounterEntry(id, parent, CI.pName, CI.nLimit, CI.eFormat);
 		}
 #if MICROPROFILE_CONTEXT_SWITCH_TRACE

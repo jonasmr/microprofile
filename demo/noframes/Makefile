@@ -1,21 +1,21 @@
 LDFLAGS+=-lpthread
-CFLAGS=-Wno-c++11-extensions -I../..
-#CFLAGS+=-fsanitize=undefined-trap -fsanitize-undefined-trap-on-error
-CFLAGS+=-Wall -DMICROPROFILE_GPU_TIMERS=0
-CFLAGS+=-g -O0 -Wno-invalid-offsetof -Wall -Werror
+FLAGS=-I../..
+#FLAGS+=-fsanitize=undefined-trap -fsanitize-undefined-trap-on-error
+FLAGS+=-Wall -DMICROPROFILE_GPU_TIMERS=0
+FLAGS+=-g -O0 -Wno-invalid-offsetof -Wall -Werror
+#FLAGS+=-DMICROPROFILE_ENABLED=0
 
-#CFLAGS+=-DMICROPROFILE_ENABLED=0
-CPPFLAGS=$(CFLAGS)
-CPPFLAGS+=-stdlib=libc++ -std=c++11
+CPPFLAGS= $(FLAGS) -std=c++11
+CFLAGS = $(FLAGS) -std=c99 
 
 
 CPP_SOURCES = fakework.cpp demo_noframes.cpp ../../microprofile.cpp
 C_SOURCES = 
 
 TARGET=demo_noframes
-CC=clang
-CPP=clang++
-LD=clang++
+CC ?= clang
+CXX ?= clang++
+LD = $(CXX)
 
 CPP_OBJS = $(patsubst %.cpp,%.o,$(CPP_SOURCES))
 C_OBJS = $(patsubst %.c,%.o,$(C_SOURCES))
@@ -28,7 +28,7 @@ $(TARGET): $(C_OBJS) $(CPP_OBJS)
 -include .depend
 
 .cpp.o: 
-	$(CPP) -c $< $(CPPFLAGS) -o $@
+	$(CXX) -c $< $(CPPFLAGS) -o $@
 
 .c.o:
 	$(CC) -c $< $(CFLAGS) -o $@
@@ -38,7 +38,7 @@ clean: depend
 	rm -f *.o ../../microprofile.o $(TARGET)
 
 depend: $(CPP_SOURCES) $(C_SOURCES)
-	$(CPP) -MM $(CPPFLAGS) $(CPP_SOURCES) >> .depend
+	$(CXX) -MM $(CPPFLAGS) $(CPP_SOURCES) >> .depend
 
 embed_target:
 	cd ../../src && make
