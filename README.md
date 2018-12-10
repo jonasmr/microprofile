@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/jonasmr/microprofile.svg?branch=master)](https://travis-ci.org/jonasmr/microprofile)
+
 # microprofile
 
 Microprofile is a embeddable profiler in a few files, written in C++

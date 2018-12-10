@@ -20,9 +20,9 @@ CPP_SOURCES = demo_gl.cpp ../../microprofile.cpp
 C_SOURCES = ../glew/glew.c
 
 TARGET=demo_gl
-CC=clang
-CPP=clang++
-LD=clang++
+CC ?= clang
+CXX ?= clang++
+LD = $(CXX)
 
 CPP_OBJS = $(patsubst %.cpp,%.o,$(CPP_SOURCES))
 C_OBJS = $(patsubst %.c,%.o,$(C_SOURCES))
@@ -35,7 +35,7 @@ $(TARGET): $(C_OBJS) $(CPP_OBJS)
 -include .depend
 
 .cpp.o: 
-	$(CPP) -c $< $(CPPFLAGS) -o $@
+	$(CXX) -c $< $(CPPFLAGS) -o $@
 
 .c.o:
 	$(CC) -c $< $(CFLAGS) -o $@
@@ -46,7 +46,7 @@ clean: depend
 
 depend: $(CPP_SOURCES) $(C_SOURCES)
 	$(CC) -MM $(CFLAGS) $(C_SOURCES) > .depend
-	$(CPP) -MM $(CPPFLAGS) $(CPP_SOURCES) >> .depend
+	$(CXX) -MM $(CPPFLAGS) $(CPP_SOURCES) >> .depend
 
 embed_target:
 	cd ../../src && make

@@ -21,12 +21,26 @@
 
 #include <stdio.h>
 #include <stdarg.h>
-
-#ifndef _WIN32
-#include <unistd.h>
-#endif
-
 #include "microprofile.h"
+
+void spinsleep(int64_t nUs)
+{
+
+#if MICROPROFILE_ENABLED
+	float fToMs = MicroProfileTickToMsMultiplierCpu();
+	int64_t nTickStart = MicroProfileTick();
+	float fElapsed = 0;
+	float fTarget = nUs / 1000000.f;
+	do
+	{
+		int64_t nTickEnd = MicroProfileTick();
+		fElapsed = (nTickEnd - nTickStart) * fToMs;
+
+	}while(fElapsed < fTarget);
+#endif
+}
+
+
 
 int g_nQuit = 0;
 int main(int argc, char* argv[])
@@ -72,14 +86,14 @@ int main(int argc, char* argv[])
 		MICROPROFILE_ENTERI("Main", "Main", 0xff0000ff);
 		{
 			MICROPROFILE_ENTERI("Main", "Sleep", 0xff0000ff);
-			usleep(16000);
+			spinsleep(16000);
 			MICROPROFILE_LEAVE();
 		}
 		static int xx = 1;
 		if(0 == (++xx % 1000))
 		{
 			MICROPROFILE_ENTERI("geddehest", "fiszzk", 0xff00ff);
-			usleep(201 * 1000);
+			spinsleep(201 * 1000);
 			MICROPROFILE_LEAVE();
 		} 
 
@@ -103,7 +117,7 @@ int main(int argc, char* argv[])
 			{
 				printf("\nsleeping 1s\n");
 				MICROPROFILE_SCOPEI("SPIKE_TEST", "Test", 0xff00ff00);
-				usleep(1000*1000);	
+				spinsleep(1000*1000);	
 				printf("sleep done, spike.html should be saved in 5 frames\n");
 			}
 		}
@@ -112,7 +126,7 @@ int main(int argc, char* argv[])
 		{
 			MICROPROFILE_ENTERI("hest", "fisk", 0xff00ff);
 			printf("sleep 500\n");
-			usleep(75 * 1000);
+			spinsleep(75 * 1000);
 			MICROPROFILE_LEAVE();
 		}
 		MICROPROFILE_LEAVE();
