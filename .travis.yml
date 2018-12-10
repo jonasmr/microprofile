@@ -26,4 +26,7 @@ matrix:
     - os: windows
       env: TARGET=noui_d3d12_multithreading
 language: cpp
+before_install: ./travis/before_install
 script: ./travis/build
+
+
