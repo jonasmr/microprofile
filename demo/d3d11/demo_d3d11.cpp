@@ -74,7 +74,7 @@ int WINAPI WinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	MicroProfileGpuInitD3D11(g_pd3dDevice, g_pImmediateContext);
 	MICROPROFILE_GPU_SET_CONTEXT(g_pImmediateContext, MicroProfileGetGlobalGpuThreadLog());
 	MicroProfileStartContextSwitchTrace();
-	StartFakeWork();
+	//StartFakeWork();
 	char buffer[256];
 	snprintf(buffer, sizeof(buffer)-1, "Webserver started in localhost:%d\n", MicroProfileWebServerPort());
 	OutputDebugStringA(buffer);
@@ -98,7 +98,7 @@ int WINAPI WinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     }
 
     CleanupDevice();
-	StopFakeWork();
+	//StopFakeWork();
 
     return ( int )msg.wParam;
 }

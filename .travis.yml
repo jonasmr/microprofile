@@ -6,27 +6,25 @@ compiler:
   - gcc
   - clang
 env:
-  - TARGET=noui
-  - TARGET=noui_c
+  - TARGET=simple
+  - TARGET=c
   - TARGET=noframes
+  - TARGET=workbench
   #- TARGET=noui_gl
 matrix:
   exclude:
     - os: windows
       compiler: clang
-    - os: windows
-      env: TARGET=noui_c
-    - os: windows
-      env: TARGET=noframes
   include:
     - os: windows
-      env: TARGET=noui_d3d11
+      env: TARGET=d3d11
     - os: windows
-      env: TARGET=noui_d3d12
+      env: TARGET=d3d12
     - os: windows
-      env: TARGET=noui_d3d12_multithreading
+      env: TARGET=d3d12_multithreading
 language: cpp
 before_install: ./travis/before_install
 script: ./travis/build
 
 
+# sudo apt-get install -y libsdl2-dev

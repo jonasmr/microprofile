@@ -24,8 +24,12 @@
 #include <string>
 #include <thread>
 #include <atomic>
-#include "unistd.h"
 
+#ifdef _WIN32
+void usleep(__int64 s);
+#else
+#include "unistd.h"
+#endif
 
 #include "microprofile.h"
 

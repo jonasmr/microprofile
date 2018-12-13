@@ -7,7 +7,7 @@
     <ClInclude Include="..\..\microprofileui.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="noui_d3d12.cpp" />
     <ClCompile Include="..\..\microprofile.cpp" />
+    <ClCompile Include="d3d12.cpp" />
   </ItemGroup>
 </Project>

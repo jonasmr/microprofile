@@ -2,25 +2,16 @@ LDFLAGS+=-lpthread
 FLAGS=-I../..
 #FLAGS+=-fsanitize=undefined-trap -fsanitize-undefined-trap-on-error
 FLAGS+=-Wall -DMICROPROFILE_UI=0 -DMICROPROFILE_WEBSERVER=1 -DMICROPROFILE_GPU_TIMERS=0
-FLAGS+=-g -O0 -Wno-invalid-offsetof -Wall -Werror
+FLAGS+=-g -O0 -Wall -Werror
 
-CPPFLAGS= $(FLAGS) -std=c++11
+CPPFLAGS= $(FLAGS) -std=c++11 -Wno-invalid-offsetof
 CFLAGS = $(FLAGS) -std=c99 
 
 
-
-CFLAGS+=-DMICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE
-
-LDFLAGS+=../../distorm/distorm3.a
-ASM_SOURCES+=../../patch_osx.s
-CFLAGS+= -I../../distorm/include
-
-
-
 CPP_SOURCES = microprofile.cpp ../../microprofile.cpp
-C_SOURCES = demo_noui.c
+C_SOURCES = demo.c
 
-TARGET=demo_noui_c
+TARGET=demo_c
 CC ?= clang
 CXX ?= clang++
 LD = $(CXX)

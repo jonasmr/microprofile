@@ -9,10 +9,10 @@ CPPFLAGS= $(FLAGS) -std=c++11
 CFLAGS = $(FLAGS) -std=c99 
 
 
-CPP_SOURCES = fakework.cpp demo_noframes.cpp ../../microprofile.cpp
+CPP_SOURCES = fakework.cpp noframes.cpp ../../microprofile.cpp
 C_SOURCES = 
 
-TARGET=demo_noframes
+TARGET=noframes
 CC ?= clang
 CXX ?= clang++
 LD = $(CXX)

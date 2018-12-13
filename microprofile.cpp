@@ -485,7 +485,7 @@ struct MicroProfileHashTableEntry
 {
 	uint64_t Key;
 	uint64_t Hash;
-	uint64_t Value;
+	uintptr_t Value;
 };
 
 struct MicroProfileHashTable
@@ -998,7 +998,7 @@ inline MicroProfileLogEntry MicroProfileMakeLogPayload(const char* pData, uint64
 	MP_ASSERT(nSize < 8);
 	MicroProfilePayloadPack P;
 	P.LogEntry = 0;
-	memcpy(P.message, pData, nSize);
+	memcpy(P.message, pData, (size_t)nSize);
 	MicroProfileLogEntry LE = P.LogEntry;
 	LE |= ((uint64_t)MP_LOG_PAYLOAD)<<62llu;
 	return LE;
@@ -1280,8 +1280,8 @@ void MicroProfileHashTableDestroy(MicroProfileHashTable* pTable);
 uint64_t MicroProfileHashTableHash(MicroProfileHashTable* pTable, uint64_t K);
 void MicroProfileHashTableGrow(MicroProfileHashTable* pTable);
 
-bool MicroProfileHashTableSet(MicroProfileHashTable* pTable, uint64_t Key, uint64_t Value, uint64_t H, bool bAllowGrow);
-bool MicroProfileHashTableGet(MicroProfileHashTable* pTable, uint64_t Key, uint64_t* pValue);
+bool MicroProfileHashTableSet(MicroProfileHashTable* pTable, uint64_t Key, uintptr_t Value, uint64_t H, bool bAllowGrow);
+bool MicroProfileHashTableGet(MicroProfileHashTable* pTable, uint64_t Key, uintptr_t* pValue);
 bool MicroProfileHashTableRemove(MicroProfileHashTable* pTable, uint64_t Key);
 
 bool MicroProfileHashTableSetString(MicroProfileHashTable* pTable, const char* pKey, const char* pValue);
@@ -2863,7 +2863,7 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 		const uint64_t nTickEndFrameGpu = bGpuFrameInvalid ? 1 : nTickEndFrameGpu_;
 		const uint64_t nTickStartFrameGpu = bGpuFrameInvalid ? 2 : nTickStartFrameGpu_;
 
-		#define MP_ASSERT_LE_WRAP(l,g) MP_ASSERT( (g-l) < 0x8000000000000000)
+		#define MP_ASSERT_LE_WRAP(l,g) MP_ASSERT( uint64_t(g-l) < 0x8000000000000000)
 
 		{
 			MP_ASSERT_LE_WRAP(nTickStartFrame, nTickEndFrame);
@@ -3021,7 +3021,7 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 					uint64_t* pStackLog = &pLog->nStackLogEntry[0];
 					uint64_t* pChildTickStack = &pLog->nChildTickStack[1];
 					int32_t nStackPos = pLog->nStackPos;
-					for(uint32_t i = 0; i < nStackPos; ++i)
+					for(int32_t i = 0; i < nStackPos; ++i)
 					{
 						nNegativeStack[i] = 0;
 					}
@@ -4888,6 +4888,7 @@ void MicroProfileWebServerStart()
 		#else
 			r = setsockopt(S.ListenerSocket, SOL_SOCKET, SO_REUSEADDR, (void*)&on, sizeof(on));
 		#endif
+		(void)r;
 	} 
 
 
@@ -6658,7 +6659,7 @@ void MicroProfileWebSocketFrame()
 		if(!bConnected)
 		{
 			#if MICROPROFILE_DEBUG
-			printf("removing socket %lld\n", (uint64_t)s);
+			printf("removing socket %" PRId64 "\n", (uint64_t)s);
 			#endif
 
 #ifndef _WIN32
@@ -11091,7 +11092,7 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 					b = intptr_t(B.BaseAddress) + B.RegionSize;
 				}
 				S.SymbolModules[nModule].nProgressTarget = nBytes;
-				uprintf("ITERATE MODULES %p :: %s\n", S.SymbolModules[nModule].nAddrBegin, (const char*)S.SymbolModules[nModule].pBaseString);
+//				uprintf("ITERATE MODULES %p :: %s\n", S.SymbolModules[nModule].nAddrBegin, (const char*)S.SymbolModules[nModule].pBaseString);
 				if(SymEnumSymbols(GetCurrentProcess(), S.SymbolModules[nModule].nAddrBegin, "*", MicroProfileQueryContextEnumSymbols, pBase))
 				{
 					uprintf("SymEnumSymbols Succeeds!\n");
@@ -11907,7 +11908,7 @@ void MicroProfileHashTableGrow(MicroProfileHashTable* pTable)
 	*pTable = New;
 }
 
-bool MicroProfileHashTableSet(MicroProfileHashTable* pTable, uint64_t Key, uint64_t Value)
+bool MicroProfileHashTableSet(MicroProfileHashTable* pTable, uint64_t Key, uintptr_t Value)
 {
 	uint64_t H = MicroProfileHashTableHash(pTable, Key);
 	return MicroProfileHashTableSet(pTable, Key, Value, H, true);
@@ -11915,7 +11916,7 @@ bool MicroProfileHashTableSet(MicroProfileHashTable* pTable, uint64_t Key, uint6
 }
 
 
-bool MicroProfileHashTableSet(MicroProfileHashTable* pTable, uint64_t Key, uint64_t Value, uint64_t H, bool bAllowGrow)
+bool MicroProfileHashTableSet(MicroProfileHashTable* pTable, uint64_t Key, uintptr_t Value, uint64_t H, bool bAllowGrow)
 {
 	// uint64_t H = MicroProfileHashTableHash(pTable, Key);
 	MicroProfileHashCompareFunction Cmp = pTable->CompareFunc;
@@ -11957,7 +11958,7 @@ bool MicroProfileHashTableSet(MicroProfileHashTable* pTable, uint64_t Key, uint6
 	MP_BREAK();
 }
 
-bool MicroProfileHashTableGet(MicroProfileHashTable* pTable, uint64_t Key, uint64_t* pValue)
+bool MicroProfileHashTableGet(MicroProfileHashTable* pTable, uint64_t Key, uintptr_t* pValue)
 {
 	uint64_t H = MicroProfileHashTableHash(pTable, Key);
 	uint32_t B = H % pTable->nAllocated;
@@ -12034,12 +12035,12 @@ bool MicroProfileHashTableCompareString(uint64_t L, uint64_t R)
 
 bool MicroProfileHashTableSetString(MicroProfileHashTable* pTable, const char* pKey, const char* pValue)
 {
-	return MicroProfileHashTableSet(pTable, (uint64_t)pKey, (uint64_t)pValue);
+	return MicroProfileHashTableSet(pTable, (uint64_t)pKey, (uintptr_t)pValue);
 }
 
 bool MicroProfileHashTableGetString(MicroProfileHashTable* pTable, const char* pKey, const char** pValue)
 {
-	return MicroProfileHashTableGet(pTable, (uint64_t)pKey, (uint64_t*)pValue);
+	return MicroProfileHashTableGet(pTable, (uint64_t)pKey, (uintptr_t*)pValue);
 }
 
 bool MicroProfileHashTableRemoveString(MicroProfileHashTable* pTable, const char* pKey)
@@ -12101,6 +12102,7 @@ const char* MicroProfileStringInternLower(const char* pStr)
 {
 	return MicroProfileStringIntern(pStr, (uint32_t)strlen(pStr), ESTRINGINTERN_LOWERCASE);
 }
+
 
 const char* MicroProfileStringIntern(const char* pStr_, uint32_t nLen, uint32_t nFlags)
 {
@@ -12171,7 +12173,7 @@ void DumpTable(MicroProfileHashTable* pTable)
 		{
 			if(pTable->pEntries[i].Hash != 0)
 			{
-				printf("[%05d,%05" PRIu64 "]  ::::%" PRIx64 ", %" PRIx64 " .. hash %" PRIx64 "\n", i, pTable->pEntries[i].Hash % pTable->nAllocated, pTable->pEntries[i].Key, pTable->pEntries[i].Value, pTable->pEntries[i].Hash);
+				printf("[%05d,%05" PRIu64 "]  ::::%" PRIx64 ", %p .. hash %" PRIx64 "\n", i, pTable->pEntries[i].Hash % pTable->nAllocated, pTable->pEntries[i].Key, (void*)pTable->pEntries[i].Value, pTable->pEntries[i].Hash);
 			}
 		}
 	};
@@ -12296,7 +12298,7 @@ void MicroProfileHashTableTest()
 
 	for(uint32_t i = 0; i < NUM_ITEMS; ++i)
 	{
-		uint64_t V;
+		uintptr_t V;
 		if(MicroProfileHashTableGet(pTable, Keys[i], &V))
 		{
 			if(V != Values[i])
@@ -12322,7 +12324,7 @@ void MicroProfileHashTableTest()
 	}
 	printf("removed\n");
 	DumpTable(pTable);
-	uint64_t v;
+	uintptr_t v;
 	if(MicroProfileHashTableGet(pTable, 0, &v))
 	{
 		MP_BREAK();

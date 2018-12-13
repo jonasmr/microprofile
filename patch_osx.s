@@ -1,4 +1,5 @@
-.section __TEXT,__text
+.intel_syntax noprefix
+.text
 .globl _microprofile_tramp_enter
 .globl _microprofile_tramp_leave
 .globl _microprofile_tramp_code_begin

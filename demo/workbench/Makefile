@@ -2,28 +2,30 @@ LDFLAGS+=-lpthread
 FLAGS=-I../..
 #FLAGS+=-fsanitize=undefined-trap -fsanitize-undefined-trap-on-error
 FLAGS+=-Wall -DMICROPROFILE_UI=0 -DMICROPROFILE_WEBSERVER=1 -DMICROPROFILE_GPU_TIMERS=0
-FLAGS+=-g -O0 -Wno-invalid-offsetof -Wall -Werror
+FLAGS+=-g -O0 -Wall -Werror
 #FLAGS+=-DMICROPROFILE_ENABLED=0
+FLAGS+=-DMICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE
+FLAGS+= -I../../distorm/include
 
-CPPFLAGS= $(FLAGS) -std=c++11
+
+
+CPPFLAGS= $(FLAGS) -std=c++11 -Wno-invalid-offsetof
 CFLAGS = $(FLAGS) -std=c99 
 
 
 
-CPP_SOURCES = fakework.cpp demo_noui.cpp ../../microprofile.cpp
+CPP_SOURCES = fakework.cpp demo_workbench.cpp ../../microprofile.cpp
 C_SOURCES = test.c
 ASM_SOURCES = 
 
 
 #comment in the following lines to enable function instrumentation.
 #requires distorm to be present and compiled (IE distorm3.a must be present)
-CFLAGS+=-DMICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE
 #CFLAGS+=-DMICROPROFILE_BREAK_ON_PATCH_FAIL=1
 LDFLAGS+=../../distorm/distorm3.a
 ASM_SOURCES+=../../patch_osx.s
-CFLAGS+= -I../../distorm/include
 
-TARGET=demo_noui
+TARGET=demo_workbench
 CC ?= clang
 CXX ?= clang++
 LD = $(CXX)
@@ -43,7 +45,7 @@ $(TARGET): $(C_OBJS) $(CPP_OBJS) $(ASM_OBJS)
   ../../microprofile_html.h
 
 .s.o:
-	as -masm=intel $< -o $@
+	clang -c $< -o $@
 
 .cpp.o: 
 	$(CXX) -c $< $(CPPFLAGS) -o $@
@@ -53,7 +55,7 @@ $(TARGET): $(C_OBJS) $(CPP_OBJS) $(ASM_OBJS)
 
 
 clean: depend
-	rm -f *.o ../../microprofile.o $(TARGET)
+	rm -f *.o ../../*.o $(TARGET)
 
 depend: $(CPP_SOURCES) $(C_SOURCES)
 	$(CXX) -MM $(CPPFLAGS) $(CPP_SOURCES) >> .depend

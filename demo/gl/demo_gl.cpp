@@ -273,6 +273,7 @@ int main(int argc, char* argv[])
 
 	glewExperimental=1;
 	GLenum err=glewInit();
+	printf("ERROR IS %d\n",err);
 	if(err!=GLEW_OK)
 	{
 		__BREAK();

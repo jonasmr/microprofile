@@ -34,7 +34,6 @@ static const int CommandListMid = 1;
 static const int CommandListPost = 2;
 
 
-#define MICROPROFILE_GPU_TIMERS_D3D12
 #define MICROPROFILE_IMPL
 #define MICROPROFILE_GPU_FRAME_DELAY 5
 #include "microprofile.h"
