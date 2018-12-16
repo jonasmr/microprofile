@@ -149,14 +149,8 @@ int main(int argc, char* argv[])
 			MICROPROFILE_SCOPEI("exclusive-test", "stable1", MP_GREEN3);
 			spinsleep(2000);
 		}
-		// spinsleep(2000);
 
-
-// #ifdef _WIN32
-// 		Sleep(10)
-// #else
-		usleep(30000);
-// #endif
+		spinsleep(10000);
 		MicroProfileFlip(0);
 		static bool once = false;
 		if(!once)

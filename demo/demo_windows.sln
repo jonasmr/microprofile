@@ -19,6 +19,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "c", "c\c.vcxproj", "{DB2E27
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "vulkan", "vulkan\vulkan.vcxproj", "{BB5869A0-868A-4756-BABA-ADB30E965485}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "simple", "simple\simple.vcxproj", "{907F1684-9C08-4229-9368-5B909BBCBEEA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -91,6 +93,14 @@ Global
 		{BB5869A0-868A-4756-BABA-ADB30E965485}.Release|x64.Build.0 = Release|x64
 		{BB5869A0-868A-4756-BABA-ADB30E965485}.Release|x86.ActiveCfg = Release|Win32
 		{BB5869A0-868A-4756-BABA-ADB30E965485}.Release|x86.Build.0 = Release|Win32
+		{907F1684-9C08-4229-9368-5B909BBCBEEA}.Debug|x64.ActiveCfg = Debug|x64
+		{907F1684-9C08-4229-9368-5B909BBCBEEA}.Debug|x64.Build.0 = Debug|x64
+		{907F1684-9C08-4229-9368-5B909BBCBEEA}.Debug|x86.ActiveCfg = Debug|Win32
+		{907F1684-9C08-4229-9368-5B909BBCBEEA}.Debug|x86.Build.0 = Debug|Win32
+		{907F1684-9C08-4229-9368-5B909BBCBEEA}.Release|x64.ActiveCfg = Release|x64
+		{907F1684-9C08-4229-9368-5B909BBCBEEA}.Release|x64.Build.0 = Release|x64
+		{907F1684-9C08-4229-9368-5B909BBCBEEA}.Release|x86.ActiveCfg = Release|Win32
+		{907F1684-9C08-4229-9368-5B909BBCBEEA}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
