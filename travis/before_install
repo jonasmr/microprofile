@@ -9,7 +9,6 @@ fi
 
 if [[ "$TRAVIS_OS_NAME" = "osx" ]]; then
 	export DISTORM_MODE=DISTORM_STATIC
-	cp travis/Makefile.distorm.mac distorm/make/mac/Makefile
 	pushd distorm/make/mac
 	make
 	popd
