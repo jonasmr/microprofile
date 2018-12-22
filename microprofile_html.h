@@ -12891,7 +12891,7 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "	{\n"
 "		var D = Obj.v.data;\n"
 "		var F = Obj.v.functions;\n"
-"		var ASM_SERVER = \"http://localhost:3000\"; //todo fixup with actual server name.\n"
+"		var ASM_SERVER = \"http://microprofileasm.zapto.org\"; \n"
 "		var url = ASM_SERVER + \"/add/\" + Obj.v.version + \"/\";\n"
 "		console.log(JSON.stringify(D));\n"
 "		console.log(JSON.stringify(F));\n"
