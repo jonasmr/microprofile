@@ -32,9 +32,9 @@ li:hover ul {
     margin-left:0;
     margin-right:0;
 }
-ul li ul{ display:block;float:none;width:100%;}
-ul li ul li{ display:block;float:none;width:100%;}
-li li a{ display:block;float:none;width:100%;text-align:left;}
+ul li ul{ display:block;float:none;}
+ul li ul li{ display:block;float:none;}
+li li a{ display:block;float:none;text-align:left;word-break: keep-all;white-space: nowrap;}
 #nav li:hover div {margin-left:0;}
 .help {position:absolute;z-index:5;text-align:left;padding:2px;margin-left:-999em;background-color: #313131;width:300px;}
 .helpstart {position:absolute;z-index:5;text-align:left;padding:2px;background-color: #313131;width:300px;display:none}
@@ -70,16 +70,35 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 </li>
 <li><a>Reference</a>
     <ul id='ReferenceSubMenu'>
+        <li><a href="javascript:void(0)" onclick="SetReferenceTime('auto');">auto</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('5ms');">5ms</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('10ms');">10ms</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('15ms');">15ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetReferenceTime('16ms');">16ms</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('20ms');">20ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetReferenceTime('30ms');">30ms</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('33ms');">33ms</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('50ms');">50ms</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('100ms');">100ms</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('250ms');">250ms</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('500ms');">500ms</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('1000ms');">1000ms</a></li>
+    </ul>
+</li>
+<li><a>Target</a>
+    <ul id='TargetSubMenu'>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('5ms');">5ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('10ms');">10ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('15ms');">15ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('16ms');">16ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('20ms');">20ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('30ms');">30ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('33ms');">33ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('50ms');">50ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('100ms');">100ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('250ms');">250ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('500ms');">500ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('1000ms');">1000ms</a></li>
     </ul>
 </li>
 <li id="ilColumns"><a>Columns</a>
@@ -318,6 +337,15 @@ function MakeCounter(id, parent, sibling, firstchild, level, name, value, minval
 	var counter = { "id":id, "parent":parent, "sibling":sibling, "firstchild":firstchild, "level": level, "name":name, "value":value, "formatted":formatted, "limit":limit, "formattedlimit":formattedlimit, "counterprc":counterprc, "boxprc":boxprc, "counterhistory":counterhistory, "format":format, "minvalue":minvalue, "maxvalue":maxvalue};
 	return counter;
 }
+function Clamp(v, low, high)
+{
+	return v < low ? low : (v > high ? high : v);
+}
+function FormatTime(Time)
+{
+	return Time.toFixed(2);
+}
+
 
 
 var g_ColorMap = {};
@@ -399,7 +427,10 @@ var fDetailedOffsetSecond = 0;
 var fDetailedRange = S.Frames[S.Frames.length-1].frameend - fDetailedOffset;
 var nWidth = CanvasDetailedView.width;
 var nHeight = CanvasDetailedView.height;
+var ReferenceTimeString = 'auto';
 var ReferenceTime = 33;
+var TargetTime = 16;
+var TargetTimeString = '16ms';
 var nHistoryHeight = 70;
 var nOffsetY = 0;
 var nOffsetBarsX = 0;
@@ -1345,9 +1376,39 @@ function SetMode(NewMode, Groups)
 
 }
 
+function UpdateReferenceTime()
+{
+	if('auto' == ReferenceTimeString.substring(0,4))
+	{
+		let Max = 0.1;
+		for(var i = 0; i < S.Frames.length; ++i)
+		{
+			let T = S.Frames[i].frameend - S.Frames[i].framestart;
+			Max = Math.max(T, Max);
+		}
+		ReferenceTime = Max*1.20;
+		if(TargetTime>0)
+		{
+			ReferenceTime = Math.max(ReferenceTime, TargetTime * 1.33);
+		}
+		var ReferenceMenu = document.getElementById('ReferenceSubMenu');
+		var Links = ReferenceMenu.getElementsByTagName('a');
+		if(Links.length>0)
+		{
+			Links[0].innerHTML = 'auto [' + Max.toFixed(2) + 'ms]';
+		}
+
+	}
+	else
+	{
+		ReferenceTime = parseInt(ReferenceTimeString);
+	}
+}
+
 function SetReferenceTime(TimeString)
 {
-	ReferenceTime = parseInt(TimeString);
+	ReferenceTimeString = TimeString;
+	UpdateReferenceTime();
 	var ReferenceMenu = document.getElementById('ReferenceSubMenu');
 	var Links = ReferenceMenu.getElementsByTagName('a');
 	for(var i = 0; i < Links.length; ++i)
@@ -1363,8 +1424,33 @@ function SetReferenceTime(TimeString)
 	}
 	WriteCookie();
 	RequestRedraw();
+}
+
+function SetTargetTime(TimeString)
+{
+	TargetTimeString = TimeString;
+	TargetTime = parseInt(TargetTimeString);
+	var TargetMenu = document.getElementById('TargetSubMenu');
+	var Links = TargetMenu.getElementsByTagName('a');
+	for(var i = 0; i < Links.length; ++i)
+	{
+		if(Links[i].innerHTML.match('^' + TimeString))
+		{
+			Links[i].style['text-decoration'] = 'underline';
+		}
+		else
+		{
+			Links[i].style['text-decoration'] = 'none';
+		}
+	}
+
+	WriteCookie();
+	UpdateReferenceTime();
+	RequestRedraw();
 
 }
+
+
 
 function ToggleContextSwitch()
 {
@@ -1881,6 +1967,13 @@ function DrawDetailedFrameHistory()
 	var context = CanvasHistory.getContext('2d');
 	context.clearRect(0, 0, CanvasHistory.width, CanvasHistory.height);
 
+	let HistoryHeight = CanvasHistory.height;
+
+	var GreenTime = (TargetTime * 0.9);
+	var RedBegin = (TargetTime * 1.1);
+	var LerpDist = 1.0 / (RedBegin - GreenTime);
+
+
 	var fHeight = nHistoryHeight;
 	var fWidth = nWidth / S.Frames.length;
 	var fHeightScale = fHeight / ReferenceTime;
@@ -1896,6 +1989,13 @@ function DrawDetailedFrameHistory()
 	for(i = 0; i < S.Frames.length; i++)
 	{
 		var fMs = S.Frames[i].frameend - S.Frames[i].framestart;
+
+		var fPrc = (fMs - GreenTime) * LerpDist;
+		fPrc = Clamp(fPrc, 0, 1);
+		var color = LerpColor(fPrc);
+
+
+
 		if(fDetailedOffset <= S.Frames[i].frameend && fDetailedOffset >= S.Frames[i].framestart)
 		{
 			var lerp = (fDetailedOffset - S.Frames[i].framestart) / (S.Frames[i].frameend - S.Frames[i].framestart);
@@ -1922,7 +2022,7 @@ function DrawDetailedFrameHistory()
 		}
 		else
 		{
-			context.fillStyle = FRAME_HISTORY_COLOR_CPU;
+			context.fillStyle = color;
 		}
 		context.fillRect(fX, fHeight - fH, fWidth-1, fH);
 		fX += fWidth;
@@ -1945,7 +2045,29 @@ function DrawDetailedFrameHistory()
 	context.lineTo(X+W, Y+fHeight);
 	context.stroke();
 
-
+	{
+		var fH = fHeight - fHeightScale * TargetTime;
+		context.fillStyle = 'wheat';
+		context.strokeStyle = 'wheat';
+		context.beginPath();
+		context.moveTo(0, fH);
+		context.lineTo(nWidth, fH);
+		// context.closePath();
+		context.stroke();
+		var YText;
+		if(fH > HistoryHeight * 0.25)
+		{
+			YText = fH - FontAscent;
+		}
+		else
+		{
+			YText = fH + FontHeight;
+		}
+		context.fillText(TargetTime + 'ms', 3, YText);
+		context.textAlign='right';
+		context.fillText(FormatTime(ReferenceTime) + 'ms', nWidth, FontHeight);
+		context.textAlign='left';
+	}
 
 
 	DrawCaptureInfo(context);
@@ -3609,12 +3731,21 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					let Gradient = bSecond ? ThreadColors.gradientoff : ThreadColors.gradient;
 					let BaseY = (bSecond||!Active) ? (fOffsetY+1) : (fOffsetY+1+LogHeight2);
 					let HeightY = !Active ? BoxHeight : (bSecond ? LogHeight2 : (LogHeight + Padding));
-					
+					let TransparentLine = S2.Frames != null && !bSecond;
+					if(TransparentLine)
+					{
+						context.globalAlpha = 0.4;
+					}
 					context.strokeStyle = ColorLine;
 					context.beginPath();
 					context.moveTo(0, BaseY);
 					context.lineTo(nWidth, BaseY);
 					context.stroke();
+					if(TransparentLine)
+					{
+						context.globalAlpha = 1.0;
+					}
+
 					if(!Gradient)
 					{
 						Gradient = context.createLinearGradient(0,0,200,0);
@@ -5571,7 +5702,6 @@ function ReadCookie()
 {
 	var C = GetCookie();
 	var NewMode = ModeDetailed;
-	var ReferenceTimeString = '33ms';
 	if(C.offline)
 	{
 		var Obj = C.offline;
@@ -5579,9 +5709,13 @@ function ReadCookie()
 		{
 			NewMode = Obj.Mode;
 		}
-		if(Obj.ReferenceTime)
+		if(Obj.ReferenceTimeString)
 		{
-			ReferenceTimeString = Obj.ReferenceTime;
+			ReferenceTimeString = Obj.ReferenceTimeString;
+		}
+		if(Obj.TargetTimeString)
+		{
+			TargetTimeString = Obj.TargetTimeString;
 		}
 		if(Obj.ThreadsAllActive || Obj.ThreadsAllActive == 0 || Obj.ThreadsAllActive == false)
 		{
@@ -5652,6 +5786,7 @@ function ReadCookie()
 	SetContextSwitch(nContextSwitchEnabled);
 	SetMode(NewMode, TimersGroups);
 	SetReferenceTime(ReferenceTimeString);
+	SetTargetTime(TargetTimeString);
 	UpdateGroupColors();
 }
 function WriteCookie()
@@ -5659,7 +5794,8 @@ function WriteCookie()
 	var C = GetCookie();
 	var Obj = new Object();
 	Obj.Mode = Mode;
-	Obj.ReferenceTime = ReferenceTime + 'ms';
+	Obj.ReferenceTimeString = ReferenceTimeString;
+	Obj.TargetTimeString = TargetTimeString;
 	Obj.ThreadsActive = ThreadsActive;
 	Obj.ThreadsAllActive = ThreadsAllActive;
 	Obj.GroupsActive = GroupsActive;
@@ -6267,6 +6403,41 @@ function ColorFromString(Name, S, L)
 	var H = StringColorIndex(Name);
 	return "hsl(" + H + "," + S + "%, " + L+ "%)";
 }
+function LerpColor(v)
+{
+	var R_0 = 0;
+	var G_0 = 1;
+	var B_0 = 0;
+
+	var R_1 = 1;
+	var G_1 = 0.5;
+	var B_1 = 0;
+
+	var R_2 = 1;
+	var G_2 = 0;
+	var B_3 = 0;
+	var R;
+	var G;
+	if(v < 0.5)
+	{
+		v *= 2;
+		var v0 = (1-v);
+		R = R_0 * v0 + R_1 * v;
+		G = G_0 * v0 + G_1 * v;
+
+	}
+	else
+	{
+		v = (v-0.5) * 2;
+		var v0 = (1-v);
+		R = R_1 * v0 + R_2 * v;
+		G = G_1 * v0 + G_2 * v;
+	}
+	R *= 255;
+	G *= 255;
+	return "rgb(" + R.toFixed(0) + "," + G.toFixed(0) + ",0)";
+
+}
 
 function PreprocessThreadColors(S)
 {
@@ -6505,7 +6676,7 @@ function Preprocess()
 	ProfileModeClear();
 	ProfileEnter("Preprocess");
 	Preprocess_S();
-
+	UpdateReferenceTime();
 	ProfileLeave();
 	ProfileModeDump();
 	ProfileMode = ProfileModeOld;
@@ -6922,6 +7093,7 @@ function ParseCompareData(Data)
 
 
 	ThreadOrderSort();
+	InitThreadMenu();
 
 	console.log('file loaded ' + idxbegin + ' ' + idxend );
 	console.log('time ' + (Comp1 - Comp0));
