@@ -1559,7 +1559,7 @@ const char g_MicroProfileHtml_end_0[] =
 "			break;\n"
 "		}\n"
 "	}\n"
-"	CalculateTimers(Result, TimerIndex, nFrame, nFrame+1);\n"
+"	CalculateTimers(Result, TimerIndex, nFrame, nFrame+1, SContext);\n"
 "	return nFrame;\n"
 "}\n"
 "\n"
@@ -1582,25 +1582,28 @@ const char g_MicroProfileHtml_end_0[] =
 "	var nNumLogs = SContext.Frames[0].ts.length;\n"
 "	var StackPosArray = Array(nNumLogs);\n"
 "	var StackArray = Array(nNumLogs);\n"
+"	let StackIndexArray = Array(nNumLogs);\n"
 "	for(var i = 0; i < nNumLogs; ++i)\n"
 "	{\n"
 "		StackPosArray[i] = 0;\n"
-"		StackArray[i] = Array(20);\n"
+"		StackArray[i] = Array(32);\n"
+"		StackIndexArray[i] = Array(32);\n"
 "	}\n"
 "\n"
 "	for(var i = nFrameFirst; i < nFrameLast; i++)\n"
 "	{\n"
-"		var FrameSum = 0;\n"
-"		var fr = SContext.Frames[i];\n"
+"		let FrameSum = 0;\n"
+"		let fr = SContext.Frames[i];\n"
 "		for(nLog = 0; nLog < nNumLogs; nLog++)\n"
 "		{\n"
-"			var StackPos = StackPosArray[nLog];\n"
-"			var Stack = StackArray[nLog];\n"
+"			let StackPos = StackPosArray[nLog];\n"
+"			let Stack = StackArray[nLog];\n"
+"			let StackIndex = StackIndexArray[nLog];\n"
 "			var ts = fr.ts[nLog];\n"
 "			var ti = fr.ti[nLog];\n"
 "			var tt = fr.tt[nLog];\n"
 "			var count = ts.length;\n"
-"			for(j = 0; j < count; j++)\n"
+"			for(var j = 0; j < count; j++)\n"
 "			{\n"
 "				var type = tt[j];\n"
 "				var index = ti[j];\n"
@@ -1609,6 +1612,7 @@ const char g_MicroProfileHtml_end_0[] =
 "				{\n"
 "					//push\n"
 "					Stack[StackPos] = time;\n"
+"					StackIndex[StackPos] = index;\n"
 "					if(StackArray[nLog][StackPos] != time)\n"
 "					{\n"
 "						console.log(\'fail fail fail\');\n"
@@ -1630,7 +1634,7 @@ const char g_MicroProfileHtml_end_0[] =
 "					}\n"
 "					if(index == TimerIndex)\n"
 "					{\n"
-"						var TimeDelta = timeend - timestart;\n"
+"						let TimeDelta = timeend - timestart;\n"
 "						CallCount++;\n"
 "						FrameSum += TimeDelta;\n"
 "						Sum += TimeDelta;\n"
@@ -1642,6 +1646,24 @@ const char g_MicroProfileHtml_end_0[] =
 "				{\n"
 "					//meta\n"
 "				}\n"
+"			}\n"
+"			if(i == nFrameLast - 1)\n"
+"			{\n"
+"				for(var j = 0; j < StackPos; ++j)\n"
+"				{\n"
+"					if(StackIndex[j] == TimerIndex)\n"
+"					{\n"
+"						let LastFrameEnd = SContext.Frames[nFrameLast-1].frameend;\n"
+"						let TimeDelta = LastFrameEnd - Stack[j];\n"
+"						CallCount++;\n"
+"						FrameSum += TimeDelta;\n"
+"						Sum += TimeDelta;\n"
+"						if(TimeDelta > Max)\n"
+"							Max = TimeDelta;\n"
+"						break;\n"
+"					}\n"
+"				}\n"
+"\n"
 "			}\n"
 "			if(FrameSum > FrameMax)\n"
 "			{\n"
@@ -1829,7 +1851,11 @@ const char g_MicroProfileHtml_end_0[] =
 "			var FlashPrc = Math.sin(FlashFrameCounter / FlashFrames);\n"
 "			context.font = FontFlash;\n"
 "			context.globalAlpha = FlashPrc * 0.35 + 0.5;\n"
-"			context.textAlign = \'center\';\n"
+"			context.textAli";
+
+const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
+const char g_MicroProfileHtml_end_1[] =
+"gn = \'center\';\n"
 "			context.fillStyle = \'red\';\n"
 "			context.fillText(FlashMessage, nWidth * 0.5, 50);\n"
 "			context.globalAlpha = 1;\n"
@@ -1850,11 +1876,7 @@ const char g_MicroProfileHtml_end_0[] =
 "	var CurrentDate = Date.now() / 1000;\n"
 "	var Diff = CurrentDate - DumpDate;\n"
 "	var DiffString = TimeString(Diff) + \" ago\";\n"
-"	context.fillText(new Date(DumpDate*1000).toLocaleString(),";
-
-const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
-const char g_MicroProfileHtml_end_1[] =
-" nWidth, FontHeight);\n"
+"	context.fillText(new Date(DumpDate*1000).toLocaleString(), nWidth, FontHeight);\n"
 "	if(Mode == ModeTimers)\n"
 "	{\n"
 "		context.fillText(\"Timer Frames: \" + S.AggregateInfo.Frames, nWidth, FontHeight*2);\n"
@@ -2147,18 +2169,17 @@ const char g_MicroProfileHtml_end_1[] =
 "	StringArray.push(\"\" + S.TimerInfo[nHoverToken].FrameCallAverage);\n"
 "\n"
 "\n"
+"	let Time = fDetailedOffset + fDetailedRange * (DetailedViewMouseX / nWidth);\n"
+"	if(bSecond)\n"
+"		Time += fDetailedOffsetSecond;\n"
+"	let FrameTime = new Object();\n"
+"	let Frame = CalculateTimers2(FrameTime, nHoverToken, Time, S);\n"
+"	StringArray.push(\"\");\n"
+"	StringArray.push(\"\");\n"
+"	if(Frame>-1)\n"
 "	{\n"
-"		let Time = fDetailedOffset + fDetailedRange * (DetailedViewMouseX / nWidth);\n"
-"		if(bSecond)\n"
-"			Time += fDetailedOffsetSecond;\n"
-"		let FrameTime = new Object();\n"
-"		let Frame = CalculateTimers2(FrameTime, nHoverToken, Time, S);\n"
-"\n"
-"		StringArray.push(\"\");\n"
-"		StringArray.push(\"\");\n"
 "		StringArray.push(\"Frame \" + Frame);\n"
 "		StringArray.push(\"\");\n"
-"\n"
 "		StringArray.push(\"Total\");\n"
 "		StringArray.push(\"\" + FrameTime.Sum);\n"
 "		StringArray.push(\"Count\");\n"
@@ -2167,6 +2188,11 @@ const char g_MicroProfileHtml_end_1[] =
 "		StringArray.push(\"\" + FrameTime.Average);\n"
 "		StringArray.push(\"Max\");\n"
 "		StringArray.push(\"\" + FrameTime.Max);\n"
+"	}\n"
+"	else\n"
+"	{\n"
+"		for(var i = 0; i < 10; ++i)\n"
+"			StringArray.push(\"\");\n"
 "	}\n"
 "\n"
 "	StringArray.push(\"\");\n"
@@ -3068,7 +3094,11 @@ const char g_MicroProfileHtml_end_1[] =
 "\n"
 "		if(!Counter.closed)\n"
 "		{\n"
-"			var ChildIndex = Counter.firstchild;\n"
+"			var ChildIndex = Counter.firstch";
+
+const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
+const char g_MicroProfileHtml_end_2[] =
+"ild;\n"
 "			while(ChildIndex != -1)\n"
 "			{\n"
 "				DrawCounterRecursive(ChildIndex);\n"
@@ -3097,11 +3127,7 @@ const char g_MicroProfileHtml_end_1[] =
 "\n"
 "\n"
 "\n"
-"	var CounterNameWidthNew =";
-
-const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
-const char g_MicroProfileHtml_end_2[] =
-" CounterNameWidthTemp * (FontWidth+1);\n"
+"	var CounterNameWidthNew = CounterNameWidthTemp * (FontWidth+1);\n"
 "	var CounterValueWidthNew = CounterValueWidthTemp * (FontWidth+1);\n"
 "	var CounterLimitWidthNew = CounterLimitWidthTemp * (FontWidth+1);\n"
 "	if(CounterNameWidthNew != CounterNameWidth || CounterValueWidthNew != CounterValueWidth || CounterLimitWidthNew != CounterLimitWidth)\n"
@@ -4373,7 +4399,11 @@ const char g_MicroProfileHtml_end_2[] =
 "	{\n"
 "		ZoomToRange(RangeCpu);\n"
 "	}\n"
-"	RangeCpu = RangeInit();\n"
+"	RangeCpu = RangeInit(";
+
+const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
+const char g_MicroProfileHtml_end_3[] =
+");\n"
 "	RangeGpu = RangeInit();\n"
 "}\n"
 "\n"
@@ -4406,11 +4436,7 @@ const char g_MicroProfileHtml_end_2[] =
 "	var Forward = Direction && Direction < 0 ? 0 : 1;\n"
 "	var bFound = false;\n"
 "	var nStackPos = 0;\n"
-"	var fResultTimeBegin, f";
-
-const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
-const char g_MicroProfileHtml_end_3[] =
-"ResultTimeEnd;\n"
+"	var fResultTimeBegin, fResultTimeEnd;\n"
 "	var TypeBegin = Forward ? 1 : 0;\n"
 "	var TypeEnd = Forward ? 0 : 1;\n"
 "	var SearchTimeBegin = Forward ? fTimeBegin : fTimeEnd;\n"
@@ -6002,7 +6028,11 @@ const char g_MicroProfileHtml_end_3[] =
 "		}\n"
 "		var MinDelta = Array(nNumLogs);\n"
 "		var TimeArray = Array(nNumLogs);\n"
-"		var IndexArray = Array(nNumLogs);\n"
+"		var IndexArray = Array(nNumLogs";
+
+const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
+const char g_MicroProfileHtml_end_4[] =
+");\n"
 "		var TypeArray = Array(nNumLogs);\n"
 "\n"
 "\n"
@@ -6023,11 +6053,7 @@ const char g_MicroProfileHtml_end_3[] =
 "				var DestTypeArray = Array();\n"
 "				var DestTimeArray = Array();\n"
 "				var DestIndexArray = Array();\n"
-"				var RemapA";
-
-const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
-const char g_MicroProfileHtml_end_4[] =
-"rray = Array(SourceCount);\n"
+"				var RemapArray = Array(SourceCount);\n"
 "				var DiscardLast = 0;\n"
 "\n"
 "				for(var j = 0; j < SourceCount; ++j)\n"

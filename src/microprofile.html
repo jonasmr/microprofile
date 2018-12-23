@@ -1545,7 +1545,7 @@ function CalculateTimers2(Result, TimerIndex, Time, SContext)
 			break;
 		}
 	}
-	CalculateTimers(Result, TimerIndex, nFrame, nFrame+1);
+	CalculateTimers(Result, TimerIndex, nFrame, nFrame+1, SContext);
 	return nFrame;
 }
 
@@ -1568,25 +1568,28 @@ function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast, SContext)
 	var nNumLogs = SContext.Frames[0].ts.length;
 	var StackPosArray = Array(nNumLogs);
 	var StackArray = Array(nNumLogs);
+	let StackIndexArray = Array(nNumLogs);
 	for(var i = 0; i < nNumLogs; ++i)
 	{
 		StackPosArray[i] = 0;
-		StackArray[i] = Array(20);
+		StackArray[i] = Array(32);
+		StackIndexArray[i] = Array(32);
 	}
 
 	for(var i = nFrameFirst; i < nFrameLast; i++)
 	{
-		var FrameSum = 0;
-		var fr = SContext.Frames[i];
+		let FrameSum = 0;
+		let fr = SContext.Frames[i];
 		for(nLog = 0; nLog < nNumLogs; nLog++)
 		{
-			var StackPos = StackPosArray[nLog];
-			var Stack = StackArray[nLog];
+			let StackPos = StackPosArray[nLog];
+			let Stack = StackArray[nLog];
+			let StackIndex = StackIndexArray[nLog];
 			var ts = fr.ts[nLog];
 			var ti = fr.ti[nLog];
 			var tt = fr.tt[nLog];
 			var count = ts.length;
-			for(j = 0; j < count; j++)
+			for(var j = 0; j < count; j++)
 			{
 				var type = tt[j];
 				var index = ti[j];
@@ -1595,6 +1598,7 @@ function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast, SContext)
 				{
 					//push
 					Stack[StackPos] = time;
+					StackIndex[StackPos] = index;
 					if(StackArray[nLog][StackPos] != time)
 					{
 						console.log('fail fail fail');
@@ -1616,7 +1620,7 @@ function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast, SContext)
 					}
 					if(index == TimerIndex)
 					{
-						var TimeDelta = timeend - timestart;
+						let TimeDelta = timeend - timestart;
 						CallCount++;
 						FrameSum += TimeDelta;
 						Sum += TimeDelta;
@@ -1628,6 +1632,24 @@ function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast, SContext)
 				{
 					//meta
 				}
+			}
+			if(i == nFrameLast - 1)
+			{
+				for(var j = 0; j < StackPos; ++j)
+				{
+					if(StackIndex[j] == TimerIndex)
+					{
+						let LastFrameEnd = SContext.Frames[nFrameLast-1].frameend;
+						let TimeDelta = LastFrameEnd - Stack[j];
+						CallCount++;
+						FrameSum += TimeDelta;
+						Sum += TimeDelta;
+						if(TimeDelta > Max)
+							Max = TimeDelta;
+						break;
+					}
+				}
+
 			}
 			if(FrameSum > FrameMax)
 			{
@@ -2129,18 +2151,17 @@ function BuildToolTipDetailed(S, nHoverToken, nHoverFrame, HoverTokenOwner, bSec
 	StringArray.push("" + S.TimerInfo[nHoverToken].FrameCallAverage);
 
 
+	let Time = fDetailedOffset + fDetailedRange * (DetailedViewMouseX / nWidth);
+	if(bSecond)
+		Time += fDetailedOffsetSecond;
+	let FrameTime = new Object();
+	let Frame = CalculateTimers2(FrameTime, nHoverToken, Time, S);
+	StringArray.push("");
+	StringArray.push("");
+	if(Frame>-1)
 	{
-		let Time = fDetailedOffset + fDetailedRange * (DetailedViewMouseX / nWidth);
-		if(bSecond)
-			Time += fDetailedOffsetSecond;
-		let FrameTime = new Object();
-		let Frame = CalculateTimers2(FrameTime, nHoverToken, Time, S);
-
-		StringArray.push("");
-		StringArray.push("");
 		StringArray.push("Frame " + Frame);
 		StringArray.push("");
-
 		StringArray.push("Total");
 		StringArray.push("" + FrameTime.Sum);
 		StringArray.push("Count");
@@ -2149,6 +2170,11 @@ function BuildToolTipDetailed(S, nHoverToken, nHoverFrame, HoverTokenOwner, bSec
 		StringArray.push("" + FrameTime.Average);
 		StringArray.push("Max");
 		StringArray.push("" + FrameTime.Max);
+	}
+	else
+	{
+		for(var i = 0; i < 10; ++i)
+			StringArray.push("");
 	}
 
 	StringArray.push("");
