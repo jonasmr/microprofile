@@ -1,4 +1,10 @@
+UNAME_S := $(shell uname -s)
 LDFLAGS+=-lpthread
+
+ifeq ($(UNAME_S),Linux)
+	LDFLAGS+=-ldl -rdynamic
+endif
+
 FLAGS=-I../..
 #FLAGS+=-fsanitize=undefined-trap -fsanitize-undefined-trap-on-error
 FLAGS+=-Wall -DMICROPROFILE_UI=0 -DMICROPROFILE_WEBSERVER=1 -DMICROPROFILE_GPU_TIMERS=0

@@ -35,6 +35,7 @@
 #define MICROPROFILE_INVALID_FRAME ((uint32_t)-1)
 #define MICROPROFILE_GROUP_MASK_ALL 0xffffffff
 #define MICROPROFILE_MAX_PATCH_ERRORS 32
+#define MICROPROFILE_MAX_MODULE_EXEC_REGIONS 16
 #define MP_LOG_TICK_MASK  0x0000ffffffffffff
 #define MP_LOG_INDEX_MASK 0x3fff000000000000
 #define MP_LOG_BEGIN_MASK 0xc000000000000000
@@ -684,13 +685,19 @@ struct MicroProfileSymbolState
 	std::atomic<int64_t> nSymbolsLoaded;
 };
 
+struct MicroProfileSymbolModuleRegion
+{
+	intptr_t nBegin;
+	intptr_t nEnd;
+};
 struct MicroProfileSymbolModule
 {
 	uint32_t nMatchOffset;
 	uint32_t nStringOffset;
-	void* pBaseString;
-	intptr_t nAddrBegin;
-	intptr_t nAddrEnd;
+	const char* pBaseString;
+	const char* pTrimmedString;
+	MicroProfileSymbolModuleRegion Regions[MICROPROFILE_MAX_MODULE_EXEC_REGIONS];
+	int nNumExecutableRegions;
 	intptr_t nProgress;
 	intptr_t nProgressTarget;
 	struct MicroProfileSymbolBlock* pSymbolBlock;
@@ -6421,7 +6428,7 @@ void MicroProfileSymbolSendModuleState()
 		{
 			MicroProfileSymbolModule& M = S.SymbolModules[i];
 			const char* pModuleName = (const char*)M.pBaseString;
-			uint64_t nAddrBegin = M.nAddrBegin;
+			uint64_t nAddrBegin = M.Regions[0].nBegin;
 			intptr_t nProgress = M.nProgress;
 			intptr_t nProgressTarget = M.nProgressTarget;
 			nProgressTarget = MicroProfileMax(intptr_t(1), M.nProgressTarget);
@@ -9158,7 +9165,7 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 				uint32_t reg = I.ops[0].index;
 				if(nRspMask & RegToBit(reg))
 				{
-					printf("found contaminated reg at +%lld\n", I.addr);
+					printf("found contaminated reg at +%lld\n", (long long)I.addr);
 					*pRetSafe = 0;
 				}
 				break;
@@ -9193,7 +9200,7 @@ bool MicroProfileCopyInstructionBytes(char* pDest, void* pSrc, const int nLimit,
 						nTrunkUsage += Align16(O.size/8);
 						if(nTrunkUsage > nTrunkSize)
 						{
-							printf("overuse of trunk %lld\n", nTrunkUsage);
+							printf("overuse of trunk %lld\n", (long long)nTrunkUsage);
 							BREAK_ON_PATCH_FAIL();
 							return false;
 						}
@@ -9623,8 +9630,8 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, co
 	{
 		MicroProfileToken Tok = S.DynamicTokens[S.DynamicTokenIndex] = MicroProfileGetToken("PATCHED", pFunctionName, nColor, MicroProfileTokenTypeCpu);
 		S.FunctionsInstrumented[S.DynamicTokenIndex] = pFunction;
-		S.FunctionsInstrumentedName[S.DynamicTokenIndex] = MicroProfileStrDup(pFunctionName);
-		S.FunctionsInstrumentedModuleNames[S.DynamicTokenIndex] = MicroProfileStrDup(pModuleName);
+		S.FunctionsInstrumentedName[S.DynamicTokenIndex] = MicroProfileStringIntern(pFunctionName);
+		S.FunctionsInstrumentedModuleNames[S.DynamicTokenIndex] = MicroProfileStringIntern(pModuleName);
 		S.FunctionsInstrumentedUnmangled[S.DynamicTokenIndex] = MicroProfileGetUnmangledSymbolName(pFunction);
 		S.DynamicTokenIndex++;
 
@@ -9963,36 +9970,95 @@ uint32_t MicroProfileSymbolGetModule(const char* pString, intptr_t nBaseAddr)
 
 	for(int i = 0; i < S.SymbolNumModules; ++i)
 	{
-		if(S.SymbolModules[i].nAddrBegin == nBaseAddr)
+		auto& M = S.SymbolModules[i];
+		for(int j = 0; j < M.nNumExecutableRegions; ++j)
 		{
-			//assert string is equal.
-			return i;
+			if(M.Regions[j].nBegin <= nBaseAddr && nBaseAddr < M.Regions[j].nEnd)
+				return i;
 		}
 	}
 	MP_BREAK(); //should never happen.
 	return 0;
 }
 
-//todo: stringintern this..
-uint32_t MicroProfileSymbolInitModule(const char* pString, intptr_t nBaseAddr, intptr_t nAddrEnd)
+void MicroProfileSymbolMergeExecutableRegions()
 {
-	//search for matching string: this assumes the calling code does not reuse this memory.
-	//for the ones I've tested this is OK.
 	for(int i = 0; i < S.SymbolNumModules; ++i)
 	{
-		if(S.SymbolModules[i].nAddrBegin == nBaseAddr)
+		auto& M = S.SymbolModules[i];
+		if(M.nNumExecutableRegions > 1)
 		{
-			//assert string is equal.
-			return i;
+			std::sort(&M.Regions[0], &M.Regions[M.nNumExecutableRegions], 
+				[](const MicroProfileSymbolModuleRegion& l, const MicroProfileSymbolModuleRegion& r)
+				{
+					return l.nBegin < r.nBegin;
+				}
+				);
+
+			int p = 0;
+			int g = 1;
+			while(g < M.nNumExecutableRegions)
+			{
+				if(M.Regions[p].nEnd == M.Regions[g].nBegin)
+				{
+					M.Regions[p].nEnd = M.Regions[g].nEnd;
+					g++;
+				}
+				else
+				{
+					++p;
+					if(p != g)
+						M.Regions[p] = M.Regions[g];
+					g++;
+				}
+			}
+			M.nNumExecutableRegions = p+1;
+		}
+	}
+	for(int i = 0; i < S.SymbolNumModules; ++i)
+	{
+		auto& M = S.SymbolModules[i];
+		printf("region %s %s\n", M.pTrimmedString, M.pBaseString);
+		for(int j = 0; j < M.nNumExecutableRegions; ++j)
+			printf("\t[%p-%p]\n", (void*)M.Regions[j].nBegin, (void*)M.Regions[j].nEnd);
+	}
+}
+
+uint32_t MicroProfileSymbolInitModule(const char* pString_, intptr_t nAddrBegin, intptr_t nAddrEnd)
+{
+	const char* pString = MicroProfileStringIntern(pString_);
+	for(int i = 0; i < S.SymbolNumModules; ++i)
+	{
+		auto& M = S.SymbolModules[i];
+		for(int j = 0; j < M.nNumExecutableRegions; ++j)
+		{
+			if(M.Regions[j].nBegin <= nAddrBegin && nAddrEnd < M.Regions[j].nEnd)
+			{
+				MP_ASSERT(pString == M.pBaseString);
+				return i;
+			}
 		}
 	}
 
+
 	for(int i = 0; i < S.SymbolNumModules; ++i)
 	{
-		if(S.SymbolModules[i].pBaseString == pString)
+		auto& M = S.SymbolModules[i];
+		if(M.pBaseString == pString)
 		{
+			MP_ASSERT((intptr_t)pString != -2);
+			for(int j = 0; j < M.nNumExecutableRegions; ++j)
+				if(nAddrBegin == M.Regions[j].nBegin)
+					return i;
 
-			MP_ASSERT((intptr_t)pString == -2 || nBaseAddr == S.SymbolModules[i].nAddrBegin);
+			if(M.nNumExecutableRegions == MICROPROFILE_MAX_MODULE_EXEC_REGIONS)
+			{
+				return (uint32_t)-1;
+			}
+			M.Regions[M.nNumExecutableRegions].nBegin = nAddrBegin;
+			M.Regions[M.nNumExecutableRegions].nEnd = nAddrEnd;
+			// printf("added module region %d %p %p %s \n", M.nNumExecutableRegions, (void*)nAddrBegin, (void*)nAddrEnd, pString);
+			M.nNumExecutableRegions++;
 			return i;
 		}
 	}
@@ -10012,9 +10078,9 @@ uint32_t MicroProfileSymbolInitModule(const char* pString, intptr_t nBaseAddr, i
 		pWork++;
 	}
 	int nLen = (int)strlen(pTrimmedString) + 1;
-	printf("STRING '%s' :: trimmedstring %s   . len %d\n", pString, pTrimmedString, nLen);
+	// printf("STRING '%s' :: trimmedstring %s   . len %d\n", pString, pTrimmedString, nLen);
 
-
+	const char* pTrimmedIntern = MicroProfileStringIntern(pTrimmedString);
 	if(S.SymbolModuleNameOffset + nLen > MICROPROFILE_INSTRUMENT_MAX_MODULE_CHARS)
 		return 0;
 	memcpy(S.SymbolModuleNameOffset + & S.SymbolModuleNameBuffer[0], pTrimmedString, nLen);
@@ -10022,9 +10088,11 @@ uint32_t MicroProfileSymbolInitModule(const char* pString, intptr_t nBaseAddr, i
 	MP_ASSERT(S.SymbolNumModules < MICROPROFILE_INSTRUMENT_MAX_MODULES);
 	S.SymbolModules[S.SymbolNumModules].nMatchOffset = 0;
 	S.SymbolModules[S.SymbolNumModules].nStringOffset = S.SymbolModuleNameOffset;
-	S.SymbolModules[S.SymbolNumModules].pBaseString = (void*)pString;
-	S.SymbolModules[S.SymbolNumModules].nAddrBegin = nBaseAddr;
-	S.SymbolModules[S.SymbolNumModules].nAddrEnd = nAddrEnd;
+	S.SymbolModules[S.SymbolNumModules].pBaseString = (const char*)pString;
+	S.SymbolModules[S.SymbolNumModules].pTrimmedString = pTrimmedIntern;
+	S.SymbolModules[S.SymbolNumModules].Regions[0].nBegin = nAddrBegin;
+	S.SymbolModules[S.SymbolNumModules].Regions[0].nEnd = nAddrEnd;
+	S.SymbolModules[S.SymbolNumModules].nNumExecutableRegions = 1;
 	S.SymbolModules[S.SymbolNumModules].nProgress = 0;
 	S.SymbolModules[S.SymbolNumModules].nProgressTarget = 0;
 
@@ -11660,6 +11728,7 @@ const char* MicroProfileDemangleSymbol(const char* pSymbol)
 template<typename Callback>
 void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumModules)
 {
+	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileIterateSymbols", MP_PINK3);
 	char FunctionName[1024];
 	(void)FunctionName;
 	mach_port_name_t task = mach_task_self();
@@ -11852,9 +11921,495 @@ void MicroProfileInstrumentWithoutSymbols(const char** pModules, const char** pS
 	}
 	dlclose(M);
 }
+#endif
+
+
+#if defined(__unix__) && defined(__x86_64__)
+// '##::::'##::'#######:::'#######::'##:::'##::::'##:::::::'####:'##::: ##:'##::::'##:'##::::'##:
+//  ##:::: ##:'##.... ##:'##.... ##: ##::'##::::: ##:::::::. ##:: ###:: ##: ##:::: ##:. ##::'##::
+//  ##:::: ##: ##:::: ##: ##:::: ##: ##:'##:::::: ##:::::::: ##:: ####: ##: ##:::: ##::. ##'##:::
+//  #########: ##:::: ##: ##:::: ##: #####::::::: ##:::::::: ##:: ## ## ##: ##:::: ##:::. ###::::
+//  ##.... ##: ##:::: ##: ##:::: ##: ##. ##:::::: ##:::::::: ##:: ##. ####: ##:::: ##::: ## ##:::
+//  ##:::: ##: ##:::: ##: ##:::: ##: ##:. ##::::: ##:::::::: ##:: ##:. ###: ##:::: ##:: ##:. ##::
+//  ##:::: ##:. #######::. #######:: ##::. ##:::: ########:'####: ##::. ##:. #######:: ##:::. ##:
+// ..:::::..:::.......::::.......:::..::::..:::::........::....::..::::..:::.......:::..:::::..::
+
+#include <unistd.h>
+#include <sys/mman.h>
+#include <cxxabi.h>
+#include <dlfcn.h>
+#include <dlfcn.h>
+#include <distorm.h>
+#include <mnemonics.h>
+
+
+
+static void* MicroProfileAllocExecutableMemory(size_t s);
+static void MicroProfileMakeWriteable(void* p_);
+
+extern "C" void microprofile_tramp_enter_patch() asm("_microprofile_tramp_enter_patch");
+extern "C" void microprofile_tramp_enter() asm("_microprofile_tramp_enter");
+extern "C" void microprofile_tramp_code_begin() asm("_microprofile_tramp_code_begin");
+extern "C" void microprofile_tramp_code_end() asm("_microprofile_tramp_code_end");
+extern "C" void microprofile_tramp_intercept0() asm("_microprofile_tramp_intercept0");
+extern "C" void microprofile_tramp_end() asm("_microprofile_tramp_end");
+extern "C" void microprofile_tramp_exit() asm("_microprofile_tramp_exit");
+extern "C" void microprofile_tramp_leave() asm("_microprofile_tramp_leave");
+extern "C" void microprofile_tramp_trunk() asm("_microprofile_tramp_trunk");
+extern "C" void microprofile_tramp_call_patch_pop() asm("_microprofile_tramp_call_patch_pop");
+extern "C" void microprofile_tramp_call_patch_push() asm("_microprofile_tramp_call_patch_push");
+
+
+
+
+bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter, MicroProfileHookFunc leave, MicroProfilePatchError* pError) __attribute__((optnone))
+{
+	if(pError)
+	{
+		memcpy(&pError->Code[0], f, 12);
+	}
+
+	intptr_t t_enter =(intptr_t)microprofile_tramp_enter;
+	intptr_t t_enter_patch_offset =(intptr_t)microprofile_tramp_enter_patch - t_enter;
+	intptr_t t_code_begin_offset = (intptr_t)microprofile_tramp_code_begin - t_enter;
+	intptr_t t_code_end_offset = (intptr_t)microprofile_tramp_code_end - t_enter;
+	intptr_t t_code_intercept0_offset = (intptr_t)microprofile_tramp_intercept0 - t_enter;
+	intptr_t t_code_exit_offset = (intptr_t)microprofile_tramp_exit - t_enter;
+	intptr_t t_code_leave_offset = (intptr_t)microprofile_tramp_leave - t_enter;
+
+	intptr_t t_code_call_patch_push_offset = (intptr_t)microprofile_tramp_call_patch_push - t_enter;
+	intptr_t t_code_call_patch_pop_offset = (intptr_t)microprofile_tramp_call_patch_pop - t_enter;
+	intptr_t codemaxsize = t_code_end_offset - t_code_begin_offset;
+	intptr_t t_end_offset = (intptr_t)microprofile_tramp_end - t_enter;
+	intptr_t t_trunk_offset = (intptr_t)microprofile_tramp_trunk - t_enter;
+	intptr_t t_trunk_size = (intptr_t)microprofile_tramp_end - (intptr_t)microprofile_tramp_trunk;
+
+	char* ptramp = (char*)MicroProfileAllocExecutableMemory(t_end_offset);
+	
+	memcpy(ptramp, (void*)t_enter, t_end_offset);
+
+
+	int nInstructionBytesDest = 0;
+	char* pInstructionMoveDest = ptramp + t_code_begin_offset;
+	char* pTrunk = ptramp + t_trunk_offset;
+
+
+	int nInstructionBytesSrc = 0;
+
+
+	uint32_t nRegsWritten = 0;
+	uint32_t nRetSafe = 0;
+	uint32_t nUsableJumpRegs = (1 << R_RAX) | (1 << R_R10) | (1 << R_R11); //scratch && !parameter register
+	if(!MicroProfileCopyInstructionBytes(pInstructionMoveDest, f, 14, codemaxsize, pTrunk, t_trunk_size, nUsableJumpRegs, &nInstructionBytesDest, &nInstructionBytesSrc, &nRegsWritten, &nRetSafe))
+	{
+		if(pError)
+		{
+			const char* pCode = (const char*)f;
+			memset(pError->Code, 0, sizeof(pError->Code));
+			memcpy(pError->Code, pCode, nInstructionBytesSrc);
+			int off = snprintf(pError->Message, sizeof(pError->Message), "Failed to move %d code bytes ", nInstructionBytesSrc);
+			pError->nCodeSize = nInstructionBytesSrc;
+			for(int i = 0; i < nInstructionBytesSrc; ++i)
+			{
+				off += snprintf(off + pError->Message, sizeof(pError->Message) - off, "%02x ", 0xff&pCode[i]);
+			}
+			printf("%s\n", pError->Message);
+		}
+		return false;
+	} 
+	intptr_t phome = nInstructionBytesSrc + (intptr_t)f;
+	uint32_t reg = nUsableJumpRegs & ~nRegsWritten;
+	static_assert(R_RAX == 0, "R_RAX must be 0");
+	if(0 == reg)
+	{
+		if(nRetSafe == 0)
+		{
+			MP_BREAK(); //shout fail earlier
+		}
+		MicroProfileInsertRetJump(pInstructionMoveDest + nInstructionBytesDest, phome);
+	}
+	else
+	{
+		int r = R_RAX;
+		while((reg & 1) == 0)
+		{
+			reg >>= 1;
+			r++;
+		}
+		MicroProfileInsertRegisterJump(pInstructionMoveDest + nInstructionBytesDest, phome, r);
+	}
+
+
+	//PATCH 1 TRAMP EXIT
+	intptr_t microprofile_tramp_exit = (intptr_t)ptramp + t_code_exit_offset;
+	memcpy(ptramp + t_enter_patch_offset +2, (void*)&microprofile_tramp_exit, 8);
+
+
+	char* pintercept = t_code_intercept0_offset + ptramp;
+
+	//PATCH 1.5 Argument
+	memcpy(pintercept-4, (void*)&Argument, 4);
+
+	//PATCH 2 INTERCEPT0
+	intptr_t addr = (intptr_t)enter;//&intercept0;
+	memcpy(pintercept+2, (void*)&addr, 8);
+
+
+	//PATHC 2.5 argument
+	memcpy(ptramp + t_code_exit_offset + 3, (void*)&Argument, 4);
+
+	intptr_t microprofile_tramp_leave = (intptr_t)ptramp + t_code_leave_offset;
+	//PATCH 3 INTERCEPT1
+	intptr_t addr1 = (intptr_t)leave;//&intercept1;
+	memcpy((char*)microprofile_tramp_leave+2, (void*)&addr1, 8);
+
+
+
+	intptr_t patch_push_addr = (intptr_t)(&MicroProfile_Patch_TLS_PUSH);
+	intptr_t patch_pop_addr = (intptr_t)(&MicroProfile_Patch_TLS_POP);
+	memcpy((char*)ptramp + t_code_call_patch_push_offset + 2, &patch_push_addr, 8);
+	memcpy((char*)ptramp + t_code_call_patch_pop_offset + 2, &patch_pop_addr, 8);
+
+	{
+		//PATCH 4 DEST FUNC
+
+
+		MicroProfileMakeWriteable(f);
+		char* pp = (char*)f;
+		char* ppend = pp + nInstructionBytesSrc;
+		pp = MicroProfileInsertRegisterJump(pp, (intptr_t)ptramp, R_RAX );
+		while(pp != ppend)
+		{
+			*pp++ = 0x90;
+		}
+
+	}
+	return true;
+}
+
+
+
+static void MicroProfileMakeWriteable(void* p_)
+{
+	intptr_t nPageSize = (intptr_t)getpagesize();
+	intptr_t p = ((intptr_t)p_) & ~(nPageSize-1);
+	intptr_t e = nPageSize + ((14 + (intptr_t)p_) & ~(nPageSize-1));
+	size_t s = e-p;
+	mprotect((void*)p, s, PROT_READ|PROT_WRITE|PROT_EXEC);
+}
+
+
+
+int MicroProfileTrimFunctionName(const char* pStr, char* pOutBegin, char* pOutEnd)
+{
+	int l = strlen(pStr)-1;
+	int sz = 0;
+	pOutEnd--;
+	if(l < pOutEnd - pOutBegin && pOutBegin != pOutEnd)
+	{
+		const char* p = pStr;
+		const char* pEnd = pStr + l + 1;
+		int in = 0;
+		while(p != pEnd && pOutBegin != pOutEnd)
+		{
+			char c = *p++;
+			if(c == '(' || c == '<')
+			{
+				in++;
+			}
+			else if(c == ')' || c == '>')
+			{
+				in--;
+				continue;
+			}
+
+			if(in == 0)
+			{
+				*pOutBegin++ = c;
+				sz++;
+			}
+		}
+
+		*pOutBegin++ = '\0';
+	}
+	return sz;
+}
+
+
+int MicroProfileFindFunctionName(const char* pStr, const char** ppStart)
+{
+	int l = strlen(pStr)-1;
+	if(l < 1024)
+	{
+		char b[1024] = {0};
+		char* put = &b[0];
+
+		const char* p = pStr;
+		const char* pEnd = pStr + l + 1;
+		int in = 0;
+		while(p != pEnd)
+		{
+			char c = *p++;
+			if(c == '(' || c == '<')
+			{
+				in++;
+			}
+			else if(c == ')' || c == '>')
+			{
+				in--;
+				continue;
+			}
+
+			if(in == 0)
+			{
+				*put++ = c;
+			}
+		}
+
+		*put++ = '\0';
+		printf("trimmed %s\n", b);
+
+
+	}
+
+	// int nFirstParen = l;
+	int nNumParen = 0;
+	int c = 0;
+
+	while(l >= 0 && pStr[l] != ')' && c++ < sizeof(" const")-1)		
+	{
+		l--;
+	}
+	if(pStr[l] == ')')
+	{
+		do
+		{
+			if(pStr[l] == ')')
+			{
+				nNumParen++;
+			}
+			else if(pStr[l] == '(')
+			{
+				nNumParen--;
+			}
+			l--;
+		}while(nNumParen > 0 && l >= 0);
+	}
+	else
+	{
+		*ppStart = pStr;
+		return 0;
+	}
+	while(l>=0 && isspace(pStr[l]))
+	{
+		--l;
+	}
+	int nLast = l;
+	while(l >= 0 && !isspace(pStr[l]))
+	{
+		l--;
+	}
+	int nFirst = l;
+	if(nFirst == nLast)
+		return 0;
+	int nCount = nLast - nFirst + 1;
+	*ppStart = pStr + nFirst;
+	return nCount;
+}
+
+const char* MicroProfileDemangleSymbol(const char* pSymbol)
+{
+	static unsigned long size = 128;
+	static char* pTempBuffer = (char*)malloc(size); // needs to be malloc because demangle function might realloc it.
+	unsigned long len = size;
+	int ret = 0;
+	char* pBuffer = pTempBuffer;
+	pBuffer = abi::__cxa_demangle(pSymbol, pTempBuffer, &len, &ret);
+	if(ret == 0)
+	{
+		if(pBuffer != pTempBuffer)
+		{
+			pTempBuffer = pBuffer;
+			if(len < size)
+				__builtin_trap();
+			size = len;
+		}
+		return pTempBuffer;
+	}
+	else
+	{
+		return pSymbol;
+	}
+}
+
+
+template<typename Callback>
+void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumModules)
+{
+	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileIterateSymbols", MP_PINK3);
+	char FunctionName[1024];
+
+	intptr_t nCurrentModule = -1;
+	uint32_t nCurrentModuleId = -1;
+
+
+
+	auto OnFunction = [&](void* addr, void* addrend, const char* pSymbol, const char* pModuleName, void* pModuleAddr) -> bool
+	{
+		const char* pStr = MicroProfileDemangleSymbol(pSymbol);;
+		int l = MicroProfileTrimFunctionName(pStr, &FunctionName[0], &FunctionName[1024]);
+		MP_ASSERT(nCurrentModule == (intptr_t)pModuleAddr);
+		CB(l ? &FunctionName[0] : pStr, l ? &FunctionName[0] : 0, (intptr_t)addr, (intptr_t)addrend, nCurrentModuleId);
+		return true;
+	};
+
+	for(int i = 0; i < S.SymbolNumModules; ++i)
+	{
+		auto& M = S.SymbolModules[i];
+		if(0 != nNumModules)
+		{
+			bool bProcess = false;
+			for(uint32_t j = 0; j < nNumModules; ++j)
+			{
+				if(nModules[j] == i)
+				{
+					bProcess = true;
+					break;
+				}
+			}
+			if(!bProcess)
+				continue;
+		}
+		nCurrentModuleId = i;
+		Dl_info di;
+		int r = 0;
+		r = dladdr((void*)(M.Regions[0].nBegin), &di);
+		if(r)
+		{
+			nCurrentModule = (intptr_t)di.dli_fbase;
+			M.nProgressTarget = 0;
+			for(int j = 0; j < M.nNumExecutableRegions; ++j)
+			{
+				M.nProgressTarget += M.Regions[j].nEnd - M.Regions[j].nBegin;
+			}
+			for(int j = 0; j < M.nNumExecutableRegions; ++j)
+			{
+				const intptr_t nBegin = M.Regions[j].nBegin;
+				const intptr_t nEnd = M.Regions[j].nEnd;
+				int r = 0;
+				intptr_t nAddr = (nEnd - 8) & ~7;
+				intptr_t nAddrPrev = nEnd;
+				while(1)
+				{
+					r = dladdr( (void*)(nAddr), &di);
+					if(r && di.dli_sname)
+					{
+						OnFunction(di.dli_saddr, (void*)nAddrPrev, di.dli_sname, di.dli_fname, di.dli_fbase);
+						nAddrPrev = (intptr_t)di.dli_saddr;
+						nAddr = (intptr_t)di.dli_saddr-1;
+					}	
+					else
+					{
+						nAddr = (nAddr-7) & ~7; // pretty ineffecient, but it seems linux just returns 0 when there is no symbols, making this the only option I can come up with?
+					}
+					if(nAddr < nBegin)
+					{
+						break;
+					}
+				}
+			}
+			M.nModuleLoadFinished.store(1);
+		}
+
+	}
+}
+
+void MicroProfileSymbolUpdateModuleList()
+{
+	//So, this was the only way I could find to do this..
+	//Is this seriously how they want this to be done?
+	FILE* F = fopen("/proc/self/maps", "r");
+	char* line = 0;
+	size_t len, read;
+	Dl_info di;
+	while( (read = getline(&line, &len, F)) != -1 )
+	{
+		void* pBase = 0;
+		void* pEnd = 0;
+		char c,r,w,x,p;
+
+		if(8 == sscanf(line, "%p%c%p%c%c%c%c%c", &pBase, &c, &pEnd, &c, &r, &w, &x, &p))
+		{
+			if('x' == x)
+			{
+				int r = 0;
+				r = dladdr(pBase, &di);
+				if(r)
+				{
+					if('[' != di.dli_fname[0])
+					{
+						MicroProfileSymbolInitModule(di.dli_fname, (intptr_t)pBase, (intptr_t)pEnd);
+					}
+				}
+			}
+		}
+
+	}
+	fclose(F);
+	MicroProfileSymbolMergeExecutableRegions();
+}
+
+static void* MicroProfileAllocExecutableMemory(size_t s)
+{
+	static uint64_t nPageSize = 0;
+	if(!nPageSize)
+	{
+		nPageSize = getpagesize();
+	}
+	s = (s + (nPageSize - 1)) & (~(nPageSize-1));
+
+	void* pMem = mmap(0, s, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_ANON | MAP_PRIVATE, 0, 0);
+	return pMem;
+}
+
+const char* MicroProfileGetUnmangledSymbolName(void* pFunction)
+{
+	Dl_info di;
+	int r = 0;
+	r = dladdr(pFunction, &di);
+	if(r)
+	{
+		return MicroProfileStrDup(di.dli_sname);
+	}
+	else
+	{
+		return 0;
+	}
+
+}
+
+//not yet tested.
+void MicroProfileInstrumentWithoutSymbols(const char** pModules, const char** pSymbols, uint32_t nNumSymbols)
+{
+	void* M = dlopen(0, 0);
+	for(uint32_t i = 0; i < nNumSymbols; ++i)
+	{
+		// printf("trying to find symbol %s\n", pSym);
+		void* s = dlsym(M, pSymbols[i]);
+		printf("sym returned %p\n", s);
+		if(s)
+		{
+			uint32_t nColor = MicroProfileColorFromString(pSymbols[i]);
+			const char* pDemangled = MicroProfileDemangleSymbol(pSymbols[i]);
+			MicroProfileInstrumentFunction(s, pModules[i], pDemangled, nColor);
+		}
+	}
+	dlclose(M);
+}
 
 
 #endif
+
 #endif
 
 
@@ -12064,7 +12619,7 @@ MicroProfileStringBlock* MicroProfileStringBlockAlloc(uint32_t nSize)
 	nSize += sizeof(MicroProfileStringBlock);
 	MicroProfileCounterAdd(S.CounterToken_StringBlock_Count, 1);
 	MicroProfileCounterAdd(S.CounterToken_StringBlock_Memory, nSize);
-	printf("alloc string block %d sizeof strings is %d\n", nSize, (int)sizeof(MicroProfileStringBlock));
+	// printf("alloc string block %d sizeof strings is %d\n", nSize, (int)sizeof(MicroProfileStringBlock));
 	MicroProfileStringBlock* pBlock = (MicroProfileStringBlock*)MP_ALLOC(nSize, 8);
 	pBlock->pNext = 0;
 	pBlock->nSize = nSize - sizeof(MicroProfileStringBlock);
