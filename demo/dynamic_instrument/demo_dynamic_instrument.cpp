@@ -149,7 +149,7 @@ int main(int argc, char* argv[])
 // #ifdef _WIN32
 // 		Sleep(10)
 // #else
-		usleep(30000);
+		spinsleep(30000);
 // #endif
 		MicroProfileFlip(0);
 		static bool once = false;

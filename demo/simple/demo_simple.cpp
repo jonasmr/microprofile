@@ -150,7 +150,7 @@ int main(int argc, char* argv[])
 			spinsleep(2000);
 		}
 
-		spinsleep(10000);
+		spinsleep(30000);
 		MicroProfileFlip(0);
 		static bool once = false;
 		if(!once)

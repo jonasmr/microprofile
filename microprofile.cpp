@@ -6429,10 +6429,10 @@ void MicroProfileSymbolSendModuleState()
 			MicroProfileSymbolModule& M = S.SymbolModules[i];
 			const char* pModuleName = (const char*)M.pBaseString;
 			uint64_t nAddrBegin = M.Regions[0].nBegin;
-			intptr_t nProgress = M.nProgress;
+			// intptr_t nProgress = M.nProgress;
 			intptr_t nProgressTarget = M.nProgressTarget;
 			nProgressTarget = MicroProfileMax(intptr_t(1), M.nProgressTarget);
-			nProgress = MicroProfileMin(nProgressTarget, M.nProgress);
+			// nProgress = MicroProfileMin(nProgressTarget, M.nProgress);
 			float fLoadPrc = M.nProgress / float(nProgressTarget);
 			uint64_t nNumSymbols = M.nSymbolsLoaded;
 			#define FMT "{\"n\":\"%s\",\"a\":\"%llx\",\"s\":\"%lld\", \"p\":%f}"
@@ -8327,7 +8327,6 @@ struct MicroProfileGpuTimerState
 };
 
 
-void uprintf(const char* fmt, ...);
 uint32_t MicroProfileGpuInsertTimeStamp(void* pContext)
 {
 	VkCommandBuffer CB = (VkCommandBuffer)pContext;
@@ -11141,29 +11140,35 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 				int64_t nBytes = 0;
 				MEMORY_BASIC_INFORMATION B;
 
-				intptr_t b = S.SymbolModules[nModule].nAddrBegin;
-				intptr_t e = S.SymbolModules[nModule].nAddrEnd;
-				while(b < e)
+				for(int j = 0; j < S.SymbolModules[nModule].nNumExecutableRegions; ++j)
 				{
-					int r = VirtualQuery((LPCVOID)b, &B, sizeof(B));
-					if(!r)
-						break;
-					switch(B.Protect)
+					intptr_t b = S.SymbolModules[nModule].Regions[j].nBegin;
+					intptr_t e = S.SymbolModules[nModule].Regions[j].nEnd;
+					while(b < e)
 					{
-						case PAGE_EXECUTE:
-						case PAGE_EXECUTE_READ:
-						case PAGE_EXECUTE_READWRITE:
-						case PAGE_EXECUTE_WRITECOPY:
-						nBytes += B.RegionSize;
-						//printf("RANGE %p, %p .. %5.2fkb %08x, %08x\n", B.BaseAddress, (void*)(intptr_t(B.BaseAddress) + B.RegionSize), B.RegionSize / 1024.f, B.State, B.Protect);
+						int r = VirtualQuery((LPCVOID)b, &B, sizeof(B));
+						if(!r)
+							break;
+						switch(B.Protect)
+						{
+							case PAGE_EXECUTE:
+							case PAGE_EXECUTE_READ:
+							case PAGE_EXECUTE_READWRITE:
+							case PAGE_EXECUTE_WRITECOPY:
+							nBytes += B.RegionSize;
+							//printf("RANGE %p, %p .. %5.2fkb %08x, %08x\n", B.BaseAddress, (void*)(intptr_t(B.BaseAddress) + B.RegionSize), B.RegionSize / 1024.f, B.State, B.Protect);
+						}
+						b = intptr_t(B.BaseAddress) + B.RegionSize;
 					}
-					b = intptr_t(B.BaseAddress) + B.RegionSize;
 				}
 				S.SymbolModules[nModule].nProgressTarget = nBytes;
 //				uprintf("ITERATE MODULES %p :: %s\n", S.SymbolModules[nModule].nAddrBegin, (const char*)S.SymbolModules[nModule].pBaseString);
-				if(SymEnumSymbols(GetCurrentProcess(), S.SymbolModules[nModule].nAddrBegin, "*", MicroProfileQueryContextEnumSymbols, pBase))
+				for(int j = 0; j < S.SymbolModules[nModule].nNumExecutableRegions; ++j)
 				{
-					uprintf("SymEnumSymbols Succeeds!\n");
+					if(SymEnumSymbols(GetCurrentProcess(), S.SymbolModules[nModule].Regions[j].nBegin, "*", MicroProfileQueryContextEnumSymbols, pBase))
+					{
+						uprintf("SymEnumSymbols Succeeds!\n");
+					}
 				}
 				S.SymbolModules[nModule].nProgress = S.SymbolModules[nModule].nProgressTarget;
 				S.SymbolModules[nModule].nModuleLoadFinished.exchange(1);
@@ -11962,7 +11967,7 @@ extern "C" void microprofile_tramp_call_patch_push() asm("_microprofile_tramp_ca
 
 
 
-bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter, MicroProfileHookFunc leave, MicroProfilePatchError* pError) __attribute__((optnone))
+bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter, MicroProfileHookFunc leave, MicroProfilePatchError* pError) 
 {
 	if(pError)
 	{
@@ -12176,7 +12181,7 @@ int MicroProfileFindFunctionName(const char* pStr, const char** ppStart)
 	int nNumParen = 0;
 	int c = 0;
 
-	while(l >= 0 && pStr[l] != ')' && c++ < sizeof(" const")-1)		
+	while(l >= 0 && pStr[l] != ')' && c++ < (int)(sizeof(" const")-1))
 	{
 		l--;
 	}
@@ -12330,7 +12335,8 @@ void MicroProfileSymbolUpdateModuleList()
 	//Is this seriously how they want this to be done?
 	FILE* F = fopen("/proc/self/maps", "r");
 	char* line = 0;
-	size_t len, read;
+	size_t len;
+	ssize_t read;
 	Dl_info di;
 	while( (read = getline(&line, &len, F)) != -1 )
 	{

@@ -10,7 +10,7 @@ env:
   - TARGET=c
   - TARGET=noframes
   - TARGET=workbench
-  #- TARGET=noui_gl
+  - TARGET=dynamic_instrument
 matrix:
   exclude:
     - os: windows
