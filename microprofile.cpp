@@ -11772,7 +11772,7 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 					bProcessModule = false;
 					for(uint32_t i = 0; i < nNumModules; ++i)
 					{
-						intptr_t nBase = S.SymbolModules[nModules[i]].nAddrBegin;
+						intptr_t nBase = S.SymbolModules[nModules[i]].Regions[0].nBegin;
 						if(vmoffset == nBase)
 						{
 							bProcessModule = true;
@@ -11784,7 +11784,7 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 				}
 				if(bProcessModule)
 				{
-					S.SymbolModules[nModule].nProgressTarget = S.SymbolModules[nModule].nAddrEnd - S.SymbolModules[nModule].nAddrBegin;
+					S.SymbolModules[nModule].nProgressTarget = S.SymbolModules[nModule].Regions[0].nEnd - S.SymbolModules[nModule].Regions[0].nBegin;
 					dl_info di;
 					int r = 0;
 					r = dladdr( (void*)vmoffset, &di);
@@ -11818,7 +11818,7 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 					}
 					for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
 					{
-						if(S.SymbolModules[i].nAddrBegin == vmoffset)
+						if(S.SymbolModules[i].Regions[0].nBegin == vmoffset)
 						{
 							S.SymbolModules[i].nModuleLoadFinished.store(1);
 						}
