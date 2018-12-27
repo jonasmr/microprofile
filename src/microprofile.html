@@ -3855,19 +3855,8 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 
 							var W = (timeend-timestart)*fScaleX;
 
-							if(W > MinWidth && X < nWidth && X+W > 0)
+							if(X < nWidth && X+W > 0)
 							{
-								if(bDrawEnabled || index == nHoverToken)
-								{
-									var cid = GroupColors == 2 ? ThreadColors.colordark_cid : S0.TimerInfo[index].cid;
-									if(index == nHoverToken)
-									{
-										nHoverColorIndex = cid;
-										cid = cidhovercolor;
-									}
-									AddBatch(StackPos, cid, X, Y, W, S0.TimerInfo[index].name, S0.TimerInfo[index].len, timeend-timestart);
-								}
-
 								if(index == FilterSearchPassIndex)
 								{
 									var Range = RangeInit();
@@ -3886,38 +3875,52 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 										}
 									}
 								}
-
-								if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y && StackPos > nHoverTokenStack)
+								if(W > MinWidth)
 								{
-									RangeCpuNext.Off = bSecond ? fDetailedOffsetSecond : 0;
-									RangeCpuNext.Begin = timestart;
-									RangeCpuNext.End = timeend;
-									RangeCpuNext.Thread = nLog;
-									RangeCpuNext.Off = XOffset;
-									if(TypeArray[StartIndex+1] == 3 && TypeArray[j+1] == 3)
+									if(bDrawEnabled || index == nHoverToken)
 									{
-										RangeGpuNext.Begin = RangeCpuNext.Begin;
-										RangeGpuNext.End = RangeCpuNext.End;
-										RangeGpuNext.Thread = nLog;
-										RangeGpuNext.Off = XOffset;
-										//cpu tick is stored following
-										RangeCpuNext.Begin = TimeArray[StartIndex+1];
-										RangeCpuNext.End = TimeArray[j+1];
-										RangeCpuNext.Thread = IndexArray[StartIndex+1];
-										RangeCpuNext.Off = XOffset;
-									}
-									else
-									{
-										RangeGpuNext.Begin = -1;
-										RangeGpuNext.End = -1
+										var cid = GroupColors == 2 ? ThreadColors.colordark_cid : S0.TimerInfo[index].cid;
+										if(index == nHoverToken)
+										{
+											nHoverColorIndex = cid;
+											cid = cidhovercolor;
+										}
+										AddBatch(StackPos, cid, X, Y, W, S0.TimerInfo[index].name, S0.TimerInfo[index].len, timeend-timestart);
 									}
 
-									nHoverTokenNext = index;
-									nHoverTokenStack = StackPos;
-									nHoverTokenIndexNext = j;
-									nHoverTokenLogIndexNext = nLog;
-									HoverTokenNextOwner = S;
-									HasSetHover = 1;
+
+									if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y && StackPos > nHoverTokenStack)
+									{
+										RangeCpuNext.Off = bSecond ? fDetailedOffsetSecond : 0;
+										RangeCpuNext.Begin = timestart;
+										RangeCpuNext.End = timeend;
+										RangeCpuNext.Thread = nLog;
+										RangeCpuNext.Off = XOffset;
+										if(TypeArray[StartIndex+1] == 3 && TypeArray[j+1] == 3)
+										{
+											RangeGpuNext.Begin = RangeCpuNext.Begin;
+											RangeGpuNext.End = RangeCpuNext.End;
+											RangeGpuNext.Thread = nLog;
+											RangeGpuNext.Off = XOffset;
+											//cpu tick is stored following
+											RangeCpuNext.Begin = TimeArray[StartIndex+1];
+											RangeCpuNext.End = TimeArray[j+1];
+											RangeCpuNext.Thread = IndexArray[StartIndex+1];
+											RangeCpuNext.Off = XOffset;
+										}
+										else
+										{
+											RangeGpuNext.Begin = -1;
+											RangeGpuNext.End = -1
+										}
+
+										nHoverTokenNext = index;
+										nHoverTokenStack = StackPos;
+										nHoverTokenIndexNext = j;
+										nHoverTokenLogIndexNext = nLog;
+										HoverTokenNextOwner = S;
+										HasSetHover = 1;
+									}
 								}
 							}
 							if(StackPos == 0 && time > fTimeEnd)
