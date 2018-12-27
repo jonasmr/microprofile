@@ -10304,12 +10304,9 @@ struct MicroProfileFunctionQuery
 	uint32_t nPatternLength[MICROPROFILE_MAX_FILTER];
 	int nMaxFilter;
 
-
 	uint32_t nModuleFilterMatch[MICROPROFILE_INSTRUMENT_MAX_MODULES]; 		//prematch the modules, so it can be skipped during search
 	uint32_t nMask[MICROPROFILE_MAX_FILTER]; 								//masks for subpatterns skipped
 	MicroProfileStringMatchMask MatchMask[MICROPROFILE_MAX_FILTER];			//masks for subpatterns skipped
-
-
 
 
 	//results
@@ -10322,6 +10319,7 @@ struct MicroProfileFunctionQuery
 
 MicroProfileFunctionQuery* MicroProfileAllocFunctionQuery()
 {
+	MicroProfileScopeLock L(MicroProfileMutex());
 	MicroProfileFunctionQuery* pQ = nullptr;
 	S.nNumQueryAllocated++;
 	if(S.pQueryFreeList != 0)
@@ -10426,24 +10424,20 @@ void* MicroProfileQueryThread(void* p)
 			if(S.pPendingQuery != nullptr)
 			{
 				MICROPROFILE_SCOPEI("MicroProfile", "SymbolQuery", MP_WHEAT);
-				MicroProfileFunctionQuery* pQuery = S.pPendingQuery;
-				S.pPendingQuery = pQuery->pNext;
-				pQuery->pNext = 0;
-				if(pQuery->QueryId > S.nQueryProcessed) 
-				{
-					L.Unlock();
+				MicroProfileFunctionQuery * pQuery = S.pPendingQuery;
+
+				MP_ASSERT(pQuery->QueryId > S.nQueryProcessed); 
+				S.pPendingQuery = 0;
+				L.Unlock();
+
+				//printf("processing query %d\n", pQuery->QueryId);
+				MicroProfileProcessQuery(pQuery);
 				
-					MicroProfileProcessQuery(pQuery);
-					
-					L.Lock();
-					S.nQueryProcessed = pQuery->QueryId;
-					pQuery->pNext = S.pFinishedQuery;
-					S.pFinishedQuery = pQuery;
-				}
-				else
-				{
-					MicroProfileFreeFunctionQuery(pQuery);
-				}
+				L.Lock();
+				S.nQueryProcessed = MicroProfileMax(pQuery->QueryId, S.nQueryProcessed);
+
+				pQuery->pNext = S.pFinishedQuery;
+				S.pFinishedQuery = pQuery;
 			}
 			if(S.SymbolState.nModuleLoadsRequested.load() != S.SymbolState.nModuleLoadsFinished.load())
 			{
@@ -10551,26 +10545,38 @@ void MicroProfileSymbolQuerySendResult(MpSocket Connection)
 	{
 		MicroProfileScopeLock L(MicroProfileMutex());
 	
+		uint32_t nBest = 0;
+
+
 		while(S.pFinishedQuery != nullptr)
 		{
 			if(!pQuery)
 			{
 				pQuery = S.pFinishedQuery;
+				nBest = pQuery->QueryId;
 				S.pFinishedQuery = pQuery->pNext;
 			}
 			else
 			{
-				//only send most reecent.
 				MicroProfileFunctionQuery* pQ = S.pFinishedQuery;
 				S.pFinishedQuery = pQ->pNext;
-				MicroProfileFreeFunctionQuery(pQ);
+				if(pQ->QueryId > nBest)
+				{
+					MicroProfileFreeFunctionQuery(pQuery);
+					nBest = pQ->QueryId;
+					pQuery = pQ;
+				}
+				else
+				{
+					MicroProfileFreeFunctionQuery(pQ);
+				}
 			}
 		}
 	}
 
 	if(pQuery)
 	{
-		printf("Sending result for query %d\n", pQuery->QueryId);
+		uprintf("Sending result for query %d\n", pQuery->QueryId);
 		MicroProfileWSPrintStart(Connection);
 		MicroProfileWSPrintf("{\"k\":\"%d\",\"q\":%d,\"v\":[", MSG_FUNCTION_RESULTS, pQuery->QueryId);	
 		bool bFirst = true;
@@ -10611,63 +10617,72 @@ void MicroProfileSymbolQueryFunctions(MpSocket Connection, const char* pFilter)
 		pFilter = strchr(pFilter, 'x');
 		pFilter++;
 		MicroProfileScopeLock L(MicroProfileMutex());
-		MicroProfileFunctionQuery& Q = *MicroProfileAllocFunctionQuery();
-		Q.QueryId = QueryId;
-		uint32_t nLen = (uint32_t)strlen(pFilter)+1;
-		if(nLen >= MICROPROFILE_MAX_FILTER_STRING)
-			nLen = MICROPROFILE_MAX_FILTER_STRING-1;
-
-		memcpy(Q.FilterString, pFilter, nLen);	
-		Q.FilterString[nLen] = '\0';
-
-		char* pBuffer = Q.FilterString;
-		bool bStartString = true;
-		for(uint32_t i = 0; i < nLen; ++i)
+		if(0 == S.pPendingQuery || S.pPendingQuery->QueryId < QueryId)
 		{
-			char c = pBuffer[i];
-			if(c == '\0')
+			MicroProfileFunctionQuery* pQuery = S.pPendingQuery;
+			if(!pQuery)
 			{
-				break;
+				S.pPendingQuery = pQuery = MicroProfileAllocFunctionQuery();
 			}
-			if(isspace(c) || c == '*')
+			MP_ASSERT(pQuery->pNext == 0);
+			memset(pQuery, 0, sizeof(*pQuery));
+
+
+			MicroProfileFunctionQuery& Q = *pQuery;
+			Q.QueryId = QueryId;
+
+			uint32_t nLen = (uint32_t)strlen(pFilter)+1;
+			if(nLen >= MICROPROFILE_MAX_FILTER_STRING)
+				nLen = MICROPROFILE_MAX_FILTER_STRING-1;
+
+			memcpy(Q.FilterString, pFilter, nLen);	
+			Q.FilterString[nLen] = '\0';
+
+			char* pBuffer = Q.FilterString;
+			bool bStartString = true;
+			for(uint32_t i = 0; i < nLen; ++i)
 			{
-				pBuffer[i] = '\0';
-				bStartString = true;
-			}
-			else
-			{
-				if(bStartString)
+				char c = pBuffer[i];
+				if(c == '\0')
 				{
-					if(Q.nMaxFilter < MICROPROFILE_MAX_FILTER)
-					{
-
-						const char* pstr = &pBuffer[i];
-						Q.nMask[Q.nMaxFilter] = MicroProfileCharacterMaskString(pstr);
-						MicroProfileCharacterMaskString2(pstr, Q.MatchMask[Q.nMaxFilter]);
-						Q.pFilterStrings[Q.nMaxFilter++] = &pBuffer[i];
-					}
+					break;
 				}
-				bStartString = false;
+				if(isspace(c) || c == '*')
+				{
+					pBuffer[i] = '\0';
+					bStartString = true;
+				}
+				else
+				{
+					if(bStartString)
+					{
+						if(Q.nMaxFilter < MICROPROFILE_MAX_FILTER)
+						{
+							const char* pstr = &pBuffer[i];
+							Q.nMask[Q.nMaxFilter] = MicroProfileCharacterMaskString(pstr);
+							MicroProfileCharacterMaskString2(pstr, Q.MatchMask[Q.nMaxFilter]);
+							Q.pFilterStrings[Q.nMaxFilter++] = &pBuffer[i];
+						}
+					}
+					bStartString = false;
+				}
 			}
-		}
-		memset(Q.nModuleFilterMatch, 0xff, sizeof(Q.nModuleFilterMatch));
-		for(int i = 0; i < S.SymbolNumModules; ++i)
-		{
-			Q.nModuleFilterMatch[i] = MicroProfileStringMatchOffset(MicroProfileSymbolModuleGetString(i), Q.pFilterStrings, Q.nPatternLength, Q.nMaxFilter);
-		}
+			memset(Q.nModuleFilterMatch, 0xff, sizeof(Q.nModuleFilterMatch));
+			for(int i = 0; i < S.SymbolNumModules; ++i)
+			{
+				Q.nModuleFilterMatch[i] = MicroProfileStringMatchOffset(MicroProfileSymbolModuleGetString(i), Q.pFilterStrings, Q.nPatternLength, Q.nMaxFilter);
+			}
 
-		#if 0
-		printf("query ::");
-		for(int i = 0; i < Q.nMaxFilter; ++i)
-		{
-			Q.nPatternLength[i] = (uint32_t)strlen(Q.pFilterStrings[i]);
-			printf("'%s' ", Q.pFilterStrings[i]);
+			#if 0
+			printf("query %d::",QueryId);
+			for(int i = 0; i < Q.nMaxFilter; ++i)
+			{
+				Q.nPatternLength[i] = (uint32_t)strlen(Q.pFilterStrings[i]);
+				printf("'%s' ", Q.pFilterStrings[i]);
+			}
+			printf("\n");
+			#endif
 		}
-		printf("\n");
-		#endif
-
-		Q.pNext = S.pPendingQuery;
-		S.pPendingQuery = &Q;
 	}
 	MicroProfileSymbolKickThread();
 
@@ -12323,6 +12338,7 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 					}
 				}
 			}
+			M.nProgress = M.nProgressTarget;
 			M.nModuleLoadFinished.store(1);
 		}
 
