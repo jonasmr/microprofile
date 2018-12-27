@@ -98,6 +98,39 @@ Capturing in live view provides a complete view of what is recorded in the ring 
 
 ![Alt text](images/detailed.png?raw=true "Capture screenshot")
 
+# Dynamic Instrumentation
+On Intel x86-64 Microprofile supports dynamically injecting markers into running code. This is supported on windows, osx and linux(tested on ubuntu)
+To use this feature
+
+* Make sure MICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE is defined
+* Make sure to link with distorm and add its include folder to the include path
+* Check demo_dynamic_instrument for an example
+
+Please be aware that this is still a bit experimental, and be aware of these limitations:
+* The profiler does not attempt to stop all running threads while instrumenting.
+	* This potentially can cause issues, as there is a critical moment when replacing the first 14 bytes of the function being patched. If any thread is executing the code begin replaced, the program behaviour will not be well defined
+	* For development this is usually fine
+* The instrumentation does not need the program to be compiled or linked in any specific way
+	* But it does not support instrumenting all possible x86-64 code sequences - IE it might fail.
+	* It needs at least 14 bytes of instructions to instrument a function
+* On linux you need to link your program with -rdynamic, in order to make the it possible to find the functions using `dladdr`
+	* if you know of any way to query this without linking with -rdynamic I'd love to hear about it.
+
+
+If compiled and linked with Dynamic Instrumentation, two new menus appear, "modules" and "functions".
+
+The "modules" menu allows you to load debug information from your loaded modules. Select one or more modules to load from. Once its loaded the bar behind the module name is filled, and the debug information is ready.
+
+![Alt text](images/modules.png?raw=true "Modules screenshot")
+
+Once the debug symbols are loaded - Indicated by the number in the top of the functions menu - You can start typing to search for functions to instrument.
+* Click on a function to attempt to instrument it
+* If instrumentation fails, you´ll be asked to report the code sequence. Please consider doing this.
+* Click on '>>' next to a function, to attempt to instrument all the functions called by that function
+	* Only functions called that also have a name in the debug information will be instrumented
+
+![Alt text](images/functions.png?raw=true "Functions screenshot")
+
 # Example code
 * noframes: Using microprofile to profile an application without any concept of frames. dumps a capture at the end. No live view.
 * noui: frame based implementation. with live view. No gpu timing
