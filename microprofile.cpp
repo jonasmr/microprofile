@@ -10617,7 +10617,7 @@ void MicroProfileSymbolQueryFunctions(MpSocket Connection, const char* pFilter)
 		pFilter = strchr(pFilter, 'x');
 		pFilter++;
 		MicroProfileScopeLock L(MicroProfileMutex());
-		if(0 == S.pPendingQuery || S.pPendingQuery->QueryId < QueryId)
+		if(0 == S.pPendingQuery || S.pPendingQuery->QueryId < (uint32_t)QueryId)
 		{
 			MicroProfileFunctionQuery* pQuery = S.pPendingQuery;
 			if(!pQuery)
