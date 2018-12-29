@@ -3259,9 +3259,9 @@ function PreprocessContextSwitchCacheItem(ThreadId)
 		var TimeIn = -1.0;
 		for(var i = 0; i < nCount; ++i)
 		{	
-			var ThreadIn = CSwitchThreadInOutCpu[j];
-			var ThreadOut = CSwitchThreadInOutCpu[j+1];
-			var Cpu = CSwitchThreadInOutCpu[j+2];
+			var ThreadIn = S.CSwitchThreadInOutCpu[j];
+			var ThreadOut = S.CSwitchThreadInOutCpu[j+1];
+			var Cpu = S.CSwitchThreadInOutCpu[j+2];
 			if(TimeIn < 0)
 			{
 				if(ThreadIn == ThreadId)
@@ -3298,7 +3298,7 @@ function PreprocessContextSwitchCache()
 	var nCount = S.CSwitchTime.length;
 	for(var i = 0; i < nCount; ++i)
 	{	
-		var nThreadIn = CSwitchThreadInOutCpu[i];
+		var nThreadIn = S.CSwitchThreadInOutCpu[i];
 		if(!AllThreads[nThreadIn])
 		{
 		    AllThreads[nThreadIn] = '' + nThreadIn;
@@ -3326,9 +3326,9 @@ function PreprocessContextSwitchCache()
 	}
 	function HandleMissingThread(a)
 	{
-		if(!CSwitchThreads[a])
+		if(!S.CSwitchThreads[a])
 		{
-			CSwitchThreads[a] = {'tid':a, 'pid':-1, 't':'?', 'p':'?'}
+			S.CSwitchThreads[a] = {'tid':a, 'pid':-1, 't':'?', 'p':'?'}
 		}
 	}
 	function CompareThreadInfo(a, b)
@@ -3341,7 +3341,7 @@ function PreprocessContextSwitchCache()
 	S.CSwitchOnlyThreads.sort( function(a, b){ 
 		HandleMissingThread(a);
 		HandleMissingThread(b);
-		return CompareThreadInfo(CSwitchThreads[a], CSwitchThreads[b]); 
+		return CompareThreadInfo(S.CSwitchThreads[a], S.CSwitchThreads[b]); 
 	} );
 
 	ProfileLeave();
@@ -3981,7 +3981,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			{
 				var ThreadId = ContextSwitchThreads[i];
 				var ThreadName = '' + ThreadId;
-				var TI = CSwitchThreads[ThreadId];
+				var TI = S.CSwitchThreads[ThreadId];
 
 				if(TI)
 				{

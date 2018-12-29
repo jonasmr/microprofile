@@ -3281,9 +3281,9 @@ const char g_MicroProfileHtml_end_2[] =
 "		var TimeIn = -1.0;\n"
 "		for(var i = 0; i < nCount; ++i)\n"
 "		{	\n"
-"			var ThreadIn = CSwitchThreadInOutCpu[j];\n"
-"			var ThreadOut = CSwitchThreadInOutCpu[j+1];\n"
-"			var Cpu = CSwitchThreadInOutCpu[j+2];\n"
+"			var ThreadIn = S.CSwitchThreadInOutCpu[j];\n"
+"			var ThreadOut = S.CSwitchThreadInOutCpu[j+1];\n"
+"			var Cpu = S.CSwitchThreadInOutCpu[j+2];\n"
 "			if(TimeIn < 0)\n"
 "			{\n"
 "				if(ThreadIn == ThreadId)\n"
@@ -3320,7 +3320,7 @@ const char g_MicroProfileHtml_end_2[] =
 "	var nCount = S.CSwitchTime.length;\n"
 "	for(var i = 0; i < nCount; ++i)\n"
 "	{	\n"
-"		var nThreadIn = CSwitchThreadInOutCpu[i];\n"
+"		var nThreadIn = S.CSwitchThreadInOutCpu[i];\n"
 "		if(!AllThreads[nThreadIn])\n"
 "		{\n"
 "		    AllThreads[nThreadIn] = \'\' + nThreadIn;\n"
@@ -3348,9 +3348,9 @@ const char g_MicroProfileHtml_end_2[] =
 "	}\n"
 "	function HandleMissingThread(a)\n"
 "	{\n"
-"		if(!CSwitchThreads[a])\n"
+"		if(!S.CSwitchThreads[a])\n"
 "		{\n"
-"			CSwitchThreads[a] = {\'tid\':a, \'pid\':-1, \'t\':\'?\', \'p\':\'?\'}\n"
+"			S.CSwitchThreads[a] = {\'tid\':a, \'pid\':-1, \'t\':\'?\', \'p\':\'?\'}\n"
 "		}\n"
 "	}\n"
 "	function CompareThreadInfo(a, b)\n"
@@ -3363,7 +3363,7 @@ const char g_MicroProfileHtml_end_2[] =
 "	S.CSwitchOnlyThreads.sort( function(a, b){ \n"
 "		HandleMissingThread(a);\n"
 "		HandleMissingThread(b);\n"
-"		return CompareThreadInfo(CSwitchThreads[a], CSwitchThreads[b]); \n"
+"		return CompareThreadInfo(S.CSwitchThreads[a], S.CSwitchThreads[b]); \n"
 "	} );\n"
 "\n"
 "	ProfileLeave();\n"
@@ -4003,7 +4003,7 @@ const char g_MicroProfileHtml_end_2[] =
 "			{\n"
 "				var ThreadId = ContextSwitchThreads[i];\n"
 "				var ThreadName = \'\' + ThreadId;\n"
-"				var TI = CSwitchThreads[ThreadId];\n"
+"				var TI = S.CSwitchThreads[ThreadId];\n"
 "\n"
 "				if(TI)\n"
 "				{\n"
@@ -4443,12 +4443,12 @@ const char g_MicroProfileHtml_end_2[] =
 "	}\n"
 "	else//reuse stored result untill next time viewport is changed.\n"
 "	{\n"
-"		context.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);\n"
-"		context.putImag";
+"		context.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);";
 
 const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
 const char g_MicroProfileHtml_end_3[] =
-"eData(OffscreenData, 0, 0);\n"
+"\n"
+"		context.putImageData(OffscreenData, 0, 0);\n"
 "		DrawDetailedView(S, S, context, nMinWidth, false);\n"
 "		DrawDetailedView(S2, S, context, nMinWidth, false, 1);\n"
 "		ProfileRedraw2++;\n"
@@ -6054,11 +6054,11 @@ const char g_MicroProfileHtml_end_3[] =
 "				}\n"
 "			}\n"
 "		}\n"
-"		DeltaTimes.sort(function(a,b){ret";
+"		DeltaTimes.sort";
 
 const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
 const char g_MicroProfileHtml_end_4[] =
-"urn b-a;});\n"
+"(function(a,b){return b-a;});\n"
 "		var SplitArray = Array(NumLodSplits);\n"
 "		var SplitIndex = DeltaTimes.length;\n"
 "\n"
