@@ -8870,9 +8870,22 @@ char* MicroProfileInsertRegisterJump(char* pCode, intptr_t pDest, int reg)
      // 229:	41 ff e7 	jmpq	*%r15
 }
 
+char* MicroProfileInsertRelativeJump(char* pCode, intptr_t pDest)
+{
+	intptr_t src = intptr_t(pCode) + 5;
+	intptr_t off = pDest - src;
+	MP_ASSERT(off > intptr_t(0xffffffff80000000) && off <= 0x7fffffff);
+	int32_t i32off = (int32_t)off;
+	unsigned char* uc = (unsigned char*)pCode;
+	unsigned char* c = (unsigned char*)&i32off;
+	*uc++ = 0xe9;
+	memcpy(uc, c, 4);
+	uc += 4;
+	return (char*)uc;
+}
+
 char* MicroProfileInsertRetJump(char* pCode, intptr_t pDest)
 {
-
 	uint32_t lower = (uint32_t)pDest;
 	uint32_t upper = (uint32_t)(pDest>>32);
 	unsigned char* uc = (unsigned char*)pCode;
@@ -8960,6 +8973,11 @@ int MicroProfileStringMatchOffset(const char* pSymbol, const char** pPatterns, u
 
 void* MicroProfileX64FollowJump(void* pSrc)
 {
+	for(uint32_t i = 0; i < S.DynamicTokenIndex; ++i)
+		if(S.FunctionsInstrumented[i] == pSrc)
+			return pSrc; //if already instrumented, do not follow the jump inserted by itself.
+
+
 	//printf("deref possible trampoline for %p\n", pSrc);	
 	_DecodeType dt = Decode64Bits;
 	_DInst Instructions[1];
@@ -10706,7 +10724,8 @@ void MicroProfileSymbolQueryFunctions(MpSocket Connection, const char* pFilter)
 
 
 #ifdef _WIN32
-static void* MicroProfileAllocExecutableMemory(size_t s);
+static void* MicroProfileAllocExecutableMemory(void* pBase, size_t s);
+static void* MicroProfileAllocExecutableMemoryFar(size_t s);
 static void MicroProfileMakeMemoryExecutable(void* p, size_t s);
 static void MicroProfileMakeWriteable(void* p_, size_t size, DWORD* oldFlags);
 static void MicroProfileRestore(void* p_, size_t size, DWORD* oldFlags);
@@ -10744,8 +10763,19 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 	intptr_t t_trunk_offset = (intptr_t)microprofile_tramp_trunk - t_enter;
 	int t_trunk_size = (int)((intptr_t)microprofile_tramp_end - (intptr_t)microprofile_tramp_trunk);
 
-	char* ptramp = (char*)MicroProfileAllocExecutableMemory(t_end_offset);
+	char* ptramp = (char*)MicroProfileAllocExecutableMemory(f, t_end_offset);
+	if(!ptramp)
+		ptramp = (char*)MicroProfileAllocExecutableMemoryFar(t_end_offset);
 	
+	intptr_t offset = ((intptr_t)f + 6 - (intptr_t)ptramp);
+
+	uint32_t nBytesToCopy = 14;
+	if (offset < 0x80000000 && offset > -0x7fffffff)
+	{
+		///offset is small enough to insert a relative jump
+		nBytesToCopy = 5;
+	}
+
 	memcpy(ptramp, (void*)t_enter, t_end_offset);
 
 
@@ -10759,7 +10789,7 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 	uint32_t nRetSafe = 1;
 	uint32_t nUsableJumpRegs = (1<<R_RAX) | (1 << R_R10) | (1 << R_R11);
 	static_assert(R_RAX == 0, "R_RAX must be 0");
-	if(!MicroProfileCopyInstructionBytes(pInstructionMoveDest, f, 14, (int)codemaxsize, pTrunk, t_trunk_size, nUsableJumpRegs, &nInstructionBytesDest, &nInstructionBytesSrc, &nRegsWritten, &nRetSafe))
+	if(!MicroProfileCopyInstructionBytes(pInstructionMoveDest, f, nBytesToCopy, (int)codemaxsize, pTrunk, t_trunk_size, nUsableJumpRegs, &nInstructionBytesDest, &nInstructionBytesSrc, &nRegsWritten, &nRetSafe))
 	{
 		if(pError)
 		{
@@ -10835,7 +10865,17 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 		MicroProfileMakeWriteable(f, nInstructionBytesSrc, OldFlags);
 		char* pp = (char*)f;
 		char* ppend = pp + nInstructionBytesSrc;
-		pp = MicroProfileInsertRegisterJump((char*)pp, (intptr_t)ptramp, R_RAX);
+
+		if (nInstructionBytesSrc < 14)
+		{
+			pp = MicroProfileInsertRelativeJump((char*)pp, (intptr_t)ptramp);
+		}
+		else
+		{
+			pp = MicroProfileInsertRegisterJump((char*)pp, (intptr_t)ptramp, R_RAX);
+		}
+
+		
 		while(pp != ppend)
 		{
 			char c = (unsigned char)0x90;
@@ -10888,9 +10928,82 @@ static void MicroProfileRestore(void* p_, size_t s, DWORD* oldFlags)
 			MP_BREAK();
 		}
 	}
-
 }
-static void* MicroProfileAllocExecutableMemory(size_t s)
+
+void* MicroProfileAllocExecutableMemoryUp(intptr_t nBase, size_t s)
+{
+	intptr_t nEnd = nBase + 0x80000000;
+	MEMORY_BASIC_INFORMATION mbi;
+	while (nBase < nEnd)
+	{
+		if (!VirtualQuery((void*)nBase, &mbi, sizeof(mbi)))
+		{
+			return 0;
+		}
+		if (mbi.State == MEM_FREE && mbi.RegionSize >= s)
+		{
+			void* pMemory = VirtualAlloc((void*)nBase, s, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+			if (pMemory)
+			{
+				return pMemory;
+			}
+		}
+		nBase = (intptr_t)mbi.BaseAddress + mbi.RegionSize;
+		nBase = (nBase + s - 1) & ~(s-1);
+	}
+	return 0;
+}
+
+
+
+void* MicroProfileAllocExecutableMemoryDown(intptr_t nBase, size_t s)
+{
+	intptr_t nEnd = nBase - 0x80000000;
+	MEMORY_BASIC_INFORMATION mbi;
+	while(nBase > nEnd)
+	{
+		nBase &= ~(s-1);
+		if(!VirtualQuery((void*)nBase, &mbi, sizeof(mbi)))
+		{
+			return 0;
+		}
+		if(mbi.State == MEM_FREE && mbi.RegionSize >= s)
+		{
+			void* pMemory = VirtualAlloc((void*)nBase, s, MEM_COMMIT| MEM_RESERVE, PAGE_READWRITE);
+			if(pMemory)
+			{
+				return pMemory;
+			}
+		}
+		nBase = (intptr_t)mbi.BaseAddress - s;
+	}
+	return 0;
+}
+
+static void* MicroProfileAllocExecutableMemory(void* pBase, size_t s)
+{
+	s = (s + 4095) & ~(4095);
+	intptr_t nBase = (intptr_t)pBase;
+	void* pResult = 0;
+	if(0 == pResult && nBase > 0x40000000)
+	{
+		pResult = MicroProfileAllocExecutableMemoryDown(nBase - 0x40000000, s);
+		if(0 == pResult)
+		{
+			pResult = MicroProfileAllocExecutableMemoryUp(nBase - 0x40000000, s);
+		}
+	}
+	if(0 == pResult && nBase < 0xffffffff40000000)
+	{
+		pResult = MicroProfileAllocExecutableMemoryUp(nBase + 0x40000000, s);
+		if(0 == pResult)
+		{
+			pResult = MicroProfileAllocExecutableMemoryUp(nBase + 0x40000000, s);
+		}
+	}
+	return pResult;
+}
+static void* MicroProfileAllocExecutableMemoryFar(size_t s)
 {
 	static uint64_t nPageSize = 4 << 10;
 	s = (s + (nPageSize - 1)) & (~(nPageSize-1));

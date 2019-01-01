@@ -113,7 +113,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <AdditionalDependencies>DbgHelp.lib;Shlwapi.lib;../../distorm/distorm.lib;Advapi32.lib;ws2_32.lib;winmm.lib;Shell32.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
@@ -157,7 +157,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalDependencies>DbgHelp.lib;Shlwapi.lib;../../distorm/distorm.lib;Advapi32.lib;ws2_32.lib;winmm.lib;Shell32.lib</AdditionalDependencies>
