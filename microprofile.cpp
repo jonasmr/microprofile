@@ -11466,7 +11466,7 @@ void MicroProfileSymbolUpdateModuleList()
 
 
 
-static void* MicroProfileAllocExecutableMemory(size_t s);
+static void* MicroProfileAllocExecutableMemory(void* f, size_t s);
 static void MicroProfileMakeWriteable(void* p_);
 
 extern "C" void microprofile_tramp_enter_patch();
@@ -11506,8 +11506,19 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 	intptr_t t_trunk_offset = (intptr_t)microprofile_tramp_trunk - t_enter;
 	intptr_t t_trunk_size = (intptr_t)microprofile_tramp_end - (intptr_t)microprofile_tramp_trunk;
 
-	char* ptramp = (char*)MicroProfileAllocExecutableMemory(t_end_offset);
+	char* ptramp = (char*)MicroProfileAllocExecutableMemory(f, t_end_offset);
 	
+	intptr_t offset = ((intptr_t)f + 6 - (intptr_t)ptramp);
+
+	uint32_t nBytesToCopy = 14;
+	if (offset < 0x80000000 && offset > -0x7fffffff)
+	{
+		///offset is small enough to insert a relative jump
+		nBytesToCopy = 5;
+	}
+
+
+
 	memcpy(ptramp, (void*)t_enter, t_end_offset);
 
 
@@ -11522,7 +11533,7 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 	uint32_t nRegsWritten = 0;
 	uint32_t nRetSafe = 0;
 	uint32_t nUsableJumpRegs = (1 << R_RAX) | (1 << R_R10) | (1 << R_R11); //scratch && !parameter register
-	if(!MicroProfileCopyInstructionBytes(pInstructionMoveDest, f, 14, codemaxsize, pTrunk, t_trunk_size, nUsableJumpRegs, &nInstructionBytesDest, &nInstructionBytesSrc, &nRegsWritten, &nRetSafe))
+	if(!MicroProfileCopyInstructionBytes(pInstructionMoveDest, f, nBytesToCopy, codemaxsize, pTrunk, t_trunk_size, nUsableJumpRegs, &nInstructionBytesDest, &nInstructionBytesSrc, &nRegsWritten, &nRetSafe))
 	{
 		if(pError)
 		{
@@ -11599,7 +11610,16 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 		MicroProfileMakeWriteable(f);
 		char* pp = (char*)f;
 		char* ppend = pp + nInstructionBytesSrc;
-		pp = MicroProfileInsertRegisterJump(pp, (intptr_t)ptramp, R_RAX );
+		if(nInstructionBytesSrc < 14)
+		{
+			uprintf("inserting 5b jump\n");
+			pp = MicroProfileInsertRelativeJump((char*)pp, (intptr_t)ptramp);
+		}
+		else
+		{
+			uprintf("inserting 14b jump\n");
+			pp = MicroProfileInsertRegisterJump(pp, (intptr_t)ptramp, R_RAX );
+		}
 		while(pp != ppend)
 		{
 			*pp++ = 0x90;
@@ -11973,15 +11993,7 @@ void MicroProfileSymbolUpdateModuleList()
 	}
 }
 
-
-
-
-
-
-
-
-
-static void* MicroProfileAllocExecutableMemory(size_t s)
+static void* MicroProfileAllocExecutableMemory(void* f, size_t s)
 {
 	static uint64_t nPageSize = 0;
 	if(!nPageSize)
@@ -11990,7 +12002,7 @@ static void* MicroProfileAllocExecutableMemory(size_t s)
 	}
 	s = (s + (nPageSize - 1)) & (~(nPageSize-1));
 
-	void* pMem = mmap(0, s, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_ANON | MAP_PRIVATE, 0, 0);
+	void* pMem = mmap((void*)f, s, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_ANON | MAP_PRIVATE, 0, 0);
 
 	// uprintf("Allocating %zu  %p\n", s, pMem);
 	return pMem;
@@ -12052,7 +12064,7 @@ void MicroProfileInstrumentWithoutSymbols(const char** pModules, const char** pS
 
 
 
-static void* MicroProfileAllocExecutableMemory(size_t s);
+static void* MicroProfileAllocExecutableMemory(void* f, size_t s);
 static void MicroProfileMakeWriteable(void* p_);
 
 extern "C" void microprofile_tramp_enter_patch() asm("_microprofile_tramp_enter_patch");
@@ -12092,8 +12104,18 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 	intptr_t t_trunk_offset = (intptr_t)microprofile_tramp_trunk - t_enter;
 	intptr_t t_trunk_size = (intptr_t)microprofile_tramp_end - (intptr_t)microprofile_tramp_trunk;
 
-	char* ptramp = (char*)MicroProfileAllocExecutableMemory(t_end_offset);
+	char* ptramp = (char*)MicroProfileAllocExecutableMemory(f, t_end_offset);
 	
+	intptr_t offset = ((intptr_t)f + 6 - (intptr_t)ptramp);
+
+	uint32_t nBytesToCopy = 14;
+	if (offset < 0x80000000 && offset > -0x7fffffff)
+	{
+		///offset is small enough to insert a relative jump
+		nBytesToCopy = 5;
+	}
+
+
 	memcpy(ptramp, (void*)t_enter, t_end_offset);
 
 
@@ -12108,7 +12130,7 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 	uint32_t nRegsWritten = 0;
 	uint32_t nRetSafe = 0;
 	uint32_t nUsableJumpRegs = (1 << R_RAX) | (1 << R_R10) | (1 << R_R11); //scratch && !parameter register
-	if(!MicroProfileCopyInstructionBytes(pInstructionMoveDest, f, 14, codemaxsize, pTrunk, t_trunk_size, nUsableJumpRegs, &nInstructionBytesDest, &nInstructionBytesSrc, &nRegsWritten, &nRetSafe))
+	if(!MicroProfileCopyInstructionBytes(pInstructionMoveDest, f, nBytesToCopy, codemaxsize, pTrunk, t_trunk_size, nUsableJumpRegs, &nInstructionBytesDest, &nInstructionBytesSrc, &nRegsWritten, &nRetSafe))
 	{
 		if(pError)
 		{
@@ -12185,7 +12207,17 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 		MicroProfileMakeWriteable(f);
 		char* pp = (char*)f;
 		char* ppend = pp + nInstructionBytesSrc;
-		pp = MicroProfileInsertRegisterJump(pp, (intptr_t)ptramp, R_RAX );
+
+		if(nInstructionBytesSrc < 14)
+		{
+			uprintf("inserting 5b jump\n");
+			pp = MicroProfileInsertRelativeJump((char*)pp, (intptr_t)ptramp);
+		}
+		else
+		{
+			uprintf("inserting 14b jump\n");
+			pp = MicroProfileInsertRegisterJump(pp, (intptr_t)ptramp, R_RAX );
+		}
 		while(pp != ppend)
 		{
 			*pp++ = 0x90;
@@ -12469,7 +12501,7 @@ void MicroProfileSymbolUpdateModuleList()
 	MicroProfileSymbolMergeExecutableRegions();
 }
 
-static void* MicroProfileAllocExecutableMemory(size_t s)
+static void* MicroProfileAllocExecutableMemory(void* f, size_t s)
 {
 	static uint64_t nPageSize = 0;
 	if(!nPageSize)
@@ -12478,7 +12510,7 @@ static void* MicroProfileAllocExecutableMemory(size_t s)
 	}
 	s = (s + (nPageSize - 1)) & (~(nPageSize-1));
 
-	void* pMem = mmap(0, s, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_ANON | MAP_PRIVATE, 0, 0);
+	void* pMem = mmap(f, s, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_ANON | MAP_PRIVATE, 0, 0);
 	return pMem;
 }
 
