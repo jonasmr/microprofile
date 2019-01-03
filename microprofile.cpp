@@ -1436,9 +1436,6 @@ void MicroProfileInit()
 		S.nJsonSettingsPending = 0;
 		S.nJsonSettingsBufferSize = 0;
 		S.nWSWasConnected = 0;
-		S.WSBuf.pBufferAllocation = (char*)MICROPROFILE_ALLOC(MICROPROFILE_WEBSOCKET_BUFFER_SIZE, 8);
-		S.WSBuf.pBuffer = S.WSBuf.pBufferAllocation + 20;
-		S.WSBuf.nBufferSize = MICROPROFILE_WEBSOCKET_BUFFER_SIZE - 20;
 
 		for(uint32_t i = 0; i < MICROPROFILE_TIMELINE_MAX_TOKENS; ++i)
 		{
@@ -6702,7 +6699,7 @@ void MicroProfileWSPrintf(const char* pFmt, ...)
 	va_start (args, pFmt);
 
 	int nRequiredSize = 0;
-	MP_ASSERT(S.WSBuf.nPut < S.WSBuf.nBufferSize);
+	MP_ASSERT(S.WSBuf.nPut <= S.WSBuf.nBufferSize);
 
 
 #ifdef _WIN32
@@ -6716,7 +6713,7 @@ void MicroProfileWSPrintf(const char* pFmt, ...)
 
 	if(S.WSBuf.nPut + nRequiredSize + 2 > S.WSBuf.nBufferSize)
 	{
-		uint32_t nNewSize = MicroProfileMax(S.WSBuf.nPut + 2 * (nRequiredSize + 2 + 20), S.WSBuf.nBufferSize * 3 / 2);
+		uint32_t nNewSize = MicroProfileMax(S.WSBuf.nPut + 2 * (nRequiredSize + 2 + 20), MicroProfileMax(S.WSBuf.nBufferSize * 3 / 2, (uint32_t)MICROPROFILE_WEBSOCKET_BUFFER_SIZE));
 		S.WSBuf.pBufferAllocation = (char*)MICROPROFILE_REALLOC(S.WSBuf.pBufferAllocation, nNewSize);
 		S.WSBuf.pBuffer = S.WSBuf.pBufferAllocation + 20;
 		S.WSBuf.nBufferSize = nNewSize - 20;
