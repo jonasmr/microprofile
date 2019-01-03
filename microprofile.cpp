@@ -6706,9 +6706,12 @@ void MicroProfileWSPrintf(const char* pFmt, ...)
 
 
 #ifdef _WIN32
-	nRequiredSize = (int)vsnprintf_s(0, 0, 0, pFmt, args);
+	nRequiredSize = (int)_vscprintf(pFmt, args);
 #else
-	nRequiredSize = (int)vsnprintf(0, 0, pFmt, args);
+    va_list args_copy;
+    va_copy(args_copy, args);
+	nRequiredSize = (int)vsnprintf(0, 0, pFmt, args_copy);
+    va_end(args_copy);
 #endif
 
 	if(S.WSBuf.nPut + nRequiredSize + 2 > S.WSBuf.nBufferSize)
@@ -6718,8 +6721,6 @@ void MicroProfileWSPrintf(const char* pFmt, ...)
 		S.WSBuf.pBuffer = S.WSBuf.pBufferAllocation + 20;
 		S.WSBuf.nBufferSize = nNewSize - 20;
 	}
-
-	va_start (args, pFmt);
 
 	uint32_t nSpace = S.WSBuf.nBufferSize - S.WSBuf.nPut - 1;
 	MP_ASSERT((int)nSpace > nRequiredSize);
