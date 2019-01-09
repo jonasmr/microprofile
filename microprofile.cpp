@@ -612,7 +612,7 @@ struct MicroProfileGpuTimerState
 
 	MicroProfileD3D11Frame m_QueryFrames[MICROPROFILE_GPU_FRAME_DELAY];
 };
-#elif defined(MICROPROFILE_GPU_TIMERS_D3D12)
+#elif MICROPROFILE_GPU_TIMERS_D3D12
 #include <d3d12.h>
 
 #ifndef MICROPROFILE_D3D_MAX_QUERIES
@@ -7987,7 +7987,7 @@ int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu)
 	return 0;
 }
 
-#elif defined(MICROPROFILE_GPU_TIMERS_D3D12)
+#elif MICROPROFILE_GPU_TIMERS_D3D12
 #include <d3d12.h>
 uint32_t MicroProfileGpuInsertTimeStamp(void* pContext)
 {
@@ -8256,7 +8256,7 @@ int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu)
 	MP_ASSERT(hr == S_OK);
 	return 1;
 }
-#elif defined(MICROPROFILE_GPU_TIMERS_VULKAN)
+#elif MICROPROFILE_GPU_TIMERS_VULKAN
 
 #ifndef MICROPROFILE_VULKAN_MAX_QUERIES
 #define MICROPROFILE_VULKAN_MAX_QUERIES (32<<10)
