@@ -3131,7 +3131,7 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 						{
 							for(int j = 0; j < i; ++j)
 							{
-								nNegativeStack[i] += nTicks;
+								nNegativeStack[j] += nTicks;
 							}
 						}
 					}
