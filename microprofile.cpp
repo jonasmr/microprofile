@@ -469,9 +469,6 @@ struct MicroProfileFrameState
 	int32_t nHistoryTimeline;	
 };
 
-#pragma warning( push )
-#pragma warning( disable:4200 ) //zero-sized struct
-
 struct MicroProfileStringBlock
 {
 	enum{DEFAULT_SIZE = 8192,};
@@ -480,7 +477,6 @@ struct MicroProfileStringBlock
 	uint32_t nSize;
 	char Memory[];
 };
-#pragma warning(pop)
 
 typedef bool (*MicroProfileHashCompareFunction)(uint64_t l, uint64_t r);
 typedef uint64_t (*MicroProfileHashFunction)(uint64_t p);
@@ -983,8 +979,7 @@ inline MicroProfileLogEntry MicroProfileMakeLogIndex(uint64_t nBegin, MicroProfi
 	return Entry;
 
 }
-#pragma warning( push )
-#pragma warning( disable: 4201 ) //nameless struct/union
+
 namespace
 {
 	struct MicroProfilePayloadPack
@@ -1143,6 +1138,9 @@ uint64_t MicroProfileTick()
 #pragma warning(push)
 #pragma warning(disable: 4244) //possible loss of data
 #pragma warning(disable: 4100) //unreferenced formal parameter
+#pragma warning(disable: 4200) //zero-sized struct
+#pragma warning(disable: 4091)
+
 int64_t MicroProfileTicksPerSecondCpu()
 {
 	static int64_t nTicksPerSecond = 0;	
@@ -11131,7 +11129,6 @@ int MicroProfileFindFunctionName(const char* pStr, const char** ppStart)
 	*ppStart = pStr + nFirst;
 	return nCount;
 }
-#pragma warning(disable: 4091)
 
 #include <dbghelp.h>
 #include <winternl.h>
