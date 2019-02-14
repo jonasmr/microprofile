@@ -5679,11 +5679,11 @@ function KeyDown(evt)
 
 	Invalidate = 0;
 }
-
-function GetCookie()
+function ParseCookie(str)
 {
-	var result = document.cookie.match(/fisk=([^;]+)/);
-	console.log("cookie is " + document.cookie);
+	if(!str) return null;
+	var result = str.match(/fisk=([^;]+)/);
+	console.log("cookie is " + str);
 	if(result && result.length > 0)
 	{
 		var Obj = JSON.parse(result[1]);
@@ -5695,10 +5695,21 @@ function GetCookie()
 		}		
 		return Obj;
 	}
-	else
+	return null;
+}
+
+function GetCookie()
+{
+	var Obj = ParseCookie(localStorage.getItem("microprofile_fisk"));
+	if(!Obj)
+	{
+		Obj = ParseCookie(document.cookie);
+	}
+	if(!Obj)
 	{
 		return {offline:{},live:{}};
 	}
+	return Obj;
 }
 
 function ReadCookie()
@@ -5820,6 +5831,7 @@ function WriteCookie()
 	date.setFullYear(2099);
 	var cookie = 'fisk=' + JSON.stringify(C) + ';expires=' + date;
 	document.cookie = cookie;
+	localStorage.setItem("microprofile_fisk", cookie);
 }
 
 function WindowRect(x,y,w,h)
