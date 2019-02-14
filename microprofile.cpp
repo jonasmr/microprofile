@@ -1558,7 +1558,7 @@ MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 {
 	MicroProfileScopeLock L(MicroProfileMutex());
  
- 	if(S.nNumLogs == MICROPROFILE_MAX_THREADS && S.nFreeListHead != -1)
+	if(S.nNumLogs == MICROPROFILE_MAX_THREADS && S.nFreeListHead == -1)
 	{
 		uprintf("recycling thread logs\n");
 		//reuse the oldest.
@@ -1570,7 +1570,7 @@ MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 			uprintf("tlactive %p, %d.  idle:%d\n", pLog, pLog->nActive, pLog->nIdleFrames); 
 			if(pLog->nActive == 2)
 			{
-				if(pLog->nIdleFrames > nIdleFrames)
+				if(pLog->nIdleFrames >= nIdleFrames)
 				{
 					nIdleFrames = pLog->nIdleFrames;
 					pOldest = pLog;
@@ -3148,7 +3148,7 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 						}
 					}
 
-					if(pLog->nPut == pLog->nGet)
+					if(pLog->nPut == pLog->nGet && pLog->nActive == 2)
 					{
 						pLog->nIdleFrames++;
 					}
