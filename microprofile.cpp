@@ -469,6 +469,9 @@ struct MicroProfileFrameState
 	int32_t nHistoryTimeline;	
 };
 
+#pragma warning( push )
+#pragma warning( disable:4200 ) //zero-sized struct
+
 struct MicroProfileStringBlock
 {
 	enum{DEFAULT_SIZE = 8192,};
@@ -477,7 +480,7 @@ struct MicroProfileStringBlock
 	uint32_t nSize;
 	char Memory[];
 };
-
+#pragma warning(pop)
 
 typedef bool (*MicroProfileHashCompareFunction)(uint64_t l, uint64_t r);
 typedef uint64_t (*MicroProfileHashFunction)(uint64_t p);
@@ -612,7 +615,7 @@ struct MicroProfileGpuTimerState
 
 	MicroProfileD3D11Frame m_QueryFrames[MICROPROFILE_GPU_FRAME_DELAY];
 };
-#elif defined(MICROPROFILE_GPU_TIMERS_D3D12)
+#elif MICROPROFILE_GPU_TIMERS_D3D12
 #include <d3d12.h>
 
 #ifndef MICROPROFILE_D3D_MAX_QUERIES
@@ -980,6 +983,8 @@ inline MicroProfileLogEntry MicroProfileMakeLogIndex(uint64_t nBegin, MicroProfi
 	return Entry;
 
 }
+#pragma warning( push )
+#pragma warning( disable: 4201 ) //nameless struct/union
 namespace
 {
 	struct MicroProfilePayloadPack
@@ -1136,8 +1141,8 @@ uint64_t MicroProfileTick()
 #define snprintf _snprintf
 
 #pragma warning(push)
-#pragma warning(disable: 4244)
-#pragma warning(disable: 4100)
+#pragma warning(disable: 4244) //possible loss of data
+#pragma warning(disable: 4100) //unreferenced formal parameter
 int64_t MicroProfileTicksPerSecondCpu()
 {
 	static int64_t nTicksPerSecond = 0;	
@@ -2980,9 +2985,9 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 
 				int64_t nNegativeStack[MICROPROFILE_STACK_MAX];
 
-				for(uint32_t i = 0; i < MICROPROFILE_MAX_THREADS; ++i)
+				for(uint32_t idx_thread = 0; idx_thread < MICROPROFILE_MAX_THREADS; ++idx_thread)
 				{
-					MicroProfileThreadLog* pLog = S.Pool[i];
+					MicroProfileThreadLog* pLog = S.Pool[idx_thread];
 					if(!pLog) 
 						continue;
 					bool bGpu = pLog->nGpu != 0;
@@ -2996,20 +3001,20 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 						uprintf("very long frame\n");
 					}
 
-					MicroProfile::GroupTime* pFrameGroupThread = &S.FrameGroupThread[i][0];
+					MicroProfile::GroupTime* pFrameGroupThread = &S.FrameGroupThread[idx_thread][0];
 
 					const uint32_t nTimerNegative = bGpu ? S.nTimerNegativeGpuIndex : S.nTimerNegativeCpuIndex;
 
 					uint8_t* pGroupStackPos = &pLog->nGroupStackPos[0];
 
-					uint32_t nPut = pFrameNext->nLogStart[i];
-					uint32_t nGet = pFrameCurrent->nLogStart[i];
+					uint32_t nPut = pFrameNext->nLogStart[idx_thread];
+					uint32_t nGet = pFrameCurrent->nLogStart[idx_thread];
 					uint32_t nRange[2][2] = { {0, 0}, {0, 0}, };
 					MicroProfileGetRange(nPut, nGet, nRange);
 					if(nPut != nGet)
 					{
-						S.FrameGroupThreadValid[i / 32] |= 1 << (i %32);
-						memset(pFrameGroupThread, 0, sizeof(S.FrameGroupThread[i]));
+						S.FrameGroupThreadValid[idx_thread / 32] |= 1 << (idx_thread%32);
+						memset(pFrameGroupThread, 0, sizeof(S.FrameGroupThread[idx_thread]));
 					}
 					
 					uint64_t* pStackLog = &pLog->nStackLogEntry[0];
@@ -3131,7 +3136,7 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 						{
 							for(int j = 0; j < i; ++j)
 							{
-								nNegativeStack[i] += nTicks;
+								nNegativeStack[j] += nTicks;
 							}
 						}
 					}
@@ -3140,7 +3145,7 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 					{
 						pLog->nGroupTicks[j] += pFrameGroupThread[j].nTicks;
 
-						if((S.FrameGroupThreadValid[i/32] & (1 << (i%32))) != 0)
+						if((S.FrameGroupThreadValid[idx_thread/32] & (1 << (idx_thread%32))) != 0)
 						{
 							pFrameGroup[j].nTicks += pFrameGroupThread[j].nTicks;
 							pFrameGroup[j].nTicksExclusive += pFrameGroupThread[j].nTicksExclusive;
@@ -4395,8 +4400,8 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 						{
 							while(k != nLogEnd)
 							{
-								uint64_t v = pLog->Log[k];
-								nLogType = MicroProfileLogGetType(v);
+								uint64_t v2 = pLog->Log[k];
+								nLogType = MicroProfileLogGetType(v2);
 								if(nLogType != MP_LOG_PAYLOAD)
 									break;
 								if(pDst < pDstEnd)
@@ -4485,8 +4490,8 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 				MicroProfilePrintf(CB, Handle, "%d", MicroProfileLogGetType(pLog->Log[k]));
 				for(k = (k+1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 				{
-					uint64_t nLogType = MicroProfileLogGetType(pLog->Log[k]);
-					MicroProfilePrintf(CB, Handle, ",%d", nLogType);
+					uint64_t nLogType2 = MicroProfileLogGetType(pLog->Log[k]);
+					MicroProfilePrintf(CB, Handle, ",%d", nLogType2);
 				}
 			}
 			MicroProfilePrintf(CB, Handle, "];\n");
@@ -7318,7 +7323,9 @@ void MicroProfileWin32ExtractModules(MicroProfileWin32ThreadInfo::Process& P)
 void MicroProfileWin32InitThreadInfo2()
 {
 	memset(&g_ThreadInfo, 0, sizeof(g_ThreadInfo));
+	#if MICROPROFILE_DEBUG
 	float fToMsCpu = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+	#endif
 
 	HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPALL, 0);
 	PROCESSENTRY32 pe32;
@@ -7326,7 +7333,9 @@ void MicroProfileWin32InitThreadInfo2()
 	te32.dwSize = sizeof(THREADENTRY32);
 	pe32.dwSize = sizeof(PROCESSENTRY32);
 	{
+#if MICROPROFILE_DEBUG
 		int64_t nTickStart = MP_TICK();
+#endif
 		if (Process32First(hSnap, &pe32))
 		{
 			do
@@ -7345,10 +7354,11 @@ void MicroProfileWin32InitThreadInfo2()
 #endif
 	}
 	{
+#if MICROPROFILE_DEBUG
 		int64_t nTickStart = MP_TICK();
+#endif
 		for (uint32_t i = 0; i < g_ThreadInfo.nNumProcesses; ++i)
 		{
-			uint32_t pid = g_ThreadInfo.P[i].pid;
 			g_ThreadInfo.P[i].nModuleStart = g_ThreadInfo.nNumModules;
 			g_ThreadInfo.P[i].nNumModules = 0;
 			MicroProfileWin32ExtractModules(g_ThreadInfo.P[i]);
@@ -7366,11 +7376,12 @@ void MicroProfileWin32InitThreadInfo2()
 	ULONG olen;
 	uint32_t nThreadsTested = 0;
 	uint32_t nThreadsSucceeded = 0;
-	uint32_t nThreadsSucceeded2 = 0;
 
 	if (Thread32First(hSnap, &te32))
 	{
+#if MICROPROFILE_DEBUG
 		int64_t nTickStart = MP_TICK();
+#endif
 		do
 		{
 			nThreadsTested++;
@@ -7382,7 +7393,6 @@ void MicroProfileWin32InitThreadInfo2()
 				NTSTATUS ntStatus = NtQueryInformationThread(hThread, (THREADINFOCLASS)ThreadQuerySetWin32StartAddress, &dwStartAddress, sizeof(dwStartAddress), &olen);
 				if (0 == ntStatus)
 				{
-					bool bFound = false;
 					uint32_t nProcessIndex = (uint32_t)-1;					
 					for (uint32_t i = 0; i < g_ThreadInfo.nNumProcesses; ++i)
 					{
@@ -7987,7 +7997,7 @@ int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu)
 	return 0;
 }
 
-#elif defined(MICROPROFILE_GPU_TIMERS_D3D12)
+#elif MICROPROFILE_GPU_TIMERS_D3D12
 #include <d3d12.h>
 uint32_t MicroProfileGpuInsertTimeStamp(void* pContext)
 {
@@ -8256,7 +8266,7 @@ int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu)
 	MP_ASSERT(hr == S_OK);
 	return 1;
 }
-#elif defined(MICROPROFILE_GPU_TIMERS_VULKAN)
+#elif MICROPROFILE_GPU_TIMERS_VULKAN
 
 #ifndef MICROPROFILE_VULKAN_MAX_QUERIES
 #define MICROPROFILE_VULKAN_MAX_QUERIES (32<<10)
@@ -12856,8 +12866,6 @@ const char* MicroProfileStringIntern(const char* pStr_, uint32_t nLen, uint32_t 
 		
 		return pDest;
 	}
-
-	return 0;
 }
 
 void DumpTable(MicroProfileHashTable* pTable)
@@ -12947,9 +12955,9 @@ void MicroProfileHashTableTest()
 		{
 			return l;
 		}
-		uint64_t l = rand();
+		uint64_t l2 = rand();
 		uint64_t u = rand();
-		return l | (u << 32);
+		return l2 | (u << 32);
 	};
 	auto RRUnique = [&]()
 	{
