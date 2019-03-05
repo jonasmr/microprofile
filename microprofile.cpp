@@ -5446,8 +5446,11 @@ bool MicroProfileSocketSend2(MpSocket Connection, const void* pMessage, int nLen
 	while (nLen) {
 		s = send(Connection, (const char*)pMessage, nLen, 0);
 		if (s < 0) {
-			int error = errno;
-			(void)error;
+			const int error = errno;
+			if (error == EAGAIN || error == EWOULDBLOCK) {
+				MicroProfileSleep(20);
+				continue;
+			}
 			break;
 		}
 
