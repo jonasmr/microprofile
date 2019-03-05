@@ -5414,6 +5414,9 @@ void MicroProfileSocketSend(MpSocket Connection, const void* pMessage, int nLen)
 		}
 		else
 		{
+			if (S.nSocketFail) {
+				return;
+			}
 			MicroProfileSleep(20);
 		}
 
@@ -5440,7 +5443,17 @@ bool MicroProfileSocketSend2(MpSocket Connection, const void* pMessage, int nLen
 #endif
 
 	int s = 0;
-	s = send(Connection, (const char*)pMessage, nLen, 0);
+	while (nLen) {
+		s = send(Connection, (const char*)pMessage, nLen, 0);
+		if (s < 0) {
+			int error = errno;
+			(void)error;
+			break;
+		}
+
+		nLen -= s;
+		pMessage = (const char*)pMessage + s;
+	}
 #ifdef _WIN32
 	if(s == SOCKET_ERROR)
 	{
@@ -5451,7 +5464,6 @@ bool MicroProfileSocketSend2(MpSocket Connection, const void* pMessage, int nLen
 	{
 		return false;
 	}
-	MP_ASSERT(s == nLen);
 	return true;
 }
 
