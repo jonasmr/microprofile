@@ -1489,8 +1489,11 @@ void MicroProfileShutdown()
 		MicroProfileStringsDestroy(&S.Strings);
 		MICROPROFILE_FREE_NON_ALIGNED(S.WSBuf.pBufferAllocation);
 
+		MicroProfileFreeGpuQueue(S.GpuQueue);
+		MicroProfileThreadLogGpuFree(S.pGpuGlobal);
+
 		for (uint32_t i = 0; i < S.nNumLogs; ++i) {
-			MP_ASSERT(S.Pool[i]->nActive == 2);
+			MP_ASSERT(S.Pool[i]->nActive != 1);
 			MP_FREE(S.Pool[i]);
 		}
 
@@ -1743,6 +1746,15 @@ int MicroProfileInitGpuQueue(const char* pQueueName)
 	MP_BREAK();
 	return 0;
 }
+
+void MicroProfileFreeGpuQueue(int nQueue) {
+	MicroProfileThreadLog* pLog = S.Pool[nQueue];
+	if (pLog) {
+		MP_ASSERT(pLog->nActive == 1);
+		pLog->nActive = 2;
+	}
+}
+
 MicroProfileThreadLogGpu* MicroProfileGetGlobalGpuThreadLog()
 {
 	return S.pGpuGlobal;
@@ -5381,6 +5393,7 @@ void* MicroProfileSocketSenderThread(void*)
 			MicroProfileSleep(20);
 		}
 	}
+	MicroProfileOnThreadExit();
 	return 0;
 }
 
@@ -7632,6 +7645,7 @@ void* MicroProfileTraceThread(void* unused)
 		CloseHandle(hMemory);
 	}
 	S.bContextSwitchRunning = false;
+	MicroProfileOnThreadExit();
 	return 0;
 }
 
