@@ -134,6 +134,7 @@ enum
 #define MICROPROFILE_ALLOC(nSize, nAlign) MicroProfileAllocAligned(nSize, nAlign);
 #define MICROPROFILE_REALLOC(p, s) realloc(p, s)
 #define MICROPROFILE_FREE(p) MicroProfileFreeAligned(p)
+#define MICROPROFILE_FREE_NON_ALIGNED(p) free(p)
 #endif
 
 #define MP_ALLOC(nSize, nAlign) MicroProfileAllocInternal(nSize, nAlign)
@@ -1484,11 +1485,19 @@ void MicroProfileShutdown()
 			S.nJsonSettingsBufferSize = 0;
 		}
 		MicroProfileGpuShutdown();
-		MicroProfileStringsDestroy(&S.Strings);
-		MICROPROFILE_FREE(S.WSBuf.pBufferAllocation);
+		MicroProfileHashTableDestroy(&S.Strings.HashTable);
+		MICROPROFILE_FREE_NON_ALIGNED(S.WSBuf.pBufferAllocation);
 
+		for (uint32_t i = 0; i < S.nNumLogs; ++i) {
+			MP_ASSERT(S.Pool[i]->nActive == 2);
+			MP_FREE(S.Pool[i]);
+		}
+
+		for (uint32_t i = 0; i < S.nNumLogsGpu; ++i) {
+			MP_ASSERT(!S.PoolGpu[i].nAllocated);
+			MP_FREE(S.PoolGpu[i]);
+		}
 	}
-
 }
 
 #ifdef MICROPROFILE_IOS
