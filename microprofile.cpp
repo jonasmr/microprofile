@@ -1495,7 +1495,7 @@ void MicroProfileShutdown()
 		}
 
 		for (uint32_t i = 0; i < S.nNumLogsGpu; ++i) {
-			MP_ASSERT(!S.PoolGpu[i].nAllocated);
+			MP_ASSERT(!S.PoolGpu[i]->nAllocated);
 			MP_FREE(S.PoolGpu[i]);
 		}
 	}
