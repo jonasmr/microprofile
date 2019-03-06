@@ -1486,6 +1486,7 @@ void MicroProfileShutdown()
 		}
 		MicroProfileGpuShutdown();
 		MicroProfileHashTableDestroy(&S.Strings.HashTable);
+		MicroProfileStringsDestroy(&S.Strings);
 		MICROPROFILE_FREE_NON_ALIGNED(S.WSBuf.pBufferAllocation);
 
 		for (uint32_t i = 0; i < S.nNumLogs; ++i) {
