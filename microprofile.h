@@ -236,6 +236,7 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #define MICROPROFILE_GPU_ENTERI_L(Log, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MICROPROFILE_INVALID_TOKEN; if(MICROPROFILE_INVALID_TOKEN == MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__)){MicroProfileGetTokenC(&MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), group, name, color, MicroProfileTokenTypeGpu);} MicroProfileEnterGpu(MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), Log)
 #define MICROPROFILE_GPU_LEAVE_L(Log) MicroProfileLeaveGpu(Log)
 #define MICROPROFILE_GPU_INIT_QUEUE(QueueName) MicroProfileInitGpuQueue(QueueName)
+#define MICROPROFILE_GPU_FREE_QUEUE(QueueName) MicroProfileFreeGpuQueue(QueueName)
 #define MICROPROFILE_GPU_GET_QUEUE(QueueName) MicroProfileGetGpuQueue(QueueName)
 #define MICROPROFILE_GPU_BEGIN(pContext, pLog) MicroProfileGpuBegin(pContext, pLog)
 #define MICROPROFILE_GPU_SET_CONTEXT(pContext, pLog) MicroProfileGpuSetContext(pContext, pLog)
@@ -502,6 +503,7 @@ MICROPROFILE_API void MicroProfileThreadLogGpuFree(struct MicroProfileThreadLogG
 MICROPROFILE_API void MicroProfileThreadLogGpuReset(struct MicroProfileThreadLogGpu* pLog);
 MICROPROFILE_API void MicroProfileGpuSubmit(int nQueue, uint64_t nWork);
 MICROPROFILE_API int MicroProfileInitGpuQueue(const char* pQueueName);
+MICROPROFILE_API void MicroProfileFreeGpuQueue(int nQueue);
 MICROPROFILE_API int MicroProfileGetGpuQueue(const char* pQueueName);
 MICROPROFILE_API void MicroProfileFlip(void* pGpuContext); //! call once per frame.
 MICROPROFILE_API void MicroProfileFlip_CB(void* pGpuContext, MicroProfileOnFreeze FreezeCB); //! call once per frame.
