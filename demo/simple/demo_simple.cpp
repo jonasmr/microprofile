@@ -142,8 +142,13 @@ int main(int argc, char* argv[])
 
 	std::thread T(0?LongTest:ExclusiveTest);
 
+#define AUTO_FLIP 1
 
-	// std::thread T(ExclusiveTest);
+
+	#if AUTO_FLIP
+	MicroProfileStartAutoFlip(30);
+	#endif
+
 
 	std::thread TFour(four_sec);
 
@@ -168,7 +173,10 @@ int main(int argc, char* argv[])
 		}
 
 		spinsleep(30000);
+		#if 0 == AUTO_FLIP
 		MicroProfileFlip(0);
+		#endif
+
 		static bool once = false;
 		if(!once)
 		{
@@ -176,7 +184,9 @@ int main(int argc, char* argv[])
 			printf("open localhost:%d in chrome to capture profile data\n", MicroProfileWebServerPort());
 		}
 	}
-
+	#if AUTO_FLIP
+	MicroProfileStopAutoFlip();
+	#endif
 	TFour.join();
 	T.join();
 	MicroProfileShutdown();

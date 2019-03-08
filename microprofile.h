@@ -464,6 +464,8 @@ extern "C" {
 
 MICROPROFILE_API void MicroProfileInit();
 MICROPROFILE_API void MicroProfileShutdown();
+MICROPROFILE_API void MicroProfileStartAutoFlip(uint32_t nHz);
+MICROPROFILE_API void MicroProfileStopAutoFlip();
 MICROPROFILE_API MicroProfileToken MicroProfileFindToken(const char* sGroup, const char* sName);
 MICROPROFILE_API MicroProfileToken MicroProfileGetToken(const char* sGroup, const char* sName, uint32_t nColor, MicroProfileTokenType Token);
 MICROPROFILE_API void MicroProfileGetTokenC(MicroProfileToken* pToken, const char* sGroup, const char* sName, uint32_t nColor, MicroProfileTokenType Token);

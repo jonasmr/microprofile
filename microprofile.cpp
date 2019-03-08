@@ -903,6 +903,12 @@ struct MicroProfile
 	int64_t 					nCounterMin[MICROPROFILE_MAX_COUNTERS];
 #endif
 
+	MicroProfileThread 			AutoFlipThread;
+	std::atomic<uint32_t>		nAutoFlipDelay;
+	std::atomic<uint32_t>		nAutoFlipStop;
+
+
+
 	MicroProfileStrings 		Strings;
 	MicroProfileToken 			CounterToken_MicroProfile;
 	MicroProfileToken 			CounterToken_StringBlock;
@@ -1490,6 +1496,33 @@ void MicroProfileShutdown()
 	}
 
 }
+
+
+static void* MicroProfileAutoFlipThread(void*)
+{
+	MicroProfileOnThreadCreate("AutoFlipThread");
+	while(0 == S.nAutoFlipStop.load())
+	{
+		MICROPROFILE_SCOPEI("MICROPROFILE", "AutoFlipThread", 0);
+		MicroProfileSleep(S.nAutoFlipDelay);
+		MicroProfileFlip(0);
+	}
+	MicroProfileOnThreadExit();
+	return 0;
+}
+
+void MicroProfileStartAutoFlip(uint32_t nMsDelay)
+{
+	S.nAutoFlipDelay = nMsDelay;
+	S.nAutoFlipStop.store(0);
+    MicroProfileThreadStart(&S.AutoFlipThread, MicroProfileAutoFlipThread);
+}
+void MicroProfileStopAutoFlip()
+{
+	S.nAutoFlipStop.store(1);
+	MicroProfileThreadJoin(&S.AutoFlipThread);
+}
+
 
 #ifdef MICROPROFILE_IOS
 inline MicroProfileThreadLog* MicroProfileGetThreadLog()
