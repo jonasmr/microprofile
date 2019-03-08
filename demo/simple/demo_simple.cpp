@@ -44,7 +44,7 @@
 #define MICROPROFILE_IMPL
 #include "microprofile.h"
 
-MICROPROFILE_DEFINE(MAIN, "MAIN", "Main", 0xff0000);
+MICROPROFILE_DEFINE(MAIN, "MAIN", "Main", MP_AUTO);
 
 uint32_t g_nQuit = 0;
 
@@ -117,6 +117,20 @@ void ExclusiveTest()
 	}
 }
 
+void four_sec()
+{
+	MicroProfileOnThreadCreate("four_sec");
+	for(int i = 0; i < 4; ++i)
+	{
+		for(int j = 0; j < 100; ++j)
+		{
+			MICROPROFILE_SCOPEI("four_sec", "four", MP_YELLOW);
+			spinsleep(10000);
+		}
+		printf("step %d\n", i);
+	}
+	MicroProfileOnThreadExit();
+}
 int main(int argc, char* argv[])
 {
 	MicroProfileOnThreadCreate("Main");
@@ -131,24 +145,25 @@ int main(int argc, char* argv[])
 
 	// std::thread T(ExclusiveTest);
 
+	std::thread TFour(four_sec);
 
 	while(!g_nQuit)
 	{
 		MICROPROFILE_SCOPE(MAIN);
 		{
-			MICROPROFILE_SCOPEI("exclusive-test", "stable0", MP_WHEAT);
+			MICROPROFILE_SCOPEI("exclusive-test", "stable0", MP_AUTO);
 			spinsleep(2000);
 		}
 		static int x = 0;
 		if(x++ % 20 < 10)
 		{
-			MICROPROFILE_SCOPEI("exclusive-test", "stable1", MP_GREEN3);
+			MICROPROFILE_SCOPEI("exclusive-test", "stable-hest-1", 0);
 			spinsleep(2000);
 		}
 		else
 		{
 			spinsleep(4000);
-			MICROPROFILE_SCOPEI("exclusive-test", "stable1", MP_GREEN3);
+			MICROPROFILE_SCOPEI("exclusive-test", "slut-prut", MP_AUTO);
 			spinsleep(2000);
 		}
 
@@ -162,6 +177,7 @@ int main(int argc, char* argv[])
 		}
 	}
 
+	TFour.join();
 	T.join();
 	MicroProfileShutdown();
 

@@ -300,6 +300,11 @@ function MakeGroupCid(id, name, category, numtimers, isgpu, total, average, max,
 
 function MakeTimer(id, name, group, color, colordark, average, max, min, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax)
 {
+	if(color == "#000000")
+	{
+		color = ColorFromString(group + "x" + name, 40, 50);
+		colordark = ColorFromString(group + "x" + name, 25, 50);
+	}
 	var spike = max <= 0 || average <= 0 ? 0 : (100 * max / average);
 	var cid = GetColorIndex(color);
 	var timer = {"id":id, "name":name, "len":name.length, "cid":cid, "timercid":cid, "group":group, "average":average, "max":max, "min":min, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "spike":spike,"total":total, "meta":meta, "metaavg":metaavg, "metamax":metamax, "worst":0, "worststart":0, "worstend":0};

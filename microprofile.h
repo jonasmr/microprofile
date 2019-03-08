@@ -734,7 +734,7 @@ enum MicroProfileCounterFlags
 
 
 
-
+#define MP_AUTO 0
 //from http://fugal.net/vim/rgbtxt.html
 #define MP_SNOW 0xfffafa
 #define MP_GHOSTWHITE 0xf8f8ff
@@ -762,7 +762,7 @@ enum MicroProfileCounterFlags
 #define MP_LAVENDERBLUSH 0xfff0f5
 #define MP_MISTYROSE 0xffe4e1
 #define MP_WHITE 0xffffff
-#define MP_BLACK 0x000000
+#define MP_BLACK 0x010101
 #define MP_DARKSLATEGRAY 0x2f4f4f
 #define MP_DARKSLATEGREY 0x2f4f4f
 #define MP_DIMGRAY 0x696969
