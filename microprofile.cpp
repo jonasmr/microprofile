@@ -11701,7 +11701,7 @@ static void MicroProfileMakeWriteable(void* p_)
 
 	while(KERN_SUCCESS == (kr = mach_vm_region_recurse(task, &vmoffset, &vmsize, &nd, (vm_region_recurse_info_t)&vbr, &vbrcount)))
 	{
-		if(p >= vmoffset && p <= vmoffset + vmsize)
+		if(p >= (intptr_t)vmoffset && p <= intptr_t(vmoffset + vmsize))
 		{
 			if(0 == (vbr.protection&VM_PROT_WRITE))
 			{
@@ -11824,7 +11824,7 @@ int MicroProfileFindFunctionName(const char* pStr, const char** ppStart)
 	int nNumParen = 0;
 	int c = 0;
 
-	while(l >= 0 && pStr[l] != ')' && c++ < sizeof(" const")-1)		
+	while(l >= 0 && pStr[l] != ')' && c++ < (int)(sizeof(" const")-1))
 	{
 		l--;
 	}
@@ -11939,7 +11939,7 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 					for(uint32_t i = 0; i < nNumModules; ++i)
 					{
 						intptr_t nBase = S.SymbolModules[nModules[i]].Regions[0].nBegin;
-						if(vmoffset == nBase)
+						if((intptr_t)vmoffset == nBase)
 						{
 							bProcessModule = true;
 							nModule = nModules[i];
@@ -11982,9 +11982,9 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 							break;
 						}
 					}
-					for(uint32_t i = 0; i < S.SymbolNumModules; ++i)
+					for(int i = 0; i < S.SymbolNumModules; ++i)
 					{
-						if(S.SymbolModules[i].Regions[0].nBegin == vmoffset)
+						if(S.SymbolModules[i].Regions[0].nBegin == (intptr_t)vmoffset)
 						{
 							S.SymbolModules[i].nModuleLoadFinished.store(1);
 						}
