@@ -26,21 +26,21 @@ _microprofile_tramp_enter:
 	push r8
 	push r9
 	#sub $88h, %rsp
-	sub rsp, 88h
+	sub rsp, 0x88
 
- 	movdqu 70h[rsp], xmm7
- 	movdqu 60h[rsp], xmm6
- 	movdqu 50h[rsp], xmm5
-	movdqu 40h[rsp], xmm4
-	movdqu 30h[rsp], xmm3
-	movdqu 20h[rsp], xmm2
-	movdqu 10h[rsp], xmm1
+	movdqu 0x70[rsp], xmm7
+	movdqu 0x60[rsp], xmm6
+	movdqu 0x50[rsp], xmm5
+	movdqu 0x40[rsp], xmm4
+	movdqu 0x30[rsp], xmm3
+	movdqu 0x20[rsp], xmm2
+	movdqu 0x10[rsp], xmm1
 	movdqu [rsp], xmm0
 
 # 	#call _microprofile_tramp_get_rsp_loc
 	mov rdi, r12
 _microprofile_tramp_call_patch_push:
-	mov rax, 0102030405060708h
+	mov rax, 0x0102030405060708
  	call rax
  	test rax, rax
  	jz _microprofile_tramp_fail  #if push fails, skip to call code, and dont patch return adress.
@@ -49,13 +49,13 @@ _microprofile_tramp_call_patch_push:
 
 _microprofile_tramp_enter_patch:
 # PATCH 1 TRAMP EXIT
- 	mov rax, 0102030405060708h #patch to tramp_code_end
+ 	mov rax, 0x0102030405060708 #patch to tramp_code_end
  	mov [rsp + 0xb8], rax
 _microprofile_tramp_arg0:
 	mov	rdi, 42
 _microprofile_tramp_intercept0:
 #PATCH 2 INTERCEPT0
-	mov rax, 0102030405060708h
+	mov rax, 0x0102030405060708
 	call rax
 _microprofile_tramp_fail:
 	movdqu xmm7, [rsp + 0x70]
