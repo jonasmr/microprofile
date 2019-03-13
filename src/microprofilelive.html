@@ -5339,6 +5339,14 @@ function AddTimer(T)
 		TimerArray[idx].counterhistory.history = AllocClearedArray(120);
 		TimerArray[idx].counterhistory.prc = AllocClearedArray(120);		
 	}
+	if(idtype == TYPE_TIMER)
+	{
+		if(T.color == "#000000")
+		{
+			T.color = ColorFromString(T.name + "x" + Parent.name, 40, 50);
+		}
+
+	}
 	RequestDraw();
 }
 

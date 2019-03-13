@@ -302,8 +302,8 @@ function MakeTimer(id, name, group, color, colordark, average, max, min, exclave
 {
 	if(color == "#000000")
 	{
-		color = ColorFromString(group + "x" + name, 40, 50);
-		colordark = ColorFromString(group + "x" + name, 25, 50);
+		color = ColorFromString(name + "x" + group, 40, 50);
+		colordark = ColorFromString(name + "x" + group, 25, 50);
 	}
 	var spike = max <= 0 || average <= 0 ? 0 : (100 * max / average);
 	var cid = GetColorIndex(color);
