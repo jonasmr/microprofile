@@ -134,6 +134,7 @@ enum
 #define MICROPROFILE_ALLOC(nSize, nAlign) MicroProfileAllocAligned(nSize, nAlign);
 #define MICROPROFILE_REALLOC(p, s) realloc(p, s)
 #define MICROPROFILE_FREE(p) MicroProfileFreeAligned(p)
+#define MICROPROFILE_FREE_NON_ALIGNED(p) free(p)
 #endif
 
 #define MP_ALLOC(nSize, nAlign) MicroProfileAllocInternal(nSize, nAlign)
@@ -1490,11 +1491,23 @@ void MicroProfileShutdown()
 			S.nJsonSettingsBufferSize = 0;
 		}
 		MicroProfileGpuShutdown();
+		MicroProfileHashTableDestroy(&S.Strings.HashTable);
 		MicroProfileStringsDestroy(&S.Strings);
-		MICROPROFILE_FREE(S.WSBuf.pBufferAllocation);
+		MICROPROFILE_FREE_NON_ALIGNED(S.WSBuf.pBufferAllocation);
 
+		MicroProfileFreeGpuQueue(S.GpuQueue);
+		MicroProfileThreadLogGpuFree(S.pGpuGlobal);
+
+		for (uint32_t i = 0; i < S.nNumLogs; ++i) {
+			MP_ASSERT(S.Pool[i]->nActive != 1);
+			MP_FREE(S.Pool[i]);
+		}
+
+		for (uint32_t i = 0; i < S.nNumLogsGpu; ++i) {
+			MP_ASSERT(!S.PoolGpu[i]->nAllocated);
+			MP_FREE(S.PoolGpu[i]);
+		}
 	}
-
 }
 
 
@@ -1766,6 +1779,15 @@ int MicroProfileInitGpuQueue(const char* pQueueName)
 	MP_BREAK();
 	return 0;
 }
+
+void MicroProfileFreeGpuQueue(int nQueue) {
+	MicroProfileThreadLog* pLog = S.Pool[nQueue];
+	if (pLog) {
+		MP_ASSERT(pLog->nActive == 1);
+		pLog->nActive = 2;
+	}
+}
+
 MicroProfileThreadLogGpu* MicroProfileGetGlobalGpuThreadLog()
 {
 	return S.pGpuGlobal;
@@ -5404,6 +5426,7 @@ void* MicroProfileSocketSenderThread(void*)
 			MicroProfileSleep(20);
 		}
 	}
+	MicroProfileOnThreadExit();
 	return 0;
 }
 
@@ -5447,6 +5470,9 @@ void MicroProfileSocketSend(MpSocket Connection, const void* pMessage, int nLen)
 		}
 		else
 		{
+			if (S.nSocketFail) {
+				return;
+			}
 			MicroProfileSleep(20);
 		}
 
@@ -5473,7 +5499,20 @@ bool MicroProfileSocketSend2(MpSocket Connection, const void* pMessage, int nLen
 #endif
 
 	int s = 0;
-	s = send(Connection, (const char*)pMessage, nLen, 0);
+	while (nLen) {
+		s = send(Connection, (const char*)pMessage, nLen, 0);
+		if (s < 0) {
+			const int error = errno;
+			if (error == EAGAIN || error == EWOULDBLOCK) {
+				MicroProfileSleep(20);
+				continue;
+			}
+			break;
+		}
+
+		nLen -= s;
+		pMessage = (const char*)pMessage + s;
+	}
 #ifdef _WIN32
 	if(s == SOCKET_ERROR)
 	{
@@ -5484,7 +5523,6 @@ bool MicroProfileSocketSend2(MpSocket Connection, const void* pMessage, int nLen
 	{
 		return false;
 	}
-	MP_ASSERT(s == nLen);
 	return true;
 }
 
@@ -7655,6 +7693,7 @@ void* MicroProfileTraceThread(void* unused)
 		CloseHandle(hMemory);
 	}
 	S.bContextSwitchRunning = false;
+	MicroProfileOnThreadExit();
 	return 0;
 }
 
