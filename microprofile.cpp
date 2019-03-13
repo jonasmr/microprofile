@@ -1499,12 +1499,12 @@ void MicroProfileShutdown()
 		MicroProfileThreadLogGpuFree(S.pGpuGlobal);
 
 		for (uint32_t i = 0; i < S.nNumLogs; ++i) {
-			MP_ASSERT(S.Pool[i]->nActive != 1);
+			// MP_ASSERT(S.Pool[i]->nActive != 1);
 			MP_FREE(S.Pool[i]);
 		}
 
 		for (uint32_t i = 0; i < S.nNumLogsGpu; ++i) {
-			MP_ASSERT(!S.PoolGpu[i]->nAllocated);
+			// MP_ASSERT(!S.PoolGpu[i]->nAllocated);
 			MP_FREE(S.PoolGpu[i]);
 		}
 	}
