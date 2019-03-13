@@ -447,6 +447,10 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #endif
 
 
+#ifndef MICROPROFILE_ASSERT_LOG_FREED
+#define MICROPROFILE_ASSERT_LOG_FREED 0
+#endif
+
 typedef enum MicroProfileTokenType_t
 {
 	MicroProfileTokenTypeCpu,
