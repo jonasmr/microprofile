@@ -197,7 +197,7 @@ void MicroProfileFreeAligned(void* pMem);
 #endif
 
 #define MP_TICK() mach_absolute_time()
-inline int64_t MicroProfileTicksPerSecondCpu()
+inline int64_t MicroProfileTicksPerSecondCpu_()
 {
 	static int64_t nTicksPerSecond = 0;
 	if (nTicksPerSecond == 0)
@@ -208,6 +208,13 @@ inline int64_t MicroProfileTicksPerSecondCpu()
 	}
 	return nTicksPerSecond;
 }
+
+int64_t MicroProfileTicksPerSecondCpu()
+{
+	return MicroProfileTicksPerSecondCpu_();
+}
+#define MicroProfileTicksPerSecondCpu MicroProfileTicksPerSecondCpu_
+
 inline uint64_t MicroProfileGetCurrentThreadId()
 {
 	uint64_t tid;
@@ -274,10 +281,17 @@ void MicroProfileFreeAligned(void* pMem)
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
-inline int64_t MicroProfileTicksPerSecondCpu()
+inline int64_t MicroProfileTicksPerSecondCpu_()
 {
 	return 1000000000ll;
 }
+
+int64_t MicroProfileTicksPerSecondCpu()
+{
+	return MicroProfileTicksPerSecondCpu();
+}
+#define MicroProfileTicksPerSecondCpu MicroProfileTicksPerSecondCpu_
+
 
 inline int64_t MicroProfileGetTick()
 {
