@@ -288,7 +288,7 @@ inline int64_t MicroProfileTicksPerSecondCpu_()
 
 int64_t MicroProfileTicksPerSecondCpu()
 {
-	return MicroProfileTicksPerSecondCpu();
+	return MicroProfileTicksPerSecondCpu_();
 }
 #define MicroProfileTicksPerSecondCpu MicroProfileTicksPerSecondCpu_
 
