@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClInclude Include="d3dx12.h" />
+    <ClInclude Include="..\..\microprofile.h" />
+    <ClInclude Include="..\..\microprofile_html.h" />
+    <ClInclude Include="..\..\microprofileui.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\microprofile.cpp" />
+    <ClCompile Include="d3d12.cpp" />
+  </ItemGroup>
+</Project>

@@ -29,6 +29,10 @@ void DumpFile(FILE* pOut, const char* pEmbedData, const char* pPrefix, const cha
 
 	size_t len = pEmbedData ? strlen(pEmbedData) : 0;
 	int nNumBlocks = 0;
+	int Q0 = 0;
+	int Q1 = 0;
+	int LineComment = 0;
+
 	while(len)
 	{
 		//split into 10k chunks.. because of visual studio..
@@ -38,22 +42,46 @@ void DumpFile(FILE* pOut, const char* pEmbedData, const char* pPrefix, const cha
 		for(size_t i = 0; i < nChunk; ++i)
 		{
 			char c = *pEmbedData++;
+			if(0 == Q0 && 0 == Q1 && c == '/')
+			{
+				LineComment++;
+			}
+			else if(LineComment == 1)
+			{
+				LineComment = 0;
+			}
 			switch(c)
 			{
 				case '\n':
-				#ifdef _WIN32
-					fprintf(pOut, "\\n\"\n\""); 
-				#else
-					fprintf(pOut, "\\n\"\r\n\""); 
-				#endif
+					#ifdef _WIN32
+						fprintf(pOut, "\\n\"\n\""); 
+					#else
+						fprintf(pOut, "\\n\"\r\n\""); 
+					#endif
+					LineComment = 0;
 					break;
 				case '\\':
-					fprintf(pOut, "\\"); 
+					if(Q0 || Q1)
+					{
+						fprintf(pOut, "\\\\"); 
+					}
+					else
+					{
+						fprintf(pOut, "\\\\"); 
+					}
 					break;
 				case '\"':
+					if(LineComment < 2)
+					{
+						Q1 = 1 - Q1;
+					}
 					fprintf(pOut, "\\\""); 
 					break;
 				case '\'':
+					if(LineComment < 2)
+					{
+						Q0 = 1 - Q0;
+					}
 					fprintf(pOut, "\\\'"); 
 					break;
 				default:

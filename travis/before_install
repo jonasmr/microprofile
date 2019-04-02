@@ -1,0 +1,21 @@
+#!/bin/bash
+echo "hello from before_install"
+if [[ "$TRAVIS_OS_NAME" = "windows" ]] ; then
+	export PATH="c:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\BuildTools\\MSBuild\\15.0\Bin\\":$PATH
+	pushd distorm\\make\\win32\\
+	MSBuild.exe cdistorm.vcxproj /property:Configuration="clib";Platform="x64"
+	popd	
+fi
+
+if [[ "$TRAVIS_OS_NAME" = "osx" ]]; then
+	export DISTORM_MODE=DISTORM_STATIC
+	pushd distorm/make/mac
+	make
+	popd
+fi
+
+if [[ "$TRAVIS_OS_NAME" = "linux" ]]; then
+	pushd distorm/make/linux
+	make
+	popd
+fi

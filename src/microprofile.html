@@ -32,9 +32,9 @@ li:hover ul {
     margin-left:0;
     margin-right:0;
 }
-ul li ul{ display:block;float:none;width:100%;}
-ul li ul li{ display:block;float:none;width:100%;}
-li li a{ display:block;float:none;width:100%;text-align:left;}
+ul li ul{ display:block;float:none;}
+ul li ul li{ display:block;float:none;}
+li li a{ display:block;float:none;text-align:left;word-break: keep-all;white-space: nowrap;}
 #nav li:hover div {margin-left:0;}
 .help {position:absolute;z-index:5;text-align:left;padding:2px;margin-left:-999em;background-color: #313131;width:300px;}
 .helpstart {position:absolute;z-index:5;text-align:left;padding:2px;background-color: #313131;width:300px;display:none}
@@ -46,6 +46,7 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 </style>
 </head>
 <body style="">
+<input type="file" id="file-input" style="display:none"/>
 <div id='filterinput'>
 <div class="filterinput0">Group<br><input type="text" id="filtergroup"></div>
 <div class="filterinput1">Timer/Thread<br><input type="text" id="filtertimer"></div>
@@ -69,16 +70,35 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 </li>
 <li><a>Reference</a>
     <ul id='ReferenceSubMenu'>
+        <li><a href="javascript:void(0)" onclick="SetReferenceTime('auto');">auto</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('5ms');">5ms</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('10ms');">10ms</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('15ms');">15ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetReferenceTime('16ms');">16ms</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('20ms');">20ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetReferenceTime('30ms');">30ms</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('33ms');">33ms</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('50ms');">50ms</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('100ms');">100ms</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('250ms');">250ms</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('500ms');">500ms</a></li>
         <li><a href="javascript:void(0)" onclick="SetReferenceTime('1000ms');">1000ms</a></li>
+    </ul>
+</li>
+<li><a>Target</a>
+    <ul id='TargetSubMenu'>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('5ms');">5ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('10ms');">10ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('15ms');">15ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('16ms');">16ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('20ms');">20ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('30ms');">30ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('33ms');">33ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('50ms');">50ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('100ms');">100ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('250ms');">250ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('500ms');">500ms</a></li>
+        <li><a href="javascript:void(0)" onclick="SetTargetTime('1000ms');">1000ms</a></li>
     </ul>
 </li>
 <li id="ilColumns"><a>Columns</a>
@@ -96,7 +116,8 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 </li>
 <li id="ilThreads"><a>Threads</a>
     <ul id="ThreadSubMenu">
-        <li><a href="javascript:void(0)" onclick="ToggleThread();">All</a></li>
+        <li><a href="javascript:void(0)" onclick="ToggleThread(0, 1);">All</a></li>
+        <li><a href="javascript:void(0)" onclick="ToggleThread(0, 0);">None</a></li>
         <li><a>---</a></li>
     </ul>
 </li>
@@ -106,16 +127,18 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
         <li><a>---</a></li>
     </ul>
 </li>
-<li id="ilOptions"><a>Options&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</a>
+<li id="ilOptions"><a>Options</a>
     <ul id='OptionsMenu'>
         <li><a href="javascript:void(0)" onclick="ToggleContextSwitch();">Context Switch</a></li>
 		<li><a href="javascript:void(0)" onclick="ToggleDisableMerge();">MergeDisable</a></li>
 		<li><a href="javascript:void(0)" onclick="ToggleDisableLod();">LodDisable</a></li>
-		<li id='GroupColors'><a href="javascript:void(0)" onclick="ToggleGroupColors();">Group Colors</a></li>
+		<li id='DrawDetailedFlameMode'><a href="javascript:void(0)" onclick="ToggleDetailedFlameMode();">Flame Mode</a></li>
+		<li><a href="javascript:void(0)" onclick="ToggleDetailedSecondReverse();">Compare Reverse</a></li>
         <li id='ShowHelp'><a href="javascript:void(0)" onclick="ShowHelp(1,1);">Help</a></li>
 <!--      	<li><a href="javascript:void(0)" onclick="ToggleDebug();">DEBUG</a></li> -->
     </ul>
 </li>
+<li><a id='ComparePromptA' href="javascript:void(0)" onclick="ComparePrompt();">Compare</a></li>
 </ul>
 </div>
 <div class="helpstart" id="helpwindow" style="left:20px;top:20px">
@@ -215,11 +238,11 @@ function ConvertColorDark(hexTripletColor)
 	var color = hexTripletColor;
 	color = color.substring(1); // remove #
 	color = parseInt(color, 16); // convert to integer
-	console.log(color.toString(16));
+	// console.log(color.toString(16));
 	color = (color >> 1);
-	console.log(color.toString(16));
+	// console.log(color.toString(16));
 	color = color & 0x7f7f7f;
-	console.log(color.toString(16));
+	// console.log(color.toString(16));
 	return '#' + ("000000" + color.toString(16)).slice(-6);
 }
 function InvertColor(hexTripletColor) 
@@ -257,20 +280,53 @@ function InvertColorIndex(hexTripletColor) {
 		return 1;
 	}
 }
+
 function MakeGroup(id, name, category, numtimers, isgpu, total, average, max, color)
 {
+	if(color == "")
+	{
+		color = ColorFromString(name, 40, 50);
+	}
 	var cid = GetColorIndex(color);
+	var group = {"id":id, "name":name, "category":category, "numtimers":numtimers, "isgpu":isgpu, "total": total, "average" : average, "max" : max, "cid":cid};
+	return group;
+}
+
+function MakeGroupCid(id, name, category, numtimers, isgpu, total, average, max, color, cid)
+{
 	var group = {"id":id, "name":name, "category":category, "numtimers":numtimers, "isgpu":isgpu, "total": total, "average" : average, "max" : max, "cid":cid};
 	return group;
 }
 
 function MakeTimer(id, name, group, color, colordark, average, max, min, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax)
 {
+	if(color == "#000000")
+	{
+		color = ColorFromString(name + "x" + group, 40, 50);
+		colordark = ColorFromString(name + "x" + group, 25, 50);
+	}
 	var spike = max <= 0 || average <= 0 ? 0 : (100 * max / average);
 	var cid = GetColorIndex(color);
 	var timer = {"id":id, "name":name, "len":name.length, "cid":cid, "timercid":cid, "group":group, "average":average, "max":max, "min":min, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "spike":spike,"total":total, "meta":meta, "metaavg":metaavg, "metamax":metamax, "worst":0, "worststart":0, "worstend":0};
 	return timer;
 }
+
+function MakeTimerCid(id, name, group, cid, average, max, min, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax)
+{
+	var spike = max <= 0 || average <= 0 ? 0 : (100 * max / average);
+	var timer = {"id":id, "name":name, "len":name.length, "cid":cid, "timercid":cid, "group":group, "average":average, "max":max, "min":min, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "spike":spike,"total":total, "meta":meta, "metaavg":metaavg, "metamax":metamax, "worst":0, "worststart":0, "worstend":0};
+	return timer;
+}
+
+function CloneTimer(T)
+{
+	return MakeTimerCid(T.id, T.name, T.group, T.cid, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+function CloneGroup(G)
+{
+	return MakeGroupCid(G.id, G.name, G.category, G.numtimers, G.isgpu, G.total, G.average, G.max, G.cid);
+}
+
 function MakeFrame(id, framestart, frameend, framestartgpu, frameendgpu, ts, tt, ti)
 {
 	var frame = {"id":id, "framestart":framestart, "frameend":frameend, "framestartgpu":framestartgpu, "frameendgpu":frameendgpu, "ts":ts, "tt":tt, "ti":ti};
@@ -286,6 +342,15 @@ function MakeCounter(id, parent, sibling, firstchild, level, name, value, minval
 	var counter = { "id":id, "parent":parent, "sibling":sibling, "firstchild":firstchild, "level": level, "name":name, "value":value, "formatted":formatted, "limit":limit, "formattedlimit":formattedlimit, "counterprc":counterprc, "boxprc":boxprc, "counterhistory":counterhistory, "format":format, "minvalue":minvalue, "maxvalue":maxvalue};
 	return counter;
 }
+function Clamp(v, low, high)
+{
+	return v < low ? low : (v > high ? high : v);
+}
+function FormatTime(Time)
+{
+	return Time.toFixed(2);
+}
+
 
 
 var g_ColorMap = {};
@@ -325,18 +390,21 @@ g_ColorH.push(0);
 g_ColorS.push(0);
 g_ColorL.push(0);
 
-
+var S = {};
+var S2 = {};
 var Timeline = {};
-var TimelineArray = [];
-var TimelineIdArray = [];
-var TimelineNames = [];
-var TimelineColorArray = [];
+S.TimelineArray = [];
+S.TimelineIdArray = [];
+S.TimelineNames = [];
+S.TimelineColorArray = [];
 
 
 
-
+//EBEGIN
 ____embed____
+//EEND
 
+var G_DEBUG = 0;
 
 var CanvasDetailedView = document.getElementById('DetailedView');
 var CanvasHistory = document.getElementById('History');
@@ -355,12 +423,19 @@ var FilterGroup = null;
 var FilterTimer = null;
 var g_Msg = '0';
 
+var RedrawRequested = 0;
+
+
 var Initialized = 0;
-var fDetailedOffset = Frames[0].framestart;
-var fDetailedRange = Frames[Frames.length-1].frameend - fDetailedOffset;
+var fDetailedOffset = S.Frames[0].framestart;
+var fDetailedOffsetSecond = 0;
+var fDetailedRange = S.Frames[S.Frames.length-1].frameend - fDetailedOffset;
 var nWidth = CanvasDetailedView.width;
 var nHeight = CanvasDetailedView.height;
+var ReferenceTimeString = 'auto';
 var ReferenceTime = 33;
+var TargetTime = 16;
+var TargetTimeString = '16ms';
 var nHistoryHeight = 70;
 var nOffsetY = 0;
 var nOffsetBarsX = 0;
@@ -369,16 +444,17 @@ var nOffsetCountersY = 0;
 var nOffsetFilterSearch = 0;
 var FilterInputSearchLast = '';
 var nBarsWidth = 80;
-var GroupNameWidth = 200;
-var TimerNameWidth = 200;
 var MouseButtonState = [0,0,0,0,0,0,0,0];
 var KeyShiftDown = 0;
-var MouseDragButton = 0;
+var KeyAltDown = 0;
 var KeyCtrlDown = 0;
+var MouseDragButton = 0;
 var ToolTipFlip = 0; 
 var ToolTipCorner = 1;
 var DetailedViewMouseX = 0;
 var DetailedViewMouseY = 0;
+var DetailedMouseOverButton = 0;
+var DetailedMouseEvent = null;
 var HistoryViewMouseX = -1;
 var HistoryViewMouseY = -1;
 var MouseHistory = 0;
@@ -389,7 +465,8 @@ var FontAscent = 3; //Set manually
 var Font = 'Bold ' + FontHeight + 'px Courier New';
 var FontFlash = 'Bold ' + 35 + 'px Courier New';
 var BoxHeight = FontHeight + 2;
-var ThreadsActive = new Object();
+var ThreadsActive = {};
+var ThreadsActiveBackup = {};
 var ThreadsAllActive = 1;
 var GroupsActive = new Object();
 var GroupsAllActive = 1;
@@ -399,6 +476,8 @@ var nContextSwitchEnabled = 1;
 var DisableLod = 0;
 var DisableMerge = 0;
 var GroupColors = 0;
+var DrawDetailedFlameMode = 0;
+var DrawDetailedCompareReverse = 1;
 var nModDown = 0;
 var g_MSG = 'no';
 var nDrawCount = 0;
@@ -415,6 +494,7 @@ var nHoverCSCpu = -1;
 var nHoverCSCpuNext = -1;
 var nHoverCSToolTip = null;
 var nHoverToken = -1;
+var HoverTokenOwner = null;
 var nHoverFrame = -1;
 var nHoverTokenIndex = -1;
 var nHoverTokenLogIndex = -1;
@@ -423,6 +503,7 @@ var nHoverCounterDelta = 8;
 var nHoverTokenNext = -1;
 var nHoverTokenLogIndexNext = -1;
 var nHoverTokenIndexNext = -1;
+var HoverTokenNextOwner = null;
 var nHoverCounter = -1;
 var nHoverTokenDrawn = -1;
 var nHideHelp = 0;
@@ -438,11 +519,12 @@ var FilterSearchActive = 0;
 var FilterSearchSelection = -1;
 var FilterSearchSelectionMax = 0;
 var FilterSearchPassIndex = -1;
-var FilterSearchArray = new Array();
+FilterSearchReset();
 var FilterSearchStartTime = new Date();
+var IgnoreInput = 0;
 function RangeInit()
 {
-	return {"Begin":-1, "End":-1, "YBegin":-1, "YEnd":-1, "Thread": -1 , "Index": -1};
+	return {"Begin":-1, "End":-1, "YBegin":-1, "YEnd":-1, "Thread": -1 , "Index": -1, "Off": 0, "Second":0};
 }
 function RangeValid(Range)
 {
@@ -455,6 +537,8 @@ function RangeCopy(Dst, Src)
 	Dst.YBegin = Src.YBegin;
 	Dst.YEnd = Src.YEnd;
 	Dst.Thread = Src.Thread;
+	Dst.Off = Src.Off;
+	Dst.Second = Src.Second;
 }
 var RangeCpu = RangeInit();
 var RangeGpu = RangeInit();
@@ -480,7 +564,8 @@ var fRangeBeginHistoryGpu = -1;
 var fRangeEndHistoryGpu = -1;
 var fRangeBeginSelect = 0;
 var fRangeEndSelect = -1;
-var ThreadY;
+var ThreadYBegin;
+var ThreadYEnd;
 
 var ModeDetailed = 0;
 var ModeTimers = 1;
@@ -498,18 +583,11 @@ var ProfileFpsAggr = 0;
 var ProfileFpsCount = 0;
 var ProfileLastTimeStamp = new Date();
 
-var CSwitchCache = {};
-var CSwitchOnlyThreads = [];
 var ProfileData = {};
 var ProfileStackTime = {};
 var ProfileStackName = {};
 var Debug = 1;
 
-var g_MaxStack = Array();
-var g_TypeArray;
-var g_TimeArray;
-var g_IndexArray;
-var LodData = new Array();
 var NumLodSplits = 10;
 var SplitMin = 100;
 var SPLIT_LIMIT = 1e20;
@@ -520,6 +598,8 @@ var DetailedFrameCounter = 0;
 var Invalidate = 0;
 var GroupOrder = Array();
 var ThreadOrder = Array();
+var ThreadOrderNames = Array();
+var ThreadOrderT = Array();
 var TimersGroups = 0;
 var MetaLengths = Array();
 var MetaLengthsAvg = Array();
@@ -540,9 +620,9 @@ var StrCount = "Count";
 var StrExclAverage = "Excl Average";
 var StrExclMax = "Excl Max";
 
-
-
-
+var GroupRemapReverse = [];
+var TimerRemapReverse = [];
+var ThreadRemapReverse = [];
 
 function ProfileModeClear()
 {
@@ -670,16 +750,17 @@ function ToggleDebugMode()
 	console.log('Toggle Debug Mode ' + ProfileMode);
 }
 
-function DetailedTotal()
+function DetailedTotal(S)
 {
 	var Total = 0;
-	for(var i = 0; i < Frames.length; i++)
+	for(var i = 0; i < S.Frames.length; i++)
 	{
-		var frfr = Frames[i];
+		var frfr = S.Frames[i];
 		Total += frfr.frameend - frfr.framestart;
 	}
 	return Total;
 }
+
 
 function InitFrameInfo()
 {
@@ -687,38 +768,112 @@ function InitFrameInfo()
 	var div = document.getElementById('divFrameInfo');
 	var txt = '';
 	txt = txt + 'Timers View' + '<br>';
-	txt = txt + 'Frames:' + AggregateInfo.Frames +'<br>';
-	txt = txt + 'Time:' + AggregateInfo.Time.toFixed(2) +'ms<br>';
+	txt = txt + 'Frames:' + S.AggregateInfo.Frames +'<br>';
+	txt = txt + 'Time:' + S.AggregateInfo.Time.toFixed(2) +'ms<br>';
 	txt = txt + '<hr>';
 	txt = txt + 'Detailed View' + '<br>';
-	txt = txt + 'Frames:' + Frames.length +'<br>';
-	txt = txt + 'Time:' + DetailedTotal().toFixed(2) +'ms<br>';
+	txt = txt + 'Frames:' + S.Frames.length +'<br>';
+	txt = txt + 'Time:' + DetailedTotal(S).toFixed(2) +'ms<br>';
 	div.innerHTML = txt;
 }
 function InitGroups()
 {
-	for(groupid in GroupInfo)
+	for(groupid in S.GroupInfo)
 	{
 		var TimerArray = Array();
-		for(timerid in TimerInfo)
+		for(timerid in S.TimerInfo)
 		{
-			if(TimerInfo[timerid].group == groupid)
+			if(S.TimerInfo[timerid].group == groupid)
 			{
 				TimerArray.push(timerid);
 			}
 		}
-		GroupInfo[groupid].TimerArray = TimerArray;
+		S.GroupInfo[groupid].TimerArray = TimerArray;
 	}
 }
+
+
+function ThreadOrderMove(Name, Dir, Top)
+{	
+	let idx = ThreadOrderNames.indexOf(Name);
+	let base = idx;
+	idx += Dir;
+	let found = -1;
+	while(idx >= 0 && idx <= ThreadOrderNames.length)
+	{
+		let n = S.ThreadNames.indexOf(ThreadOrderNames[idx]);
+		if(n != -1)
+		{
+			found = idx;
+			if(!Top)
+				break;
+		}
+		idx += Dir;
+	}
+	Dir = -Dir; 
+	while(found >= 0 && found <= ThreadOrderNames.length && (Dir > 0 ? (found <= base) : (found >= base)))
+	{
+		let Tmp = ThreadOrderNames[found];
+		ThreadOrderNames[found] = Name;
+		Name = Tmp;
+		found += Dir;
+	}
+	ThreadOrderSort();
+}
+function ThreadOrderMoveUp(Name, Top)
+{
+	ThreadOrderMove(Name, -1, Top);
+	WriteCookie();
+}
+function ThreadOrderMoveDown(Name, Top)
+{
+	ThreadOrderMove(Name, 1, Top);
+	WriteCookie();
+}
+function ThreadOrderSort()
+{
+	for(let i = 0; i < S.ThreadNames.length; ++i)
+	{
+		var name = S.ThreadNames[i];
+		var idx = ThreadOrderNames.indexOf(name);
+		if(idx == -1)
+		{
+			ThreadOrderNames.push(name);
+		}
+	}
+
+	//clear all that are not present??
+	let ThreadOrderX = Array(S.ThreadNames.length);
+	for(let i = 0; i < S.ThreadNames.length; ++i)
+	{
+		var n = ThreadOrderNames.indexOf(S.ThreadNames[i]);
+		if(n == -1)
+		{
+			debugger;
+		}
+		ThreadOrderX[i] = {"i":i, "n": n};
+	}
+	ThreadOrderX.sort(function(l,r){return l.n-r.n;});
+	ThreadOrderT = Array(S.ThreadNames.length);
+	for(let i = 0; i < S.ThreadNames.length; ++i)
+	{
+		ThreadOrderT[i] = ThreadOrderX[i].i;
+	}
+}
+
+
 
 function InitThreadMenu()
 {
 	var ulThreadMenu = document.getElementById('ThreadSubMenu');
 	var MaxLen = 7;
-	ThreadOrder = CreateOrderArray(ThreadNames, function(a){return a;});
+
+	ThreadOrder = [];
+	ThreadOrder = CreateOrderArray(S.ThreadNames, function(a){return a;});
+
 	for(var idx in ThreadOrder)
 	{
-		var name = ThreadNames[ThreadOrder[idx]];
+		var name = S.ThreadNames[ThreadOrder[idx]];
 		var li = document.createElement('li');
 		if(name.length > MaxLen)
 		{
@@ -742,24 +897,18 @@ function UpdateThreadMenu()
 {
 	var ulThreadMenu = document.getElementById('ThreadSubMenu');
 	var as = ulThreadMenu.getElementsByTagName('a');
-	for(var i = 0; i < as.length; ++i)
+	for(let i = 0; i < as.length; ++i)
 	{
 		var elem = as[i];
 		var inner = elem.innerText;
 		var bActive = false;
-		if(i < 2)
-		{
-			if(inner == 'All')
-			{
-				bActive = ThreadsAllActive;
-			}
-		}
-		else
+		if(i > 2)
 		{
 			bActive = ThreadsActive[inner];
 		}
 		if(bActive)
 		{
+
 			elem.style['text-decoration'] = 'underline';
 		}
 		else
@@ -767,9 +916,18 @@ function UpdateThreadMenu()
 			elem.style['text-decoration'] = 'none';
 		}
 	}
+	for(let i = 0; i < S.ThreadNames.length; ++i)
+	{
+		let n = S.ThreadNames[i];
+		if(0 != ThreadsActive[n])
+		{
+			ThreadsActive[n] = 1;
+		}
+	}
+
 }
 
-function ToggleThread(ThreadName)
+function ToggleThread(ThreadName, All)
 {
 	if(ThreadName)
 	{
@@ -784,20 +942,47 @@ function ToggleThread(ThreadName)
 	}
 	else
 	{
-		if(ThreadsAllActive)
+		let B = {};
+		let A = 0;
+		let I = 0;
+		for(let i in ThreadsActive)
 		{
-			ThreadsAllActive = 0;
+			B[i] = ThreadsActive[i];
+			if(ThreadsActive[i])
+			{
+				A++;
+			}
+			else
+			{
+				I++;
+			}
+			ThreadsActive[i] = All;
 		}
-		else
+		if(All)
 		{
-			ThreadsAllActive = 1;
+			for(let i in S.ThreadNames)
+			{
+				if(!ThreadsActive[S.ThreadNames[i]])
+				{
+					ThreadsActive[S.ThreadNames[i]] = 1;
+					I++;
+				}
+			}
+		}
+		if(((I == 0 && All) || (A == 0 && !All)) && Object.keys(ThreadsActiveBackup).length)
+		{
+			ThreadsActive = ThreadsActiveBackup;
+		}
+		else if(I != 0 && A != 0)
+		{
+			ThreadsActiveBackup = B;
 		}
 	}
 	Invalidate = 0;
 	UpdateThreadMenu();
+	FilterSearchReset();
 	WriteCookie();
-	Draw(1);
-
+	RequestRedraw();
 }
 
 function CreateOrderArray(Source, NameFunc)
@@ -866,27 +1051,27 @@ function InitGroupMenu()
 	var ulGroupMenu = document.getElementById('GroupSubMenu');
 	var MaxLen = 7;
 	var MenuArray = Array();
-	for(var i = 0; i < GroupInfo.length; ++i)
+	for(var i = 0; i < S.GroupInfo.length; ++i)
 	{
 		var x = {};
 		x.IsCategory = 0;
-		x.category = GroupInfo[i].category;
-		x.name = GroupInfo[i].name;
+		x.category = S.GroupInfo[i].category;
+		x.name = S.GroupInfo[i].name;
 		x.index = i;
 		MenuArray.push(x);
 	}
-	for(var i = 0; i < CategoryInfo.length; ++i)
+	for(var i = 0; i < S.CategoryInfo.length; ++i)
 	{
 		var x = {};
 		x.IsCategory = 1;
 		x.category = i;
-		x.name = CategoryInfo[i];
+		x.name = S.CategoryInfo[i];
 		x.index = i;
 		MenuArray.push(x);
 	}
 	var OrderFunction = function(a){ return a.category + "__" + a.name; };
 	var OrderFunctionMenu = function(a){ return a.IsCategory ? (a.category + '') : (a.category + "__" + a.name); };
-	GroupOrder = CreateOrderArray(GroupInfo, OrderFunction);
+	GroupOrder = CreateOrderArray(S.GroupInfo, OrderFunction);
 	var MenuOrder = CreateOrderArray(MenuArray, OrderFunctionMenu);
 
 	for(var idx in MenuOrder)
@@ -964,9 +1149,9 @@ function UpdateGroupMenu()
 }
 function CategoryIndex(CategoryName)
 {
-	for(var i = 0; i < CategoryInfo.length; ++i)
+	for(var i = 0; i < S.CategoryInfo.length; ++i)
 	{
-		if(CategoryInfo[i] == CategoryName)
+		if(S.CategoryInfo[i] == CategoryName)
 		{
 			return i;
 		}
@@ -975,11 +1160,11 @@ function CategoryIndex(CategoryName)
 }
 function IsCategoryActive(CategoryIdx)
 {
-	for(var i = 0; i < GroupInfo.length; ++i)
+	for(var i = 0; i < S.GroupInfo.length; ++i)
 	{
-		if(GroupInfo[i].category == CategoryIdx)
+		if(S.GroupInfo[i].category == CategoryIdx)
 		{
-			var Name = GroupInfo[i].name;
+			var Name = S.GroupInfo[i].name;
 			if(!GroupsActive[Name])
 			{
 				return false;
@@ -995,11 +1180,11 @@ function ToggleCategory(CategoryName)
 	if(CategoryIdx < 0)
 		return;
 	var CategoryActive = IsCategoryActive(CategoryIdx);
-	for(var i = 0; i < GroupInfo.length; ++i)
+	for(var i = 0; i < S.GroupInfo.length; ++i)
 	{
-		if(GroupInfo[i].category == CategoryIdx)
+		if(S.GroupInfo[i].category == CategoryIdx)
 		{
-			var Name = GroupInfo[i].name;
+			var Name = S.GroupInfo[i].name;
 			if(CategoryActive)
 			{
 				GroupsActive[Name] = false;
@@ -1045,32 +1230,35 @@ function ToggleGroup(GroupName)
 }
 function UpdateGroupColors()
 {
-	for(var i = 0; i < TimerInfo.length; ++i)
+	for(var i = 0; i < S.TimerInfo.length; ++i)
 	{
-		if(GroupColors)
+		if(GroupColors == 1)
 		{
-			TimerInfo[i].cid = GroupInfo[TimerInfo[i].group].cid;
+			S.TimerInfo[i].cid = S.GroupInfo[S.TimerInfo[i].group].cid;
 		}
 		else
 		{
-			TimerInfo[i].cid = TimerInfo[i].timercid;
+			S.TimerInfo[i].cid = S.TimerInfo[i].timercid;
 		}
 	}
 }
+function ToggleDetailedFlameMode()
+{
+	DrawDetailedFlameMode = (DrawDetailedFlameMode+1)%3;
+	RequestRedraw();
+}	
+
+function ToggleDetailedSecondReverse()
+{
+	DrawDetailedCompareReverse = 1-DrawDetailedCompareReverse;
+}	RequestRedraw();
 
 function ToggleGroupColors()
 {
-	GroupColors = !GroupColors;
+	GroupColors = (GroupColors+1)%3;
 	UpdateGroupColors();
-	UpdateOptionsMenu();
 	WriteCookie();
 	RequestRedraw();
-}
-
-function UpdateOptionsMenu()
-{
-	var ulGroupColors = document.getElementById('GroupColors');
-	ulGroupColors.style['text-decoration'] = GroupColors ? 'underline' : 'none';
 }
 
 function ShowHelp(Show, Forever)
@@ -1193,9 +1381,39 @@ function SetMode(NewMode, Groups)
 
 }
 
+function UpdateReferenceTime()
+{
+	if('auto' == ReferenceTimeString.substring(0,4))
+	{
+		let Max = 0.1;
+		for(var i = 0; i < S.Frames.length; ++i)
+		{
+			let T = S.Frames[i].frameend - S.Frames[i].framestart;
+			Max = Math.max(T, Max);
+		}
+		ReferenceTime = Max*1.20;
+		if(TargetTime>0)
+		{
+			ReferenceTime = Math.max(ReferenceTime, TargetTime * 1.33);
+		}
+		var ReferenceMenu = document.getElementById('ReferenceSubMenu');
+		var Links = ReferenceMenu.getElementsByTagName('a');
+		if(Links.length>0)
+		{
+			Links[0].innerHTML = 'auto [' + Max.toFixed(2) + 'ms]';
+		}
+
+	}
+	else
+	{
+		ReferenceTime = parseInt(ReferenceTimeString);
+	}
+}
+
 function SetReferenceTime(TimeString)
 {
-	ReferenceTime = parseInt(TimeString);
+	ReferenceTimeString = TimeString;
+	UpdateReferenceTime();
 	var ReferenceMenu = document.getElementById('ReferenceSubMenu');
 	var Links = ReferenceMenu.getElementsByTagName('a');
 	for(var i = 0; i < Links.length; ++i)
@@ -1211,8 +1429,33 @@ function SetReferenceTime(TimeString)
 	}
 	WriteCookie();
 	RequestRedraw();
+}
+
+function SetTargetTime(TimeString)
+{
+	TargetTimeString = TimeString;
+	TargetTime = parseInt(TargetTimeString);
+	var TargetMenu = document.getElementById('TargetSubMenu');
+	var Links = TargetMenu.getElementsByTagName('a');
+	for(var i = 0; i < Links.length; ++i)
+	{
+		if(Links[i].innerHTML.match('^' + TimeString))
+		{
+			Links[i].style['text-decoration'] = 'underline';
+		}
+		else
+		{
+			Links[i].style['text-decoration'] = 'none';
+		}
+	}
+
+	WriteCookie();
+	UpdateReferenceTime();
+	RequestRedraw();
 
 }
+
+
 
 function ToggleContextSwitch()
 {
@@ -1273,7 +1516,7 @@ function GatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)
 	//search backwards, count meta counters 
 	for(var i = nFrameLast; i >= 0; i--)
 	{
-		var fr = Frames[i];
+		var fr = S.Frames[i];
 		var ts = fr.ts[nLog];
 		var ti = fr.ti[nLog];
 		var tt = fr.tt[nLog];
@@ -1317,16 +1560,16 @@ function CalculateAllTimers(fBegin, fEnd)
 	var Sum = [];
 	var Count = [];
 	var Sorted = [];
-	for(var i = 0; i < TimerInfo.length; ++i)
+	for(var i = 0; i < S.TimerInfo.length; ++i)
 	{
 		Sum.push(0.0);
 		Count.push(0);
 		Sorted.push(i);
 	}
 	var nFrameFirst = 0;
-	var nFrameLast = Frames.length;
+	var nFrameLast = S.Frames.length;
 
-	var nNumLogs = Frames[0].ts.length;
+	var nNumLogs = S.Frames[0].ts.length;
 	var StackPosArray = Array(nNumLogs);
 	var StackArray = Array(nNumLogs);
 	for(var i = 0; i < nNumLogs; ++i)
@@ -1337,7 +1580,7 @@ function CalculateAllTimers(fBegin, fEnd)
 
 	for(var i = nFrameFirst; i < nFrameLast; i++)
 	{
-		var fr = Frames[i];
+		var fr = S.Frames[i];
 		for(nLog = 0; nLog < nNumLogs; nLog++)
 		{
 			var StackPos = StackPosArray[nLog];
@@ -1380,12 +1623,31 @@ function CalculateAllTimers(fBegin, fEnd)
 	var Result = {"Sorted" : Sorted, "Sum" : Sum, "Count" : Count};
 	return Result;
 }
-function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast)
+
+function CalculateTimers2(Result, TimerIndex, Time, SContext)
 {
+	let nFrame = -1;
+	for(var i = 0; i < SContext.Frames.length; ++i)
+	{
+		let F = SContext.Frames[i];
+		if(Time > F.framestart && Time <= F.frameend)
+		{
+			nFrame = i;
+			break;
+		}
+	}
+	CalculateTimers(Result, TimerIndex, nFrame, nFrame+1, SContext);
+	return nFrame;
+}
+
+function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast, SContext)
+{
+	if(!SContext)
+		SContext = S;
 	if(!nFrameFirst || nFrameFirst < 0)
 		nFrameFirst = 0;
-	if(!nFrameLast || nFrameLast > Frames.length)
-		nFrameLast = Frames.length;
+	if(!nFrameLast || nFrameLast > SContext.Frames.length)
+		nFrameLast = SContext.Frames.length;
 	var FrameCount = nFrameLast - nFrameFirst;
 	if(0 == FrameCount)
 		return;
@@ -1394,28 +1656,31 @@ function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast)
 	var Max = 0;
 	var FrameMax = 0;
 
-	var nNumLogs = Frames[0].ts.length;
+	var nNumLogs = SContext.Frames[0].ts.length;
 	var StackPosArray = Array(nNumLogs);
 	var StackArray = Array(nNumLogs);
+	let StackIndexArray = Array(nNumLogs);
 	for(var i = 0; i < nNumLogs; ++i)
 	{
 		StackPosArray[i] = 0;
-		StackArray[i] = Array(20);
+		StackArray[i] = Array(32);
+		StackIndexArray[i] = Array(32);
 	}
 
 	for(var i = nFrameFirst; i < nFrameLast; i++)
 	{
-		var FrameSum = 0;
-		var fr = Frames[i];
+		let FrameSum = 0;
+		let fr = SContext.Frames[i];
 		for(nLog = 0; nLog < nNumLogs; nLog++)
 		{
-			var StackPos = StackPosArray[nLog];
-			var Stack = StackArray[nLog];
+			let StackPos = StackPosArray[nLog];
+			let Stack = StackArray[nLog];
+			let StackIndex = StackIndexArray[nLog];
 			var ts = fr.ts[nLog];
 			var ti = fr.ti[nLog];
 			var tt = fr.tt[nLog];
 			var count = ts.length;
-			for(j = 0; j < count; j++)
+			for(var j = 0; j < count; j++)
 			{
 				var type = tt[j];
 				var index = ti[j];
@@ -1424,6 +1689,7 @@ function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast)
 				{
 					//push
 					Stack[StackPos] = time;
+					StackIndex[StackPos] = index;
 					if(StackArray[nLog][StackPos] != time)
 					{
 						console.log('fail fail fail');
@@ -1441,11 +1707,11 @@ function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast)
 					}
 					else
 					{
-						timestart = Frames[nFrameFirst].framestart;
+						timestart = SContext.Frames[nFrameFirst].framestart;
 					}
 					if(index == TimerIndex)
 					{
-						var TimeDelta = timeend - timestart;
+						let TimeDelta = timeend - timestart;
 						CallCount++;
 						FrameSum += TimeDelta;
 						Sum += TimeDelta;
@@ -1457,6 +1723,24 @@ function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast)
 				{
 					//meta
 				}
+			}
+			if(i == nFrameLast - 1)
+			{
+				for(var j = 0; j < StackPos; ++j)
+				{
+					if(StackIndex[j] == TimerIndex)
+					{
+						let LastFrameEnd = SContext.Frames[nFrameLast-1].frameend;
+						let TimeDelta = LastFrameEnd - Stack[j];
+						CallCount++;
+						FrameSum += TimeDelta;
+						Sum += TimeDelta;
+						if(TimeDelta > Max)
+							Max = TimeDelta;
+						break;
+					}
+				}
+
 			}
 			if(FrameSum > FrameMax)
 			{
@@ -1480,20 +1764,20 @@ function PreprocessCalculateAllTimers()
 {
 	ProfileEnter("CalculateAllTimers");
 	var nFrameFirst = 0;
-	var nFrameLast = Frames.length;
+	var nFrameLast = S.Frames.length;
 	var FrameCount = nFrameLast - nFrameFirst;
 	if(0 == FrameCount)
 		return;
-	for(var j = 0; j < TimerInfo.length; j++)
+	for(var j = 0; j < S.TimerInfo.length; j++)
 	{
-		TimerInfo[j].CallCount = 0;
-		TimerInfo[j].Sum = 0;
-		TimerInfo[j].Max = 0;
-		TimerInfo[j].FrameMax = 0;
+		S.TimerInfo[j].CallCount = 0;
+		S.TimerInfo[j].Sum = 0;
+		S.TimerInfo[j].Max = 0;
+		S.TimerInfo[j].FrameMax = 0;
 	}
 
 
-	var nNumLogs = Frames[0].ts.length;
+	var nNumLogs = S.Frames[0].ts.length;
 	var StackPosArray = Array(nNumLogs);
 	var StackArray = Array(nNumLogs);
 	for(var i = 0; i < nNumLogs; ++i)
@@ -1504,12 +1788,12 @@ function PreprocessCalculateAllTimers()
 
 	for(var i = nFrameFirst; i < nFrameLast; i++)
 	{
-		for(var j = 0; j < TimerInfo.length; j++)
+		for(var j = 0; j < S.TimerInfo.length; j++)
 		{
-			TimerInfo[j].FrameSum = 0;
+			S.TimerInfo[j].FrameSum = 0;
 		}
 
-		var fr = Frames[i];
+		var fr = S.Frames[i];
 		for(nLog = 0; nLog < nNumLogs; nLog++)
 		{
 			var StackPos = StackPosArray[nLog];
@@ -1544,21 +1828,21 @@ function PreprocessCalculateAllTimers()
 					}
 					else
 					{
-						timestart = Frames[nFrameFirst].framestart;
+						timestart = S.Frames[nFrameFirst].framestart;
 					}
 					// if(index == TimerIndex)
 					{
 						var TimeDelta = timeend - timestart;
-						TimerInfo[index].CallCount++;
-						TimerInfo[index].FrameSum += TimeDelta;
-						TimerInfo[index].Sum += TimeDelta;
-						if(TimeDelta > TimerInfo[index].Max)
+						S.TimerInfo[index].CallCount++;
+						S.TimerInfo[index].FrameSum += TimeDelta;
+						S.TimerInfo[index].Sum += TimeDelta;
+						if(TimeDelta > S.TimerInfo[index].Max)
 						{
-							TimerInfo[index].Max = TimeDelta;
-							TimerInfo[index].worst = TimeDelta;
-							TimerInfo[index].worststart = timestart;
-							TimerInfo[index].worstend = timeend;
-							TimerInfo[index].worstthread = nLog;
+							S.TimerInfo[index].Max = TimeDelta;
+							S.TimerInfo[index].worst = TimeDelta;
+							S.TimerInfo[index].worststart = timestart;
+							S.TimerInfo[index].worstend = timeend;
+							S.TimerInfo[index].worstthread = nLog;
 						}
 					}
 				}
@@ -1567,11 +1851,11 @@ function PreprocessCalculateAllTimers()
 					//meta
 				}
 			}
-			for(var j = 0; j < TimerInfo.length; j++)
+			for(var j = 0; j < S.TimerInfo.length; j++)
 			{
-				if(TimerInfo[j].FrameSum > TimerInfo[j].FrameMax)
+				if(S.TimerInfo[j].FrameSum > S.TimerInfo[j].FrameMax)
 				{
-					TimerInfo[j].FrameMax = TimerInfo[j].FrameSum;
+					S.TimerInfo[j].FrameMax = S.TimerInfo[j].FrameSum;
 				}
 			}
 			StackPosArray[nLog] = StackPos;
@@ -1580,22 +1864,22 @@ function PreprocessCalculateAllTimers()
 
 	}
 
-	for(var j = 0; j < TimerInfo.length; j++)
+	for(var j = 0; j < S.TimerInfo.length; j++)
 	{
-		var CallCount = TimerInfo[j].CallCount;
-		var Sum = TimerInfo[j].Sum.toFixed(3);
-		var Max = TimerInfo[j].Max.toFixed(3);
-		var Average = (TimerInfo[j].Sum / TimerInfo[j].CallCount).toFixed(3);
-		var FrameAverage = (TimerInfo[j].Sum / FrameCount).toFixed(3);
-		var FrameCallAverage = (TimerInfo[j].CallCount / FrameCount).toFixed(3);
-		var FrameMax = TimerInfo[j].FrameMax.toFixed(3);
-		TimerInfo[j].CallCount = CallCount;
-		TimerInfo[j].Sum = Sum;
-		TimerInfo[j].Max  = Max ;
-		TimerInfo[j].Average = Average;
-		TimerInfo[j].FrameAverage = FrameAverage;
-		TimerInfo[j].FrameCallAverage = FrameCallAverage;
-		TimerInfo[j].FrameMax = FrameMax;
+		var CallCount = S.TimerInfo[j].CallCount;
+		var Sum = S.TimerInfo[j].Sum.toFixed(3);
+		var Max = S.TimerInfo[j].Max.toFixed(3);
+		var Average = (S.TimerInfo[j].Sum / S.TimerInfo[j].CallCount).toFixed(3);
+		var FrameAverage = (S.TimerInfo[j].Sum / FrameCount).toFixed(3);
+		var FrameCallAverage = (S.TimerInfo[j].CallCount / FrameCount).toFixed(3);
+		var FrameMax = S.TimerInfo[j].FrameMax.toFixed(3);
+		S.TimerInfo[j].CallCount = CallCount;
+		S.TimerInfo[j].Sum = Sum;
+		S.TimerInfo[j].Max  = Max ;
+		S.TimerInfo[j].Average = Average;
+		S.TimerInfo[j].FrameAverage = FrameAverage;
+		S.TimerInfo[j].FrameCallAverage = FrameCallAverage;
+		S.TimerInfo[j].FrameMax = FrameMax;
 	}
 	ProfileLeave();
 }
@@ -1625,7 +1909,7 @@ function ShowFlashMessage(Message, FrameCount)
 }
 function OnPageReady()
 {
-	var DumpDate = DumpUtcCaptureTime;
+	var DumpDate = S.DumpUtcCaptureTime;
 	var CurrentDate = Date.now() / 1000;
 	var Diff = CurrentDate - DumpDate;
 	var Limit = 10*60;//flash old message when loading captures older than 10 minutes 
@@ -1661,20 +1945,20 @@ function DrawCaptureInfo(context)
 	context.fillStyle = 'white';
 	context.textAlign = 'right';
 	context.font = Font;
-	var DumpDate = DumpUtcCaptureTime;
+	var DumpDate = S.DumpUtcCaptureTime;
 	var CurrentDate = Date.now() / 1000;
 	var Diff = CurrentDate - DumpDate;
 	var DiffString = TimeString(Diff) + " ago";
 	context.fillText(new Date(DumpDate*1000).toLocaleString(), nWidth, FontHeight);
 	if(Mode == ModeTimers)
 	{
-		context.fillText("Timer Frames: " + AggregateInfo.Frames, nWidth, FontHeight*2);
+		context.fillText("Timer Frames: " + S.AggregateInfo.Frames, nWidth, FontHeight*2);
 	}
 	else
 	{
-		context.fillText("Detailed Frames "+ Frames.length, nWidth, FontHeight*2);
+		context.fillText("Detailed Frames "+ S.Frames.length, nWidth, FontHeight*2);
 	}
-	context.fillText(DumpHost, nWidth, FontHeight*3);
+	context.fillText(S.DumpHost, nWidth, FontHeight*3);
 	context.fillText(DiffString, nWidth, FontHeight*4);
 	context.textAlign = 'left';
 	DrawFlashMessage(context);
@@ -1688,8 +1972,15 @@ function DrawDetailedFrameHistory()
 	var context = CanvasHistory.getContext('2d');
 	context.clearRect(0, 0, CanvasHistory.width, CanvasHistory.height);
 
+	let HistoryHeight = CanvasHistory.height;
+
+	var GreenTime = (TargetTime * 0.9);
+	var RedBegin = (TargetTime * 1.1);
+	var LerpDist = 1.0 / (RedBegin - GreenTime);
+
+
 	var fHeight = nHistoryHeight;
-	var fWidth = nWidth / Frames.length;
+	var fWidth = nWidth / S.Frames.length;
 	var fHeightScale = fHeight / ReferenceTime;
 	var fX = 0;
 	var FrameIndex = -1;
@@ -1700,17 +1991,24 @@ function DrawDetailedFrameHistory()
 	var FrameFirst = -1;
 	var FrameLast = nWidth;
 	var fDetailedOffsetEnd = fDetailedOffset + fDetailedRange;
-	for(i = 0; i < Frames.length; i++)
+	for(i = 0; i < S.Frames.length; i++)
 	{
-		var fMs = Frames[i].frameend - Frames[i].framestart;
-		if(fDetailedOffset <= Frames[i].frameend && fDetailedOffset >= Frames[i].framestart)
+		var fMs = S.Frames[i].frameend - S.Frames[i].framestart;
+
+		var fPrc = (fMs - GreenTime) * LerpDist;
+		fPrc = Clamp(fPrc, 0, 1);
+		var color = LerpColor(fPrc);
+
+
+
+		if(fDetailedOffset <= S.Frames[i].frameend && fDetailedOffset >= S.Frames[i].framestart)
 		{
-			var lerp = (fDetailedOffset - Frames[i].framestart) / (Frames[i].frameend - Frames[i].framestart);
+			var lerp = (fDetailedOffset - S.Frames[i].framestart) / (S.Frames[i].frameend - S.Frames[i].framestart);
 			FrameFirst = fX + fWidth * lerp;
 		}
-		if(fDetailedOffsetEnd <= Frames[i].frameend && fDetailedOffsetEnd >= Frames[i].framestart)
+		if(fDetailedOffsetEnd <= S.Frames[i].frameend && fDetailedOffsetEnd >= S.Frames[i].framestart)
 		{
-			var lerp = (fDetailedOffsetEnd - Frames[i].framestart) / (Frames[i].frameend - Frames[i].framestart);
+			var lerp = (fDetailedOffsetEnd - S.Frames[i].framestart) / (S.Frames[i].frameend - S.Frames[i].framestart);
 			FrameLast = fX + fWidth * lerp;
 		}
 		var fH = fHeightScale * fMs;
@@ -1718,18 +2016,18 @@ function DrawDetailedFrameHistory()
 		if(bMouse && !MouseDragging)
 		{
 			context.fillStyle = FRAME_HISTORY_COLOR_GPU;
-			RangeCpuHistory.Begin = Frames[i].framestart;
-			RangeCpuHistory.End = Frames[i].frameend;
-			if(Frames[i].framestartgpu)
+			RangeCpuHistory.Begin = S.Frames[i].framestart;
+			RangeCpuHistory.End = S.Frames[i].frameend;
+			if(S.Frames[i].framestartgpu)
 			{
-				RangeGpuHistory.Begin = Frames[i].framestartgpu;
-				RangeGpuHistory.End = Frames[i].frameendgpu;
+				RangeGpuHistory.Begin = S.Frames[i].framestartgpu;
+				RangeGpuHistory.End = S.Frames[i].frameendgpu;
 			}
 			FrameIndex = i;
 		}
 		else
 		{
-			context.fillStyle = FRAME_HISTORY_COLOR_CPU;
+			context.fillStyle = color;
 		}
 		context.fillRect(fX, fHeight - fH, fWidth-1, fH);
 		fX += fWidth;
@@ -1752,7 +2050,29 @@ function DrawDetailedFrameHistory()
 	context.lineTo(X+W, Y+fHeight);
 	context.stroke();
 
-
+	{
+		var fH = fHeight - fHeightScale * TargetTime;
+		context.fillStyle = 'wheat';
+		context.strokeStyle = 'wheat';
+		context.beginPath();
+		context.moveTo(0, fH);
+		context.lineTo(nWidth, fH);
+		// context.closePath();
+		context.stroke();
+		var YText;
+		if(fH > HistoryHeight * 0.25)
+		{
+			YText = fH - FontAscent;
+		}
+		else
+		{
+			YText = fH + FontHeight;
+		}
+		context.fillText(TargetTime + 'ms', 3, YText);
+		context.textAlign='right';
+		context.fillText(FormatTime(ReferenceTime) + 'ms', nWidth, FontHeight);
+		context.textAlign='left';
+	}
 
 
 	DrawCaptureInfo(context);
@@ -1763,7 +2083,7 @@ function DrawDetailedFrameHistory()
 		StringArray.push("Frame");
 		StringArray.push("" + FrameIndex);
 		StringArray.push("Time");
-		StringArray.push("" + (Frames[FrameIndex].frameend - Frames[FrameIndex].framestart).toFixed(3));
+		StringArray.push("" + (S.Frames[FrameIndex].frameend - S.Frames[FrameIndex].framestart).toFixed(3));
 
 		DrawToolTip(StringArray, CanvasHistory, HistoryViewMouseX, HistoryViewMouseY+20);
 
@@ -1828,9 +2148,9 @@ function DrawDetailedBackground(context)
 	context.globalAlpha = 0.5;
 	context.strokeStyle = '#bbbbbb';
 	context.beginPath();
-	for(var i = 0; i < Frames.length; i++)
+	for(var i = 0; i < S.Frames.length; i++)
 	{
-		var frfr = Frames[i];
+		var frfr = S.Frames[i];
 		if(frfr.frameend < fDetailedOffset || frfr.framestart > fDetailedOffset + fDetailedRange)
 		{
 			continue;
@@ -1846,7 +2166,8 @@ function DrawDetailedBackground(context)
 	context.globalAlpha = 1;
 
 }
-function DrawToolTip(StringArray, Canvas, x, y)
+
+function DrawToolTip(StringArray, Canvas, x, y, bSecondary)
 {
 	var context = Canvas.getContext('2d');
 	context.font = Font;
@@ -1868,17 +2189,23 @@ function DrawToolTip(StringArray, Canvas, x, y)
 	}
 	nMaxWidth += 15;
 	//bounds check.
-	var CanvasRect = Canvas.getBoundingClientRect();
-	if(y + nHeight > CanvasRect.height)
+	if(!bSecondary)
 	{
-		y = CanvasRect.height - nHeight;
-		x += 20;
+		var CanvasRect = Canvas.getBoundingClientRect();
+		if(y + nHeight > CanvasRect.height)
+		{
+			y = CanvasRect.height - nHeight;
+			x += 20;
+		}
+		if(x + nMaxWidth > CanvasRect.width)
+		{
+			x = CanvasRect.width - nMaxWidth;
+		}
 	}
-	if(x + nMaxWidth > CanvasRect.width)
+	else
 	{
-		x = CanvasRect.width - nMaxWidth;
+		x -= nMaxWidth;
 	}
-
 	context.fillStyle = 'black';
 	context.fillRect(x-1, y, nMaxWidth+2, nHeight);
 	context.fillStyle = 'white';
@@ -1892,30 +2219,133 @@ function DrawToolTip(StringArray, Canvas, x, y)
 		context.fillText(StringArray[i+1], XPosRight - WidthArray[i+1], YPos);
 		YPos += BoxHeight;
 	}
+	return {"x":x, "y":y};
 }
+
+function BuildToolTipDetailed(S, nHoverToken, nHoverFrame, HoverTokenOwner, bSecond)
+{
+	var StringArray = [];
+	var groupid = S.TimerInfo[nHoverToken].group;
+	if(nHoverToken > -1)
+	{
+		StringArray.push("Timer");
+		StringArray.push(S.TimerInfo[nHoverToken].name);
+		StringArray.push("Group");
+		StringArray.push(S.GroupInfo[groupid].name);
+	}
+	else
+	{
+		StringArray.push("");
+		StringArray.push("");
+		StringArray.push("");
+		StringArray.push("");	
+	}
+	StringArray.push("");
+	StringArray.push("");
+
+	if(S == HoverTokenOwner)
+	{
+		StringArray.push("Time");
+		StringArray.push((RangeCpu.End-RangeCpu.Begin).toFixed(3));
+	}
+	else
+	{
+		StringArray.push("");
+		StringArray.push("");
+	}
+
+	StringArray.push("");
+	StringArray.push("");
+	StringArray.push("Total");
+	StringArray.push("" + S.TimerInfo[nHoverToken].Sum);
+	StringArray.push("Max");
+	StringArray.push("" + S.TimerInfo[nHoverToken].Max);
+	StringArray.push("Average");
+	StringArray.push("" + S.TimerInfo[nHoverToken].Average);
+	StringArray.push("Count");
+	StringArray.push("" + S.TimerInfo[nHoverToken].CallCount);
+
+	StringArray.push("");
+	StringArray.push("");
+
+	StringArray.push("Max/Frame");
+	StringArray.push("" + S.TimerInfo[nHoverToken].FrameMax);
+
+	StringArray.push("Average Time/Frame");
+	StringArray.push("" + S.TimerInfo[nHoverToken].FrameAverage);
+
+	StringArray.push("Average Count/Frame");
+	StringArray.push("" + S.TimerInfo[nHoverToken].FrameCallAverage);
+
+
+	let Time = fDetailedOffset + fDetailedRange * (DetailedViewMouseX / nWidth);
+	if(bSecond)
+		Time += fDetailedOffsetSecond;
+	let FrameTime = new Object();
+	let Frame = CalculateTimers2(FrameTime, nHoverToken, Time, S);
+	StringArray.push("");
+	StringArray.push("");
+	if(Frame>-1)
+	{
+		StringArray.push("Frame " + Frame);
+		StringArray.push("");
+		StringArray.push("Total");
+		StringArray.push("" + FrameTime.Sum);
+		StringArray.push("Count");
+		StringArray.push("" + FrameTime.CallCount);
+		StringArray.push("Average");
+		StringArray.push("" + FrameTime.Average);
+		StringArray.push("Max");
+		StringArray.push("" + FrameTime.Max);
+	}
+	else
+	{
+		for(var i = 0; i < 10; ++i)
+			StringArray.push("");
+	}
+
+	StringArray.push("");
+	StringArray.push("");
+
+	StringArray.push("Detailed Capture");
+	StringArray.push("");
+	StringArray.push("Frames");
+	StringArray.push(S.Frames.length);
+	StringArray.push("Time");
+	StringArray.push(DetailedTotal(S).toFixed(2) + "ms");	
+	return StringArray;
+
+
+
+} 
+
+
 function DrawHoverToolTip()
 {
 	ProfileEnter("DrawHoverToolTip");
+	var StringArray = [];
+	let StringArray2;
 	if(nHoverToken != -1)
 	{
-		var StringArray = [];
-		var groupid = TimerInfo[nHoverToken].group;
-		StringArray.push("Timer");
-		StringArray.push(TimerInfo[nHoverToken].name);
-		StringArray.push("Group");
-		StringArray.push(GroupInfo[groupid].name);
 
 		var bShowTimers = Mode == ModeTimers;
-		if(ToolTipFlip == 1)
-		{
-			bShowTimers = !bShowTimers;
-		}
+		// this confused alot of people.
+		// if(ToolTipFlip == 1)
+		// {
+		// 	bShowTimers = !bShowTimers;
+		// }
 		if(bShowTimers)
 		{
+			// var StringArray = [];
+			var groupid = S.TimerInfo[nHoverToken].group;
+			StringArray.push("Timer");
+			StringArray.push(S.TimerInfo[nHoverToken].name);
+			StringArray.push("Group");
+			StringArray.push(S.GroupInfo[groupid].name);
 
 			StringArray.push("");
 			StringArray.push("");
-			var Timer = TimerInfo[nHoverToken];
+			var Timer = S.TimerInfo[nHoverToken];
 			StringArray.push("Average");
 			StringArray.push(Timer.average);
 			StringArray.push("Max");
@@ -1934,11 +2364,11 @@ function DrawHoverToolTip()
 
 
 			StringArray.push("Group");
-			StringArray.push(GroupInfo[groupid].name);
+			StringArray.push(S.GroupInfo[groupid].name);
 			StringArray.push("Average");
-			StringArray.push(GroupInfo[groupid].average);
+			StringArray.push(S.GroupInfo[groupid].average);
 			StringArray.push("Max");
-			StringArray.push(GroupInfo[groupid].max);
+			StringArray.push(S.GroupInfo[groupid].max);
 
 			StringArray.push("");
 			StringArray.push("");
@@ -1946,9 +2376,9 @@ function DrawHoverToolTip()
 			StringArray.push("Timer Capture");
 			StringArray.push("");
 			StringArray.push("Frames");
-			StringArray.push(AggregateInfo.Frames);
+			StringArray.push(S.AggregateInfo.Frames);
 			StringArray.push("Time");
-			StringArray.push(AggregateInfo.Time.toFixed(2) + "ms");
+			StringArray.push(S.AggregateInfo.Time.toFixed(2) + "ms");
 
 
 
@@ -1956,91 +2386,25 @@ function DrawHoverToolTip()
 		}
 		else
 		{
-			StringArray.push("");
-			StringArray.push("");
-
-
-
-			StringArray.push("Time");
-			StringArray.push((RangeCpu.End-RangeCpu.Begin).toFixed(3));
-			StringArray.push("");
-			StringArray.push("");
-			StringArray.push("Total");
-			StringArray.push("" + TimerInfo[nHoverToken].Sum);
-			StringArray.push("Max");
-			StringArray.push("" + TimerInfo[nHoverToken].Max);
-			StringArray.push("Average");
-			StringArray.push("" + TimerInfo[nHoverToken].Average);
-			StringArray.push("Count");
-			StringArray.push("" + TimerInfo[nHoverToken].CallCount);
-
-			StringArray.push("");
-			StringArray.push("");
-
-			StringArray.push("Max/Frame");
-			StringArray.push("" + TimerInfo[nHoverToken].FrameMax);
-
-			StringArray.push("Average Time/Frame");
-			StringArray.push("" + TimerInfo[nHoverToken].FrameAverage);
-
-			StringArray.push("Average Count/Frame");
-			StringArray.push("" + TimerInfo[nHoverToken].FrameCallAverage);
-
-
-
-
-
-		
-			if(nHoverFrame != -1)
+			StringArray = BuildToolTipDetailed(S, nHoverToken, nHoverFrame, HoverTokenOwner, 0);
+			let nCompareHoverToken = TimerRemapReverse[nHoverToken];
+			if(nCompareHoverToken > -1)
 			{
-				StringArray.push("");
-				StringArray.push("");
-				StringArray.push("Frame " + nHoverFrame);
-				StringArray.push("");
-
-				var FrameTime = new Object();
-				CalculateTimers(FrameTime, nHoverToken, nHoverFrame, nHoverFrame+1);
-				StringArray.push("Total");
-				StringArray.push("" + FrameTime.Sum);
-				StringArray.push("Count");
-				StringArray.push("" + FrameTime.CallCount);
-				StringArray.push("Average");
-				StringArray.push("" + FrameTime.Average);
-				StringArray.push("Max");
-				StringArray.push("" + FrameTime.Max);
+				StringArray2 = BuildToolTipDetailed(S2, nCompareHoverToken, null, HoverTokenOwner, 1);
 			}
-
-			var HoverInfo = GatherHoverMetaCounters(nHoverToken, nHoverTokenIndex, nHoverTokenLogIndex, nHoverFrame);
-			var Header = 0;
-			for(index in HoverInfo)
-			{
-				if(0 == Header)
-				{
-					Header = 1;
-					StringArray.push("");
-					StringArray.push("");
-					StringArray.push("Meta");
-					StringArray.push("");
-
-				}
-				StringArray.push(""+index);
-				StringArray.push(""+HoverInfo[index]);
-			}
-
-			StringArray.push("");
-			StringArray.push("");
-
-			StringArray.push("Detailed Capture");
-			StringArray.push("");
-			StringArray.push("Frames");
-			StringArray.push(Frames.length);
-			StringArray.push("Time");
-			StringArray.push(DetailedTotal().toFixed(2) + "ms");	
 		}
 		if(ToolTipCorner)
-			DrawToolTip(StringArray, CanvasDetailedView, nWidth, nHeight);
+		{
+			let R = DrawToolTip(StringArray, CanvasDetailedView, nWidth, nHeight);
+			if(StringArray2)
+				DrawToolTip(StringArray2, CanvasDetailedView, R.x-15, R.y, 1);
+		}
 		else
-			DrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20)
+		{
+			let R = DrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20);
+			if(StringArray2)
+				DrawToolTip(StringArray2, CanvasDetailedView, R.x-15, R.y, 1);
+		}
 	}
 	else if(nHoverCSCpu >= 0)
 	{
@@ -2056,7 +2420,9 @@ function DrawHoverToolTip()
 		StringArray.push("End");
 		StringArray.push("" + RangeCpu.End);
 		if(ToolTipCorner)
+		{
 			DrawToolTip(StringArray, CanvasDetailedView, nWidth, nHeight);
+		}
 		else
 			DrawToolTip(StringArray, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20);
 	}
@@ -2101,15 +2467,15 @@ function DrawBarView()
 
 	var Height = BoxHeight;
 	var Width = nWidth;
-	var NameWidth = Math.max(TimerNameWidth, GroupNameWidth) + 20;
+	var NameWidth = Math.max(S.TimerNameWidth, S.GroupNameWidth) + 20;
 
 	//clamp offset to prevent scrolling into the void
 	var nTotalRows = 0;
-	for(var groupid in GroupInfo)
+	for(var groupid in S.GroupInfo)
 	{
-		if(GroupsAllActive || GroupsActive[GroupInfo[groupid].name])
+		if(GroupsAllActive || GroupsActive[S.GroupInfo[groupid].name])
 		{
-			nTotalRows += GroupInfo[groupid].TimerArray.length + 1;
+			nTotalRows += S.GroupInfo[groupid].TimerArray.length + 1;
 		}
 	}
 	var nTotalRowPixels = nTotalRows * Height;
@@ -2137,7 +2503,7 @@ function DrawBarView()
 	var bMouseIn = 0;
 	var RcpReferenceTime = 1.0 / ReferenceTime;
 	var CountWidth = 12 * FontWidth;
-	var nMetaLen = TimerInfo[0].meta.length;
+	var nMetaLen = S.TimerInfo[0].meta.length;
 	var nMetaCharacters = 10;
 	var InnerBoxHeight = BoxHeight-2;
 	var TimerLen = 8; //todo: fix max digits.
@@ -2288,7 +2654,7 @@ function DrawBarView()
 	function DrawTimerRow(timerid, showgroup)
 	{
 		R = 0;
-		var Timer = TimerInfo[timerid];
+		var Timer = S.TimerInfo[timerid];
 		var Average = Timer.average;
 		var Max = Timer.max;
 		var Min = Timer.min;
@@ -2337,26 +2703,26 @@ function DrawBarView()
 		if(showgroup)
 		{
 			context.fillStyle = 'white';
-			context.fillText(GroupInfo[Timer.group].name, 1, YText);
+			context.fillText(S.GroupInfo[Timer.group].name, 1, YText);
 		}
 	}
 	if(SortColumn && TimersGroups == 0)
 	{
-		var OrderArray = new Array(TimerInfo.length);
-		var KeyArray = new Array(TimerInfo.length);
+		var OrderArray = new Array(S.TimerInfo.length);
+		var KeyArray = new Array(S.TimerInfo.length);
 		for(var idx in GroupOrder)
 		{
-			var Group = GroupInfo[idx];
+			var Group = S.GroupInfo[idx];
 			if((GroupsAllActive || GroupsActive[Group.name]) && FilterMatch(FilterGroup, Group.name))
 			{
 				var TimerArray = Group.TimerArray;
 				for(var timerindex in TimerArray)
 				{
 					var timerid = TimerArray[timerindex];
-					if(FilterMatch(FilterTimer, TimerInfo[timerid].name))
+					if(FilterMatch(FilterTimer, S.TimerInfo[timerid].name))
 					{
 						OrderArray.push(timerid);
-						NameWidth = Math.max(TimerInfo[timerid].wtotal, NameWidth);
+						NameWidth = Math.max(S.TimerInfo[timerid].wtotal, NameWidth);
 					}
 				}
 			}
@@ -2364,15 +2730,15 @@ function DrawBarView()
 		var KeyFunc = null;
 		switch(SortColumn)
 		{
-			case 1: KeyFunc = function (a) { return TimerInfo[a].average; }; break;
-			case 2: KeyFunc = function (a) { return TimerInfo[a].max; }; break;
-			case 3: KeyFunc = function (a) { return TimerInfo[a].total; }; break;
-			case 4: KeyFunc = function (a) { return TimerInfo[a].min; }; break;
-			case 5: KeyFunc = function (a) { return TimerInfo[a].spike; }; break;
-			case 6: KeyFunc = function (a) { return TimerInfo[a].callaverage; }; break;
-			case 7: KeyFunc = function (a) { return TimerInfo[a].callcount; }; break;
-			case 8: KeyFunc = function (a) { return TimerInfo[a].exclaverage; }; break;
-			case 9: KeyFunc = function (a) { return TimerInfo[a].exclmax; }; break;
+			case 1: KeyFunc = function (a) { return S.TimerInfo[a].average; }; break;
+			case 2: KeyFunc = function (a) { return S.TimerInfo[a].max; }; break;
+			case 3: KeyFunc = function (a) { return S.TimerInfo[a].total; }; break;
+			case 4: KeyFunc = function (a) { return S.TimerInfo[a].min; }; break;
+			case 5: KeyFunc = function (a) { return S.TimerInfo[a].spike; }; break;
+			case 6: KeyFunc = function (a) { return S.TimerInfo[a].callaverage; }; break;
+			case 7: KeyFunc = function (a) { return S.TimerInfo[a].callcount; }; break;
+			case 8: KeyFunc = function (a) { return S.TimerInfo[a].exclaverage; }; break;
+			case 9: KeyFunc = function (a) { return S.TimerInfo[a].exclmax; }; break;
 		}
 
 		var Flip = SortColumnOrderFlip == 1 ? -1 : 1;
@@ -2387,9 +2753,9 @@ function DrawBarView()
 	}
 	else if(2 == TimersGroups)
 	{
-		for(var i = 0; i < ThreadNames.length; ++i)
+		for(var i = 0; i < S.ThreadNames.length; ++i)
 		{
-			if((ThreadsActive[ThreadNames[i]] || ThreadsAllActive) && FilterMatch(FilterTimer, ThreadNames[i]))
+			if((ThreadsActive[S.ThreadNames[i]] || ThreadsAllActive) && FilterMatch(FilterTimer, S.ThreadNames[i]))
 			{
 				var X = 0;
 				var YText = Y+Height-FontAscent;
@@ -2399,19 +2765,19 @@ function DrawBarView()
 				context.fillRect(0, Y, Width, FontHeight+2);
 				var ThreadColor = CSwitchColors[i % CSwitchColors.length];
 				context.fillStyle = ThreadColor;
-				context.fillText(ThreadNames[i], 1, YText);
+				context.fillText(S.ThreadNames[i], 1, YText);
 				context.textAlign = 'left';
 				Y += Height;
 				for(var idx in GroupOrder)
 				{
 					R = 0;
 					var groupid = GroupOrder[idx];
-					var Group = GroupInfo[groupid];
-					var PerThreadTimer = ThreadGroupTimeArray[i][groupid];
-					var PerThreadTimerTotal = ThreadGroupTimeTotalArray[i][groupid];
+					var Group = S.GroupInfo[groupid];
+					var PerThreadTimer = S.ThreadGroupTimeArray[i][groupid];
+					var PerThreadTimerTotal = S.ThreadGroupTimeTotalArray[i][groupid];
 					if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (GroupsAllActive || GroupsActive[Group.name]) && FilterMatch(FilterGroup, Group.name))
 					{
-						var GColor = GroupColors ? g_Colors[GroupInfo[groupid].cid] : 'white';
+						var GColor = GroupColors ? g_Colors[S.GroupInfo[groupid].cid] : 'white';
 						var X = 0;
 						nColorIndex = 1-nColorIndex;
 						bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
@@ -2435,8 +2801,8 @@ function DrawBarView()
 		for(var idx in GroupOrder)
 		{
 			var groupid = GroupOrder[idx];
-			var Group = GroupInfo[groupid];
-			var GColor = GroupColors ? g_Colors[GroupInfo[groupid].cid] : 'white';
+			var Group = S.GroupInfo[groupid];
+			var GColor = GroupColors ? g_Colors[S.GroupInfo[groupid].cid] : 'white';
 			if((GroupsAllActive || GroupsActive[Group.name]) && FilterMatch(FilterGroup, Group.name))
 			{
 				R = 0;
@@ -2463,12 +2829,12 @@ function DrawBarView()
 				Y += Height;
 				if(TimersGroups)
 				{
-					for(var i = 0; i < ThreadNames.length; ++i)
+					for(var i = 0; i < S.ThreadNames.length; ++i)
 					{
 						R = 0;
-						var PerThreadTimer = ThreadGroupTimeArray[i][groupid];
-						var PerThreadTimerTotal = ThreadGroupTimeTotalArray[i][groupid];
-						if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (ThreadsActive[ThreadNames[i]] || ThreadsAllActive) && FilterMatch(FilterTimer, ThreadNames[i]))
+						var PerThreadTimer = S.ThreadGroupTimeArray[i][groupid];
+						var PerThreadTimerTotal = S.ThreadGroupTimeTotalArray[i][groupid];
+						if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (ThreadsActive[S.ThreadNames[i]] || ThreadsAllActive) && FilterMatch(FilterTimer, S.ThreadNames[i]))
 						{
 							var YText = Y+Height-FontAscent;
 							bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
@@ -2478,7 +2844,7 @@ function DrawBarView()
 							var ThreadColor = CSwitchColors[i % CSwitchColors.length];
 							context.fillStyle = ThreadColor;
 							context.textAlign = 'right';
-							context.fillText(ThreadNames[i], NameWidth - 5, YText);
+							context.fillText(S.ThreadNames[i], NameWidth - 5, YText);
 							context.textAlign = 'left';
 							X = NameWidth;
 							DrawTimer(PerThreadTimer, ThreadColor);
@@ -2493,7 +2859,7 @@ function DrawBarView()
 					for(var timerindex in TimerArray)
 					{
 						var timerid = TimerArray[timerindex];
-						if(FilterMatch(FilterTimer, TimerInfo[timerid].name))
+						if(FilterMatch(FilterTimer, S.TimerInfo[timerid].name))
 						{
 							DrawTimerRow(timerid, 0);
 							Y += Height;
@@ -2674,7 +3040,7 @@ function DrawCounterView()
 	var Height = BoxHeight;
 	var Width = nWidth;
 	//clamp offset to prevent scrolling into the void
-	var nTotalRows = CounterInfo.length;
+	var nTotalRows = S.CounterInfo.length;
 	var nTotalRowPixels = nTotalRows * Height;
 	var nFrameRows = nHeight - BoxHeight;
 	if(nOffsetCountersY + nFrameRows > nTotalRowPixels && nTotalRowPixels > nFrameRows)
@@ -2725,7 +3091,7 @@ function DrawCounterView()
 
 	function DrawCounterRecursive(Index)
 	{
-		var Counter = CounterInfo[Index];
+		var Counter = S.CounterInfo[Index];
 		var Indent = CounterIndent(Counter.level);
 		CounterNameWidthTemp = Max(CounterNameWidthTemp, Counter.name.length+1 + Indent / (FontWidth+1));
 		CounterValueWidthTemp = Max(CounterValueWidthTemp, Counter.formatted.length);
@@ -2841,14 +3207,14 @@ function DrawCounterView()
 			while(ChildIndex != -1)
 			{
 				DrawCounterRecursive(ChildIndex);
-				ChildIndex = CounterInfo[ChildIndex].sibling;
+				ChildIndex = S.CounterInfo[ChildIndex].sibling;
 			}
 		}
 	}
 
-	for(var i = 0; i < CounterInfo.length; ++i)
+	for(var i = 0; i < S.CounterInfo.length; ++i)
 	{
-		if(CounterInfo[i].parent == -1)
+		if(S.CounterInfo[i].parent == -1)
 		{
 			DrawCounterRecursive(i);
 		}
@@ -2887,32 +3253,32 @@ function DrawCounterView()
 //preprocess context switch data to contain array per thread
 function PreprocessContextSwitchCacheItem(ThreadId)
 {
-	var CSObject = CSwitchCache[ThreadId];
+	var CSObject = S.CSwitchCache[ThreadId];
 	if(ThreadId > 0 && !CSObject)
 	{
 		CSArrayIn = new Array();
 		CSArrayOut = new Array();
 		CSArrayCpu = new Array();
-		var nCount = CSwitchTime.length;
+		var nCount = S.CSwitchTime.length;
 		var j = 0;
 		var TimeIn = -1.0;
 		for(var i = 0; i < nCount; ++i)
 		{	
-			var ThreadIn = CSwitchThreadInOutCpu[j];
-			var ThreadOut = CSwitchThreadInOutCpu[j+1];
-			var Cpu = CSwitchThreadInOutCpu[j+2];
+			var ThreadIn = S.CSwitchThreadInOutCpu[j];
+			var ThreadOut = S.CSwitchThreadInOutCpu[j+1];
+			var Cpu = S.CSwitchThreadInOutCpu[j+2];
 			if(TimeIn < 0)
 			{
 				if(ThreadIn == ThreadId)
 				{
-					TimeIn = CSwitchTime[i];
+					TimeIn = S.CSwitchTime[i];
 				}
 			}
 			else
 			{
 				if(ThreadOut == ThreadId)
 				{
-					var TimeOut = CSwitchTime[i];
+					var TimeOut = S.CSwitchTime[i];
 					CSArrayIn.push(TimeIn);
 					CSArrayOut.push(TimeOut);
 					CSArrayCpu.push(Cpu);
@@ -2926,7 +3292,7 @@ function PreprocessContextSwitchCacheItem(ThreadId)
 		CSObject.In = CSArrayIn;
 		CSObject.Out = CSArrayOut;
 		CSObject.Cpu = CSArrayCpu;
-		CSwitchCache[ThreadId] = CSObject;
+		S.CSwitchCache[ThreadId] = CSObject;
 	}
 
 }
@@ -2934,40 +3300,40 @@ function PreprocessContextSwitchCache()
 {
 	ProfileEnter("PreprocessContextSwitchCache");
 	var AllThreads = {};
-	var nCount = CSwitchTime.length;
+	var nCount = S.CSwitchTime.length;
 	for(var i = 0; i < nCount; ++i)
 	{	
-		var nThreadIn = CSwitchThreadInOutCpu[i];
+		var nThreadIn = S.CSwitchThreadInOutCpu[i];
 		if(!AllThreads[nThreadIn])
 		{
 		    AllThreads[nThreadIn] = '' + nThreadIn;
 		    var FoundThread = false;
-		    for(var i = 0; i < ThreadIds.length; ++i)
+		    for(var i = 0; i < S.ThreadIds.length; ++i)
 		    {
-		        if(ThreadIds[i] == nThreadIn)
+		        if(S.ThreadIds[i] == nThreadIn)
 		        {
 		            FoundThread = true;
 		        }
 		    }
 		    if(!FoundThread)
 		    {
-		        CSwitchOnlyThreads.push(nThreadIn);
+		        S.CSwitchOnlyThreads.push(nThreadIn);
 		    }
 		}
 	}
-	for(var i = 0; i < CSwitchOnlyThreads.length; ++i)
+	for(var i = 0; i < S.CSwitchOnlyThreads.length; ++i)
 	{
-		PreprocessContextSwitchCacheItem(CSwitchOnlyThreads[i]);
+		PreprocessContextSwitchCacheItem(S.CSwitchOnlyThreads[i]);
 	}
-	for(var i = 0; i < ThreadIds.length; ++i)
+	for(var i = 0; i < S.ThreadIds.length; ++i)
 	{
-		PreprocessContextSwitchCacheItem(ThreadIds[i]);	
+		PreprocessContextSwitchCacheItem(S.ThreadIds[i]);	
 	}
 	function HandleMissingThread(a)
 	{
-		if(!CSwitchThreads[a])
+		if(!S.CSwitchThreads[a])
 		{
-			CSwitchThreads[a] = {'tid':a, 'pid':-1, 't':'?', 'p':'?'}
+			S.CSwitchThreads[a] = {'tid':a, 'pid':-1, 't':'?', 'p':'?'}
 		}
 	}
 	function CompareThreadInfo(a, b)
@@ -2977,20 +3343,20 @@ function PreprocessContextSwitchCache()
 		else
 			return a.tid - b.tid;
 	}
-	CSwitchOnlyThreads.sort( function(a, b){ 
+	S.CSwitchOnlyThreads.sort( function(a, b){ 
 		HandleMissingThread(a);
 		HandleMissingThread(b);
-		return CompareThreadInfo(CSwitchThreads[a], CSwitchThreads[b]); 
+		return CompareThreadInfo(S.CSwitchThreads[a], S.CSwitchThreads[b]); 
 	} );
 
 	ProfileLeave();
 }
 
-function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled)
+function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled, bSecond)
 {
 	ProfileEnter("DrawContextSwitchBars");
-	var CSObject = CSwitchCache[ThreadId];
-	if(CSObject)
+	var CSObject = S.CSwitchCache[ThreadId];
+	if(CSObject && CSObject.Size > 0)
 	{
 		var Size = CSObject.Size;		
 		var In = CSObject.In;
@@ -3026,6 +3392,7 @@ function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOf
 				if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < fOffsetY+CSwitchHeight && DetailedViewMouseY >= fOffsetY)
 				{
 					nHoverCSCpuNext = ActiveCpu;
+					RangeCpuNext.Off = bSecond ? fDetailedOffsetSecond : 0;
 					RangeCpuNext.Begin = TimeIn;
 					RangeCpuNext.End = TimeOut;
 					RangeCpuNext.Thread = ThreadId;
@@ -3034,12 +3401,88 @@ function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOf
 			}
 		}
 	}
+	else 
+	{
+		//debug: draw context switch without cswitch
+		// for(var i = 0; i < 8; ++i)
+		// {
+		// 	context.fillStyle = CSwitchColors[i];
+		// 	context.fillRect((nWidth * i / 8) + 10, fOffsetY, nWidth / 8 - 20, CSwitchHeight);
+		// }
+	}
 	ProfileLeave();
 }
 
-function DrawDetailedView(context, MinWidth, bDrawEnabled)
+function DrawDetailedButtons(context, X, Y, Names, Callbacks, Align)
 {
-	if(bDrawEnabled)
+	if(!Align)
+	{
+		Align = "left";
+	}
+	var Dir = 1;
+	var Offset = 0;
+	var OffsetText = 0;
+	if(Align == "right")
+	{
+		Dir = -1;
+	}
+	else if(Align == "center")
+	{
+		Offset = -0.5;
+		Align = "left";
+	}
+	let W = Array(Names.length);
+	var w = 0;
+	for(let i = 0; i < Names.length; ++i)
+	{
+		W[i] = context.measureText(Names[i]).width;
+		w += W[i];
+	}
+	X += w * Offset;
+
+	// context.textBaseline = 'top';
+	context.textAlign = Align;
+	context.fillStyle = 'white';
+	var mx = DetailedViewMouseX;
+	var my = DetailedViewMouseY;
+	for(let i = 0; i < Names.length; ++i)
+	{
+		let w = W[i];
+		let x0_ = X + w * Dir;
+		let x0 = Math.min(X, x0_);
+		let x1 = Math.max(X, x0_);
+		let y0 = Y;
+		let y1 = Y + FontHeight;
+		context.fillStyle = nBackColors[0];
+		context.fillRect(x0, y0, x1 - x0, y1 - y0);
+
+		if(mx >= x0 && mx <= x1 && my >= y0 && my <= y1)
+		{
+			DetailedMouseOverButton = 1;
+			context.fillStyle = 'cyan';
+			DetailedAddMouseEvent(99, function(){ Callbacks[i](); } );
+		}
+		else
+		{
+			context.fillStyle = 'white';
+		}
+
+		context.fillText(Names[i], X, Y + FontHeight - 2);
+		X += Dir * (w+FontWidth);
+	}
+
+	context.fillStyle = 'white';
+	context.textAlign = 'left';
+}
+
+function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
+{
+	if(!S || !S.Frames)
+	{
+		return;
+	}
+	var bSecond = S != S0;
+	if(bDrawEnabled && !bSecond)
 	{
 		DrawDetailedBackground(context);
 	}
@@ -3047,19 +3490,22 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 	var colors = [ '#ff0000', '#ff00ff', '#ffff00'];
 	var fScaleX = nWidth / fDetailedRange; 
 	var fOffsetY = -nOffsetY + BoxHeight;
-	nHoverTokenNext = -1;
-	nHoverTokenLogIndexNext = -1;
-	nHoverTokenIndexNext = -1;
-	nHoverCounter += nHoverCounterDelta;
-	if(nHoverCounter >= 255) 
+
+
+	var nHoverTokenStack = -1;
+	if(S == S0)
 	{
-		nHoverCounter = 255;
-		nHoverCounterDelta = -nHoverCounterDelta;
-	}
-	if(nHoverCounter < 128) 
-	{
-		nHoverCounter = 128;
-		nHoverCounterDelta = -nHoverCounterDelta;
+		nHoverCounter += nHoverCounterDelta;
+		if(nHoverCounter >= 255) 
+		{
+			nHoverCounter = 255;
+			nHoverCounterDelta = -nHoverCounterDelta;
+		}
+		if(nHoverCounter < 128) 
+		{
+			nHoverCounter = 128;
+			nHoverCounterDelta = -nHoverCounterDelta;
+		}
 	}
 	var nHoverHigh = nHoverCounter.toString(16);
 	var nHoverLow = (127+255-nHoverCounter).toString(16);
@@ -3068,45 +3514,91 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 
 	context.fillStyle = 'black';
 	context.font = Font;
-	var nNumLogs = Frames[0].ts.length;
-	var fTimeEnd = fDetailedOffset + fDetailedRange;
+	// context.textBaseline = 'alphabetic';
+
+	var nNumLogs = S.Frames[0].ts.length;
+	if(S0)
+	{
+		var l0 = S0.Frames[0].ts.length;
+		var l1 = S.Frames[0].ts.length
+		if(l1 != l0)
+			debugger;
+	}
+	let Off = fDetailedOffset;
+	let XOffset = 0;
+	if(bSecond)
+	{
+		XOffset = fDetailedOffsetSecond;
+		Off += XOffset;
+	}
+	var fTimeEnd = Off + fDetailedRange;
 
 	var FirstFrame = 0;
-	for(var i = 0; i < Frames.length ; i++)
+	for(let i = 0; i < S.Frames.length ; i++)
 	{
-		if(Frames[i].frameend < fDetailedOffset)
+		if(S.Frames[i].frameend < Off)
 		{
 			FirstFrame = i;
 		}
 	}
 
-	// var BatchesColor = new Array();
-	// var BatchesColorColor = new Array();
-	// var BatchesColorDark = new Array();
-	var Batches = new Array(g_Colors.length+1);
-	var BatchesTxt = new Array();
-	var BatchesTxtPos = new Array();
+	var BoxHeightScaled = BoxHeight;
+	var Scale = 1;
+	var fExtra = 0;
+	var Padding = 15;
+	var SecondReverseOffset = 0;
+	if(DrawDetailedFlameMode == 1)
+	{
+		BoxHeightScaled = Math.ceil(BoxHeight*0.5);
+		fExtra = 0.5;
+	}
+	else if(DrawDetailedFlameMode == 2)
+	{
+		BoxHeightScaled = 0;
+		fExtra = 1;
+	}
+	if(DrawDetailedCompareReverse && bSecond)
+	{
+		Scale = -1;
+		BoxHeightScaled = -BoxHeightScaled;
+		SecondReverseOffset = 5-BoxHeight;
+	}
+	var BoxHeightScaledPos = Math.abs(BoxHeightScaled);
+	var Levels = [];
 	var BatchesTxtColor = ['#ffffff', '#333333'];
 
-	for(var i = 0; i < 2; ++i)
+	var AddBatch = function(StackPos, index, X, Y, W, Name, NameLen, Duration)
 	{
-		BatchesTxt[i] = Array();
-		BatchesTxtPos[i] = Array();
-	}
-	for(var i = 0; i < Batches.length; ++i)
-	{
-		Batches[i] = Array();
-	}
-
-
-	var AddBatch = function(index, X, Y, W, Name, NameLen, Duration)
-	{
-		var B = Batches[index];
+		var L = Levels[StackPos];
+		if(!L)
+		{
+			for(var j = 0; j < StackPos+1; ++j)
+			{
+				if(!Levels[j])
+				{
+					Levels[j] = {};
+					L = Levels[j];
+					L.Batches = new Array(g_Colors.length+1);
+					L.BatchesTxt = new Array();
+					L.BatchesTxtPos = new Array();
+					for(var i = 0; i < 2; ++i)
+					{
+						L.BatchesTxt[i] = Array();
+						L.BatchesTxtPos[i] = Array();
+					}
+					for(var i = 0; i < L.Batches.length; ++i)
+					{
+						L.Batches[i] = Array();
+					}
+				}
+			}
+		}
+		var B = L.Batches[index];
 		var txtidx = g_ColorsTextIndex[index];
 		if(txtidx < 0 || txtidx > 1)
 			debugger;
-		var BTxt = BatchesTxt[txtidx];
-		var BTxtPos = BatchesTxtPos[txtidx];
+		var BTxt = L.BatchesTxt[txtidx];
+		var BTxtPos = L.BatchesTxtPos[txtidx];
 		B.push(X);
 		B.push(Y);
 		B.push(W);
@@ -3141,9 +3633,6 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 			}
 		}
 	};
-
-
-
 	{
 		context.fillStyle = 'white';
 		fOffsetY += BoxHeight;
@@ -3159,7 +3648,8 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 		var off = 0.7;
 		var off2 = 2*off;
 		var MaxPosition = 1;
-		for(var i = 0; i < Timeline.Positions.length; ++i)
+
+		for(let i = 0; i < Timeline.Positions.length; ++i)
 		{
 			var TimeStart = Times[i];
 			var TimeEnd = Ends[i];
@@ -3170,80 +3660,178 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 				var Color = Colors[i];
 				var Name = Names[i];
 				var P = Positions[i];
-				var X = (TimeStart - fDetailedOffset) * fScaleX;
+				var X = (TimeStart - Off) * fScaleX;
 				var Y = fOffsetY + P * (BoxHeight+2);
 				var W = (TimeEnd-TimeStart)*fScaleX;
-
-				if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
+				if(!bSecond)
 				{
-					RangeCpuNext.Begin = TimeStart;
-					RangeCpuNext.End = TimeEnd;
-					RangeCpuNext.Thread = -1;
-					nHoverColorIndex = Color;
-					Color = cidhovercolor;
+					if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
+					{
+						RangeCpuNext.Off = 0;
+						RangeCpuNext.Begin = TimeStart;
+						RangeCpuNext.End = TimeEnd;
+						RangeCpuNext.Thread = -1;
+						nHoverColorIndex = Color;
+						Color = cidhovercolor;
+					}
+					AddBatch(0, Color, X, Y, W, Name, Name.length, TimeEnd-TimeStart);
 				}
-				AddBatch(Color, X, Y, W, Name, Name.length, TimeEnd-TimeStart);
 			}
 		}
 		fOffsetY += (1+MaxPosition) * (BoxHeight+3);
 	}
 	var nMinTimeMs = MinWidth / fScaleX;
+	var DrawGuides = 1;
 	{
 
-		if(!ThreadY)
+		if(!ThreadYBegin)
 		{
-			ThreadY = new Array(ThreadNames.length+1);
+			ThreadYBegin = Array(S0.ThreadNames.length);
+			ThreadYEnd = Array(S0.ThreadNames.length);
 		}
 
-		for(nLog = 0; nLog < nNumLogs; nLog++)
+		for(let i = 0; i < nNumLogs; i++)
 		{
-			var ThreadName = ThreadNames[nLog];
-			ThreadY[nLog] = fOffsetY;
-			if(ThreadsAllActive || ThreadsActive[ThreadName])
+			let nLog = ThreadOrderT[i];
+			let ThreadName = S0.ThreadNames[nLog];
+			let ThreadColors = S0.ThreadColors[nLog];
+			ThreadYBegin[nLog] = fOffsetY;
+			var SMul = 2;
+			var LogHeight = (S0.MaxStack[nLog]) * BoxHeightScaledPos + BoxHeight;
+			var LogHeight2 = (S0.MaxStack2[nLog]) * BoxHeightScaledPos + BoxHeight;
+			if(nContextSwitchEnabled)
+			{
+				LogHeight += (CSwitchHeight+4);
+				LogHeight2 += (CSwitchHeight+4);
+			}
+			if(!S0.SecondActive)
+			{
+				LogHeight2 = 0;
+			}
+			var OY = fOffsetY;
+			if(!bSecond)
+			{
+				OY += LogHeight2+1;
+			}
+			else
+			{
+				if(DrawDetailedCompareReverse)
+				{
+					OY += LogHeight2 - 5;
+				}
+			}
+			let Active = ThreadsActive[ThreadName];
+			let fOffsetYDelta = Active ? (LogHeight + LogHeight2 + Padding) : BoxHeight;
+
+			ThreadYBegin[nLog] = fOffsetY;
+			ThreadYEnd[nLog] = fOffsetY + fOffsetYDelta;
+
+			var ThreadHover = false;
+			if(bDrawEnabled)
+			{
+				if(Active || !bSecond)
+				{
+					let Color = bSecond ? ThreadColors.coloroff : ThreadColors.color;
+					let ColorLine = !bSecond ? ThreadColors.colordark : ThreadColors.color;
+					let Gradient = bSecond ? ThreadColors.gradientoff : ThreadColors.gradient;
+					let BaseY = (bSecond||!Active) ? (fOffsetY+1) : (fOffsetY+1+LogHeight2);
+					let HeightY = !Active ? BoxHeight : (bSecond ? LogHeight2 : (LogHeight + Padding));
+					let TransparentLine = S2.Frames != null && !bSecond;
+					if(TransparentLine)
+					{
+						context.globalAlpha = 0.4;
+					}
+					context.strokeStyle = ColorLine;
+					context.beginPath();
+					context.moveTo(0, BaseY);
+					context.lineTo(nWidth, BaseY);
+					context.stroke();
+					if(TransparentLine)
+					{
+						context.globalAlpha = 1.0;
+					}
+
+					if(!Gradient)
+					{
+						Gradient = context.createLinearGradient(0,0,200,0);
+						Gradient.addColorStop(0, Color);
+						Gradient.addColorStop(1,'transparent');
+						if(bSecond)
+							ThreadColors.gradientoff = Gradient;
+						else
+							ThreadColors.gradient = Gradient;
+					}
+					context.fillStyle = Gradient;
+					context.fillRect(0,BaseY,200,HeightY);
+				}
+			}
+				let D = fOffsetY + BoxHeight - DetailedViewMouseY;
+			
+			if(bDrawEnabled && G_DEBUG && 0)
+			{
+				debugger;
+			}
+			if(!bSecond)
+			{
+				if(D > 0 && D < BoxHeight)
+				{
+					if(!bDrawEnabled)
+					{
+						context.globalAlpha = 0.3;
+						context.fillStyle = 'grey';
+						context.fillRect(0, fOffsetY+2, nWidth, Active ? LogHeight2 + LogHeight + Padding : BoxHeight);
+						context.globalAlpha = 1.0;
+					}
+					ThreadHover = 1;
+				}
+			}
+
+			if(Active)
 			{
 				var LodIndex = 0;
 				var MinDelta = 0;
 				var NextLod = 1;
-				while(NextLod < LodData.length && LodData[NextLod].MinDelta[nLog] < nMinTimeMs)
+				while(NextLod < S.LodData.length && S.LodData[NextLod].MinDelta[nLog] < nMinTimeMs)
 				{
 					LodIndex = NextLod;
 					NextLod = NextLod + 1;
-					MinDelta = LodData[LodIndex].MinDelta[nLog];
+					MinDelta = S.LodData[LodIndex].MinDelta[nLog];
 				}
-				if(LodIndex == LodData.length)
+				if(LodIndex == S.LodData.length)
 				{
-					LodIndex = LodData.length-1;
+					LodIndex = S.LodData.length-1;
 				}
 				if(DisableLod)
 				{
 					LodIndex = 0;
 				}
 
-				context.fillStyle = 'white';
-				fOffsetY += BoxHeight;
-				context.fillText(ThreadName, 0, fOffsetY);
+				OY += 4;
+
 				if(nContextSwitchEnabled)
 				{
-					DrawContextSwitchBars(context, ThreadIds[nLog], fScaleX, fOffsetY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled);
-					fOffsetY += CSwitchHeight+1;
+					DrawContextSwitchBars(context, S.ThreadIds[nLog], fScaleX, OY, Off, nHoverColor, MinWidth, bDrawEnabled, bSecond);
+					OY += Scale * (CSwitchHeight+2);
 				}
+				OY += SecondReverseOffset;
 				var MaxDepth = 1;
 				var StackPos = 0;
 				var Stack = Array(20);
-				var Lod = LodData[LodIndex];
+				var Lod = S.LodData[LodIndex];
 
 				var TypeArray = Lod.TypeArray[nLog];
 				var IndexArray = Lod.IndexArray[nLog];
 				var TimeArray = Lod.TimeArray[nLog];
 
-				var LocalFirstFrame = Frames[FirstFrame].FirstFrameIndex[nLog];
-				var IndexStart = ISGPU[nLog] ? 0 : Lod.LogStart[LocalFirstFrame][nLog];
+				var LocalFirstFrame = S.Frames[FirstFrame].FirstFrameIndex[nLog];
+				var IndexStart = S.ISGPU[nLog] ? 0 : Lod.LogStart[LocalFirstFrame][nLog];
 				var IndexEnd = TimeArray.length;
 				IndexEnd = TimeArray.length;
 				var HasSetHover = 0;
 
 
-				for(var j = IndexStart; j < IndexEnd; ++j)
+
+				for(let j = IndexStart; j < IndexEnd; ++j)
 				{
 					var type = TypeArray[j];
 					var index = IndexArray[j];
@@ -3267,30 +3855,21 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 							var StartIndex = Stack[StackPos];
 							var timestart = TimeArray[StartIndex];
 							var timeend = time;
-							var X = (timestart - fDetailedOffset) * fScaleX;
-							var Y = fOffsetY + StackPos * BoxHeight;
+							var X = (timestart - Off) * fScaleX;
+							var Y = OY + StackPos * BoxHeightScaled;
+
 							var W = (timeend-timestart)*fScaleX;
 
-							if(W > MinWidth && X < nWidth && X+W > 0)
+							if(X < nWidth && X+W > 0)
 							{
-								if(bDrawEnabled || index == nHoverToken)
-								{
-									var cid = TimerInfo[index].cid;
-									if(index == nHoverToken)
-									{
-										nHoverColorIndex = cid;
-										cid = cidhovercolor;
-									}
-									AddBatch(cid, X, Y, W, TimerInfo[index].name, TimerInfo[index].len, timeend-timestart);
-								}
-
 								if(index == FilterSearchPassIndex)
 								{
 									var Range = RangeInit();
 									Range.Begin = timestart;
 									Range.End = timeend;
 									Range.Thread = nLog;
-									Range.YBegin = Y - ThreadY[nLog];
+									Range.YBegin = Y - ThreadYBegin[nLog];
+									Range.Second = bSecond;
 
 									if(FilterSearchArray.length < 500)
 									{
@@ -3301,33 +3880,52 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 										}
 									}
 								}
-
-								if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
+								if(W > MinWidth)
 								{
-
-									RangeCpuNext.Begin = timestart;
-									RangeCpuNext.End = timeend;
-									RangeCpuNext.Thread = nLog;
-									if(TypeArray[StartIndex+1] == 3 && TypeArray[j+1] == 3)
+									if(bDrawEnabled || index == nHoverToken)
 									{
-										RangeGpuNext.Begin = RangeCpuNext.Begin;
-										RangeGpuNext.End = RangeCpuNext.End;
-										RangeGpuNext.Thread = nLog;
-										//cpu tick is stored following
-										RangeCpuNext.Begin = TimeArray[StartIndex+1];
-										RangeCpuNext.End = TimeArray[j+1];
-										RangeCpuNext.Thread = IndexArray[StartIndex+1];
-									}
-									else
-									{
-										RangeGpuNext.Begin = -1;
-										RangeGpuNext.End = -1
+										var cid = GroupColors == 2 ? ThreadColors.colordark_cid : S0.TimerInfo[index].cid;
+										if(index == nHoverToken)
+										{
+											nHoverColorIndex = cid;
+											cid = cidhovercolor;
+										}
+										AddBatch(StackPos, cid, X, Y, W, S0.TimerInfo[index].name, S0.TimerInfo[index].len, timeend-timestart);
 									}
 
-									nHoverTokenNext = index;
-									nHoverTokenIndexNext = j;
-									nHoverTokenLogIndexNext = nLog;
-									HasSetHover = 1;
+
+									if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y && StackPos > nHoverTokenStack)
+									{
+										RangeCpuNext.Off = bSecond ? fDetailedOffsetSecond : 0;
+										RangeCpuNext.Begin = timestart;
+										RangeCpuNext.End = timeend;
+										RangeCpuNext.Thread = nLog;
+										RangeCpuNext.Off = XOffset;
+										if(TypeArray[StartIndex+1] == 3 && TypeArray[j+1] == 3)
+										{
+											RangeGpuNext.Begin = RangeCpuNext.Begin;
+											RangeGpuNext.End = RangeCpuNext.End;
+											RangeGpuNext.Thread = nLog;
+											RangeGpuNext.Off = XOffset;
+											//cpu tick is stored following
+											RangeCpuNext.Begin = TimeArray[StartIndex+1];
+											RangeCpuNext.End = TimeArray[j+1];
+											RangeCpuNext.Thread = IndexArray[StartIndex+1];
+											RangeCpuNext.Off = XOffset;
+										}
+										else
+										{
+											RangeGpuNext.Begin = -1;
+											RangeGpuNext.End = -1
+										}
+
+										nHoverTokenNext = index;
+										nHoverTokenStack = StackPos;
+										nHoverTokenIndexNext = j;
+										nHoverTokenLogIndexNext = nLog;
+										HoverTokenNextOwner = S;
+										HasSetHover = 1;
+									}
 								}
 							}
 							if(StackPos == 0 && time > fTimeEnd)
@@ -3335,11 +3933,9 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 						}
 					}
 				}
-				fOffsetY += (1+g_MaxStack[nLog]) * BoxHeight;
-
 				if(HasSetHover)
 				{
-					for(var i = 0; i < Frames.length-1; ++i)
+					for(let i = 0; i < S.Frames.length-1; ++i)
 					{
 						var IndexStart = Lod.LogStart[i][nLog];
 						if(nHoverTokenIndexNext >= IndexStart)
@@ -3349,13 +3945,31 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 					}
 				}
 			}
-			ThreadY[nLog+1] = fOffsetY;
+			var w = context.measureText(ThreadName).width;
+			context.fillStyle = nBackColors[0];
+			context.fillStyle = 'white';
+			context.fillText(ThreadName, 0, fOffsetY+FontHeight-1);
+			if(ThreadHover)
+			{
+				DrawDetailedButtons(context, nWidth, fOffsetY+1, ["\u2191\u2191\u2191", "\u2193\u2193\u2193", "\u2191", "\u2193"], 
+					[function(){ThreadOrderMoveUp(ThreadName,1);}, function(){ThreadOrderMoveDown(ThreadName,1);},
+					function(){ThreadOrderMoveUp(ThreadName);}, function(){ThreadOrderMoveDown(ThreadName);}],
+					 "right");
+							// DetailedAddMouseEvent(1, function(){ Callbacks[i](); } );
+				DetailedAddMouseEvent(1, function()
+				{
+					ToggleThread(ThreadName);
+				});
+			}
+			// context.textBaseline = 'alphabetic';
+			fOffsetY += fOffsetYDelta;
+			// ThreadY[nLog+1] = fOffsetY;
 		}
 
-		if(nContextSwitchEnabled) //non instrumented threads.
+		if(nContextSwitchEnabled && !bSecond) //non instrumented threads.
 		{
 			var CurrentPid = -112;
-			var ContextSwitchThreads = CSwitchOnlyThreads;
+			var ContextSwitchThreads = S.CSwitchOnlyThreads;
 			function DrawHeader(str, X, Y)
 			{
 				var width = str.length * FontWidth;
@@ -3368,11 +3982,11 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 
 
 			}
-			for(var i = 0; i < ContextSwitchThreads.length; ++i)
+			for(let i = 0; i < ContextSwitchThreads.length; ++i)
 			{
 				var ThreadId = ContextSwitchThreads[i];
 				var ThreadName = '' + ThreadId;
-				var TI = CSwitchThreads[ThreadId];
+				var TI = S.CSwitchThreads[ThreadId];
 
 				if(TI)
 				{
@@ -3386,7 +4000,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 					}
 				}
 
-				DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled);
+				DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, Off, nHoverColor, MinWidth, bDrawEnabled);
 
 				if(TI)
 				{
@@ -3421,8 +4035,9 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 			// }
 		}
 
-
+		for(let l = 0; l < Levels.length; ++l)
 		{
+			var Batches = Levels[l].Batches;
 			for(var i = 0; i < Batches.length; ++i)
 			{
 				var a = Batches[i];
@@ -3430,7 +4045,7 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 				{
 					if(!DisableMerge)
 					{
-						for(var j = 0; j < a.length; j += 3)
+						for(let j = 0; j < a.length; j += 3)
 						{						
 							var X = a[j];
 							var Y = a[j+1];
@@ -3468,40 +4083,45 @@ function DrawDetailedView(context, MinWidth, bDrawEnabled)
 							var mult = nHoverCounter / 255.0;
 							var m2 =mult -0.5;
 							var m4 = m2 * 0.5;
-							var H = g_ColorH[nHoverColorIndex];
-							var S = g_ColorS[nHoverColorIndex];
-							var L = g_ColorL[nHoverColorIndex];
-							var offset = 0;
-							if(S> 0.5)
-								offset = 0.5 - S;
-							var offsetL = 0;
-							if(L > 0.75)
-								offsetL = 0.75 - L;
-							L = L + m4 + offsetL;
-							L = L > 1 ? 1 : (L < 0 ? 0 : L);
-							S = S + m2 + offset;
-							S = S > 1 ? 1 : (S < 0 ? 0 : S);
-							var ColorCV = ConvertHslToColor(H, S, L);
-							// ShowFlashMessage('S' + S + 'H' + H, 10); 
+							var f = function()
+							{
+								var H = g_ColorH[nHoverColorIndex];
+								var S = g_ColorS[nHoverColorIndex];
+								var L = g_ColorL[nHoverColorIndex];
+								var offset = 0;
+								if(S> 0.5)
+									offset = 0.5 - S;
+								var offsetL = 0;
+								if(L > 0.75)
+									offsetL = 0.75 - L;
+								L = L + m4 + offsetL;
+								L = L > 1 ? 1 : (L < 0 ? 0 : L);
+								S = S + m2 + offset;
+								S = S > 1 ? 1 : (S < 0 ? 0 : S);
+								return ConvertHslToColor(H, S, L);
+							};
+							var ColorCV = f();
 							ColorDark = Color = ColorCV; ;
-							// console.log('hover color string ' + Color + ' ... old ' + 'hsl(' + H + ',' + S + ',' + L + ')');
 						}
 					}
 					FillRects(a, Color, ColorDark);
 
 				}
-			}	
-		}
-		for(var i = 0; i < BatchesTxt.length; ++i)
-		{
-			context.fillStyle = BatchesTxtColor[i];
-			var TxtArray = BatchesTxt[i];
-			var PosArray = BatchesTxtPos[i];
-			for(var j = 0; j < TxtArray.length; ++j)
-			{
-				var k = j * 2;
-				context.fillText(TxtArray[j], PosArray[k],PosArray[k+1]);
 			}
+			var BatchesTxt = Levels[l].BatchesTxt;
+			var BatchesTxtPos = Levels[l].BatchesTxtPos;	
+			for(let i = 0; i < BatchesTxt.length; ++i)
+			{
+				context.fillStyle = BatchesTxtColor[i];
+				var TxtArray = BatchesTxt[i];
+				var PosArray = BatchesTxtPos[i];
+				for(let j = 0; j < TxtArray.length; ++j)
+				{
+					let k = j * 2;
+					context.fillText(TxtArray[j], PosArray[k],PosArray[k+1]);
+				}
+			}
+
 		}
 	}
 }
@@ -3555,8 +4175,9 @@ function DrawFilterSearchRanges(context, Ranges, ColorBack, ColorFront, ThreadY)
 	for(var i = 0; i < Ranges.length; ++i)
 	{
 		var Range = Ranges[i];
-		var fBegin = Range.Begin;
-		var fEnd = Range.End;
+		let Off = Range.Second ? fDetailedOffsetSecond : 0
+		var fBegin = Range.Begin - Off;
+		var fEnd = Range.End - Off;
 		var OffsetTop = Range.YBegin + ThreadY[Range.Thread];
 		var OffsetBottom = OffsetTop + BoxHeight;
 
@@ -3637,6 +4258,7 @@ function DrawRange(context, Range, ColorBack, ColorFront, Name, Offset)
 	var fEnd = Range.End;
 	var OffsetTop = Range.YBegin;
 	var OffsetBottom = Range.YEnd;
+	var Off = Range.Off + fDetailedOffset;
 	if(fBegin < fEnd)
 	{
 		var MarginTop = (1.0+Offset) * (FontHeight+1);
@@ -3652,7 +4274,7 @@ function DrawRange(context, Range, ColorBack, ColorFront, Name, Offset)
 		}
 		var fRulerOffset = FontHeight * 0.5;
 		var fScaleX = nWidth / fDetailedRange; 
-		var X = (fBegin - fDetailedOffset) * fScaleX;
+		var X = (fBegin - Off) * fScaleX;
 		var YSpace = (FontHeight+2);
 		var Y = OffsetTop;
 		var YBottom = OffsetBottom;
@@ -3669,13 +4291,13 @@ function DrawRange(context, Range, ColorBack, ColorFront, Name, Offset)
 		context.lineTo(X+W, nHeight);
 		context.stroke();
 		var Duration = (fEnd - fBegin).toFixed(2) + "ms";
-		var Center = ((fBegin + fEnd) / 2.0) - fDetailedOffset;
+		var Center = ((fBegin + fEnd) / 2.0) - Off;
 		var DurationWidth = context.measureText(Duration+ "   ").width;
 
 		context.fillStyle = 'white';
 		context.textAlign = 'right';
 		var TextPosY = Y + YSpace;
-		DrawTextBox(context, fBegin.toFixed(2), X-3, TextPosY, 'right');
+		DrawTextBox(context, (fBegin-Range.Off).toFixed(2), X-3, TextPosY, 'right');
 		var YS = [Y, YBottom];
 		for(var i = 0; i < YS.length; ++i)
 		{
@@ -3718,19 +4340,36 @@ function DrawRange(context, Range, ColorBack, ColorFront, Name, Offset)
 			}
 		}
 		context.textAlign = 'left';
-		DrawTextBox(context, fEnd.toFixed(2), X + W + 2, TextPosY, 'left');
+		DrawTextBox(context, (fEnd-Range.Off).toFixed(2), X + W + 2, TextPosY, 'left');
 		DrawTextBox(context, Name, X + W + 2, OffsetTop + YSpace + FontHeight, 'left');
 	}
 	return Offset;
 }
+function DetailedAddMouseEvent(P, E)
+{
+	if(!DetailedMouseEvent)
+	{
+		DetailedMouseEvent = {"P":P, "E":E};
+	}
+	else if(DetailedMouseEvent.P < P)
+	{
+		DetailedMouseEvent.P = P;
+		DetailedMouseEvent.E = E;
+	}
+
+}
 
 function DrawDetailed(Animation)
 {
+	DetailedMouseEvent = null;
+
 	if(AnimationActive != Animation || !Initialized)
 	{
 		return;
 	}
 	ProfileEnter("DrawDetailed");
+	DetailedMouseOverButton = false;
+
 	DebugDrawQuadCount = 0;
 	DebugDrawTextCount = 0;
 	nHoverCSCpuNext = -1;
@@ -3745,13 +4384,13 @@ function DrawDetailed(Animation)
 	var offscreen = CanvasDetailedOffscreen.getContext('2d');
 	var fScaleX = nWidth / fDetailedRange; 
 	var fOffsetY = -nOffsetY + BoxHeight;
-
-	if(DetailedRedrawState.fOffsetY == fOffsetY && DetailedRedrawState.fDetailedOffset == fDetailedOffset && DetailedRedrawState.fDetailedRange == fDetailedRange && !KeyCtrlDown && !KeyShiftDown && !MouseDragButton)
+	if(DetailedRedrawState.fOffsetY == fOffsetY && DetailedRedrawState.fDetailedOffset == fDetailedOffset && DetailedRedrawState.fDetailedRange == fDetailedRange && !KeyCtrlDown && !KeyShiftDown && !KeyAltDown && !MouseDragButton && !RedrawRequested)
 	{
 		Invalidate++;
 	}
 	else
 	{
+		RedrawRequested = 0;
 		Invalidate = 0;
 		DetailedRedrawState.fOffsetY = fOffsetY;
 		DetailedRedrawState.fDetailedOffset = fDetailedOffset;
@@ -3762,16 +4401,26 @@ function DrawDetailed(Animation)
 		Invalidate = 1;
 	}
 	nHoverTokenDrawn = nHoverToken;
+
+	nHoverTokenNext = -1;
+	HoverTokenNextOwner = null;
+	nHoverTokenLogIndexNext = -1;
+	nHoverTokenIndexNext = -1;
+
+
+
 	if(Invalidate == 0) //when panning, only draw bars that are a certain width to keep decent framerate
 	{
 		context.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
-		DrawDetailedView(context, nMinWidthPan, true);
+		DrawDetailedView(S, S, context, nMinWidthPan, true);
+		DrawDetailedView(S2, S, context, nMinWidthPan, true, 1);
 		ProfileRedraw0++;
 	}
 	else if(Invalidate == 1) //draw full and store
 	{
 		offscreen.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
-		DrawDetailedView(offscreen, nMinWidth, true);
+		DrawDetailedView(S, S, offscreen, nMinWidth, true);
+		DrawDetailedView(S2, S, offscreen, nMinWidth, true, 1);
 		OffscreenData = offscreen.getImageData(0, 0, CanvasDetailedOffscreen.width, CanvasDetailedOffscreen.height);
 		ProfileRedraw1++;
 	}
@@ -3779,7 +4428,8 @@ function DrawDetailed(Animation)
 	{
 		context.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
 		context.putImageData(OffscreenData, 0, 0);
-		DrawDetailedView(context, nMinWidth, false);
+		DrawDetailedView(S, S, context, nMinWidth, false);
+		DrawDetailedView(S2, S, context, nMinWidth, false, 1);
 		ProfileRedraw2++;
 	}
 
@@ -3788,12 +4438,14 @@ function DrawDetailed(Animation)
 		nHoverToken = -1;
 		nHoverTokenIndex = -1;
 		nHoverTokenLogIndex = -1;
+		HoverTokenOwner = null;
 		RangeCpu = RangeInit();
 		RangeGpu = RangeInit();
 	}
 	else
 	{
 		nHoverToken = nHoverTokenNext;
+		HoverTokenOwner = HoverTokenNextOwner;
 		nHoverTokenIndex = nHoverTokenIndexNext;
 		nHoverTokenLogIndex = nHoverTokenLogIndexNext;
 		if(RangeValid(RangeCpuHistory))
@@ -3813,16 +4465,23 @@ function DrawDetailed(Animation)
 	DrawTextBox(context, TimeToMsString(fDetailedOffset + fDetailedRange), nWidth, FontHeight, 'right');
 	context.textAlign = 'left';
 
-	var YBegin = ThreadY[fRangeThreadIdNext];
-	var YEnd = ThreadY[fRangeThreadIdNext+1];
+	if(!FilterSearchActive && !IgnoreInput)
+	{
+		let Colors = GroupColors == 2 ? "Color[thread]" : (GroupColors ? "Color[group]" : "Color[timer]");
+		DrawDetailedButtons(context, nWidth * 0.5, 0, [Colors, "Search"],[ToggleGroupColors, FilterInputShow], "center");
+	}
+
+
+	var YBegin = ThreadYBegin[fRangeThreadIdNext];
+	var YEnd = ThreadYEnd[fRangeThreadIdNext];
 	var YBeginGpu = YBegin;
 	var YEndGpu = YEnd;
 	function RangeSet(R)
 	{
 		if(R.Thread >= 0)
 		{
-			R.YBegin = ThreadY[R.Thread];
-			R.YEnd = ThreadY[R.Thread + 1];
+			R.YBegin = ThreadYBegin[R.Thread];
+			R.YEnd = ThreadYEnd[R.Thread];
 		}
 		else
 		{
@@ -3838,7 +4497,7 @@ function DrawDetailed(Animation)
 	Offset = DrawRange(context, RangeCpu, '#009900', '#00ff00', "Cpu", Offset);
 	Offset = DrawRange(context, RangeGpu, '#996600', '#775500', "Gpu", Offset);
 
-	DrawFilterSearchRanges(context, FilterSearchArray, '#ff9900', '#ff9900', ThreadY);
+	DrawFilterSearchRanges(context, FilterSearchArray, '#ff9900', '#ff9900', ThreadYBegin);
 
 	nHoverCSCpu = nHoverCSCpuNext;
 
@@ -3851,11 +4510,11 @@ function ZoomToHighlight(NoGpu)
 {
 	if(RangeValid(RangeGpu) && !NoGpu)
 	{
-		ZoomTo(RangeGpu.Begin, RangeGpu.End);
+		ZoomToRange(RangeGpu);
 	}
 	else if(RangeValid(RangeCpu))
 	{
-		ZoomTo(RangeCpu.Begin, RangeCpu.End);
+		ZoomToRange(RangeCpu);
 	}
 	RangeCpu = RangeInit();
 	RangeGpu = RangeInit();
@@ -3895,12 +4554,12 @@ function MoveToNext(Direction) //1 forward, -1 backwards
 	var TypeEnd = Forward ? 0 : 1;
 	var SearchTimeBegin = Forward ? fTimeBegin : fTimeEnd;
 
-	var istart = Forward ? 0 : Frames.length-1;
-	var iend = Forward ? Frames.length : -1;
+	var istart = Forward ? 0 : S.Frames.length-1;
+	var iend = Forward ? S.Frames.length : -1;
 	var idelta = Forward ? 1 : -1;
 	for(var i = istart; i != iend; i += idelta)
 	{
-		var fr = Frames[i];
+		var fr = S.Frames[i];
 		var ts = fr.ts[nLog];
 		var ti = fr.ti[nLog];
 		var tt = fr.tt[nLog];
@@ -3984,10 +4643,22 @@ function MoveTo(fMoveBegin, fMoveEnd, YTop, YBottom)
 		nOffset = nOffsetYDest;
 	ZoomTo(fMoveBegin, fMoveEnd, nOffsetYDest, -1);
 }
-function ZoomTo(fZoomBegin, fZoomEnd, OffsetYDest, ZoomTime)
+
+function ZoomToRange(R)
+{
+	ZoomTo(R.Begin, R.End, 0, 0, R.Off);
+}
+
+
+function ZoomTo(fZoomBegin, fZoomEnd, OffsetYDest, ZoomTime, fOffset)
 {
 	if(fZoomBegin < fZoomEnd)
 	{
+		if(fOffset)
+		{
+			fZoomBegin -= fOffset;
+			fZoomEnd -= fOffset;
+		}
 		AnimationActive = true;
 		var fDetailedOffsetOriginal = fDetailedOffset;
 		var fDetailedRangeOriginal = fDetailedRange;
@@ -4036,10 +4707,18 @@ function ZoomTo(fZoomBegin, fZoomEnd, OffsetYDest, ZoomTime)
 		requestAnimationFrame(ZoomFunc);
 	}
 }
+
+var InsideDraw = 0;
 function RequestRedraw()
 {
-	Invalidate = 0;
-	Draw(1);
+	// ShowFlashMessage("redrawrequested", 10);
+	RedrawRequested = 1;
+	Invalidate = 1;
+	if(!InsideDraw)
+	{
+		Draw(1);
+	}
+
 }
 function Draw(RedrawMode)
 {
@@ -4047,6 +4726,11 @@ function Draw(RedrawMode)
 	{
 		return;
 	}
+	if(InsideDraw)
+	{
+		return;
+	}
+	InsideDraw = 1;
 	if(ProfileMode)
 	{
 		ProfileModeClear();
@@ -4077,6 +4761,12 @@ function Draw(RedrawMode)
 		ProfileLeave();
 		ProfileModeDraw(CanvasDetailedView);
 	}
+
+	InsideDraw = 0;
+	if(RedrawRequested)
+	{
+		requestAnimationFrame(AutoRedraw);
+	}
 }
 
 function AutoRedraw(Timestamp)
@@ -4088,6 +4778,8 @@ function AutoRedraw(Timestamp)
 		{
 			RedrawMode = 1;
 		}
+		if(RedrawRequested)
+			RedrawMode = 1;
 	}
 	else
 	{
@@ -4185,8 +4877,10 @@ var MouseDragMove = 3;
 var MouseDragState = MouseDragOff;
 var MouseDragTarget = 0;
 var MouseDragButton = 0;
+var MouseDragButtonNext = 0;
 var MouseDragKeyShift = 0;
 var MouseDragKeyCtrl = 0;
+var MouseDragKeyAlt = 0;
 var MouseDragX = 0;
 var MouseDragY = 0;
 var MouseDragXLast = 0;
@@ -4201,7 +4895,7 @@ function clamp(number, min, max)
 
 function MouseDragPan()
 {
-	return MouseDragButton == 1 || MouseDragKeyShift;
+	return MouseDragButton == 1 || MouseDragKeyShift || MouseDragKeyAlt;
 }
 function MouseDragSelectRange()
 {
@@ -4254,9 +4948,19 @@ function MouseHandleDrag()
 					var Y = MouseDragY - MouseDragYLast;
 					if(X)
 					{
-						fDetailedOffset += -X * fDetailedRange / nWidth;
+						if(MouseDragKeyAlt)
+						{
+							fDetailedOffsetSecond += -X * fDetailedRange / nWidth;
+						}
+						else
+						{
+							fDetailedOffset += -X * fDetailedRange / nWidth;
+						}
 					}
-					nOffsetY -= Y;
+					if(!MouseDragKeyAlt)
+					{						
+						nOffsetY -= Y;
+					}
 					if(nOffsetY < 0)
 					{
 						nOffsetY = 0;
@@ -4307,11 +5011,11 @@ function MouseHandleDrag()
 	{
 		function HistoryFrameTime(x)
 		{
-			var NumFrames = Frames.length;
+			var NumFrames = S.Frames.length;
 			var fBarWidth = nWidth / NumFrames;
 			var Index = clamp(Math.floor(NumFrames * x / nWidth), 0, NumFrames-1);
 			var Lerp = clamp((x/fBarWidth - Index) , 0, 1);
-			var time = Frames[Index].framestart + (Frames[Index].frameend - Frames[Index].framestart) * Lerp;
+			var time = S.Frames[Index].framestart + (S.Frames[Index].frameend - S.Frames[Index].framestart) * Lerp;
 			return time;
 		}
 		if(MouseDragSelectRange())
@@ -4365,13 +5069,13 @@ function MouseHandleDragClick()
 		{
 			if(nHoverCounter != -1)
 			{
-				if(CounterInfo[nHoverCounter].firstchild != -1)
+				if(S.CounterInfo[nHoverCounter].firstchild != -1)
 				{
-					CounterInfo[nHoverCounter].closed = !CounterInfo[nHoverCounter].closed;
+					S.CounterInfo[nHoverCounter].closed = !S.CounterInfo[nHoverCounter].closed;
 				}
 				else
 				{
-					CounterInfo[nHoverCounter].Expanded = !CounterInfo[nHoverCounter].Expanded;
+					S.CounterInfo[nHoverCounter].Expanded = !S.CounterInfo[nHoverCounter].Expanded;
 				}
 				Draw(1);
 			}
@@ -4382,7 +5086,14 @@ function MouseHandleDragClick()
 		}
 		else
 		{
-			ZoomToHighlight();
+			if(DetailedMouseEvent)
+			{
+				DetailedMouseEvent.E();
+			}
+			else if(!DetailedMouseOverButton)
+			{
+				ZoomToHighlight();
+			}
 		}
 	}
 	else if(MouseDragTarget == CanvasHistory)
@@ -4410,17 +5121,22 @@ function MapMouseButton(Event)
 	}
 }
 
+function MouseDragIsActive()
+{
+	return MouseDragState != MouseDragOff && MouseDragState != MouseDragDown;
+}
 function MouseDragReset()
 {
 	MouseDragState = MouseDragOff;
 	MouseDragTarget = 0;
 	MouseDragKeyShift = 0;
 	MouseDragKeyCtrl = 0;
+	MouseDragKeyAlt = 0;
 	MouseDragButton = 0;
 }
 function MouseDragKeyUp()
 {
-	if((MouseDragKeyShift && !KeyShiftDown) || (MouseDragKeyCtrl && !KeyCtrlDown))
+	if((MouseDragKeyShift && !KeyShiftDown) || (MouseDragKeyCtrl && !KeyCtrlDown) || (MouseDragKeyAlt && !KeyAltDown))
 	{
 		MouseHandleDragEnd();
 		MouseDragReset();
@@ -4433,7 +5149,10 @@ function MouseDrag(Source, Event)
 		MouseDragReset();
 		return;
 	}
-
+	if(G_DEBUG)
+	{
+		debugger;
+	}
 	var LocalRect = Event.target.getBoundingClientRect();
 	MouseDragX = Event.clientX - LocalRect.left;
 	MouseDragY = Event.clientY - LocalRect.top;
@@ -4443,7 +5162,8 @@ function MouseDrag(Source, Event)
 		var dy = Math.abs(MouseDragY - MouseDragYStart);
 		if((Source == MouseDragUp && MapMouseButton(Event) == MouseDragButton) ||
 			(MouseDragKeyCtrl && !KeyCtrlDown) ||
-			(MouseDragKeyShift && !KeyShiftDown))
+			(MouseDragKeyShift && !KeyShiftDown) ||
+			(MouseDragKeyAlt && !KeyAltDown))
 		{
 			MouseHandleDragEnd();
 			MouseDragReset();
@@ -4456,7 +5176,9 @@ function MouseDrag(Source, Event)
 	}
 	else if(MouseDragState == MouseDragOff)
 	{
-		if(Source == MouseDragDown || KeyShiftDown || KeyCtrlDown)
+
+
+		if(Source == MouseDragDown || KeyShiftDown || KeyCtrlDown|| KeyAltDown)
 		{
 			MouseDragTarget = Event.target;
 			MouseDragButton = MapMouseButton(Event);
@@ -4465,14 +5187,55 @@ function MouseDrag(Source, Event)
 			MouseDragYStart = MouseDragY;
 			MouseDragKeyCtrl = 0;
 			MouseDragKeyShift = 0;
+			MouseDragKeyAlt = 0;
 
-			if(KeyShiftDown || KeyCtrlDown)
+			if(KeyShiftDown || KeyCtrlDown || KeyAltDown)
 			{
+				MouseDragKeyAlt = KeyAltDown;
 				MouseDragKeyShift = KeyShiftDown;
 				MouseDragKeyCtrl = KeyCtrlDown;
 				MouseDragState = MouseDragMove;
 			}
 		}
+
+		// if(Source == MouseDragDown || KeyShiftDown || KeyCtrlDown)
+		// {
+		// 	if(MouseDragXStart == -1)
+		// 	{
+		// 		MouseDragXStart = MouseDragX;
+		// 		MouseDragYStart = MouseDragY;
+		// 		MouseDragTarget = Event.target;
+		// 		MouseDragButtonNext = MapMouseButton(Event);
+		// 	}
+		// 	else if(MouseDragXStart != MouseDragX || MouseDragYStart != MouseDragY)
+		// 	{
+
+		// 		//revert det her lort.
+		// 		fix mouse released til at
+		// 		MouseDragState = MouseDragDown;
+		// 		MouseDragButton = MouseDragButtonNext;
+		// 		MouseDragKeyCtrl = 0;
+		// 		MouseDragKeyShift = 0;
+
+
+		// 		if(KeyShiftDown || KeyCtrlDown)
+		// 		{
+		// 			MouseDragKeyShift = KeyShiftDown;
+		// 			MouseDragKeyCtrl = KeyCtrlDown;
+		// 			MouseDragState = MouseDragMove;
+		// 		}
+
+		// 	}
+
+
+
+		// }
+		// else
+		// {
+		// 	MouseDragXStart = -1;
+		// 	MouseDragYStart = -1;
+
+		// }
 	}
 	else if(MouseDragState == MouseDragDown)
 	{
@@ -4520,6 +5283,11 @@ function MouseMove(evt)
 		var Rect = CanvasHistory.getBoundingClientRect();
 		HistoryViewMouseX = x;
 		HistoryViewMouseY = y;
+
+
+		DetailedViewMouseX = -1;
+		DetailedViewMouseY = -1;
+
 	}
 	Draw(1);
 }
@@ -4589,6 +5357,7 @@ function MouseButton(bPressed, evt)
 	MouseDrag(bPressed ? MouseDragDown : MouseDragUp, evt);
 	if(!bPressed)
 		MouseSortClick();
+	RequestRedraw();
 }
 
 function MouseOut(evt)
@@ -4596,6 +5365,7 @@ function MouseOut(evt)
 	MouseDrag(MouseDragOff, evt);
 	KeyCtrlDown = 0;
 	KeyShiftDown = 0;
+	KeyAltDown = 0;
 	MouseDragButton = 0;
 	nHoverToken = -1;
 	RangeCpu = RangeInit();
@@ -4673,12 +5443,16 @@ function ToggleFilterInput(escape)
 
 function KeyUp(evt)
 {
+	if(evt.keyCode== 84)
+	{
+		G_DEBUG = 1;
+	}
 	if(evt.keyCode == 18)
 	{
 		ToolTipFlip = 0;
 	}
-//	ShowFlashMessage(evt.keyCode + ' <<', 100);
-	if(!FilterSearchActive)
+	// ShowFlashMessage(evt.keyCode + ' <<', 100);
+	if(!FilterSearchActive && !IgnoreInput)
 	{
 		if(evt.keyCode == 112)
 		{
@@ -4696,11 +5470,21 @@ function KeyUp(evt)
 		{
 			ToolTipCorner = 1-ToolTipCorner;
 		}
+		if(evt.keyCode == 187)
+		{
+			DrawDetailedFlameMode = (DrawDetailedFlameMode+1) % 3;
+			FilterSearchReset();
+		}
+		if(evt.keyCode == 189)
+		{
+			DrawDetailedCompareReverse = 1-DrawDetailedCompareReverse;
+			FilterSearchReset();
+		}
 		if(evt.keyCode == 32)
 		{
 			if(RangeSelect.Begin < RangeSelect.End)
 			{
-				ZoomTo(RangeSelect.Begin, RangeSelect.End);
+				ZoomToRange(RangeSelect);
 				RangeSelect = RangeInit();
 				MouseHandleDragEnd();
 			}
@@ -4715,16 +5499,16 @@ function KeyUp(evt)
 				{
 					Token = RangeSelect.Index;
 				}
-				if(Token != -1 && Token < TimerInfo.length)
+				if(Token != -1 && Token < S.TimerInfo.length)
 				{
-					var start = TimerInfo[Token].worststart;
-					var end = TimerInfo[Token].worstend;
+					var start = S.TimerInfo[Token].worststart;
+					var end = S.TimerInfo[Token].worstend;
 					RangeSelect.Begin = start;
 					RangeSelect.End = end;
-					RangeSelect.Thread = TimerInfo[Token].worstthread;
+					RangeSelect.Thread = S.TimerInfo[Token].worstthread;
 					RangeSelect.Index = Token;
 					ShowFlashMessage('Worst: ' + (end-start).toFixed(2) + 'ms', 100);
-					MoveTo(RangeSelect.Begin, RangeSelect.End, ThreadY[RangeSelect.Thread] + nOffsetY, ThreadY[RangeSelect.Thread+1] + nOffsetY);
+					MoveTo(RangeSelect.Begin, RangeSelect.End, ThreadYBegin[RangeSelect.Thread] + nOffsetY, ThreadYEnd[RangeSelect.Thread+1] + nOffsetY);
 					MouseHandleDragEnd();
 				}
 			}
@@ -4740,9 +5524,14 @@ function KeyUp(evt)
 			ToggleMode();
 		}
 
-	}		
-	if(evt.keyCode == 17)
+	}
+	if(evt.keyCode == 18)
 	{
+		KeyAltDown = 0;
+		MouseDragKeyUp();
+	}		
+	else if(evt.keyCode == 17)
+	{ 
 		KeyCtrlDown = 0;
 		MouseDragKeyUp();
 	}
@@ -4776,12 +5565,12 @@ function KeyUp(evt)
 		}
 		else
 		{
-			FilterSearchArray = new Array();
+			FilterSearchReset();
 		}
 	}
 
 
-	if(evt.keyCode == 13)
+	if(evt.keyCode == 13 && !IgnoreInput)
 	{
 		if(FilterSearchActive)
 		{
@@ -4824,11 +5613,15 @@ function FilterInputCommit()
 {
 	if(FilterSearchSelection >= 0)
 	{
-		FilterSearchArray = new Array();
+		FilterSearchReset();
 		FilterSearchPassIndex = FilterSearchSelection;
 		FilterSearchStartTime = new Date();
 	}
 	FilterInputHide();
+}
+function FilterSearchReset()
+{
+	FilterSearchArray = new Array();	
 }
 function CreateFilter(Filter)
 {
@@ -4863,7 +5656,11 @@ function FilterUpdate()
 
 function KeyDown(evt)
 {
-	if(evt.keyCode == 17)
+	if(evt.keyCode == 18)
+	{
+		KeyAltDown = 1;
+	}
+	else if(evt.keyCode == 17)
 	{
 		KeyCtrlDown = 1;
 	}
@@ -4875,7 +5672,11 @@ function KeyDown(evt)
 	{
 		evt.preventDefault();
 	}
-	if(evt.keyCode == 18) // z/tab to toggle tooltip
+	else if(evt.keyCode == 13)
+	{
+		evt.preventDefault();
+	}
+	if(evt.keyCode == 91) // z/tab to toggle tooltip
 	{
 		ToolTipFlip = 1;
 	}
@@ -4883,22 +5684,57 @@ function KeyDown(evt)
 
 	Invalidate = 0;
 }
-
-function ReadCookie()
+function ParseCookie(str)
 {
-	var result = document.cookie.match(/fisk=([^;]+)/);
-	var NewMode = ModeDetailed;
-	var ReferenceTimeString = '33ms';
+	if(!str) return null;
+	var result = str.match(/fisk=([^;]+)/);
+	console.log("cookie is " + str);
 	if(result && result.length > 0)
 	{
 		var Obj = JSON.parse(result[1]);
+		if(!Obj.offline)
+		{
+			var C = {};
+			C.offline = Obj;
+			Obj = C;
+		}		
+		return Obj;
+	}
+	return null;
+}
+
+function GetCookie()
+{
+	var Obj = ParseCookie(localStorage.getItem("microprofile_fisk"));
+	if(!Obj)
+	{
+		Obj = ParseCookie(document.cookie);
+	}
+	if(!Obj)
+	{
+		return {offline:{},live:{}};
+	}
+	return Obj;
+}
+
+function ReadCookie()
+{
+	var C = GetCookie();
+	var NewMode = ModeDetailed;
+	if(C.offline)
+	{
+		var Obj = C.offline;
 		if(Obj.Mode)
 		{
 			NewMode = Obj.Mode;
 		}
-		if(Obj.ReferenceTime)
+		if(Obj.ReferenceTimeString)
 		{
-			ReferenceTimeString = Obj.ReferenceTime;
+			ReferenceTimeString = Obj.ReferenceTimeString;
+		}
+		if(Obj.TargetTimeString)
+		{
+			TargetTimeString = Obj.TargetTimeString;
 		}
 		if(Obj.ThreadsAllActive || Obj.ThreadsAllActive == 0 || Obj.ThreadsAllActive == false)
 		{
@@ -4952,19 +5788,33 @@ function ReadCookie()
 		{
 			ToolTipCorner = Obj.ToolTipCorner;
 		}
+		if(Obj.DrawDetailedFlameMode)
+		{
+			DrawDetailedFlameMode = Obj.DrawDetailedFlameMode;
+		}
+		if(Obj.DrawDetailedCompareReverse)
+		{
+			DrawDetailedCompareReverse = Obj.DrawDetailedCompareReverse;
+		}
+		if(Obj.ThreadOrderNames)
+		{
+			ThreadOrderNames = Obj.ThreadOrderNames;
+		}
 		TimersGroups = Obj.TimersGroups?Obj.TimersGroups:0;
 	}
 	SetContextSwitch(nContextSwitchEnabled);
 	SetMode(NewMode, TimersGroups);
 	SetReferenceTime(ReferenceTimeString);
-	UpdateOptionsMenu();
+	SetTargetTime(TargetTimeString);
 	UpdateGroupColors();
 }
 function WriteCookie()
 {
+	var C = GetCookie();
 	var Obj = new Object();
 	Obj.Mode = Mode;
-	Obj.ReferenceTime = ReferenceTime + 'ms';
+	Obj.ReferenceTimeString = ReferenceTimeString;
+	Obj.TargetTimeString = TargetTimeString;
 	Obj.ThreadsActive = ThreadsActive;
 	Obj.ThreadsAllActive = ThreadsAllActive;
 	Obj.GroupsActive = GroupsActive;
@@ -4974,14 +5824,19 @@ function WriteCookie()
 	Obj.GroupColors = GroupColors;
 	Obj.ColumnsEnabled = ColumnsEnabled;
 	Obj.ToolTipCorner = ToolTipCorner;
+	Obj.DrawDetailedFlameMode = DrawDetailedFlameMode;
+	Obj.DrawDetailedCompareReverse = DrawDetailedCompareReverse;
+	Obj.ThreadOrderNames = ThreadOrderNames;
 	if(nHideHelp)
 	{
 		Obj.nHideHelp = 1;
 	}
+	C.offline = Obj;
 	var date = new Date();
 	date.setFullYear(2099);
-	var cookie = 'fisk=' + JSON.stringify(Obj) + ';expires=' + date;
+	var cookie = 'fisk=' + JSON.stringify(C) + ';expires=' + date;
 	document.cookie = cookie;
+	localStorage.setItem("microprofile_fisk", cookie);
 }
 
 function WindowRect(x,y,w,h)
@@ -5036,7 +5891,7 @@ function DrawFilterSearch()
 	var nColorIndex = 0;
 	var SizeInfo = TimerMenuSize();
 	var Y = SizeInfo.y;
-	var Width = TimerNameWidth + GroupNameWidth;
+	var Width = S.TimerNameWidth + S.GroupNameWidth;
 	SizeInfo.w = Width;
 	var X = SizeInfo.x;
 
@@ -5048,18 +5903,18 @@ function DrawFilterSearch()
 
 	Y -= nOffsetFilterSearch;
 	var Count = 0;
-	for(var i = 0; i < TimerInfo.length; ++i)
+	for(var i = 0; i < S.TimerInfo.length; ++i)
 	{
-		var v = TimerInfo[i];
+		var v = S.TimerInfo[i];
 		{
 			var Name = v.name;
-			var ParentName = GroupInfo[v.group].name;
+			var ParentName = S.GroupInfo[v.group].name;
 			if(FilterMatch(FilterArray, ParentName + " " + Name))
 			{
 				if(Y >= YStart)
 				{
 					Count++;
-					var ParentName = GroupInfo[v.group].name;
+					var ParentName = S.GroupInfo[v.group].name;
 					var ParentColor = 'white';
 					var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
 					var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
@@ -5096,9 +5951,9 @@ function CalcAverage()
 	for(nLog = 0; nLog < nNumLogs; nLog++)
 	{
 		StackPos = 0;
-		for(var i = 0; i < Frames.length; i++)
+		for(var i = 0; i < S.Frames.length; i++)
 		{
-			var Frame_ = Frames[i];			
+			var Frame_ = S.Frames[i];			
 			var tt = Frame_.tt[nLog];
 			var ts = Frame_.ts[nLog];
 
@@ -5132,7 +5987,7 @@ function CalcAverage()
 
 function MakeLod(index, MinDelta, TimeArray, TypeArray, IndexArray, LogStart)
 {
-	if(LodData[index])
+	if(S.LodData[index])
 	{
 		console.log("error!!");
 	}
@@ -5142,19 +5997,19 @@ function MakeLod(index, MinDelta, TimeArray, TypeArray, IndexArray, LogStart)
 	o.TypeArray = TypeArray;
 	o.IndexArray = IndexArray;
 	o.LogStart = LogStart;
-	LodData[index] = o;
+	S.LodData[index] = o;
 }
 
 function PreprocessBuildSplitArray()
 {
-	var nNumLogs = Frames[0].ts.length;
+	var nNumLogs = S.Frames[0].ts.length;
 
 	ProfileEnter("PreprocessBuildSplitArray");
 	var SplitArrays = new Array(nNumLogs);
 
 	for(nLog = 0; nLog < nNumLogs; ++nLog)
 	{
-		console.log("source log " + nLog + " size " + LodData[0].TypeArray[nLog].length);
+		console.log("source log " + nLog + " size " + S.LodData[0].TypeArray[nLog].length);
 	}
 
 
@@ -5163,8 +6018,8 @@ function PreprocessBuildSplitArray()
 		var MaxDepth = 1;
 		var StackPos = 0;
 		var Stack = Array(20);
-		var TypeArray = LodData[0].TypeArray[nLog];
-		var TimeArray = LodData[0].TimeArray[nLog];
+		var TypeArray = S.LodData[0].TypeArray[nLog];
+		var TimeArray = S.LodData[0].TimeArray[nLog];
 		var DeltaTimes = new Array(TypeArray.length);
 
 		for(var j = 0; j < TypeArray.length; ++j)
@@ -5236,7 +6091,7 @@ function PreprocessBuildSplitArray()
 
 function PreprocessBuildDurationArray()
 {
-	var nNumLogs = Frames[0].ts.length;
+	var nNumLogs = S.Frames[0].ts.length;
 	ProfileEnter("PreprocessBuildDurationArray");
 	var DurationArrays = new Array(nNumLogs);
 	for(nLog = 0; nLog < nNumLogs; ++nLog)
@@ -5245,9 +6100,9 @@ function PreprocessBuildDurationArray()
 		var StackPos = 0;
 		var Stack = Array(20);
 		var StackIndex = Array(20);
-		var TypeArray = LodData[0].TypeArray[nLog];
-		var TimeArray = LodData[0].TimeArray[nLog];
-		var DurationArray = Array(LodData[0].TypeArray[nLog].length);
+		var TypeArray = S.LodData[0].TypeArray[nLog];
+		var TimeArray = S.LodData[0].TimeArray[nLog];
+		var DurationArray = Array(S.LodData[0].TypeArray[nLog].length);
 		for(var j = 0; j < TypeArray.length; ++j)
 		{
 			var type = TypeArray[j];
@@ -5287,10 +6142,10 @@ function PreprocessBuildDurationArray()
 function PreprocessLods()
 {
 	ProfileEnter("PreprocessLods");
-	var nNumLogs = Frames[0].ts.length;
+	var nNumLogs = S.Frames[0].ts.length;
 	var SplitArrays = PreprocessBuildSplitArray();
 	var DurationArrays = PreprocessBuildDurationArray();
-	var Source = LodData[0];
+	var Source = S.LodData[0];
 	var SourceLogStart = Source.LogStart;
 	var NumFrames = SourceLogStart.length;
 
@@ -5373,21 +6228,21 @@ function PreprocessLods()
 function PreprocessGlobalArray()
 {
 	ProfileEnter("PreprocessGlobalArray");
-	var nNumLogs = Frames[0].ts.length;
-	var CaptureStart = Frames[0].framestart;
-	var CaptureEnd = Frames[Frames.length-1].frameend;
-	g_TypeArray = new Array(nNumLogs);
-	g_TimeArray = new Array(nNumLogs);
-	g_IndexArray = new Array(nNumLogs);
+	var nNumLogs = S.Frames[0].ts.length;
+	var CaptureStart = S.Frames[0].framestart;
+	var CaptureEnd = S.Frames[S.Frames.length-1].frameend;
+	S.TypeArray = new Array(nNumLogs);
+	S.TimeArray = new Array(nNumLogs);
+	S.IndexArray = new Array(nNumLogs);
 	var StackPos = 0;
 	var Stack = Array(20);
-	var LogStartArray = new Array(Frames.length);
-	for(var i = 0; i < Frames.length; i++)
+	var LogStartArray = new Array(S.Frames.length);
+	for(var i = 0; i < S.Frames.length; i++)
 	{
-		Frames[i].LogStart = new Array(nNumLogs);	
-		LogStartArray[i] = Frames[i].LogStart;
+		S.Frames[i].LogStart = new Array(nNumLogs);	
+		LogStartArray[i] = S.Frames[i].LogStart;
 
-		Frames[i].LogEnd = new Array(nNumLogs);
+		S.Frames[i].LogEnd = new Array(nNumLogs);
 	}
 	var MinDelta = Array(nNumLogs);
 	for(nLog = 0; nLog < nNumLogs; nLog++)
@@ -5397,13 +6252,13 @@ function PreprocessGlobalArray()
 		var TypeArray = new Array();
 		var TimeArray = new Array();
 		var IndexArray = new Array();
-		for(var i = 0; i < Frames.length; i++)
+		for(var i = 0; i < S.Frames.length; i++)
 		{
-			var Frame_ = Frames[i];	
+			var Frame_ = S.Frames[i];	
 			Frame_.LogStart[nLog] = TimeArray.length;
-			var CanDiscard = !ISGPU[nLog] || Frame_.frameendgpu > 0; //in case of no reference, we cannot discard gpu markers. This happens when there is no gpu/cpu tick reference
+			var CanDiscard = !S.ISGPU[nLog] || Frame_.frameendgpu > 0; //in case of no reference, we cannot discard gpu markers. This happens when there is no gpu/cpu tick reference
 
-			var FrameDiscard = (ISGPU[nLog] ? Frame_.frameendgpu : Frame_.frameend) + 33;//if timestamps are more than 33ms after current frame, we assume buffer has wrapped.
+			var FrameDiscard = (S.ISGPU[nLog] ? Frame_.frameendgpu : Frame_.frameend) + 33;//if timestamps are more than 33ms after current frame, we assume buffer has wrapped.
 			var tt = Frame_.tt[nLog];
 			var ts = Frame_.ts[nLog];
 			var ti = Frame_.ti[nLog];
@@ -5427,15 +6282,15 @@ function PreprocessGlobalArray()
 			}
 			Frame_.LogEnd[nLog] = TimeArray.length;
 		}
-		g_TypeArray[nLog] = TypeArray;
-		g_TimeArray[nLog] = TimeArray;
-		g_IndexArray[nLog] = IndexArray;
+		S.TypeArray[nLog] = TypeArray;
+		S.TimeArray[nLog] = TimeArray;
+		S.IndexArray[nLog] = IndexArray;
 		if(Discard)
 		{
-			console.log('discarded ' + Discard + ' markers from ' + ThreadNames[nLog]);
+			console.log('discarded ' + Discard + ' markers from ' + S.ThreadNames[nLog]);
 		}
 	}
-	MakeLod(0, MinDelta, g_TimeArray, g_TypeArray, g_IndexArray, LogStartArray);
+	MakeLod(0, MinDelta, S.TimeArray, S.TypeArray, S.IndexArray, LogStartArray);
 	ProfileLeave();
 }
 
@@ -5443,23 +6298,27 @@ function PreprocessFindFirstFrames()
 {
 	ProfileEnter("PreprocesFindFirstFrames");
 	//create arrays that show how far back we need to start search in order to get all markers.
-	var nNumLogs = Frames[0].ts.length;
-	for(var i = 0; i < Frames.length; i++)
+	var nNumLogs = S.Frames[0].ts.length;
+	for(var i = 0; i < S.Frames.length; i++)
 	{
-		Frames[i].FirstFrameIndex = new Array(nNumLogs);
+		S.Frames[i].FirstFrameIndex = new Array(nNumLogs);
+		for(var j = 0; j < S.Frames[i].FirstFrameIndex.length; ++j)
+		{
+			S.Frames[i].FirstFrameIndex[j] = 0;
+		}
 	}
 
 	var StackPos = 0;
 	var Stack = Array(20);
-	g_MaxStack = Array(nNumLogs);
+	S.MaxStack = Array(nNumLogs);
 	
 	for(nLog = 0; nLog < nNumLogs; nLog++)
 	{
 		var MaxStack = 0;
 		StackPos = 0;
-		for(var i = 0; i < Frames.length; i++)
+		for(var i = 0; i < S.Frames.length; i++)
 		{
-			var Frame_ = Frames[i];			
+			var Frame_ = S.Frames[i];			
 			var tt = Frame_.tt[nLog];
 			var count = tt.length;
 
@@ -5468,7 +6327,7 @@ function PreprocessFindFirstFrames()
 			{
 				FirstFrame = Stack[0];
 			}
-			Frames[i].FirstFrameIndex[nLog] = FirstFrame;
+			S.Frames[i].FirstFrameIndex[nLog] = FirstFrame;
 
 			for(var j = 0; j < count; j++)
 			{
@@ -5491,8 +6350,12 @@ function PreprocessFindFirstFrames()
 				}
 			}
 		}
-		g_MaxStack[nLog] = MaxStack;
+		S.MaxStack[nLog] = MaxStack;
 	}
+	S.MaxStack2 = Array(S.MaxStack.length);
+	for(var i = 0; i < S.MaxStack2.length; ++i)
+		S.MaxStack2[i] = 0;
+	S.SecondActive = 0;
 	ProfileLeave();
 }
 function PreprocessMeta()
@@ -5513,9 +6376,9 @@ function PreprocessMeta()
 		if(MetaLengthsMax[i]<12)
 			MetaLengthsMax[i] = 12;
 	}
-	for(var i = 0; i < TimerInfo.length; ++i)
+	for(var i = 0; i < S.TimerInfo.length; ++i)
 	{
-		var Timer = TimerInfo[i];
+		var Timer = S.TimerInfo[i];
 		for(var j = 0; j < MetaNames.length; ++j)
 		{
 			var Len = FormatMeta(Timer.meta[j],0).length + 2;
@@ -5537,36 +6400,109 @@ function PreprocessMeta()
 	}
 }
 
+function StringHash(s) //note: matching code in microprofile.cpp: uint32_t MicroProfileStringHash(const char* pString)
+{ 
+	var h = 0xfeedba3e;
+	for(var i = 0; i < s.length; ++i)
+	{
+		h = s.charCodeAt(i) + (h << 5) - h;
+		h = h & h;
+	}
+	return Math.abs(h);
+}
+
+function StringColorIndex(Name)
+{
+	var h = StringHash(Name);
+	var cidx = Math.floor(360*(h  / (1<<32-1)) );
+	return cidx;
+}
+
+function ColorFromString(Name, S, L)
+{
+	var H = StringColorIndex(Name);
+	return "hsl(" + H + "," + S + "%, " + L+ "%)";
+}
+function LerpColor(v)
+{
+	var R_0 = 0;
+	var G_0 = 1;
+	var B_0 = 0;
+
+	var R_1 = 1;
+	var G_1 = 0.5;
+	var B_1 = 0;
+
+	var R_2 = 1;
+	var G_2 = 0;
+	var B_3 = 0;
+	var R;
+	var G;
+	if(v < 0.5)
+	{
+		v *= 2;
+		var v0 = (1-v);
+		R = R_0 * v0 + R_1 * v;
+		G = G_0 * v0 + G_1 * v;
+
+	}
+	else
+	{
+		v = (v-0.5) * 2;
+		var v0 = (1-v);
+		R = R_1 * v0 + R_2 * v;
+		G = G_1 * v0 + G_2 * v;
+	}
+	R *= 255;
+	G *= 255;
+	return "rgb(" + R.toFixed(0) + "," + G.toFixed(0) + ",0)";
+
+}
+
+function PreprocessThreadColors(S)
+{
+	S.ThreadColors = Array(S.ThreadNames.length);
+	for(let i = 0; i < S.ThreadNames.length; ++i)
+	{
+		var cidx = StringColorIndex(S.ThreadNames[i]);
+		var color = "hsl(" + cidx + ",50%, 60%)";
+		var coloroff = "hsl(" + cidx + ",85%, 50%)";
+		var colordark = "hsl(" + cidx + ",80%, 30%)";
+		var colordark_cid = GetColorIndex(colordark);
+		S.ThreadColors[i] = {"color":color, "colordark":colordark, "cidx":cidx, "gradient":null,"gradientoff":null, "coloroff":coloroff, "colordark_cid":colordark_cid};
+	}
+}
+
 function PreprocessWidths()
 {
 	var context = CanvasHistory.getContext('2d');
 	context.font = Font;
-	TimerNameWidth = 0;
-	GroupNameWidth = 0;
-	for(var i = 0; i < TimerInfo.length; ++i)
+	S.TimerNameWidth = 0;
+	S.GroupNameWidth = 0;
+	for(var i = 0; i < S.TimerInfo.length; ++i)
 	{
-		var str = GroupInfo[TimerInfo[i].group].name + "XXX" + TimerInfo[i].name;
+		var str = S.GroupInfo[S.TimerInfo[i].group].name + "XXX" + S.TimerInfo[i].name;		
 		var width = context.measureText(str).width;
-		var widthname = context.measureText(TimerInfo[i].name).width;
-		TimerInfo[i].wtotal = width;
-		TimerInfo[i].w = widthname;
-		TimerNameWidth = Math.max(TimerNameWidth, widthname);
+		var widthname = context.measureText(S.TimerInfo[i].name).width;
+		S.TimerInfo[i].wtotal = width;
+		S.TimerInfo[i].w = widthname;
+		S.TimerNameWidth = Math.max(S.TimerNameWidth, widthname);
 	}
-	for(var i = 0; i < GroupInfo.length; ++i)
+	for(var i = 0; i < S.GroupInfo.length; ++i)
 	{
-		var widthname = context.measureText(TimerInfo[i].name).width;
-		GroupNameWidth = Math.max(GroupNameWidth, widthname);
+		var widthname = context.measureText(S.TimerInfo[i].name).width;
+		S.GroupNameWidth = Math.max(S.GroupNameWidth, widthname);
 	}
 }
 
 function PreprocessTimeline()
 {
-	Timeline.Times = TimelineArray;
-	Timeline.Ids = TimelineIdArray;
-	Timeline.Colors = new Array(TimelineArray.length);
-	Timeline.Names = TimelineNames;
-	Timeline.Ends = new Array(TimelineArray.length);
-	Timeline.Pairs = new Array(TimelineArray.length);
+	Timeline.Times = S.TimelineArray;
+	Timeline.Ids = S.TimelineIdArray;
+	Timeline.Colors = new Array(S.TimelineArray.length);
+	Timeline.Names = S.TimelineNames;
+	Timeline.Ends = new Array(S.TimelineArray.length);
+	Timeline.Pairs = new Array(S.TimelineArray.length);
 	Timeline.Tracks = new Array();
 	Timeline.Positions = new Array();
 	for(var i = 0; i < Timeline.Times.length; ++i)
@@ -5574,7 +6510,7 @@ function PreprocessTimeline()
 		Timeline.Positions[i] = -1;
 		Timeline.Ends[i] = -1;
 		Timeline.Pairs[i] = -1;
-		var Color = TimelineColorArray[i]
+		var Color = S.TimelineColorArray[i]
 		if(!Color || Color == '')
 		{
 			Color = '#777777'
@@ -5727,22 +6663,43 @@ function PreprocessTimeline()
 		}
 	}
 }
+
+function Preprocess_S()
+{
+	console.log('preprocessing\n');	
+	S.LodData = new Array();
+	S.CSwitchCache = {};
+	S.CSwitchOnlyThreads = [];
+	S.GroupNameWidth = 200;
+	S.TimerNameWidth = 200;
+
+
+
+
+	PreprocessCalculateAllTimers();
+	PreprocessFindFirstFrames();
+
+	PreprocessGlobalArray();
+	PreprocessLods();
+	PreprocessMeta();
+	PreprocessThreadColors(S);
+
+	PreprocessContextSwitchCache();
+	PreprocessWidths();
+	console.log('preprocessing done\n');
+	console.log("SS " + S.LodData.length);
+}
 function Preprocess()
 {
 	var ProfileModeOld = ProfileMode;
 	ProfileMode = 1;
 	ProfileModeClear();
 	ProfileEnter("Preprocess");
-	PreprocessCalculateAllTimers();
-	PreprocessFindFirstFrames();
-	PreprocessGlobalArray();
-	PreprocessLods();
-	PreprocessMeta();
-	PreprocessContextSwitchCache();
+	Preprocess_S();
+	UpdateReferenceTime();
 	ProfileLeave();
 	ProfileModeDump();
 	ProfileMode = ProfileModeOld;
-	PreprocessWidths();
 	PreprocessTimeline();
 	Initialized = 1;
 }
@@ -5781,6 +6738,405 @@ function ResetColumnWidth()
 		}
 	}
 }
+var Comp0 = new Date();
+var Comp1 = new Date();
+var Comp2 = new Date();
+var Comp3 = new Date();
+
+function SetGlobal(Name, Value)
+{
+	this[Name] = Value;
+}
+
+
+//compare todo:
+//	**Match threads
+//	**match tokens.
+//	**Calculate shared screen positions.
+//	**Invert second pass
+//	**fix hovertoken
+//	**fix range display
+// 	todo: isgpu
+//  todo: group numtimers.
+//	implement timer view
+
+function CompareFixup(S0, S1) // S0 is the reference
+{
+	var GroupRemap = Array(S1.GroupInfo.length);
+	var ThreadRemap = Array(S1.ThreadNames.length);
+	var TimerRemap = Array(S1.TimerInfo.length);
+	GroupRemapReverse = Array(S0.GroupInfo.length + S1.GroupInfo.length);
+	TimerRemapReverse = Array(S0.TimerInfo.length + S1.TimerInfo.length);
+	ThreadRemapReverse = Array(S0.ThreadNames.length + S1.ThreadNames.length);
+
+	for(var i = 0; i < GroupRemapReverse.length; ++i)
+		GroupRemapReverse[i] = -1;
+	for(var i = 0; i < TimerRemapReverse.length; ++i)
+		TimerRemapReverse[i] = -1;
+	for(var i = 0; i < ThreadRemapReverse.length; ++i)
+		ThreadRemapReverse[i] = -1;
+
+
+
+	// var dump = function(SS, str)
+	// {
+	// 	console.log(str);
+	// 	for(var i = 0; i < SS.GroupInfo.length; ++i)
+	// 	{
+	// 		console.log("G" + i + ":" + SS.GroupInfo[i].name);
+	// 	}
+	// 	for(var i = 0; i < SS.TimerInfo.length; ++i)
+	// 	{
+	// 		console.log("T" + i + ":" + SS.TimerInfo[i].name);
+	// 	}
+	
+	// };
+	// dump(S0, "S0be4");
+	// dump(S1, "S1be4");
+
+	for(var i = 0; i < S1.GroupInfo.length; ++i)
+	{
+		var n = S1.GroupInfo[i].name;
+		var idx = S0.GroupInfo.findIndex(function(G){ return G.name == n; });
+		if(idx != -1)
+		{
+			GroupRemap[i] = idx;
+		}
+		else
+		{
+			GroupRemap[i] = S0.GroupInfo.length;
+			S0.GroupInfo.push(S1.GroupInfo[i]);
+		}
+		GroupRemapReverse[GroupRemap[i]] = i;
+	}
+	// for(var i = 0; i < S0.TimerInfo.length; ++i)
+	// {
+	// 	var n = S0.TimerInfo[i].name;	
+	// 	console.log('OG ', n, ' idx ', i);
+	// }
+
+	for(var i = 0; i < S1.TimerInfo.length; ++i)
+	{
+		var TI = S1.TimerInfo[i];
+		var n = TI.name;
+		var g = GroupRemap[TI.group];
+		var idx = S0.TimerInfo.findIndex(function(T){ return T.name == n && T.group == g; });
+		TI.group = GroupRemap[TI.group];
+		if(idx != -1)
+		{
+			TimerRemap[i] = idx;
+		}
+		else
+		{
+			console.log('added timer ' + TI.name + ' idx ' + S0.TimerInfo.length);
+			TimerRemap[i] = S0.TimerInfo.length;
+			TI.id = S0.TimerInfo.length;
+			S0.TimerInfo.push(TI);
+		}
+		TimerRemapReverse[TimerRemap[i]] = i;
+	}
+
+	var NumThreads = S0.ThreadNames.length;
+
+
+	for(var i = 0; i < S1.ThreadNames.length; ++i)
+	{
+		var n = S1.ThreadNames[i];
+		var idx = S0.ThreadNames.indexOf(n);
+		if(idx != -1)
+		{
+			ThreadRemap[i] = idx;
+		}
+		else
+		{
+			ThreadRemap[i] = S0.ThreadNames.length;
+			S0.ThreadNames.push(n);
+			NumThreads++;
+		}
+		ThreadRemapReverse[ThreadRemap[i]] = i;
+	}
+
+
+	PreprocessThreadColors(S0);
+	PreprocessThreadColors(S1);
+
+	var Fix = function(a, r)
+	{
+		for(var i in a)
+		{
+			a[i] = r[a[i]];
+		}
+	};
+	var FixArray = function(a, s)
+	{
+		if(!s)
+			return;
+		for(var i = 0; i < a.length; ++i)
+		{
+			if(!a[i])
+				a[i] = [];
+		}
+		while(a.length != s)
+			a.push([]);
+	};
+
+	for(var i in S0.Frames)
+	{
+		var F = S0.Frames[i];
+		FixArray(F.ti, NumThreads);
+		FixArray(F.ts, NumThreads);
+		FixArray(F.tt, NumThreads);
+	}
+
+	for(var i in S1.Frames)
+	{
+		var F = S1.Frames[i];
+		var ti = F.ti;
+		var ts = F.ts;
+		var tt = F.tt;
+
+		F.ti = new Array(NumThreads);
+		F.ts = new Array(NumThreads);
+		F.tt = new Array(NumThreads);
+		
+		for(var j in ti)
+		{
+
+			Fix(ti[j], TimerRemap);
+			F.ti[ThreadRemap[j]] = ti[j];
+		}
+		FixArray(F.ti, NumThreads);
+		for(var i = 0; i < NumThreads; ++i)
+		{
+			if(!F.ti[i])
+				debugger;
+		}
+		for(var j in ts)
+		{
+			F.ts[ThreadRemap[j]] = ts[j];
+		}
+		FixArray(F.ts, NumThreads);
+		for(var i = 0; i < NumThreads; ++i)
+		{
+			if(!F.ts[i])
+				debugger;
+		}
+		for(var j in tt)
+		{
+			F.tt[ThreadRemap[j]] = tt[j];
+		}
+		FixArray(F.tt, NumThreads);
+
+		for(var i = 0; i < NumThreads; ++i)
+		{
+			if(!F.tt[i])
+				debugger;
+		}
+		//assert length is the same
+		if(F.tt.length != S0.Frames[0].tt.length)
+		{
+			debugger;
+		}
+		if(F.ti.length != S0.Frames[0].ti.length)
+		{
+			debugger;
+		}
+		if(F.ts.length != S0.Frames[0].ts.length)
+		{
+			debugger;
+		}
+		// console.log('log ' + i +  ':', F.ts.length, ':', F.ti.length, ':', F.tt.length);
+	}
+
+	var NewTimerInfo = Array(S0.TimerInfo.length);
+	for(var i = 0; i < S1.TimerInfo.length; ++i)
+	{
+		let xx = TimerRemap[i];
+		NewTimerInfo[xx] = S1.TimerInfo[i];
+		NewTimerInfo[xx].id = xx;
+		NewTimerInfo[xx].group = S0.TimerInfo[xx].group;
+		
+		if(NewTimerInfo[xx].id != S0.TimerInfo[xx].id)
+		{
+			debugger;
+		}
+		if(NewTimerInfo[xx].group != S0.TimerInfo[xx].group)
+		{
+			debugger;
+		}
+
+	}
+	for(var i = 0; i < NewTimerInfo.length; ++i)
+	{
+		if(!NewTimerInfo[i])
+		{
+			NewTimerInfo[i] = CloneTimer(S0.TimerInfo[i]);
+			NewTimerInfo[i].id = i;
+			if(NewTimerInfo[i].id != S0.TimerInfo[i].id)
+			{
+				debugger;
+			}
+			if(NewTimerInfo[i].group != S0.TimerInfo[i].group)
+			{
+				debugger;
+			}
+	
+		}
+	}
+	S1.TimerInfo = NewTimerInfo;
+	var NewGroupInfo = Array(S0.GroupInfo.length);
+
+	for(let i = 0; i < S1.GroupInfo.length; ++i)
+	{
+		let xx = GroupRemap[i];
+		NewGroupInfo[xx] = S1.GroupInfo[i];
+		NewGroupInfo[xx].id = xx;
+	}
+	for(let i = 0; i < NewGroupInfo.length; ++i)
+	{
+		if(!NewGroupInfo[i])
+		{
+			NewGroupInfo[i] = CloneGroup(S0.GroupInfo[i]);
+			NewGroupInfo[i].id = i;
+		}
+	}
+	S1.GroupInfo = NewGroupInfo;
+	for(let i = 0; i < S1.GroupInfo.length; ++i)
+	{
+		if(S1.GroupInfo[i].id != i)
+			debugger;
+		if(S0.GroupInfo[i].id != i)
+			debugger;
+	}
+
+	//debugging:
+	if(S0.TimerInfo.length != S1.TimerInfo.length)
+		debugger;
+	for(let i = 0; i < S0.TimerInfo.length; ++i)
+	{
+		let t0 = S0.TimerInfo[i];
+		let t1 = S1.TimerInfo[i];
+		if(t0.id != t1.id)
+			debugger;
+		if(t0.name != t1.name)
+			debugger;
+		if(t0.group != t1.group)
+			debugger;
+	}
+
+	if(S0.GroupInfo.length != S1.GroupInfo.length)
+		debugger;
+	for(let i = 0; i < S0.GroupInfo.length; ++i)
+	{
+		let t0 = S0.GroupInfo[i];
+		let t1 = S1.GroupInfo[i];
+		if(t0.id != t1.id)
+			debugger;
+		if(t0.name != t1.name)
+			debugger;
+	}
+
+
+
+
+}
+function ReadHtmlFile(e)
+{
+	var File = e.target.files[0];
+	if (!File)
+	{
+		return;
+	}
+	var Reader = new FileReader();
+	Reader.onload = function(e) {
+		if(!ParseCompareData(e.target.result))
+		{
+			ShowFlashMessage("Failed to parse file", 50);
+		}
+	};
+	Reader.onprogress = function(e)
+	{
+		var m = e.loaded + ":" + e.total + " :: " + e.lengthComputable;
+		console.log(m);
+	};
+	C0 = new Date();
+	Reader.readAsText(File);
+}
+
+function ParseCompareData(Data)
+{
+	S.AA = "Original";
+	Comp1 = new Date();
+	
+	var idxbegin = Data.indexOf("//EBEGIN");
+	if(idxbegin == -1)
+		return false;
+	idxbegin += "//EBEGIN".length + 1;
+	var idxend = Data.indexOf("//EEND", idxbegin);
+	if(idxend == -1)
+		return false;
+
+	Comp2 = new Date();
+	var SOriginal = S;
+	S = {};
+
+	var idx = idxbegin;
+	while(idx < idxend)
+	{
+		var idx0 = Data.indexOf('\n', idx);
+		var s = Data.substring(idx, idx0);
+		// console.log(s);
+		eval(s);
+		idx = idx0+1;
+	}
+
+	S.AA = "Parsed";
+	var SParsed = S;   //note: the calls to eval, will make a new "S" in local scope.
+	SetGlobal("S", S); //Set global S to point to new object, while its preprocessed
+	Comp3 = new Date();
+
+
+	CompareFixup(SOriginal, SParsed);
+	Preprocess_S();
+
+	var MaxStack2 = SParsed.MaxStack;
+
+	var Comp4 = new Date();
+	SetGlobal("S2", SParsed);
+	SetGlobal("S", SOriginal);
+
+	Preprocess_S(); //since indices are rebased, a repreprocessing is needed.
+
+	SOriginal.MaxStack2 = SParsed.MaxStack;
+	SParsed.MaxStack2 = SOriginal.MaxStack;
+	SOriginal.SecondActive = 1;
+
+
+	ThreadOrderSort();
+	InitThreadMenu();
+
+	console.log('file loaded ' + idxbegin + ' ' + idxend );
+	console.log('time ' + (Comp1 - Comp0));
+	console.log('time ' + (Comp2 - Comp1));
+	console.log('time ' + (Comp3 - Comp2).toFixed(2));
+	console.log('time ' + (Comp4 - Comp3).toFixed(2));
+	document.getElementById('file-input').removeEventListener('change', ReadHtmlFile, false);
+	let fname = document.getElementById('file-input').value;
+	let index = 1+Math.max(fname.lastIndexOf('/'), fname.lastIndexOf('\\'));
+	if(index < fname.length)
+		fname = fname.substring(index);
+	let CompStr = 'Compare [' + fname + ']';
+	document.getElementById('ComparePromptA').innerHTML = CompStr;
+	RequestRedraw();
+	return true;
+}
+
+function ComparePrompt()
+{
+	document.getElementById('file-input').addEventListener('change', ReadHtmlFile, false);
+	document.getElementById('file-input').click();
+}
+
 
 var mousewheelevt = (/Firefox/i.test(navigator.userAgent)) ? "DOMMouseScroll" : "mousewheel" //FF doesn't recognize mousewheel as of FF3.x
 
@@ -5805,7 +7161,8 @@ window.addEventListener('resize', ResizeCanvas, false);
 
 InitGroups();
 ReadCookie();
-MeasureFont()
+MeasureFont();
+ThreadOrderSort();
 InitThreadMenu();
 InitGroupMenu();
 InitColumnMenu();

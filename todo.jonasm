@@ -1,0 +1,56 @@
+
+verify merge
+patching x86
+patching using instrument flag on win32
+build server
+rearrange samples
+
+string intern: replace all 
+gpu subtractive to handle cpu spinning.
+detailed view negative visualisation
+Hide negative groups. force turn on when others are on
+
+*module progress
+
+fix bug with clipping
+auto adjust in capture
+fix context switch trace g2 bug
+
+* in default view everything is closed. it should be open.
+* flame mode button from menu doesn't redraw
+* flame mode button from menu doesn't redraw
+* if sort column is not visible, revert to main column
+* default sorting in tableview is unstable
+* mark infinite aggrrgate time in table
+* clear inf aggregate does not work in table view.
+* Negative counters
+* figure out why exlusive time is adding to more than 1
+* Proper handling off cross frame timers.
+* dont draw groups in non-table views.
+* do non excl avg for groups
+* Thread Group Exclusive time
+* Tooltip for thread
+* fixup menu
+* remove enable timers or functions message
+* only send while view is active
+* unify colors
+* fix threadnames to not be <implement getthreadname..>
+% black bg under name
+% call count for groups?
+% groups should be grouped.
+
+
+
+
+
+*disable group graphs
+*group draw correctly
+*simplify demos, and move current demo to something else
+*Excl. average appears to be call exclusive average.
+*Actual timing in table view?
+*fixup ordering in timing view
+*unknown enable message
+*check/fix vs 2017
+*instrument crash ved flip
+
+

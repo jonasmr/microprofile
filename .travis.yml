@@ -1,0 +1,30 @@
+os:
+  - linux
+  - osx
+  - windows
+compiler:
+  - gcc
+  - clang
+env:
+  - TARGET=simple
+  - TARGET=c
+  - TARGET=noframes
+  - TARGET=workbench
+  - TARGET=dynamic_instrument
+matrix:
+  exclude:
+    - os: windows
+      compiler: clang
+  include:
+    - os: windows
+      env: TARGET=d3d11
+    - os: windows
+      env: TARGET=d3d12
+    - os: windows
+      env: TARGET=d3d12_multithreading
+language: cpp
+before_install: ./travis/before_install
+script: ./travis/build
+
+
+# sudo apt-get install -y libsdl2-dev

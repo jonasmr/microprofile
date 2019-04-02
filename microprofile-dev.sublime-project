@@ -2,8 +2,39 @@
 	"folders":
 	[
 		{
-			"follow_symlinks": true,
 			"path": "."
+		}
+	],
+	"build_systems":
+    [
+    	{
+    		"name":"workbench",
+    		"osx" : {
+						"shell_cmd": "make",
+						"file_regex": "(...*?):([0-9]*):([0-9]*):",
+						"working_dir": "${project_path}/demo/workbench"
+					}
+		},
+    	{
+    		"name":"dynamic_instrument",
+    		"osx" : {
+						"shell_cmd": "make",
+						"file_regex": "(...*?):([0-9]*):([0-9]*):",
+						"working_dir": "${project_path}/demo/dynamic_instrument"
+					},
+    		"linux" : {
+						"shell_cmd": "make",
+						"file_regex": "(...*?):([0-9]*):([0-9]*):",
+						"working_dir": "${project_path}/demo/dynamic_instrument"
+					}
+		},
+    	{
+    		"name":"simple",
+    		"osx" : {
+						"shell_cmd": "make embed",
+						"file_regex": "(...*?):([0-9]*):([0-9]*):",
+						"working_dir": "${project_path}/demo/simple"
+					}
 		}
 	]
 }

@@ -1,31 +1,35 @@
 LDFLAGS+=-lpthread
 FLAGS=-I../..
 #FLAGS+=-fsanitize=undefined-trap -fsanitize-undefined-trap-on-error
-FLAGS+=-Wall -DMICROPROFILE_GPU_TIMERS=0
-FLAGS+=-g -O0 -Wno-invalid-offsetof -Wall -Werror
-#FLAGS+=-DMICROPROFILE_ENABLED=0
+FLAGS+=-Wall -DMICROPROFILE_UI=0 -DMICROPROFILE_WEBSERVER=1 -DMICROPROFILE_GPU_TIMERS=0
+FLAGS+=-g -O0 -Wall -Werror
 
-CPPFLAGS= $(FLAGS) -std=c++11
+CPPFLAGS= $(FLAGS) -std=c++11 -Wno-invalid-offsetof
 CFLAGS = $(FLAGS) -std=c99 
 
 
-CPP_SOURCES = fakework.cpp noframes.cpp ../../microprofile.cpp
-C_SOURCES = 
+CPP_SOURCES = microprofile.cpp ../../microprofile.cpp
+C_SOURCES = demo.c
 
-TARGET=noframes
+TARGET=demo_c
 CC ?= clang
 CXX ?= clang++
 LD = $(CXX)
 
+ASM_OBJS = $(patsubst %.s,%.o,$(ASM_SOURCES))
 CPP_OBJS = $(patsubst %.cpp,%.o,$(CPP_SOURCES))
 C_OBJS = $(patsubst %.c,%.o,$(C_SOURCES))
 
 all: $(TARGET)
 
-$(TARGET): $(C_OBJS) $(CPP_OBJS)
-	$(LD) -o $(TARGET) $(C_OBJS) $(CPP_OBJS) $(LDFLAGS) $(CPPFLAGS)
+$(TARGET): $(C_OBJS) $(CPP_OBJS) $(ASM_OBJS)
+	$(LD) -o $(TARGET) $(C_OBJS) $(CPP_OBJS) $(ASM_OBJS) $(LDFLAGS) $(CPPFLAGS)
 
 -include .depend
+
+
+.s.o:
+	as -masm=intel $< -o $@
 
 .cpp.o: 
 	$(CXX) -c $< $(CPPFLAGS) -o $@

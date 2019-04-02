@@ -1,25 +1,25 @@
 #pragma once
-// This is free and unencumbered software released into the public domain.
-// Anyone is free to copy, modify, publish, use, compile, sell, or
-// distribute this software, either in source code form or as a compiled
-// binary, for any purpose, commercial or non-commercial, and by any
-// means.
-// In jurisdictions that recognize copyright laws, the author or authors
-// of this software dedicate any and all copyright interest in the
-// software to the public domain. We make this dedication for the benefit
-// of the public at large and to the detriment of our heirs and
-// successors. We intend this dedication to be an overt act of
-// relinquishment in perpetuity of all present and future rights to this
-// software under copyright law.
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-// IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-// OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-// OTHER DEALINGS IN THE SOFTWARE.
-// For more information, please refer to <http://unlicense.org/>
+// MIT License
 //
+// Copyright (c) 2019 Jonas Meyer
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 // ***********************************************************************
 
 #ifdef MICROPROFILE_USE_CONFIG
@@ -30,17 +30,27 @@
 #define MICROPROFILE_ENABLED 1
 #endif
 
+#ifndef MICROPROFILE_DYNAMIC_INSTRUMENT
+#if (defined(__APPLE__) && defined(__MACH__)) || (defined(_WIN32) && defined(_M_X64)) || (defined(__unix__) && defined(__x86_64__))
+#ifdef MICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE
+#define MICROPROFILE_DYNAMIC_INSTRUMENT 1
+#endif
+#endif
+#endif
+
+
+#ifndef MICROPROFILE_DYNAMIC_INSTRUMENT
+#define MICROPROFILE_DYNAMIC_INSTRUMENT 0
+#endif
+
+
+
+
 #ifndef MICROPROFILE_ONCE
 #define MICROPROFILE_ONCE
 
 #include <stdint.h>
-#if defined(_WIN32) && _MSC_VER == 1700
-#define PRIx64 "llx"
-#define PRIu64 "llu"
-#define PRId64 "lld"
-#else
-#include <inttypes.h>
-#endif
+
 typedef uint64_t MicroProfileToken;
 typedef uint16_t MicroProfileGroupId;
 
@@ -60,6 +70,7 @@ typedef uint16_t MicroProfileGroupId;
 #define MICROPROFILE_SCOPEGPU_TOKEN_L(Log, token) do{}while(0)
 #define MICROPROFILE_SCOPEGPU_L(Log, var) do{}while(0)
 #define MICROPROFILE_SCOPEGPUI_L(Log, name, color) do{}while(0)
+#define MICROPROFILE_CONDITIONAL_SCOPEI(condition, group, name, color) do{}while(0)
 #define MICROPROFILE_ENTER(var) do{}while(0)
 #define MICROPROFILE_ENTER_TOKEN(var) do{}while(0)
 #define MICROPROFILE_ENTERI(group, name, color) do{}while(0)
@@ -120,6 +131,7 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileOnThreadCreate(foo) do{}while(0)
 #define MicroProfileOnThreadExit() do{}while(0)
 #define MicroProfileFlip(pContext) do{}while(0)
+#define MicroProfileFlip_CB(pContext, FreezeCB) do{}while(0)
 #define MicroProfileSetAggregateFrames(a) do{}while(0)
 #define MicroProfileGetAggregateFrames() 0
 #define MicroProfileGetCurrentAggregateFrames() 0
@@ -186,6 +198,7 @@ typedef uint64_t MicroProfileThreadIdType;
 #endif
 #endif
 
+typedef void (*MicroProfileOnFreeze)(int nFrozen);
 
 #define MICROPROFILE_DECLARE(var) extern MicroProfileToken g_mp_##var
 #define MICROPROFILE_DEFINE(var, group, name, color) MicroProfileToken g_mp_##var = MicroProfileGetToken(group, name, color, MicroProfileTokenTypeCpu)
@@ -203,10 +216,17 @@ typedef uint64_t MicroProfileThreadIdType;
 #define MICROPROFILE_SCOPEGPU_TOKEN_L(Log, token) MicroProfileScopeGpuHandler MICROPROFILE_TOKEN_PASTE(foo, __LINE__)(token, Log)
 #define MICROPROFILE_SCOPEGPU_L(Log, var) MicroProfileScopeGpuHandler MICROPROFILE_TOKEN_PASTE(foo, __LINE__)(g_mp_##var, Log)
 #define MICROPROFILE_SCOPEGPUI_L(Log, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MicroProfileGetToken("GPU", name, color,  MicroProfileTokenTypeGpu); MicroProfileScopeGpuHandler MICROPROFILE_TOKEN_PASTE(foo,__LINE__)( MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), Log)
+#define MICROPROFILE_CONDITIONAL_SCOPEI(condition, group, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp, __LINE__) = MicroProfileGetToken(group, name, color, MicroProfileTokenTypeCpu); MicroProfileConditionalScopeHandler MICROPROFILE_TOKEN_PASTE(foo, __LINE__)(MICROPROFILE_TOKEN_PASTE(g_mp, __LINE__), condition)
 #define MICROPROFILE_ENTER(var) MicroProfileEnter(g_mp_##var)
-#define MICROPROFILE_ENTER_TOKEN(var) MicroProfileEnter(token)
+#define MICROPROFILE_ENTER_TOKEN(token) MicroProfileEnter(token)
 #define MICROPROFILE_ENTERI(group, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MICROPROFILE_INVALID_TOKEN; if(MICROPROFILE_INVALID_TOKEN == MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__)){MicroProfileGetTokenC(&MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), group, name, color, MicroProfileTokenTypeCpu);} MicroProfileEnter(MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__))
 #define MICROPROFILE_LEAVE() MicroProfileLeave()
+#define MICROPROFILE_ENTER_NEGATIVE() MicroProfileEnterNegative()
+#define MICROPROFILE_LEAVE_NEGATIVE() MicroProfileLeave()
+#define MICROPROFILE_ENTER_NEGATIVEGPU() MicroProfileEnterNegativeGpu(MicroProfileGetGlobalGpuThreadLog())
+#define MICROPROFILE_LEAVE_NEGATIVEGPU() MicroProfileLeaveGpu(MicroProfileGetGlobalGpuThreadLog())
+#define MICROPROFILE_ENTER_NEGATIVEGPU_C(c) MicroProfileEnterNegativeGpu(c)
+#define MICROPROFILE_LEAVE_NEGATIVEGPU_C(c) MicroProfileLeaveGpu(c)
 #define MICROPROFILE_GPU_ENTER(var) MicroProfileEnterGpu(g_mp_##var, MicroProfileGetGlobalGpuThreadLog())
 #define MICROPROFILE_GPU_ENTER_TOKEN(token) MicroProfileEnterGpu(token, MicroProfileGetGlobalGpuThreadLog())
 #define MICROPROFILE_GPU_ENTERI(group, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MICROPROFILE_INVALID_TOKEN; if(MICROPROFILE_INVALID_TOKEN == MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__)){MicroProfileGetTokenC(&MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), group, name, color, MicroProfileTokenTypeGpu);} MicroProfileEnterGpu(MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), MicroProfileGetGlobalGpuThreadLog())
@@ -216,6 +236,7 @@ typedef uint64_t MicroProfileThreadIdType;
 #define MICROPROFILE_GPU_ENTERI_L(Log, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MICROPROFILE_INVALID_TOKEN; if(MICROPROFILE_INVALID_TOKEN == MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__)){MicroProfileGetTokenC(&MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), group, name, color, MicroProfileTokenTypeGpu);} MicroProfileEnterGpu(MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), Log)
 #define MICROPROFILE_GPU_LEAVE_L(Log) MicroProfileLeaveGpu(Log)
 #define MICROPROFILE_GPU_INIT_QUEUE(QueueName) MicroProfileInitGpuQueue(QueueName)
+#define MICROPROFILE_GPU_FREE_QUEUE(QueueName) MicroProfileFreeGpuQueue(QueueName)
 #define MICROPROFILE_GPU_GET_QUEUE(QueueName) MicroProfileGetGpuQueue(QueueName)
 #define MICROPROFILE_GPU_BEGIN(pContext, pLog) MicroProfileGpuBegin(pContext, pLog)
 #define MICROPROFILE_GPU_SET_CONTEXT(pContext, pLog) MicroProfileGpuSetContext(pContext, pLog)
@@ -242,18 +263,18 @@ typedef uint64_t MicroProfileThreadIdType;
 #define MICROPROFILE_COUNTER_CONFIG_ONCE(name, type, limit, flags) do{static bool MICROPROFILE_TOKEN_PASTE(g_mponce,__LINE__) = false; if(!MICROPROFILE_TOKEN_PASTE(g_mponce,__LINE__)){MICROPROFILE_TOKEN_PASTE(g_mponce,__LINE__) = true; MicroProfileCounterConfig(name,type,limit,flags);}}while(0)
 #define MICROPROFILE_DECLARE_LOCAL_COUNTER(var) extern int64_t g_mp_local_counter##var; extern MicroProfileToken g_mp_counter_token##var;
 #define MICROPROFILE_DEFINE_LOCAL_COUNTER(var, name) int64_t g_mp_local_counter##var = 0;MicroProfileToken g_mp_counter_token##var = MicroProfileGetCounterToken(name)
-#define MICROPROFILE_DECLARE_LOCAL_ATOMIC_COUNTER(var) extern std::atomic<int64_t> g_mp_local_counter##var; extern MicroProfileToken g_mp_counter_token##var;
-#define MICROPROFILE_DEFINE_LOCAL_ATOMIC_COUNTER(var, name) std::atomic<int64_t> g_mp_local_counter##var;MicroProfileToken g_mp_counter_token##var = MicroProfileGetCounterToken(name)
+#define MICROPROFILE_DECLARE_LOCAL_ATOMIC_COUNTER(var) extern MicroProfileToken g_mp_counter_token##var;
+#define MICROPROFILE_DEFINE_LOCAL_ATOMIC_COUNTER(var, name) MicroProfileToken g_mp_counter_token##var = MicroProfileGetCounterToken(name)
 #define MICROPROFILE_COUNTER_LOCAL_ADD(var, count) MicroProfileLocalCounterAdd(&g_mp_local_counter##var, (count))
 #define MICROPROFILE_COUNTER_LOCAL_SUB(var, count) MicroProfileLocalCounterAdd(&g_mp_local_counter##var, -(int64_t)(count))
 #define MICROPROFILE_COUNTER_LOCAL_SET(var, count) MicroProfileLocalCounterSet(&g_mp_local_counter##var, count)
 #define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD(var) MicroProfileCounterAdd(g_mp_counter_token##var, MicroProfileLocalCounterSet(&g_mp_local_counter##var, 0))
 #define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET(var) MicroProfileCounterSet(g_mp_counter_token##var, MicroProfileLocalCounterSet(&g_mp_local_counter##var, 0))
-#define MICROPROFILE_COUNTER_LOCAL_ADD_ATOMIC(var, count) MicroProfileLocalCounterAddAtomic(&g_mp_local_counter##var, (count))
-#define MICROPROFILE_COUNTER_LOCAL_SUB_ATOMIC(var, count) MicroProfileLocalCounterAddAtomic(&g_mp_local_counter##var, -(int64_t)(count))
-#define MICROPROFILE_COUNTER_LOCAL_SET_ATOMIC(var, count) MicroProfileLocalCounterSetAtomic(&g_mp_local_counter##var, count)
-#define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD_ATOMIC(var) MicroProfileCounterAdd(g_mp_counter_token##var, MicroProfileLocalCounterSetAtomic(&g_mp_local_counter##var, 0))
-#define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET_ATOMIC(var) MicroProfileCounterSet(g_mp_counter_token##var, MicroProfileLocalCounterSetAtomic(&g_mp_local_counter##var, 0))
+#define MICROPROFILE_COUNTER_LOCAL_ADD_ATOMIC(var, count) MicroProfileLocalCounterAddAtomic(g_mp_counter_token##var, (count))
+#define MICROPROFILE_COUNTER_LOCAL_SUB_ATOMIC(var, count) MicroProfileLocalCounterAddAtomic(g_mp_counter_token##var, -(int64_t)(count))
+#define MICROPROFILE_COUNTER_LOCAL_SET_ATOMIC(var, count) MicroProfileLocalCounterSetAtomic(g_mp_counter_token##var, count)
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD_ATOMIC(var) MicroProfileCounterAdd(g_mp_counter_token##var, MicroProfileLocalCounterSetAtomic(g_mp_counter_token##var, 0))
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET_ATOMIC(var) MicroProfileCounterSet(g_mp_counter_token##var, MicroProfileLocalCounterSetAtomic(g_mp_counter_token##var, 0))
 #define MICROPROFILE_FORCEENABLECPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeCpu)
 #define MICROPROFILE_FORCEDISABLECPUGROUP(s) MicroProfileForceDisableGroup(s, MicroProfileTokenTypeCpu)
 #define MICROPROFILE_FORCEENABLEGPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeGpu)
@@ -274,6 +295,9 @@ typedef uint64_t MicroProfileThreadIdType;
 #define MICROPROFILE_PLATFORM_MARKERS_ENABLED 0
 #endif
 
+
+#define MICROPROFILE_MAJOR_VERSION 2
+#define MICROPROFILE_MINOR_VERSION 5
 
 
 
@@ -366,6 +390,9 @@ typedef uint64_t MicroProfileThreadIdType;
 #define MICROPROFILE_TIMELINE_MAX_TOKENS 64
 #endif
 
+#ifndef MICROPROFILE_THREAD_LOG_FRAMES_REUSE
+#define MICROPROFILE_THREAD_LOG_FRAMES_REUSE 200
+#endif
 
 #ifndef MICROPROFILE_CONTEXT_SWITCH_TRACE 
 #if defined(_WIN32) 
@@ -395,7 +422,34 @@ typedef uint64_t MicroProfileThreadIdType;
 #define MICROPROFILE_MAX_GROUPS 128 //must be multiple of 32
 #endif
 
+#ifndef MICROPROFILE_BREAK_ON_PATCH_FAIL
+#define MICROPROFILE_BREAK_ON_PATCH_FAIL 0
+#endif
 
+#ifndef MICROPROFILE_INSTRUMENT_MICROPROFILE
+#define MICROPROFILE_INSTRUMENT_MICROPROFILE 0
+#endif
+
+#ifndef MICROPROFILE_MAX_DYNAMIC_TOKENS
+#define MICROPROFILE_MAX_DYNAMIC_TOKENS 2048
+#endif
+
+#ifndef MICROPROFILE_INSTRUMENT_SYMBOLNAME_MAXLEN 
+#define MICROPROFILE_INSTRUMENT_SYMBOLNAME_MAXLEN 128
+#endif
+
+#ifndef MICROPROFILE_INSTRUMENT_MAX_MODULES
+#define MICROPROFILE_INSTRUMENT_MAX_MODULES 256
+#endif
+
+#ifndef MICROPROFILE_INSTRUMENT_MAX_MODULE_CHARS
+#define MICROPROFILE_INSTRUMENT_MAX_MODULE_CHARS (8<<10)
+#endif
+
+
+#ifndef MICROPROFILE_ASSERT_LOG_FREED
+#define MICROPROFILE_ASSERT_LOG_FREED 0
+#endif
 
 typedef enum MicroProfileTokenType_t
 {
@@ -408,7 +462,6 @@ struct MicroProfileThreadLogGpu;
 struct MicroProfileScopeStateC;
 
 #ifdef __cplusplus
-#include <atomic>
 extern "C" {
 #endif
 
@@ -416,12 +469,12 @@ extern "C" {
 
 MICROPROFILE_API void MicroProfileInit();
 MICROPROFILE_API void MicroProfileShutdown();
+MICROPROFILE_API void MicroProfileStartAutoFlip(uint32_t nHz);
+MICROPROFILE_API void MicroProfileStopAutoFlip();
 MICROPROFILE_API MicroProfileToken MicroProfileFindToken(const char* sGroup, const char* sName);
 MICROPROFILE_API MicroProfileToken MicroProfileGetToken(const char* sGroup, const char* sName, uint32_t nColor, MicroProfileTokenType Token);
 MICROPROFILE_API void MicroProfileGetTokenC(MicroProfileToken* pToken, const char* sGroup, const char* sName, uint32_t nColor, MicroProfileTokenType Token);
-// MICROPROFILE_API MicroProfileToken MicroProfileGetMetaToken(const char* pName);
 MICROPROFILE_API MicroProfileToken MicroProfileGetCounterToken(const char* pName);
-// MICROPROFILE_API void MicroProfileMetaUpdate(MicroProfileToken, int nCount, MicroProfileTokenType eTokenType);
 MICROPROFILE_API void MicroProfileCounterAdd(MicroProfileToken nToken, int64_t nCount);
 MICROPROFILE_API void MicroProfileCounterSet(MicroProfileToken nToken, int64_t nCount);
 MICROPROFILE_API void MicroProfileCounterSetLimit(MicroProfileToken nToken, int64_t nCount);
@@ -436,7 +489,9 @@ MICROPROFILE_API void MicroProfileEnter(MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileLeave();
 MICROPROFILE_API void MicroProfileEnterGpu(MicroProfileToken nToken, struct MicroProfileThreadLogGpu* pLog);
 MICROPROFILE_API void MicroProfileLeaveGpu(struct MicroProfileThreadLogGpu* pLog);
-MICROPROFILE_API uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, int nStrLen, int bIsStaticString);
+MICROPROFILE_API void MicroProfileEnterNegative();
+MICROPROFILE_API void MicroProfileEnterNegativeGpu(struct MicroProfileThreadLogGpu* pLog);
+MICROPROFILE_API uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, uint32_t nStrLen, int bIsStaticString);
 MICROPROFILE_API uint32_t MicroProfileTimelineEnter(uint32_t nColor, const char* pStr);
 MICROPROFILE_API uint32_t MicroProfileTimelineEnterf(uint32_t nColor, const char* pStr, ...);
 MICROPROFILE_API void MicroProfileTimelineLeave(uint32_t id);
@@ -452,8 +507,10 @@ MICROPROFILE_API void MicroProfileThreadLogGpuFree(struct MicroProfileThreadLogG
 MICROPROFILE_API void MicroProfileThreadLogGpuReset(struct MicroProfileThreadLogGpu* pLog);
 MICROPROFILE_API void MicroProfileGpuSubmit(int nQueue, uint64_t nWork);
 MICROPROFILE_API int MicroProfileInitGpuQueue(const char* pQueueName);
+MICROPROFILE_API void MicroProfileFreeGpuQueue(int nQueue);
 MICROPROFILE_API int MicroProfileGetGpuQueue(const char* pQueueName);
 MICROPROFILE_API void MicroProfileFlip(void* pGpuContext); //! call once per frame.
+MICROPROFILE_API void MicroProfileFlip_CB(void* pGpuContext, MicroProfileOnFreeze FreezeCB); //! call once per frame.
 MICROPROFILE_API void MicroProfileToggleFrozen();
 MICROPROFILE_API int MicroProfileIsFrozen();
 MICROPROFILE_API int MicroProfileEnabled();
@@ -496,12 +553,14 @@ MICROPROFILE_API float MicroProfileTickToMsMultiplierGpu();
 MICROPROFILE_API int64_t MicroProfileTicksPerSecondCpu();
 MICROPROFILE_API uint64_t MicroProfileTick();
 
-#ifdef __cplusplus
-MICROPROFILE_API void MicroProfileLocalCounterAddAtomic(std::atomic<int64_t>* pCounter, int64_t nCount);
-MICROPROFILE_API int64_t MicroProfileLocalCounterSetAtomic(std::atomic<int64_t>* pCounter, int64_t nCount);
 
+MICROPROFILE_API void MicroProfileLocalCounterAddAtomic(MicroProfileToken Token, int64_t nCount);
+MICROPROFILE_API int64_t MicroProfileLocalCounterSetAtomic(MicroProfileToken, int64_t nCount);
+
+#ifdef __cplusplus
 }
 #endif
+
 
 #ifdef __cplusplus
 struct MicroProfileThreadInfo
@@ -592,7 +651,7 @@ MICROPROFILE_API void MicroProfileGpuInitGL();
 #if MICROPROFILE_USE_THREAD_NAME_CALLBACK
 MICROPROFILE_API const char* MicroProfileGetThreadName(char* pzName);
 #else
-#define MicroProfileGetThreadName(a) "<implement MicroProfileGetThreadName to get threadnames>"
+#define MicroProfileGetThreadName(a) 0
 #endif
 
 
@@ -638,33 +697,27 @@ struct MicroProfileScopeGpuHandler
 		MicroProfileGpuLeaveInternal(pLog, nToken, nTick);
 	}
 };
+
+struct MicroProfileConditionalScopeHandler
+{
+	MicroProfileToken nToken;
+	uint64_t nTick;
+	MicroProfileConditionalScopeHandler(MicroProfileToken token, bool condition) : nToken(token)
+	{
+		nTick = condition ? MicroProfileEnterInternal(token) : MICROPROFILE_INVALID_TOKEN;
+	}
+	~MicroProfileConditionalScopeHandler()
+	{
+		if (nTick != MICROPROFILE_INVALID_TOKEN)
+		{
+			MicroProfileLeaveInternal(nToken, nTick);
+		}
+	}
+};
 #endif //__cplusplus
 #endif //enabled
 
-enum MicroProfileDrawMask
-{
-	MP_DRAW_OFF = 0x0,
-	MP_DRAW_BARS = 0x1,
-	MP_DRAW_DETAILED = 0x2,
-	MP_DRAW_COUNTERS = 0x3,
-	MP_DRAW_HIDDEN = 0x4,
-	MP_DRAW_SIZE = 0x5,
-};
 
-enum MicroProfileDrawBarsMask
-{
-	MP_DRAW_TIMERS = 0x1,
-	MP_DRAW_AVERAGE = 0x2,
-	MP_DRAW_MAX = 0x4,
-	MP_DRAW_MIN = 0x8,
-	MP_DRAW_CALL_COUNT = 0x10,
-	MP_DRAW_TIMERS_EXCLUSIVE = 0x20,
-	MP_DRAW_AVERAGE_EXCLUSIVE = 0x40,
-	MP_DRAW_MAX_EXCLUSIVE = 0x80,
-	MP_DRAW_META_FIRST = 0x100,
-	MP_DRAW_ALL = 0xffffffff,
-
-};
 
 enum MicroProfileCounterFormat
 {
@@ -689,7 +742,7 @@ enum MicroProfileCounterFlags
 
 
 
-
+#define MP_AUTO 0
 //from http://fugal.net/vim/rgbtxt.html
 #define MP_SNOW 0xfffafa
 #define MP_GHOSTWHITE 0xf8f8ff
@@ -717,7 +770,7 @@ enum MicroProfileCounterFlags
 #define MP_LAVENDERBLUSH 0xfff0f5
 #define MP_MISTYROSE 0xffe4e1
 #define MP_WHITE 0xffffff
-#define MP_BLACK 0x000000
+#define MP_BLACK 0x010101
 #define MP_DARKSLATEGRAY 0x2f4f4f
 #define MP_DARKSLATEGREY 0x2f4f4f
 #define MP_DIMGRAY 0x696969

@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/jonasmr/microprofile.svg?branch=master)](https://travis-ci.org/jonasmr/microprofile)
+
 # microprofile
 
 Microprofile is a embeddable profiler in a few files, written in C++
@@ -93,19 +95,67 @@ builtin presets are presets, that are loaded from mppresets.builtin.cfg. They wo
 # Capture view
 Capturing in live view provides a complete view of what is recorded in the ring buffers over a set amount of frames. Please be aware if you capture to far behind, the markers you're are looking for might be overwritten, in which case there will be no markers. As the buffers are reused per thread, this is something that will happen on a per thread basis.
 
-
 ![Alt text](images/detailed.png?raw=true "Capture screenshot")
+
+# Comparing captures
+Microprofile supports comparing two different captures. Save the first capture to disk, open the second capture and click compare and browse to the first file.
+Please be aware that:
+* Only the detailed view is supported
+* Captures saved from earlier versions will not work with this feature
+* When context switch trace is enabled, comparing will only compare registered threads.
+
+# Dynamic Instrumentation
+On Intel x86-64 Microprofile supports dynamically injecting markers into running code. This is supported on windows, osx and linux(tested on ubuntu)
+To use this feature
+
+* Make sure MICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE is defined
+* Make sure to link with distorm and add its include folder to the include path
+* Check `dynamic_instrument` for an example
+* hold down `alt` to pan the secondary capture without moving the first capture
+
+Please be aware that this is still a bit experimental, and be aware of these limitations:
+* The profiler does not attempt to stop all running threads while instrumenting.
+	* This potentially can cause issues, as there is a critical moment when replacing the first 14 bytes of the function being patched. If any thread is executing the code begin replaced, the program behaviour will not be well defined
+	* For development this is usually fine
+* The instrumentation does not need the program to be compiled or linked in any specific way
+	* But it does not support instrumenting all possible x86-64 code sequences - IE it might fail.
+	* It needs at least 14 bytes of instructions to instrument a function
+* On linux you need to link your program with -rdynamic, in order to make the it possible to find the functions using `dladdr`
+	* if you know of any way to query this without linking with -rdynamic I'd love to hear about it.
+
+
+If compiled and linked with Dynamic Instrumentation, two new menus appear, "modules" and "functions".
+
+The "modules" menu allows you to load debug information from your loaded modules. Select one or more modules to load from. Once its loaded the bar behind the module name is filled, and the debug information is ready.
+
+![Modules screenshot](images/modules.png?raw=true "Modules screenshot")
+
+
+Once the debug symbols are loaded - Indicated by the number in the top of the functions menu - You can start typing to search for functions to instrument.
+* Click on a function to attempt to instrument it
+* If instrumentation fails, you´ll be asked to report the code sequence. Please consider doing this.
+* Click on '>>' next to a function, to attempt to instrument all the functions called by that function
+	* Only functions called that also have a name in the debug information will be instrumented
+
+![Functions screenshot](images/functions.png?raw=true "Functions screenshot")
+
 
 # Example code
 * noframes: Using microprofile to profile an application without any concept of frames. dumps a capture at the end. No live view.
-* noui: frame based implementation. with live view. No gpu timing
-* noui_d3d11: frame based implementation, with live view and D3D11 gpu timers
-* noui_d3d12: frame based implementation, with live view and D3D12 gpu timers
-* noui_d3d12_multithreading: frame based implementation, with live view and D3D12 gpu timers, with gpu timings generated from multiple threads.
-* noui_vulkan: Copy of the vulkan Hologram sample, fixed to use microprofile cpu and gpu markers. Only tested on windows.
+* simple: frame based implementation. with live view. No gpu timing
+* d3d11: frame based implementation, with live view and D3D11 gpu timers
+* d3d12: frame based implementation, with live view and D3D12 gpu timers
+* d3d12_multithreading: frame based implementation, with live view and D3D12 gpu timers, with gpu timings generated from multiple threads.
+* gl: frame based implementation, with live view and OpenGL gpu timers
+* vulkan: Copy of the vulkan Hologram sample, fixed to use microprofile cpu and gpu markers. Only tested on windows.
+* dynamic_instrument: Demo for dynamic instrumentation. 
+* workbench: Workbench for development. Using all features of microprofile.
+
 
 # Dependencies
-Microprofile supports generating compressed captures using miniz(http:/code.google.com/miniz). 
+* Microprofile supports generating compressed captures using miniz(http:/code.google.com/miniz). 
+* Distorm is used to disassemble x86-64 when using dynamic instrumentation(https://github.com/gdabah/distorm)
+
 
 # Resource usage
 MicroProfile uses a few large allocations.
