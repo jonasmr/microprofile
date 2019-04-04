@@ -275,6 +275,30 @@ void MicroProfileFreeAligned(void* pMem)
 	_aligned_free(pMem);
 }
 
+
+#include <windows.h>
+#define snprintf _snprintf
+
+#pragma warning(push)
+#pragma warning(disable: 4244) //possible loss of data
+#pragma warning(disable: 4100) //unreferenced formal parameter
+#pragma warning(disable: 4200) //zero-sized struct
+#pragma warning(disable: 4091)
+
+
+int64_t MicroProfileTicksPerSecondCpu() {
+	static int64_t nTicksPerSecond = 0;
+	if (nTicksPerSecond == 0) {
+		QueryPerformanceFrequency((LARGE_INTEGER*)&nTicksPerSecond);
+	}
+	return nTicksPerSecond;
+}
+int64_t MicroProfileGetTick() {
+	int64_t ticks;
+	QueryPerformanceCounter((LARGE_INTEGER*)&ticks);
+	return ticks;
+}
+
 #else
 
 #ifndef MICROPROFILE_CUSTOM_PLATFORM
@@ -1152,34 +1176,6 @@ uint64_t MicroProfileTick()
 }
 
 
-#ifdef _WIN32
-#include <windows.h>
-#define snprintf _snprintf
-
-#pragma warning(push)
-#pragma warning(disable: 4244) //possible loss of data
-#pragma warning(disable: 4100) //unreferenced formal parameter
-#pragma warning(disable: 4200) //zero-sized struct
-#pragma warning(disable: 4091)
-
-int64_t MicroProfileTicksPerSecondCpu()
-{
-	static int64_t nTicksPerSecond = 0;	
-	if(nTicksPerSecond == 0) 
-	{
-		QueryPerformanceFrequency((LARGE_INTEGER*)&nTicksPerSecond);
-	}
-	return nTicksPerSecond;
-}
-int64_t MicroProfileGetTick()
-{
-	int64_t ticks;
-	QueryPerformanceCounter((LARGE_INTEGER*)&ticks);
-	return ticks;
-}
-
-#endif
-
 #if 1
 
 typedef void* (*MicroProfileThreadFunc)(void*);
@@ -1339,6 +1335,12 @@ inline std::recursive_mutex& MicroProfileMutex()
 std::recursive_mutex& MicroProfileGetMutex()
 {
 	return MicroProfileMutex();
+}
+
+inline std::recursive_mutex& MicroProfileSocketCloseMutex()
+{
+	static std::recursive_mutex Mutex;
+	return Mutex;
 }
 
 inline std::recursive_mutex& MicroProfileTimelineMutex()
@@ -5403,7 +5405,7 @@ void* MicroProfileSocketSenderThread(void*)
 	MicroProfileOnThreadCreate("MicroProfileSocketSenderThread");
 	while(!S.nMicroProfileShutdown)
 	{
-		if(S.nSocketFail)
+		if (S.nSocketFail || !g_MicroProfile.nNumWebSockets || S.nMicroProfileShutdown)
 		{
 			MicroProfileSleep(100);
 			continue;
@@ -5430,6 +5432,13 @@ void* MicroProfileSocketSenderThread(void*)
 		{
 			MICROPROFILE_SCOPE(g_MicroProfileSendLoop);
 			MICROPROFILE_COUNTER_LOCAL_ADD_ATOMIC(g_MicroProfileBytesPerFlip, nSendAmount);
+
+			MicroProfileScopeLock L(MicroProfileSocketCloseMutex());
+			if (S.nSocketFail || !g_MicroProfile.nNumWebSockets || S.nMicroProfileShutdown)
+			{
+				continue;
+			}
+
 			if(!MicroProfileSocketSend2(S.WebSockets[0], &S.WSBuf.SendBuffer[nSendStart], nSendAmount))
 			{
 				S.nSocketFail = 1;
@@ -6743,6 +6752,8 @@ void MicroProfileWebSocketFrame()
 
 		if(!bConnected)
 		{
+			MicroProfileScopeLock L(MicroProfileSocketCloseMutex());
+
 			uprintf("removing socket %" PRId64 "\n", (uint64_t)s);
 
 #ifndef _WIN32
@@ -6888,12 +6899,12 @@ void MicroProfileWebSocketSendEntry(uint32_t id, uint32_t parent, const char* pN
 
 void MicroProfileWebSocketSendCounterEntry(uint32_t id, uint32_t parent, const char* pName, int64_t nLimit, int nFormat)
 {
-	WSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
-	WSPrintf("\"name\":\"%s\",", pName);
-	WSPrintf("\"limit\":%" PRId64 ",", nLimit);
-	WSPrintf("\"format\":%d", nFormat);	
-	WSPrintf("}}");
-	WSFlush();
+	MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
+	MicroProfileWSPrintf("\"name\":\"%s\",", pName);
+	MicroProfileWSPrintf("\"limit\":%" PRId64 ",", nLimit);
+	MicroProfileWSPrintf("\"format\":%d", nFormat);
+	MicroProfileWSPrintf("}}");
+	MicroProfileWSFlush();
 }
 
 void MicroProfileWebSocketSendState(MpSocket C)
