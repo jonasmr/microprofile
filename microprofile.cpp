@@ -3366,7 +3366,7 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 			if(0 != (S.CounterInfo[i].nFlags & MICROPROFILE_COUNTER_FLAG_DETAILED))
 			{
 				MicroProfileFetchCounter(i);
-				uint64_t nValue = S.Counters[i].load(std::memory_order_relaxed);
+				int64_t nValue = S.Counters[i].load(std::memory_order_relaxed);
 				pDest[i] = nValue;
 				S.nCounterMin[i] = MicroProfileMin(S.nCounterMin[i], (int64_t)nValue);
 				S.nCounterMax[i] = MicroProfileMax(S.nCounterMax[i], (int64_t)nValue);
@@ -3990,6 +3990,52 @@ void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle)
 		printf("%f,", nTicks * fToMsGPU);
 	}
 	printf("\n\n");
+
+	/* --- MCPE BEGIN: Dump counter information ---*/
+	printf("Counters\n");
+	printf("Name,Last,Min,Max,<HISTORY>\n");
+	MicroProfileCounterFetchCounters();
+	for (int i = 0; i < (int)S.nNumCounters; ++i) {
+		// assemble the full name of the counter by collecting all it's parents names
+		std::vector<const char*> nNames;
+		nNames.reserve(32);
+		int nIter = i;
+		do {
+			nNames.push_back(S.CounterInfo[nIter].pName);
+			nIter = S.CounterInfo[nIter].nParent;
+		} while (nIter >= 0);
+
+		// output all the names in parent-child order
+		printf("\"");
+		for (int idx = nNames.size() - 1; idx > 0; --idx) {
+			printf("%s/", nNames[idx]);
+		}
+		printf("%s\"", nNames[0]);
+
+		const int64_t nValue = S.Counters[i].load(std::memory_order_relaxed);
+#if MICROPROFILE_COUNTER_HISTORY
+		if (0 != (S.CounterInfo[i].nFlags & MICROPROFILE_COUNTER_FLAG_DETAILED)) {
+			// write the detailed stats
+			const int64_t nCounterMin = S.nCounterMin[i];
+			const int64_t nCounterMax = S.nCounterMax[i];
+			printf(",%lld,%lld,%lld", nValue, nCounterMin, nCounterMax);
+
+			const uint32_t nBaseIndex = S.nCounterHistoryPut;
+			for (uint32_t j = 0; j < MICROPROFILE_GRAPH_HISTORY; ++j) {
+				const uint32_t nHistoryIndex = (nBaseIndex + j) % MICROPROFILE_GRAPH_HISTORY;
+				const int64_t nValue = MicroProfileClamp(S.nCounterHistory[nHistoryIndex][i], nCounterMin, nCounterMax);
+				printf(",%lld", nValue);
+			}
+			printf("\n");
+		}
+		else
+#endif
+		{
+			// write the most recent value, it's all we have for this counter
+			printf(",%lld\n", nValue);
+		}
+	}
+	/* --- MCPE END: Dump counter information ---*/
 }
 #undef printf
 
@@ -4216,6 +4262,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 
 	for(int i = 0; i < (int)S.nNumCounters; ++i)
 	{
+#if MICROPROFILE_COUNTER_HISTORY
 		if(0 != (S.CounterInfo[i].nFlags & MICROPROFILE_COUNTER_FLAG_DETAILED))
 		{
 			int64_t nCounterMax = S.nCounterMax[i];
@@ -4251,6 +4298,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 			MicroProfilePrintf(CB, Handle, "S.CounterHistory%d = MakeCounterHistory(%d, S.CounterHistoryArray%d, S.CounterHistoryArrayPrc%d)\n", i, i, i, i);
 		}
 		else
+#endif
 		{
 			MicroProfilePrintf(CB, Handle, "S.CounterHistory%d;\n", i);
 		}
@@ -4286,8 +4334,13 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
  	 		S.CounterInfo[i].nLevel,
 			S.CounterInfo[i].pName,
 			nCounter,
+#if MICROPROFILE_COUNTER_HISTORY
 			S.nCounterMin[i],
 			S.nCounterMax[i],
+#else
+			nCounter,
+			nCounter,
+#endif
 			Formatted,
 			nLimit,
 			FormattedLimit,
