@@ -3790,6 +3790,7 @@ void MicroProfileDumpFileImmediately(const char* pHtml, const char* pCsv, void* 
 		MicroProfileFlip(pGpuContext);
 	}
 
+	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 	uint32_t nDumpMask = 0;
 	if(pHtml)
 	{
@@ -3812,12 +3813,13 @@ void MicroProfileDumpFileImmediately(const char* pHtml, const char* pCsv, void* 
 		memcpy(S.CsvDumpPath, pCsv, nLen+1);
 		nDumpMask |= 2;
 	}
-	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 	S.nDumpFileNextFrame = nDumpMask;
 	S.nDumpSpikeMask = 0;
 	S.nDumpFileCountDown = 0;
 
 	MicroProfileDumpToFile();
+
+	S.nDumpFileNextFrame = 0;
 
 
 
