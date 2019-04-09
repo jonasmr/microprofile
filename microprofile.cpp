@@ -2822,8 +2822,6 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 		if(0 == S.nDumpFileCountDown)
 		{
 			MicroProfileDumpToFile();
-			S.nDumpFileNextFrame = 0;
-			S.nAutoClearFrames = MICROPROFILE_GPU_FRAME_DELAY + 3; //hide spike from dumping webpage
 		}
 		else
 		{
@@ -3836,14 +3834,11 @@ void MicroProfileDumpFileImmediately(const char* pHtml, const char* pCsv, void* 
 	S.nDumpFileCountDown = 0;
 
 	MicroProfileDumpToFile();
-
-	S.nDumpFileNextFrame = 0;
-
-
-
 }
+
 void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, float fGpuSpike)
 {
+	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 	S.fDumpCpuSpike = fCpuSpike;
 	S.fDumpGpuSpike = fGpuSpike;
 	uint32_t nDumpMask = 0;
@@ -3875,7 +3870,6 @@ void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, 
 	}
 	else
 	{
-		std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 		S.nDumpFileNextFrame = nDumpMask;
 		S.nDumpSpikeMask = 0;
 		S.nDumpFileCountDown = 0;
@@ -4844,6 +4838,8 @@ void MicroProfileDumpToFile()
 			fclose(F);
 		}
 	}
+	S.nDumpFileNextFrame = 0;
+	S.nAutoClearFrames = MICROPROFILE_GPU_FRAME_DELAY + 3; //hide spike from dumping webpage
 }
 
 void MicroProfileFlushSocket(MpSocket Socket)
