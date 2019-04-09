@@ -45,6 +45,7 @@
 #define MP_LOG_LEAVE 0x0
 #define MP_LOG_PAYLOAD 0x2
 
+#define MICROPROFILE_LOG_FENCE ((uint64_t)0)
 
 static_assert(0 == (MICROPROFILE_MAX_GROUPS%32), "MICROPROFILE_MAX_GROUPS must be divisible by 32");
 
@@ -1834,9 +1835,26 @@ void MicroProfileLogReset(MicroProfileThreadLog* pLog)
 	}
 	MP_ASSERT(nLogIndex < MICROPROFILE_MAX_THREADS && nLogIndex > 0);
 	memset(pLog, 0, sizeof(*pLog)); 
-	pLog->nFreeListNext = S.nFreeListHead;
+	// Reset all fields in the struct.
 	pLog->nPut.store(0);
 	pLog->nGet.store(0);
+
+	pLog->nStackPut = 0;
+	pLog->nStackScope = 0;
+	memset(pLog->ScopeState, 0, sizeof(pLog->nGroupStackPos));
+	pLog->nActive = 0;
+	pLog->nGpu = 0;
+	pLog->nThreadId = 0;
+	pLog->nLogIndex = 0;
+	pLog->nCustomId = 0;
+	memset(pLog->nStackLogEntry, 0, sizeof(pLog->nGroupStackPos));
+	memset(pLog->nChildTickStack, 0, sizeof(pLog->nGroupStackPos));
+	pLog->nStackPos = 0;
+	memset(pLog->nGroupStackPos, 0, sizeof(pLog->nGroupStackPos));
+	memset(pLog->nGroupTicks, 0, sizeof(pLog->nGroupTicks));
+	pLog->ThreadName[0] = 0;
+	pLog->nFreeListNext = S.nFreeListHead;
+
 	S.nFreeListHead = nLogIndex;
 	for(int i = 0; i < MICROPROFILE_MAX_FRAME_HISTORY; ++i)
 	{
@@ -2179,10 +2197,16 @@ inline uint64_t MicroProfileLogPutEnter(MicroProfileToken nToken_, uint64_t nTic
 	uint32_t nPut = pLog->nPut.load(std::memory_order_relaxed);
 	uint32_t nNextPos = (nPut + 1) % MICROPROFILE_BUFFER_SIZE;
 	uint32_t nGet = pLog->nGet.load(std::memory_order_acquire);
-	uint32_t nDistance = (nGet - nNextPos) % MICROPROFILE_BUFFER_SIZE;
-	MP_ASSERT(nDistance < MICROPROFILE_BUFFER_SIZE);
+
+	//uint32_t nDistance = (nGet - nNextPos) % MICROPROFILE_BUFFER_SIZE;
+	//MP_ASSERT(nDistance < MICROPROFILE_BUFFER_SIZE);
+	
+	uint32_t nDistance = ((nGet + MICROPROFILE_BUFFER_SIZE) - nNextPos) % MICROPROFILE_BUFFER_SIZE;
+
 	uint32_t nStackPut = (pLog->nStackPut);
-	if (nDistance < nStackPut+4) //2 for ring buffer, 2 for the actual entries
+	
+	MP_ASSERT(nStackPut + 1 < MICROPROFILE_STACK_MAX);
+	if (nDistance < nStackPut + 4) //2 for ring buffer, 2 for the actual entries
 	{
 		S.nOverflow = 100;
 		return MICROPROFILE_INVALID_TICK;
@@ -2210,6 +2234,24 @@ inline void MicroProfileLogPutLeave(MicroProfileToken nToken_, uint64_t nTick, M
 	pLog->nPut.store(nNextPos, std::memory_order_release);
 }
 
+inline void MicroProfileLogPutFence(MicroProfileThreadLog* pLog) {
+	MP_ASSERT(pLog != 0); //this assert is hit if MicroProfileOnCreateThread is not called
+	MP_ASSERT(pLog->nActive);
+	MP_ASSERT(pLog->nStackPut == 0);
+	uint64_t LE = MICROPROFILE_LOG_FENCE;
+	uint32_t nPos = pLog->nPut.load(std::memory_order_relaxed);
+	uint32_t nNextPos = (nPos + 1) % MICROPROFILE_BUFFER_SIZE;
+	uint32_t nGet = pLog->nGet.load(std::memory_order_acquire);
+	if (nNextPos != nGet) {
+		pLog->Log[nPos] = LE;
+		pLog->nPut.store(nNextPos, std::memory_order_release);
+	}
+#if MICROPROFILE_DEBUG
+	else {
+		printf("!!! WARNING: log full. Unable to insert fence\n");
+	}
+#endif
+}
 
 inline void MicroProfileLogPut(MicroProfileToken nToken_, uint64_t nTick, uint64_t nBegin, MicroProfileThreadLog* pLog)
 {
@@ -2501,6 +2543,10 @@ void MicroProfileLeaveInternal(MicroProfileToken nToken_, uint64_t nTickStart)
 	}
 }
 
+void MicroProfileFence() {
+	MicroProfileThreadLog* pLog = MicroProfileGetThreadLog2();
+	MicroProfileLogPutFence(pLog);
+}
 
 void MicroProfileEnter(MicroProfileToken nToken)
 {
@@ -2795,6 +2841,17 @@ static void MicroProfileFlipEnabled()
 		}
 	}
 }
+
+#if MICROPROFILE_DEBUG
+void DumpLogStack(uint32_t nThread, uint64_t* pStackLog, uint32_t nStackPos) {
+	printf("***Stack [Trd=%u] size increased to: %u\n", nThread, nStackPos);
+	printf("***Stack - oldest to newest:\n");
+	for (int i = 0; i < nStackPos; ++i) {
+		auto const &timer = S.TimerInfo[MicroProfileLogGetTimerIndex(pStackLog[i])];
+		printf("   [%d] -> %s", i, timer.pName);
+	}
+}
+#endif
 
 void MicroProfileFlip(void* pContext)
 {
@@ -3124,11 +3181,19 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 							MicroProfileLogEntry LE = pLog->Log[k];
 							uint64_t nType = MicroProfileLogGetType(LE);
 
-							if(MP_LOG_ENTER == nType)
+							if (LE == MICROPROFILE_LOG_FENCE) {
+								MP_ASSERT(nStackPos == 0);
+							}
+							else if(MP_LOG_ENTER == nType)
 							{
 								uint64_t nTimer = MicroProfileLogGetTimerIndex(LE);
 								MP_ASSERT(nTimer < S.nTotalTimers);
 								uint32_t nGroup = pTimerToGroup[nTimer];
+#if MICROPROFILE_DEBUG
+								if (nStackPos >= MICROPROFILE_STACK_MAX) {
+									DumpLogStack(i, pStackLog, nStackPos);
+								}
+#endif
 								MP_ASSERT(nStackPos < MICROPROFILE_STACK_MAX);
 								MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
 								pGroupStackPos[nGroup]++;

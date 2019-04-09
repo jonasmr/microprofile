@@ -487,6 +487,7 @@ MICROPROFILE_API uint64_t MicroProfileEnterInternal(MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileLeaveInternal(MicroProfileToken nToken, uint64_t nTick);
 MICROPROFILE_API void MicroProfileEnter(MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileLeave();
+MICROPROFILE_API void MicroProfileFence();
 MICROPROFILE_API void MicroProfileEnterGpu(MicroProfileToken nToken, struct MicroProfileThreadLogGpu* pLog);
 MICROPROFILE_API void MicroProfileLeaveGpu(struct MicroProfileThreadLogGpu* pLog);
 MICROPROFILE_API void MicroProfileEnterNegative();
