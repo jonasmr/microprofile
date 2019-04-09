@@ -1852,6 +1852,7 @@ void MicroProfileOnThreadExit()
 	{
 		MP_ASSERT(pLog->nActive == 1);
 		pLog->nActive = 2;
+		MicroProfileSetThreadLog(nullptr);
 	}
 }
 
