@@ -170,7 +170,11 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileTicksPerSecondCpu() 1
 #define MicroProfileTick() 0
 #define MicroProfileEnabled() 0
-
+#define MicroProfileFindTokenColor(token) 0 // Mojang Added
+#define MicroProfileGetFrameTime(token) 0.0f // Mojang Added
+#define MicroProfileGetFrameLargest(token) 0.0f // Mojang Added
+#define MicroProfileGetFrameSmallest(token) 0.0f // Mojang Added
+#define MicroProfileGetFrameCount(token) 0.0f // Mojang Added
 #else
 
 #include <stdint.h>
@@ -548,6 +552,12 @@ MICROPROFILE_API void MicroProfileRegisterGroup(const char* pGroup, const char* 
 MICROPROFILE_API void MicroProfilePlatformMarkerBegin(uint32_t nColor, const char * pMarker); //not implemented by microprofile.
 MICROPROFILE_API void MicroProfilePlatformMarkerEnd();//not implemented by microprofile.
 #endif
+
+MICROPROFILE_API uint32_t MicroProfileFindTokenColor(MicroProfileToken token); // Mojang added
+MICROPROFILE_API float MicroProfileGetFrameTime(MicroProfileToken token); // Mojang Added
+MICROPROFILE_API float MicroProfileGetFrameLargest(MicroProfileToken token); // Mojang Added
+MICROPROFILE_API float MicroProfileGetFrameSmallest(MicroProfileToken token); // Mojang Added
+MICROPROFILE_API uint32_t MicroProfileGetFrameCount(MicroProfileToken token); // Mojang Added
 
 MICROPROFILE_API float MicroProfileTickToMsMultiplierCpu();
 MICROPROFILE_API float MicroProfileTickToMsMultiplierGpu();

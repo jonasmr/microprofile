@@ -815,6 +815,8 @@ struct MicroProfile
 
 	MicroProfileTimer 		Frame[MICROPROFILE_MAX_TIMERS];
 	uint64_t				FrameExclusive[MICROPROFILE_MAX_TIMERS];
+	uint64_t				FrameLargest[MICROPROFILE_MAX_TIMERS]; // Mojang Added
+	uint64_t				FrameSmallest[MICROPROFILE_MAX_TIMERS]; // Mojang Added
 
 	MicroProfileTimer 		Aggregate[MICROPROFILE_MAX_TIMERS];
 	uint64_t				AggregateMax[MICROPROFILE_MAX_TIMERS];
@@ -3117,6 +3119,8 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 					S.Frame[i].nTicks = 0;
 					S.Frame[i].nCount = 0;
 					S.FrameExclusive[i] = 0;
+					S.FrameLargest[i] = 0; // Mojang Added
+					S.FrameSmallest[i] = ~0ULL; // Mojang Added
 				}
 				for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
 				{
@@ -3237,6 +3241,9 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 									S.Frame[nTimerIndex].nTicks += nTicks - nNegative;
 									S.FrameExclusive[nTimerIndex] += nTicksExclusive;
 									S.Frame[nTimerIndex].nCount += 1;
+
+									S.FrameLargest[nTimerIndex] = MicroProfileMax(S.FrameLargest[nTimerIndex], static_cast<uint64_t>(nTicks)); // Mojang Added
+									S.FrameSmallest[nTimerIndex] = MicroProfileMin(S.FrameSmallest[nTimerIndex], static_cast<uint64_t>(nTicks)); // Mojang Added
 
 									MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
 									pFrameGroupThread[nGroup].nTicks += nTicks - nNegative;
@@ -13350,6 +13357,65 @@ void MicroProfileHashTableTest()
 	DumpTableStr(&Strings);
 	MicroProfileHashTableDestroy(&Strings);
 }
+
+
+// ------ Beginning Mojang Added Function Definitions ------
+uint32_t MicroProfileFindTokenColor(MicroProfileToken token) {
+	if (token == MICROPROFILE_INVALID_TOKEN) {
+		return 0;
+	}
+
+	uint32_t nTimerIndex = MicroProfileGetTimerIndex(token);
+	return S.TimerInfo[nTimerIndex].nColor;
+}
+
+float MicroProfileGetFrameTime(MicroProfileToken token) {
+	if (token == MICROPROFILE_INVALID_TOKEN)
+	{
+		return 0.f;
+	}
+
+	uint32_t nTimerIndex = MicroProfileGetTimerIndex(token);
+	uint32_t nGroupIndex = MicroProfileGetGroupIndex(token);
+	float fToMs = MicroProfileTickToMsMultiplier(S.GroupInfo[nGroupIndex].Type == MicroProfileTokenTypeGpu ? MicroProfileTicksPerSecondGpu() : MicroProfileTicksPerSecondCpu());
+	return S.Frame[nTimerIndex].nTicks * fToMs;
+}
+
+float MicroProfileGetFrameLargest(MicroProfileToken token) {
+	if (token == MICROPROFILE_INVALID_TOKEN)
+	{
+		return 0.f;
+	}
+
+	uint32_t nTimerIndex = MicroProfileGetTimerIndex(token);
+	uint32_t nGroupIndex = MicroProfileGetGroupIndex(token);
+	float fToMs = MicroProfileTickToMsMultiplier(S.GroupInfo[nGroupIndex].Type == MicroProfileTokenTypeGpu ? MicroProfileTicksPerSecondGpu() : MicroProfileTicksPerSecondCpu());
+	return S.FrameLargest[nTimerIndex] * fToMs;
+}
+
+float MicroProfileGetFrameSmallest(MicroProfileToken token) {
+	if (token == MICROPROFILE_INVALID_TOKEN)
+	{
+		return 0.f;
+	}
+
+	uint32_t nTimerIndex = MicroProfileGetTimerIndex(token);
+	uint32_t nGroupIndex = MicroProfileGetGroupIndex(token);
+	float fToMs = MicroProfileTickToMsMultiplier(S.GroupInfo[nGroupIndex].Type == MicroProfileTokenTypeGpu ? MicroProfileTicksPerSecondGpu() : MicroProfileTicksPerSecondCpu());
+	return S.FrameSmallest[nTimerIndex] * fToMs;
+}
+
+uint32_t MicroProfileGetFrameCount(MicroProfileToken token) {
+	if (token == MICROPROFILE_INVALID_TOKEN)
+	{
+		return 0.f;
+	}
+
+	uint32_t nTimerIndex = MicroProfileGetTimerIndex(token);
+	return S.Frame[nTimerIndex].nCount;
+}
+// ------ End Mojang Added Function Definitions ------
+
 
 #undef uprintf
 
