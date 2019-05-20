@@ -262,17 +262,18 @@ var WidthTree = 0;
 Settings.ViewActive = 0;
 Settings.ViewCompressed = 0;
 Settings.AllowHighDPI = 1;
-var ViewNames = ["Graph", "Graph", "Graph", "Bars", "Bars", "Bars", "Counters"];
-var ViewNames2 = ["[split]", "[single]", "[group/thread]","[table]", "[all]", "[single]", ""];
+var ViewNames = ["Graph", "Graph", "Graph", "Graph", "Bars", "Bars", "Bars", "Counters"];
+var ViewNames2 = ["[split]", "[single]", "[percentile]","[group/thread]","[table]", "[all]", "[single]", ""];
 
 var VIEW_GRAPH_SPLIT = 0;
 var VIEW_GRAPH = 1;
-var VIEW_GRAPH_THREAD_GROUP = 2;
-var VIEW_BAR = 3;
-var VIEW_BAR_ALL = 4;
-var VIEW_BAR_SINGLE = 5;
-var VIEW_COUNTERS = 6;
-var VIEW_SIZE = 7;
+var VIEW_GRAPH_PERCENTILE = 2;
+var VIEW_GRAPH_THREAD_GROUP = 3;
+var VIEW_BAR = 4;
+var VIEW_BAR_ALL = 5;
+var VIEW_BAR_SINGLE = 6;
+var VIEW_COUNTERS = 7;
+var VIEW_SIZE = 8;
 
 var GRAPH_ALPHA = 0.5;
 
@@ -1765,6 +1766,179 @@ function DrawGraphThreadExclusive(View, LocalMouseX, LocalMouseY, SubIndex, Spli
 	ProfileLeave();
 }
 
+function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
+{
+	let TimerMap = FrameData.TimerMap;
+	if(!TimerMap)
+		return;
+
+	ProfileEnter("DrawGraphPercentile");
+	let Canvas = View.Canvas[View.BackBuffer];
+	let context = Canvas.getContext('2d');
+	context.clearRect(0, 0, View.w, View.h);
+
+	let h = View.h;
+	let w = View.w;
+	let NumGraphs = 0;
+	// let HighlightIndex = -1;
+	for(var key in TimerMap)
+	{
+		if(!IsGroup(key))
+		{
+			let idx = GetTimer(key);
+			if(TimerArray[idx].e)
+			{
+				NumGraphs++;
+			}
+		}
+	}
+	if(NumGraphs)
+	{
+
+
+		let hstart = 0;
+		let gh = h / NumGraphs;
+		let Keys = [];
+		let cidx = 1;
+
+		if(LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1)
+		{
+			ToolTipCallback = function(canvas, x, y)
+			{
+				var TimerMap = FrameData.TimerMap;
+				var context = canvas.getContext('2d');
+				context.font = Font;
+				var XPos = x - 20;
+				for(var key in TimerMap)
+				{
+					let idx = GetTimer(key);
+					let TimerState = TimerMap[key];
+					var T = TimerArray[idx];
+					if(!IsGroup(key) && T.e && TimerState.PercentileMax > TimerState.PercentileMin)
+					{
+						let HighlightIndex = -1;
+						let Max = TimerState.PercentileMax;
+						let Min = TimerState.PercentileMin;
+						let PercentileData = TimerState.Percentile;
+						let h = View.h;
+						let w = View.w;
+
+						if(LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1)
+						{
+							HighlightIndex = Math.floor((PercentileData.length-1) * Math.min(1.0, LocalMouseX / (w-1)));
+							if(HighlightIndex < 0 || HighlightIndex > PercentileData.length)
+							{
+								debugger;
+							}
+							if(TimerState.tooltipysoft)
+							{
+								var RATE = 0.05;
+								if(Math.abs(TimerState.tooltipysoft - TimerState.tooltipy) > 6)
+								{
+									TimerState.tooltipysoft = TimerState.tooltipy * RATE + TimerState.tooltipysoft * (1-RATE);
+								}
+							}
+							else
+							{
+								TimerState.tooltipysoft = TimerState.tooltipy;
+							}
+							let Perc = 100 * HighlightIndex / (PercentileData.length-1)
+							let Y = TimerState.tooltipysoft;
+							let str = FormatTime(Perc) + '% ' + FormatTime(PercentileData[HighlightIndex]) + 'ms';
+							let wtext = context.measureText(str, XPos, Y).width;
+							let X = Math.max(0, XPos - wtext);
+							context.fillStyle = 'black';
+							context.fillRect(X - 1, Y-1 , wtext+2, BoxHeight+2);
+							context.fillStyle = 'white';
+							context.textAlign = 'right';
+							context.fillText(str, X + wtext, Y+BoxHeight-2);
+
+						}
+					}
+					context.textAlign = 'left';
+				}
+			}
+		}
+
+
+		for(let key in TimerMap)
+		{
+			let idx = GetTimer(key);
+			let TimerState = TimerMap[key];
+			if(!IsGroup(key) && TimerArray[idx].e && TimerState.PercentileMax > TimerState.PercentileMin)
+			{
+				let Max = TimerState.PercentileMax;
+				let Min = TimerState.PercentileMin;
+				let PercentileData = TimerState.Percentile;
+				let fWidth = w / (PercentileData.length-1);
+				let Reference = Max;
+				let fHeightScale2 = gh / Max;
+				let color = TimerArray[idx].color;
+				let X = 0;
+				let Y = hstart + gh;
+				let YStart = Y;
+				let HighlightIndex = -1;
+				if(LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1)
+				{
+					HighlightIndex = Math.floor((PercentileData.length-1) * Math.min(1.0, LocalMouseX / (w-1)));
+					if(HighlightIndex < 0 || HighlightIndex > PercentileData.length)
+					{
+						debugger;
+					}
+				}
+
+
+				context.globalAlpha = 1;
+				context.fillStyle = nBackColorsDark[cidx];
+				cidx = 1-cidx;
+				context.fillRect(0, hstart, w, gh);
+				context.strokeStyle = color;
+				context.fillStyle = color;
+				{
+					context.beginPath();
+					context.moveTo(X,Y);
+					for(var i = 0; i < PercentileData.length; ++i)
+					{
+						Y = Math.max(YStart - PercentileData[i] * fHeightScale2, hstart);
+						context.lineTo(X, Y);
+						X += fWidth;
+					}
+					context.stroke();
+					context.lineTo(X, YStart);
+					context.globalAlpha = GRAPH_ALPHA;
+					context.fill();
+				}
+				context.globalAlpha = 1;
+				context.fillStyle = 'wheat';
+				context.textAlign='right';
+				context.fillText(FormatTime(Reference) + 'ms', nWidth, hstart + FontHeight);
+				context.textAlign='left';
+				context.fillText(TimerArray[idx].name, 0, hstart + FontHeight);
+				context.fillText(" Samples:" + PercentileData.length, 0, hstart + gh-2);
+
+				if(HighlightIndex >= 0)
+				{
+					let X = w * HighlightIndex / (PercentileData.length-1);
+					let Y = YStart - Math.min(PercentileData[HighlightIndex], Reference) * fHeightScale2;
+					context.strokeStyle = color;
+					context.beginPath();
+					let CrossX = X;
+					let CrossY = Y;
+					context.moveTo(CrossX-2, CrossY-2);
+					context.lineTo(CrossX+2, CrossY+2);
+					context.moveTo(CrossX+2, CrossY-2);
+					context.lineTo(CrossX-2, CrossY+2);
+					context.moveTo(CrossX, hstart);
+					context.lineTo(CrossX, hstart + gh);
+					context.stroke();
+					TimerState.tooltipy = Math.min(YStart - BoxHeight, Y) + View.y;
+				}
+				hstart += gh;
+			}
+		}
+	}
+	ProfileLeave();
+}
 
 
 
@@ -1912,11 +2086,14 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 						Y = Math.max(YStart - Time[i] * fHeightScale2, hstart);
 						context.lineTo(X, Y);
 						X += fWidth;
+
 					}
 					context.stroke();
 					context.lineTo(X, YStart);
 					context.globalAlpha = GRAPH_ALPHA;
 					context.fill();
+
+
 					context.globalAlpha = 1;
 					context.fillStyle = 'wheat';
 					context.textAlign='right';
@@ -1936,6 +2113,8 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 						context.lineTo(CrossX+2, CrossY+2);
 						context.moveTo(CrossX+2, CrossY-2);
 						context.lineTo(CrossX-2, CrossY+2);
+						context.moveTo(CrossX, hstart);
+						context.lineTo(CrossX, hstart + gh);
 						context.stroke();
 						TimerState.tooltipy = Math.min(YStart - BoxHeight, Y) + View.y;
 					}
@@ -2872,6 +3051,7 @@ function DrawTopMenu()
 			if(Settings.ViewActive == VIEW_GRAPH_SPLIT || 
 				Settings.ViewActive == VIEW_GRAPH || 
 				Settings.ViewActive == VIEW_GRAPH_THREAD_GROUP ||
+				Settings.ViewActive == VIEW_GRAPH_PERCENTILE || 
 				Settings.ViewActive == VIEW_COUNTERS)
 			{
 				continue;
@@ -3359,6 +3539,11 @@ function ActivateView(idx)
 	if(idx == VIEW_GRAPH_SPLIT)
 	{
 		MainView.DisplayFunc = DrawGraphSplit;
+		MainView.visible = true;
+	}
+	else if(idx == VIEW_GRAPH_PERCENTILE)
+	{
+		MainView.DisplayFunc = DrawGraphPercentile;
 		MainView.visible = true;
 	}
 	else if(idx == VIEW_GRAPH)
@@ -3884,6 +4069,26 @@ function DrawMenuSettings()
 			WSSendMessage("r");
 		}
 	}
+	if(DrawMenuElement(M, 0, "Clear Percentile Aggregate", "", 'white'))
+	{
+		let TimerMap = FrameData.TimerMap;
+		if(TimerMap)
+		{
+			for(let key in TimerMap)
+			{
+				let idx = GetTimer(key);
+				let TimerState = TimerMap[key];
+				if(!IsGroup(key) && TimerState.Percentile)
+				{
+					TimerState.PercentileMax = -1e38;
+					TimerState.PercentileMin = 1e38;
+					TimerState.Percentile = [];
+				}
+			}
+		}
+	}
+
+
 	if(DrawMenuElement(M, Settings.AllowHighDPI, "Allow High DPI", Settings.AllowHighDPI, 'white'))
 	{
 		Settings.AllowHighDPI = 1 - Settings.AllowHighDPI;
@@ -5385,7 +5590,6 @@ function GetFrameData(id)
 		FD.Count = AllocClearedArray(FRAME_COUNT);
 		FD.Time = AllocClearedArray(FRAME_COUNT);
 		FD.TimeExcl = AllocClearedArray(FRAME_COUNT);
-		//Ag
 		FD.TimeMax = AllocClearedArray(AggregateHistorySize);
 		FD.TimeMin = AllocClearedArray(AggregateHistorySize);
 		FD.TimeAvg = AllocClearedArray(AggregateHistorySize);
@@ -5397,6 +5601,9 @@ function GetFrameData(id)
 		FD.TimeTotal = AllocClearedArray(AggregateHistorySize);
 		FD.TimeExclTotal = AllocClearedArray(AggregateHistorySize);
 		FD.CallCount = AllocClearedArray(AggregateHistorySize);
+		FD.Percentile = [];
+		FD.PercentileMax = -1e38;
+		FD.PercentileMin = 1e38;
 		FD.EmptyFrames = 0;
 		
 
@@ -5594,11 +5801,17 @@ function ProcessFrame(F, Inactive)
 		};
 		let UpdateFrameDataInternal = function(id, Time, TimeExcl, Count, bIsGroup)
 		{
-			var FD = GetFrameData(id);
+			let FD = GetFrameData(id);
+			if(!IsFrozen)
+			{
+				FD.PercentileMax = Math.max(FD.PercentileMax, Time);
+				FD.PercentileMin = Math.min(FD.PercentileMin, Time);
+				FD.Percentile.push(Time);
+				FD.Percentile.sort(function(a, b){ return a - b; });
+			}
 			PushIntoArray(FD.Time, Time);
 			PushIntoArray(FD.TimeExcl, TimeExcl);
 			PushIntoArray(FD.Count, Count);
-			// console.log("FT EX ", TimeExcl);
 			FD.historymax = FindMaxTime(FD.Time, bIsGroup);
 
 			if((FD.Aggregate > Settings.AggregateFrames && Settings.AggregateFrames > 0) || AggregateCurrent == 0)
