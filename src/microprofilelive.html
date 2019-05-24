@@ -152,9 +152,12 @@ var PresetsCache = {};
 var ReadOnlyPresets = [];
 var ReadOnlyPresetsCache = {};
 
+Settings.SubGraphSettings = {};
 Settings.ReferenceTime = 50.0;
 var ReferencePresets = [5.0, 10.0, 15.0, 20, 30, 33.33, 50, 66.66,100.0,250.0,500,1000.0];
+var PercentilePresets = [0.0, 50.0, 90.0, 99.0];
 var ReferenceTimeTweak = -1;
+var PercentileTweak = -1;
 
 Settings.TargetTime = 30;
 var TargetTimeTweak = -1;
@@ -1780,8 +1783,8 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 	let h = View.h;
 	let w = View.w;
 	let NumGraphs = 0;
-	// let HighlightIndex = -1;
-	for(var key in TimerMap)
+	let ToolTips = Array();
+	for(let key in TimerMap)
 	{
 		if(!IsGroup(key))
 		{
@@ -1794,8 +1797,6 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 	}
 	if(NumGraphs)
 	{
-
-
 		let hstart = 0;
 		let gh = h / NumGraphs;
 		let Keys = [];
@@ -1805,34 +1806,29 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 		{
 			ToolTipCallback = function(canvas, x, y)
 			{
-				var TimerMap = FrameData.TimerMap;
-				var context = canvas.getContext('2d');
+				let TimerMap = FrameData.TimerMap;
+				let context = canvas.getContext('2d');
 				context.font = Font;
-				var XPos = x - 20;
-				for(var key in TimerMap)
+				let XPos = x - 20;
+				for(let key in TimerMap)
 				{
 					let idx = GetTimer(key);
 					let TimerState = TimerMap[key];
-					var T = TimerArray[idx];
+					let T = TimerArray[idx];
 					if(!IsGroup(key) && T.e && TimerState.PercentileMax > TimerState.PercentileMin)
 					{
 						let HighlightIndex = -1;
 						let Max = TimerState.PercentileMax;
 						let Min = TimerState.PercentileMin;
-						let PercentileData = TimerState.Percentile;
 						let h = View.h;
 						let w = View.w;
+						let tooltipstring = TimerState.tooltipstring;
 
-						if(LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1)
+						if(LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1 && tooltipstring)
 						{
-							HighlightIndex = Math.floor((PercentileData.length-1) * Math.min(1.0, LocalMouseX / (w-1)));
-							if(HighlightIndex < 0 || HighlightIndex > PercentileData.length)
-							{
-								debugger;
-							}
 							if(TimerState.tooltipysoft)
 							{
-								var RATE = 0.05;
+								let RATE = 0.05;
 								if(Math.abs(TimerState.tooltipysoft - TimerState.tooltipy) > 6)
 								{
 									TimerState.tooltipysoft = TimerState.tooltipy * RATE + TimerState.tooltipysoft * (1-RATE);
@@ -1842,16 +1838,14 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 							{
 								TimerState.tooltipysoft = TimerState.tooltipy;
 							}
-							let Perc = 100 * HighlightIndex / (PercentileData.length-1)
 							let Y = TimerState.tooltipysoft;
-							let str = FormatTime(Perc) + '% ' + FormatTime(PercentileData[HighlightIndex]) + 'ms';
-							let wtext = context.measureText(str, XPos, Y).width;
+							let wtext = context.measureText(tooltipstring, XPos, Y).width;
 							let X = Math.max(0, XPos - wtext);
 							context.fillStyle = 'black';
 							context.fillRect(X - 1, Y-1 , wtext+2, BoxHeight+2);
 							context.fillStyle = 'white';
 							context.textAlign = 'right';
-							context.fillText(str, X + wtext, Y+BoxHeight-2);
+							context.fillText(tooltipstring, X + wtext, Y+BoxHeight-2);
 
 						}
 					}
@@ -1865,27 +1859,35 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 		{
 			let idx = GetTimer(key);
 			let TimerState = TimerMap[key];
+			TimerState.tooltipstring = null;
 			if(!IsGroup(key) && TimerArray[idx].e && TimerState.PercentileMax > TimerState.PercentileMin)
 			{
 				let Max = TimerState.PercentileMax;
 				let Min = TimerState.PercentileMin;
-				let PercentileData = TimerState.Percentile;
-				let fWidth = w / (PercentileData.length-1);
+				let SubGraphSettings = GetSubGraphSettings(key);
+				let Percentile = SubGraphSettings.Percentile;
+				if(Percentile == null)
+					Percentile = 0.0;
+				Percentile = Math.max(0.0, Math.min(99.0, Percentile));
+				if(!SubGraphSettings.AutomaticReference)
+				{
+					Max = SubGraphSettings.ReferenceTime;
+				}
 				let Reference = Max;
+
+				let PercentileData = TimerState.Percentile;
+				let Total = PercentileData.length-1;
+				let NumElementsOnScreen = Total * (100 - Percentile) / (100);
+				let WidthPerElement = w / NumElementsOnScreen;
+				let TotalWidth = Total * WidthPerElement;
+				let PercentilePrc = Percentile / 100;
+				let PercentileOffset = PercentilePrc * TotalWidth;
 				let fHeightScale2 = gh / Max;
 				let color = TimerArray[idx].color;
 				let X = 0;
 				let Y = hstart + gh;
 				let YStart = Y;
-				let HighlightIndex = -1;
-				if(LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1)
-				{
-					HighlightIndex = Math.floor((PercentileData.length-1) * Math.min(1.0, LocalMouseX / (w-1)));
-					if(HighlightIndex < 0 || HighlightIndex > PercentileData.length)
-					{
-						debugger;
-					}
-				}
+				let MouseInside = LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1;
 
 
 				context.globalAlpha = 1;
@@ -1894,14 +1896,15 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 				context.fillRect(0, hstart, w, gh);
 				context.strokeStyle = color;
 				context.fillStyle = color;
+				let PercentileStart = Math.max(0, Math.floor(0.01*Percentile / PercentileData.length));
 				{
 					context.beginPath();
 					context.moveTo(X,Y);
-					for(var i = 0; i < PercentileData.length; ++i)
+					for(let i = PercentileStart; i < PercentileData.length; ++i)
 					{
+						X = i * WidthPerElement - PercentileOffset;
 						Y = Math.max(YStart - PercentileData[i] * fHeightScale2, hstart);
 						context.lineTo(X, Y);
-						X += fWidth;
 					}
 					context.stroke();
 					context.lineTo(X, YStart);
@@ -1913,12 +1916,16 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 				context.textAlign='right';
 				context.fillText(FormatTime(Reference) + 'ms', nWidth, hstart + FontHeight);
 				context.textAlign='left';
-				context.fillText(TimerArray[idx].name, 0, hstart + FontHeight);
-				context.fillText(" Samples:" + PercentileData.length, 0, hstart + gh-2);
+				context.fillText("Samples:" + PercentileData.length, 0, hstart + gh-2);
+				context.fillText(TimerArray[idx].name, 15, hstart + FontHeight);
+				context.fillText(Percentile + '%', nWidth, hstart + FontHeight);
 
-				if(HighlightIndex >= 0)
+				if(MouseInside)
 				{
-					let X = w * HighlightIndex / (PercentileData.length-1);
+					let Element = (PercentileOffset + LocalMouseX) / WidthPerElement;
+					let Rounded = Math.round(Element); 
+					let HighlightIndex = Math.max(0, Math.min(Rounded, PercentileData.length-1));
+					X = HighlightIndex * WidthPerElement - PercentileOffset;
 					let Y = YStart - Math.min(PercentileData[HighlightIndex], Reference) * fHeightScale2;
 					context.strokeStyle = color;
 					context.beginPath();
@@ -1932,6 +1939,8 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 					context.lineTo(CrossX, hstart + gh);
 					context.stroke();
 					TimerState.tooltipy = Math.min(YStart - BoxHeight, Y) + View.y;
+					let Perc = 100 * HighlightIndex / (PercentileData.length-1)
+					TimerState.tooltipstring = FormatTime(Perc) + '% ' + FormatTime(PercentileData[HighlightIndex]) + 'ms';;
 				}
 				hstart += gh;
 			}
@@ -2065,7 +2074,8 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 				var TimerState = TimerMap[key];
 				if(!IsGroup(key))
 				{
-					var Reference = Settings.AutomaticReference ? TimerState.historymaxsoft : ReferenceGraph;
+					let SubGraphSettings = GetSubGraphSettings(key);
+					var Reference = GetSubGraphReferenceTime(SubGraphSettings, TimerState);
 					var fHeightScale2 = gh / Reference;
 
 					var Time = TimerState.Time;
@@ -2099,7 +2109,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 					context.textAlign='right';
 					context.fillText(FormatTime(Reference) + 'ms', nWidth, hstart + FontHeight);
 					context.textAlign='left';
-					context.fillText(TimerArray[idx].name, 0, hstart + FontHeight);
+					context.fillText(TimerArray[idx].name, 15, hstart + FontHeight);
 
 					if(HighlightFrame >= 0)
 					{
@@ -2787,7 +2797,72 @@ function DrawMessage()
 	context.textAlign = 'left';
 	context.font = Font;
 }
-function DrawCaptureButton(context)
+
+function DrawGraphSettingsMenu(context, XBase, Y, width, height)
+{
+	if(SubMenuActive != SubMenuGraphSettings)
+	{
+		SubMenuGraphSettingsIndex = -1;
+		SubMenuGraphSettingsKey = "";
+	}
+	if(!ShowMenu())
+	{
+		return;
+	}
+	let NumGraphs = 0;
+	let TimerMap = FrameData.TimerMap;
+
+	for(let key in TimerMap)
+	{
+		if(!IsGroup(key))
+		{
+			let idx = GetTimer(key);
+			if(TimerArray[idx].e)
+			{
+				NumGraphs++;
+			}
+		}
+	}
+	let h = height;
+	let w = width;
+	let hstart = Y;
+	let gh = h / NumGraphs;
+	NumGraphs = 0;
+	for(let key in TimerMap)
+	{
+		if(!IsGroup(key))
+		{
+			let idx = GetTimer(key);
+			if(TimerArray[idx].e)
+			{
+				let X = XBase+1;
+				let Y = hstart+1;
+				let MenuText = ">";
+				let w2 = 2 + context.measureText(MenuText).width;
+				let bMouseInside = MouseInside(X, Y, w2, 4 + FontHeight);
+				context.fillStyle = bMouseInside || (SubMenuGraphSettings == SubMenuActive && SubMenuGraphSettingsIndex == NumGraphs) ? nBackColors[1] : 'black';
+				context.fillRect(X, Y, w2, 4 + FontHeight);
+				context.fillStyle = '#ffffff';
+				context.fillText(MenuText, X, Y + FontHeight);
+				context.textAlign = 'left';
+				if(bMouseInside)
+				{
+					SubMenuGraphSettingsIndex = NumGraphs;
+					SubMenuGraphSettingsKey = key;
+					CaptureButtonX = X + w2 + 2;
+					CaptureButtonY = Y;
+					EnableMenu(SubMenuGraphSettings);
+				}
+				NumGraphs++;
+				hstart += gh;
+
+
+			}
+		}
+	}
+}
+
+function DrawCaptureMenu(context)
 {
 	MouseInCaptureButton = 0;
 	if(!ShowMenu())
@@ -2888,7 +2963,6 @@ function DrawViews()
 	var context = CanvasDetailedView.getContext('2d');
 	context.clearRect(0, 0, nWidth, nHeight);
 	ProfileEnter("BlitViews");
-	// var DPR = window.devicePixelRatio;
 	for(var i = 0; i < Views.length; ++i)
 	{
 		var View = Views[i];
@@ -2898,7 +2972,8 @@ function DrawViews()
 		}
 	}
 
-	DrawCaptureButton(context);
+	DrawCaptureMenu(context);
+	DrawGraphSettingsMenu(context, MainView.x, MainView.y, MainView.w, MainView.h);
 
 	ProfileLeave();
 
@@ -2913,6 +2988,9 @@ var SubMenuViews = 6;
 var SubMenuPresets = 7;
 var SubMenuColumns = 8;
 var SubMenuCapture = 9;
+var SubMenuGraphSettings = 10;
+var SubMenuGraphSettingsIndex = -1;
+var SubMenuGraphSettingsKey = "";
 
 var SubMenuActive = -1;
 var SubMenuTimeoutBase = 0.7;
@@ -3934,23 +4012,94 @@ function CheckPopupAllowed()
 	}
 }
 
-function DrawMenuCapture()
+function GetSubGraphReferenceTime(SubGraphSettings, TimerState)
 {
-	var Selection = null;
-	var SizeInfo = {};
-	SizeInfo.h = 4 * BoxHeight;
-	var Strings = ["AutoCapture Enabled", "AutoCapture Threshold", "AutoCapture Source", "Capture Length"];
-	var wLeft = MeasureArray(0, Strings);
-	var wRight = 50;
+	if(SubGraphSettings.AutomaticReference)
+	{
+	 	return TimerState.historymaxsoft ? TimerState.historymax : TimerState.historymax;
+	}
+	else
+	{
+		return SubGraphSettings.ReferenceTime;
+	}
+}
+function GetSubGraphSettingsKey(key)
+{
+	if(Settings.ViewActive == VIEW_GRAPH_PERCENTILE)
+	{
+		return "perc_"+key;
+	}
+	else
+	{
+		return key;
+	}
+}
+function GetSubGraphSettings(key)
+{
+	let k = GetSubGraphSettingsKey(key);
+	let SubGraphSettings = Settings.SubGraphSettings[k];
+	if(!SubGraphSettings)
+	{
+		SubGraphSettings = {"ReferenceTime":10.0, "TargetTime":-1, "AutomaticReference":1, "Percentile":0.0};
+		Settings.SubGraphSettings[k] = SubGraphSettings;
+	}
+	return SubGraphSettings;
+}
+
+
+function DrawMenuGraphSettings()
+{
+	let Percentile = Settings.ViewActive == VIEW_GRAPH_PERCENTILE;
+	let Selection = null;
+	let SizeInfo = {};
+	SizeInfo.h = (Percentile?3:2) * BoxHeight;
+	let Strings = ["AutoCapture Enabled", "AutoCapture Threshold", "AutoCapture Source", "Capture Length"];
+	let wLeft = MeasureArray(0, Strings);
+	let wRight = 50;
 	wRight = MeasureArray(wRight, ["Frame Time"]);
 	wRight = MeasureArray(wRight, EnabledArray, function(a){return TimerArray[a].name; } );
-	var Width = wLeft + 35 + wRight;
+	let Width = wLeft + 35 + wRight;
+	SizeInfo.w = Width;
+	SizeInfo.x = CaptureButtonX;
+	SizeInfo.y = CaptureButtonY;
+	
+	let M = CreateMenuState(SizeInfo);
+	let context = CanvasDetailedView.getContext('2d');
+	context.fillRect(M.x, M.y, Width, SizeInfo.h);
+	let SubGraphSettings = GetSubGraphSettings(SubMenuGraphSettingsKey);
+
+
+	ReferenceTimeTweak = DrawMenuRoll(M, "Reference Time", SubGraphSettings.ReferenceTime, '', ReferenceRollSubGraph, ReferenceTimeTweak, 'int');
+	if(DrawMenuElement(M, SubGraphSettings.AutomaticReference, "Automatic Reference Time", SubGraphSettings.AutomaticReference, 'white'))
+	{
+		SubGraphSettings.AutomaticReference = 1-SubGraphSettings.AutomaticReference;
+	}
+	if(Percentile)
+	{
+		PercentileTweak = DrawMenuRoll(M, "Percentile", SubGraphSettings.Percentile, '', PercentileRollSubGraph, PercentileTweak, 'int');
+	}
+	SizeInfo.h = M.y - SizeInfo.y;
+	return SizeInfo;
+
+}
+
+function DrawMenuCapture()
+{
+	let Selection = null;
+	let SizeInfo = {};
+	SizeInfo.h = 4 * BoxHeight;
+	let Strings = ["AutoCapture Enabled", "AutoCapture Threshold", "AutoCapture Source", "Capture Length"];
+	let wLeft = MeasureArray(0, Strings);
+	let wRight = 50;
+	wRight = MeasureArray(wRight, ["Frame Time"]);
+	wRight = MeasureArray(wRight, EnabledArray, function(a){return TimerArray[a].name; } );
+	let Width = wLeft + 35 + wRight;
 	SizeInfo.w = Width;
 	SizeInfo.x = CaptureButtonX - SizeInfo.w;
 	SizeInfo.y = CaptureButtonY - SizeInfo.h;
 	
-	var M = CreateMenuState(SizeInfo);
-	var context = CanvasDetailedView.getContext('2d');
+	let M = CreateMenuState(SizeInfo);
+	let context = CanvasDetailedView.getContext('2d');
 	context.fillRect(M.x, M.y, Width, SizeInfo.h);
 	if(DrawMenuElement(M, 0, "AutoCapture Enabled", AutoCaptureEnabled ? "on" : "off", 'white', 0))
 	{
@@ -3967,7 +4116,7 @@ function DrawMenuCapture()
 }
 function WindowRect(x,y,w,h)
 {
-	var s = {};
+	let s = {};
 	s.x = x;
 	s.y = y;
 	s.w = w;
@@ -4021,6 +4170,43 @@ function ReferenceRoll(Direction, Tweak, SetDirect)
 		Settings.ReferenceTime = NextValue(ReferencePresets, Settings.ReferenceTime, Direction);
 	}
 }
+
+function ReferenceRollSubGraph(Direction, Tweak, SetDirect)
+{
+	let SubGraphSettings = GetSubGraphSettings(SubMenuGraphSettingsKey);
+	if(SetDirect)
+	{
+		SubGraphSettings.ReferenceTime = SetDirect;
+	}
+	else if(Tweak)
+	{
+		SubGraphSettings.ReferenceTime = TweakValue(SubGraphSettings.ReferenceTime, Tweak, 0.98, 5, 1000);
+
+	}
+	else if(Direction)
+	{
+		SubGraphSettings.ReferenceTime = NextValue(ReferencePresets, SubGraphSettings.ReferenceTime, Direction);
+	}
+}
+
+function PercentileRollSubGraph(Direction, Tweak, SetDirect)
+{
+	let SubGraphSettings = GetSubGraphSettings(SubMenuGraphSettingsKey);
+	if(SetDirect)
+	{
+		SubGraphSettings.Percentile = SetDirect;
+	}
+	else if(Tweak)
+	{
+		SubGraphSettings.Percentile = TweakValue(SubGraphSettings.Percentile, Tweak, 0.98, 5, 1000);
+	}
+	else if(Direction)
+	{
+		SubGraphSettings.Percentile = NextValue(PercentilePresets, SubGraphSettings.Percentile, Direction);
+	}
+}
+
+
 function TargetRoll(Direction, Tweak, SetDirect)
 {
 	if(SetDirect)
@@ -4037,7 +4223,23 @@ function TargetRoll(Direction, Tweak, SetDirect)
 		Settings.TargetTime = NextValue(ReferencePresets, Settings.TargetTime, Direction);
 	}
 }
+function TargetRollSubGraph(Direction, Tweak, SetDirect)
+{
+	let SubGraphSettings = GetSubGraphSettings(SubMenuGraphSettingsKey);
+	if(SetDirect)
+	{
+		SubGraphSettings.TargetTime = SetDirect;
+	}
+	else if(Tweak)
+	{
+		SubGraphSettings.TargetTime = TweakValue(SubGraphSettings.TargetTime, Tweak, 0.98, 5, 1000);
 
+	}
+	else if(Direction)
+	{
+		SubGraphSettings.TargetTime = NextValue(ReferencePresets, SubGraphSettings.TargetTime, Direction);
+	}
+}
 function DrawMenuSettings()
 {
 	var context = CanvasDetailedView.getContext('2d');
@@ -5127,7 +5329,10 @@ function DrawMenu()
 		{
 			MenuRect = DrawMenuCapture();
 		}
-
+		else if(SubMenuActive == SubMenuGraphSettings)
+		{
+			MenuRect = DrawMenuGraphSettings();
+		}
 		var Grow = 10;
 		MenuRect.x -= Grow;
 		MenuRect.y -= Grow;
