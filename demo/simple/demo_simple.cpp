@@ -140,8 +140,6 @@ int main(int argc, char* argv[])
 	MicroProfileSetEnableAllGroups(true);
 	MicroProfileSetForceMetaCounters(true);
 
-	std::thread T(0?LongTest:ExclusiveTest);
-
 #define AUTO_FLIP 1
 
 
@@ -149,8 +147,6 @@ int main(int argc, char* argv[])
 	MicroProfileStartAutoFlip(30);
 	#endif
 
-
-	std::thread TFour(four_sec);
 
 	while(!g_nQuit)
 	{
@@ -187,8 +183,6 @@ int main(int argc, char* argv[])
 	#if AUTO_FLIP
 	MicroProfileStopAutoFlip();
 	#endif
-	TFour.join();
-	T.join();
 	MicroProfileShutdown();
 
 	return 0;
