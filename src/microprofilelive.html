@@ -1915,8 +1915,11 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 				context.fillStyle = 'wheat';
 				context.textAlign='right';
 				context.fillText(FormatTime(Reference) + 'ms', nWidth, hstart + FontHeight);
+				context.fillText('100%', nWidth, hstart + gh-2);
+				context.textAlign='centered';
+				context.fillText( ((Percentile + 100)/2) + '%', nWidth/2, hstart + gh-2);
 				context.textAlign='left';
-				context.fillText("Samples:" + PercentileData.length, 0, hstart + gh-2);
+				context.fillText(Percentile + "%  [Samples:" + PercentileData.length + "]", 0, hstart + gh-2);
 				context.fillText(TimerArray[idx].name, 15, hstart + FontHeight);
 				context.fillText(Percentile + '%', nWidth, hstart + FontHeight);
 
@@ -4052,7 +4055,7 @@ function DrawMenuGraphSettings()
 	let Percentile = Settings.ViewActive == VIEW_GRAPH_PERCENTILE;
 	let Selection = null;
 	let SizeInfo = {};
-	SizeInfo.h = (Percentile?3:2) * BoxHeight;
+	SizeInfo.h = (Percentile?4:2) * BoxHeight;
 	let Strings = ["AutoCapture Enabled", "AutoCapture Threshold", "AutoCapture Source", "Capture Length"];
 	let wLeft = MeasureArray(0, Strings);
 	let wRight = 50;
@@ -4077,6 +4080,17 @@ function DrawMenuGraphSettings()
 	if(Percentile)
 	{
 		PercentileTweak = DrawMenuRoll(M, "Percentile", SubGraphSettings.Percentile, '', PercentileRollSubGraph, PercentileTweak, 'int');
+		if(DrawMenuElement(M, 0, "Clear Aggregate", "", 'white'))
+		{
+			let TimerMap = FrameData.TimerMap;
+			if(TimerMap)
+			{
+				let TimerState = TimerMap[SubMenuGraphSettingsKey];
+				TimerState.PercentileMax = -1e38;
+				TimerState.PercentileMin = 1e38;
+				TimerState.Percentile = [];
+			}
+		}
 	}
 	SizeInfo.h = M.y - SizeInfo.y;
 	return SizeInfo;
