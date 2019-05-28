@@ -1,21 +1,20 @@
 
+rewrite capture menu
+fix graph for recursion?
+
 verify merge
 patching x86
 patching using instrument flag on win32
 build server
 rearrange samples
-
 string intern: replace all 
 gpu subtractive to handle cpu spinning.
 detailed view negative visualisation
 Hide negative groups. force turn on when others are on
 
-*module progress
-
-fix bug with clipping
-auto adjust in capture
-fix context switch trace g2 bug
-
+* percentile
+* make robust for too deep stacks
+* module progress
 * in default view everything is closed. it should be open.
 * flame mode button from menu doesn't redraw
 * flame mode button from menu doesn't redraw
@@ -39,10 +38,6 @@ fix context switch trace g2 bug
 % call count for groups?
 % groups should be grouped.
 
-
-
-
-
 *disable group graphs
 *group draw correctly
 *simplify demos, and move current demo to something else
@@ -52,5 +47,57 @@ fix context switch trace g2 bug
 *unknown enable message
 *check/fix vs 2017
 *instrument crash ved flip
+
+
+web view:
+	*turn tooltip back on
+	*move tooltip out of the way
+	*remove meta
+	*fix gpu extra data
+	*remove help
+ 	*fix on webside.
+
+timeline track
+		*basic features
+		*figure out length
+		*clean up dump code.
+		*clean up draw code.
+		*tooltip
+		*demo
+		*enter/leave without tokens, but strings.
+		bookmarks
+
+live view:
+capture indicators.
+longer stats
+counters i graph view?
+call count i graph view?
+thread view
+split graph is broken
+zoom in graph views
+scrolling in multi graph view
+
+instrument todo:
+		** WINDOWS
+      ** support for calls to __chkstk
+
+		**Send instrumented functions ((Sent as markers))
+		**Only parse debug info once. cache symbol lookup
+		**cleanup so symbol stuff is shared
+     	fix so patch code is copy pastable
+		Log fail instrumentations
+		***fix buffer sipze for ws
+		**clear function list on disconnect/reconnect
+		
+		blackout mode for expensive stuff
+		**Query loop on thread?
+		MouseX is fucked when over the input field
+		
+		**Instrument child functions
+		**(instrumented only option in timers) Instrumented functions in a separate view
+		*create dirty list of microprofile functions to never instr
+		**Fix microprofilegpuend failing to instrument
+
+support for multiple flip sites
 
 
