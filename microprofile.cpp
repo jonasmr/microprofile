@@ -32,6 +32,7 @@
 #define MICROPROFILE_STACK_MAX 32
 #define MICROPROFILE_WEBSOCKET_BUFFER_SIZE (64<<10)
 #define MICROPROFILE_INVALID_TICK ((uint64_t)-1)
+#define MICROPROFILE_DROPPED_TICK ((uint64_t)-2)
 #define MICROPROFILE_INVALID_FRAME ((uint32_t)-1)
 #define MICROPROFILE_GROUP_MASK_ALL 0xffffffff
 #define MICROPROFILE_MAX_PATCH_ERRORS 32
@@ -2154,39 +2155,55 @@ inline uint64_t MicroProfileLogPutEnter(MicroProfileToken nToken_, uint64_t nTic
 {
 	MP_ASSERT(pLog != 0); //this assert is hit if MicroProfileOnCreateThread is not called
 	MP_ASSERT(pLog->nActive == 1);// Dont put after calling thread exit
-	uint64_t LE = MicroProfileMakeLogIndex(MP_LOG_ENTER, nToken_, nTick);
-	uint32_t nPut = pLog->nPut.load(std::memory_order_relaxed);
-	uint32_t nNextPos = (nPut + 1) % MICROPROFILE_BUFFER_SIZE;
-	uint32_t nGet = pLog->nGet.load(std::memory_order_acquire);
-	uint32_t nDistance = (nGet - nNextPos) % MICROPROFILE_BUFFER_SIZE;
-	MP_ASSERT(nDistance < MICROPROFILE_BUFFER_SIZE);
-	uint32_t nStackPut = (pLog->nStackPut);
-	if (nDistance < nStackPut+4) //2 for ring buffer, 2 for the actual entries
+	uint32_t nStackPut = pLog->nStackPut;
+	if(nStackPut < MICROPROFILE_STACK_MAX)
 	{
-		S.nOverflow = 100;
-		return MICROPROFILE_INVALID_TICK;
+		uint64_t LE = MicroProfileMakeLogIndex(MP_LOG_ENTER, nToken_, nTick);
+		uint32_t nPut = pLog->nPut.load(std::memory_order_relaxed);
+		uint32_t nNextPos = (nPut + 1) % MICROPROFILE_BUFFER_SIZE;
+		uint32_t nGet = pLog->nGet.load(std::memory_order_acquire);
+		uint32_t nDistance = (nGet - nNextPos) % MICROPROFILE_BUFFER_SIZE;
+		MP_ASSERT(nDistance < MICROPROFILE_BUFFER_SIZE);
+		if (nDistance < nStackPut+4) //2 for ring buffer, 2 for the actual entries
+		{
+			S.nOverflow = 100;
+			return MICROPROFILE_INVALID_TICK;
+		}
+		else
+		{
+			pLog->nStackPut = nStackPut + 1;
+			pLog->Log[nPut] = LE;
+			pLog->nPut.store(nNextPos, std::memory_order_release);
+			return nTick;
+		}
 	}
 	else
 	{
+		S.nOverflow = 100;
 		pLog->nStackPut = nStackPut + 1;
-		pLog->Log[nPut] = LE;
-		pLog->nPut.store(nNextPos, std::memory_order_release);
-		return nTick;
+		return MICROPROFILE_DROPPED_TICK;
 	}
+	
+
 }
 inline void MicroProfileLogPutLeave(MicroProfileToken nToken_, uint64_t nTick, MicroProfileThreadLog* pLog)
 {
 	MP_ASSERT(pLog != 0); //this assert is hit if MicroProfileOnCreateThread is not called
 	MP_ASSERT(pLog->nActive);
-	uint64_t LE = MicroProfileMakeLogIndex(MP_LOG_LEAVE, nToken_, nTick);
-	uint32_t nPos = pLog->nPut.load(std::memory_order_relaxed);
-	uint32_t nNextPos = (nPos + 1) % MICROPROFILE_BUFFER_SIZE;
+	MP_ASSERT(pLog->nStackPut != 0);
 	uint32_t nStackPut = --(pLog->nStackPut);
-	uint32_t nGet = pLog->nGet.load(std::memory_order_acquire);
-	MP_ASSERT(nStackPut < MICROPROFILE_STACK_MAX);
-	MP_ASSERT(nNextPos != nGet); //should never happen
-	pLog->Log[nPos] = LE;
-	pLog->nPut.store(nNextPos, std::memory_order_release);
+	if(nStackPut < MICROPROFILE_STACK_MAX)
+	{
+		uint64_t LE = MicroProfileMakeLogIndex(MP_LOG_LEAVE, nToken_, nTick);
+		uint32_t nPos = pLog->nPut.load(std::memory_order_relaxed);
+		uint32_t nNextPos = (nPos + 1) % MICROPROFILE_BUFFER_SIZE;
+		
+		uint32_t nGet = pLog->nGet.load(std::memory_order_acquire);
+		MP_ASSERT(nStackPut < MICROPROFILE_STACK_MAX);
+		MP_ASSERT(nNextPos != nGet); //should never happen
+		pLog->Log[nPos] = LE;
+		pLog->nPut.store(nNextPos, std::memory_order_release);
+	}
 }
 
 
@@ -2485,31 +2502,58 @@ void MicroProfileEnter(MicroProfileToken nToken)
 {
 	MicroProfileThreadLog* pLog = MicroProfileGetThreadLog2();
 	MP_ASSERT(pLog->nStackScope < MICROPROFILE_STACK_MAX); // if youre hitting this assert you probably have mismatched _ENTER/_LEAVE markers
-	MicroProfileScopeStateC* pScopeState = &pLog->ScopeState[pLog->nStackScope++];
-	pScopeState->Token = nToken;
-	pScopeState->nTick = MicroProfileEnterInternal(nToken);
+	uint32_t nStackPos = pLog->nStackScope++;
+	if(nStackPos < MICROPROFILE_STACK_MAX)
+	{
+		MicroProfileScopeStateC* pScopeState = &pLog->ScopeState[nStackPos];
+		pScopeState->Token = nToken;
+		pScopeState->nTick = MicroProfileEnterInternal(nToken);
+	}
+	else
+	{
+		S.nOverflow = 100;
+	}
 }
 void MicroProfileLeave()
 {
 	MicroProfileThreadLog* pLog = MicroProfileGetThreadLog2();
 	MP_ASSERT(pLog->nStackScope > 0); // if youre hitting this assert you probably have mismatched _ENTER/_LEAVE markers
-	MicroProfileScopeStateC* pScopeState = &pLog->ScopeState[--pLog->nStackScope];
-	MicroProfileLeaveInternal(pScopeState->Token, pScopeState->nTick);
+	uint32_t nStackPos = --pLog->nStackScope;
+	if(nStackPos < MICROPROFILE_STACK_MAX)
+	{
+		MicroProfileScopeStateC* pScopeState = &pLog->ScopeState[nStackPos];
+		MicroProfileLeaveInternal(pScopeState->Token, pScopeState->nTick);
+	}
+	else
+	{
+		S.nOverflow = 100;
+	}
 }
 
 
 void MicroProfileEnterGpu(MicroProfileToken nToken, MicroProfileThreadLogGpu* pLog)
 {
-	MP_ASSERT(pLog->nStackScope < MICROPROFILE_STACK_MAX); // if youre hitting this assert you probably have mismatched _ENTER/_LEAVE markers
-	MicroProfileScopeStateC* pScopeState = &pLog->ScopeState[pLog->nStackScope++];
-	pScopeState->Token = nToken;
-	pScopeState->nTick = MicroProfileGpuEnterInternal(pLog, nToken);
+	// MP_ASSERT(pLog->nStackScope < MICROPROFILE_STACK_MAX); // if youre hitting this assert you probably have mismatched _ENTER/_LEAVE markers
+	uint32_t nStackPos = pLog->nStackScope++;
+	if(nStackPos < MICROPROFILE_STACK_MAX)
+	{
+		MicroProfileScopeStateC* pScopeState = &pLog->ScopeState[pLog->nStackScope];
+		pScopeState->Token = nToken;
+		pScopeState->nTick = MicroProfileGpuEnterInternal(pLog, nToken);
+	}
+	else
+	{
+		S.nOverflow = 100;
+	}
 }
 void MicroProfileLeaveGpu(MicroProfileThreadLogGpu* pLog)
 {
-	MP_ASSERT(pLog->nStackScope > 0); // if youre hitting this assert you probably have mismatched _ENTER/_LEAVE markers
-	MicroProfileScopeStateC* pScopeState = &pLog->ScopeState[--pLog->nStackScope];
-	MicroProfileGpuLeaveInternal(pLog, pScopeState->Token, pScopeState->nTick);
+	uint32_t nStackPos = --pLog->nStackScope;
+	if(nStackPos < MICROPROFILE_STACK_MAX)
+	{
+		MicroProfileScopeStateC* pScopeState = &pLog->ScopeState[nStackPos];
+		MicroProfileGpuLeaveInternal(pLog, pScopeState->Token, pScopeState->nTick);
+	}
 }
 
 

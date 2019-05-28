@@ -117,6 +117,18 @@ void ExclusiveTest()
 	}
 }
 
+void ManyScopes(int c)
+{
+	MICROPROFILE_SCOPEI("many", "scopes", 0);
+	if(c > 0)
+	{
+		{
+			spinsleep(40);
+		}
+		ManyScopes(c-1);
+	}
+}
+
 void four_sec()
 {
 	MicroProfileOnThreadCreate("four_sec");
@@ -152,8 +164,8 @@ int main(int argc, char* argv[])
 	{
 		MICROPROFILE_SCOPE(MAIN);
 		{
-			MICROPROFILE_SCOPEI("exclusive-test", "stable0", MP_AUTO);
 			spinsleep(2000);
+			ManyScopes(68);
 		}
 		static int x = 0;
 		if(x++ % 20 < 10)
