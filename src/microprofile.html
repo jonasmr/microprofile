@@ -36,12 +36,13 @@ ul li ul{ display:block;float:none;}
 ul li ul li{ display:block;float:none;}
 li li a{ display:block;float:none;text-align:left;word-break: keep-all;white-space: nowrap;}
 #nav li:hover div {margin-left:0;}
-.help {position:absolute;z-index:5;text-align:left;padding:2px;margin-left:-999em;background-color: #313131;width:300px;}
+.help {position:absolute;z-index:5;text-align:left;padding:2px;background-color: #313131;width:300px;}
 .helpstart {position:absolute;z-index:5;text-align:left;padding:2px;background-color: #313131;width:300px;display:none}
 .root {z-index:1;position:absolute;top:0px;left:0px;}
 .filterinput0{position:fixed;bottom:10px;left:25px;background-color: #313131}
 .filterinput1{position:fixed;bottom:10px;left:175px;background-color: #313131}
 .filterinputsearchdiv{position:fixed; background-color: #313131;display:none;}
+.filterinputsearchdivmenu{position:absolute; background-color: #313131;display:none;}
 .filterinputsearch{width:100px;}
 </style>
 </head>
@@ -52,95 +53,11 @@ li li a{ display:block;float:none;text-align:left;word-break: keep-all;white-spa
 <div class="filterinput1">Timer/Thread<br><input type="text" id="filtertimer"></div>
 </div>
 <div class="filterinputsearchdiv" id="FilterInputDiv">Filter<br><input type="text" id="FilterInput" class="filterinputsearch"></div>
-<canvas id="History" height="70" style="background-color:#343434;margin:0px;padding:0px;"></canvas><canvas id="DetailedView" height="200" style="background-color:#343434;margin:0px;padding:0px;"></canvas>
-<div id="root" class="root">
-<ul id="nav">
-<li><a href="javascript:void(0)" onclick="ToggleDebugMode();">?</a>
-<div class="help" id="divFrameInfo" style="left:20px;top:300px;width:auto;">
-</div>
-</li>
-<li><a id='ModeSubMenuText'>Mode</a>
-    <ul id='ModeSubMenu'>
-		<li><a href="javascript:void(0)" onclick="SetMode('timers', 0);" id="buttonTimers">Timers</a></li>
-		<li><a href="javascript:void(0)" onclick="SetMode('timers', 1);" id="buttonGroups">Groups</a></li> 
-		<li><a href="javascript:void(0)" onclick="SetMode('timers', 2);" id="buttonThreads">Threads</a></li>
-		<li><a href="javascript:void(0)" onclick="SetMode('detailed', 0);" id="buttonDetailed">Detailed</a></li>
-		<li><a href="javascript:void(0)" onclick="SetMode('counters', 0);" id="buttonCounters">Counters</a></li>
-	</ul>
-</li>
-<li><a>Reference</a>
-    <ul id='ReferenceSubMenu'>
-        <li><a href="javascript:void(0)" onclick="SetReferenceTime('auto');">auto</a></li>
-        <li><a href="javascript:void(0)" onclick="SetReferenceTime('5ms');">5ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetReferenceTime('10ms');">10ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetReferenceTime('15ms');">15ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetReferenceTime('16ms');">16ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetReferenceTime('20ms');">20ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetReferenceTime('30ms');">30ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetReferenceTime('33ms');">33ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetReferenceTime('50ms');">50ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetReferenceTime('100ms');">100ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetReferenceTime('250ms');">250ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetReferenceTime('500ms');">500ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetReferenceTime('1000ms');">1000ms</a></li>
-    </ul>
-</li>
-<li><a>Target</a>
-    <ul id='TargetSubMenu'>
-        <li><a href="javascript:void(0)" onclick="SetTargetTime('5ms');">5ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetTargetTime('10ms');">10ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetTargetTime('15ms');">15ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetTargetTime('16ms');">16ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetTargetTime('20ms');">20ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetTargetTime('30ms');">30ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetTargetTime('33ms');">33ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetTargetTime('50ms');">50ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetTargetTime('100ms');">100ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetTargetTime('250ms');">250ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetTargetTime('500ms');">500ms</a></li>
-        <li><a href="javascript:void(0)" onclick="SetTargetTime('1000ms');">1000ms</a></li>
-    </ul>
-</li>
-<li id="ilColumns"><a>Columns</a>
-    <ul id='ColumnsSubMenu'>
-        <li><a href="javascript:void(0)" onclick="ToggleColumn(0);">Average</a></li>
-        <li><a href="javascript:void(0)" onclick="ToggleColumn(1);">Max</a></li>
-        <li><a href="javascript:void(0)" onclick="ToggleColumn(2);">Total</a></li>
-        <li><a href="javascript:void(0)" onclick="ToggleColumn(3);">Min</a></li>
-        <li><a href="javascript:void(0)" onclick="ToggleColumn(4);">Spike</a></li>
-        <li><a href="javascript:void(0)" onclick="ToggleColumn(5);">Call Average</a></li>
-        <li><a href="javascript:void(0)" onclick="ToggleColumn(6);">Call Count</a></li>
-        <li><a href="javascript:void(0)" onclick="ToggleColumn(7);">Excl Average</a></li>
-        <li><a href="javascript:void(0)" onclick="ToggleColumn(8);">Excl Max</a></li>
-    </ul>
-</li>
-<li id="ilThreads"><a>Threads</a>
-    <ul id="ThreadSubMenu">
-        <li><a href="javascript:void(0)" onclick="ToggleThread(0, 1);">All</a></li>
-        <li><a href="javascript:void(0)" onclick="ToggleThread(0, 0);">None</a></li>
-        <li><a>---</a></li>
-    </ul>
-</li>
-<li id="ilGroups"><a>Groups</a>
-    <ul id="GroupSubMenu">
-        <li><a href="javascript:void(0)" onclick="ToggleGroup();">All</a></li>
-        <li><a>---</a></li>
-    </ul>
-</li>
-<li id="ilOptions"><a>Options</a>
-    <ul id='OptionsMenu'>
-        <li><a href="javascript:void(0)" onclick="ToggleContextSwitch();">Context Switch</a></li>
-		<li><a href="javascript:void(0)" onclick="ToggleDisableMerge();">MergeDisable</a></li>
-		<li><a href="javascript:void(0)" onclick="ToggleDisableLod();">LodDisable</a></li>
-		<li id='DrawDetailedFlameMode'><a href="javascript:void(0)" onclick="ToggleDetailedFlameMode();">Flame Mode</a></li>
-		<li><a href="javascript:void(0)" onclick="ToggleDetailedSecondReverse();">Compare Reverse</a></li>
-        <li id='ShowHelp'><a href="javascript:void(0)" onclick="ShowHelp(1,1);">Help</a></li>
-<!--      	<li><a href="javascript:void(0)" onclick="ToggleDebug();">DEBUG</a></li> -->
-    </ul>
-</li>
-<li><a id='ComparePromptA' href="javascript:void(0)" onclick="ComparePrompt();">Compare</a></li>
-</ul>
-</div>
+<div class="filterinputsearchdivmenu" id="FilterInputMenuDiv">Filter<br><input type="text" id="FilterInputMenu" class="filterinputsearch"></div>
+<canvas id="History" height="70" style="background-color:#343434;margin:0px;padding:0px;"></canvas>
+<canvas id="DetailedView" height="200" style="background-color:#343434;margin:0px;padding:0px;"></canvas>
+<canvas id="CanvasMenu" style="pointer-events:none;position:absolute;top:0;left:0;margin:0px;padding:0px;zIndex:1" height="500" width="500"></canvas>
+<div class="help" id="divFrameInfo" style="display:none;left:20px;top:300px;width:auto;"></div>
 <div class="helpstart" id="helpwindow" style="left:20px;top:20px">
 History View:<br>
 Click + Drag: Pan View<br>
@@ -408,6 +325,7 @@ var G_DEBUG = 0;
 
 var CanvasDetailedView = document.getElementById('DetailedView');
 var CanvasHistory = document.getElementById('History');
+var CanvasMenu = document.getElementById('CanvasMenu');
 var CanvasDetailedOffscreen = document.createElement('canvas');
 var FilterInputGroup = document.getElementById('filtergroup');
 var FilterInputTimer = document.getElementById('filtertimer');
@@ -415,6 +333,11 @@ var FilterInputTimer = document.getElementById('filtertimer');
 var FilterInput = document.getElementById('FilterInput');
 var FilterInputDiv = document.getElementById('FilterInputDiv');
 var FilterInputDivPos = {"x":-1,"y":-1,"w":-1,"h":-1};
+var FilterInputMenu = document.getElementById('FilterInputMenu');
+var FilterInputMenuDiv = document.getElementById('FilterInputMenuDiv');
+var FilterInputMenuDivPos = {"x":-1,"y":-1,"w":-1,"h":-1};
+var FilterInputMenuValueLast = '';
+
 
 var FilterInputGroupString = null;
 var FilterInputTimerString = null;
@@ -433,6 +356,7 @@ var fDetailedRange = S.Frames[S.Frames.length-1].frameend - fDetailedOffset;
 var nWidth = CanvasDetailedView.width;
 var nHeight = CanvasDetailedView.height;
 var ReferenceTimeString = 'auto';
+var ReferenceTimeAutoString = 'auto';
 var ReferenceTime = 33;
 var TargetTime = 16;
 var TargetTimeString = '16ms';
@@ -442,6 +366,8 @@ var nOffsetBarsX = 0;
 var nOffsetBarsY = 0;
 var nOffsetCountersY = 0;
 var nOffsetFilterSearch = 0;
+var nOffsetMenuThreads = 0;
+var nOffsetMenuGroups = 0;
 var FilterInputSearchLast = '';
 var nBarsWidth = 80;
 var MouseButtonState = [0,0,0,0,0,0,0,0];
@@ -457,6 +383,9 @@ var DetailedMouseOverButton = 0;
 var DetailedMouseEvent = null;
 var HistoryViewMouseX = -1;
 var HistoryViewMouseY = -1;
+var GlobalMouseX = -1;
+var GlobalMouseY = -1;
+var MouseReleased = false;
 var MouseHistory = 0;
 var MouseDetailed = 0;
 var FontHeight = 10;
@@ -466,10 +395,7 @@ var Font = 'Bold ' + FontHeight + 'px Courier New';
 var FontFlash = 'Bold ' + 35 + 'px Courier New';
 var BoxHeight = FontHeight + 2;
 var ThreadsActive = {};
-var ThreadsActiveBackup = {};
-var ThreadsAllActive = 1;
-var GroupsActive = new Object();
-var GroupsAllActive = 1;
+var GroupsDisabled = new Object();
 var nMinWidth = 0.01;//subpixel width
 var nMinWidthPan = 1.0;//subpixel width when panning
 var nContextSwitchEnabled = 1;
@@ -514,7 +440,13 @@ var SortColumnMouseOver = null;
 var SortColumnMouseOverNext = null;
 var ColumnsWidth = [];
 var ColumnsEnabled = [];
-var NumColumns = 0;
+let ColumnNames =["Average", "Max", "Total", "Min", "Spike", "Call Average", "Call Count", "Excl Average", "Excl Max"];
+let NumColumns = ColumnNames.length;
+while(ColumnsEnabled.length < NumColumns)
+{
+	ColumnsEnabled.push(1);
+	ColumnsWidth.push(20);
+}
 var FilterSearchActive = 0;
 var FilterSearchSelection = -1;
 var FilterSearchSelectionMax = 0;
@@ -569,7 +501,10 @@ var ThreadYEnd;
 
 var ModeDetailed = 0;
 var ModeTimers = 1;
-var ModeCounters = 2;
+var ModeTimers_Threads = 2;
+var ModeTimers_Groups = 3;
+var ModeCounters = 4;
+var ModeCount = 5;
 var Mode = ModeDetailed;
 
 var DebugDrawQuadCount = 0;
@@ -600,7 +535,6 @@ var GroupOrder = Array();
 var ThreadOrder = Array();
 var ThreadOrderNames = Array();
 var ThreadOrderT = Array();
-var TimersGroups = 0;
 var MetaLengths = Array();
 var MetaLengthsAvg = Array();
 var MetaLengthsMax = Array();
@@ -623,6 +557,31 @@ var StrExclMax = "Excl Max";
 var GroupRemapReverse = [];
 var TimerRemapReverse = [];
 var ThreadRemapReverse = [];
+
+let SubMenuHelp = 0;
+let SubMenuMode = 1;
+let SubMenuReference = 2;
+let SubMenuTarget = 3;
+let SubMenuThreads = 4;
+let SubMenuGroups = 5;
+let SubMenuColumns = 6;
+let SubMenuOptions = 7;
+let SubMenuCompare = 8;
+
+let MenuRedraw = 0;
+let SubMenuActive = -1;
+let SubMenuTimeoutBase = 0.7;
+let SubMenuMouseX = 0;
+let SubMenuMouseY = 0;
+let SubMenuTimeout = new Date();
+let MenuItems = [];
+let FilterInputMenuThreadsValue = '';
+let FilterInputMenuGroupsValue = '';
+let MouseMoveTime = new Date();
+let ReferenceTimes = [-1, 5, 10, 15, 16, 20, 30, 33, 50, 100, 250, 500, 1000];
+let TargetTimes = [5, 10, 15, 16, 20, 30, 33, 50, 100, 250, 500, 1000];
+let ModeItems = ["Detailed", "Timers", "Threads", "Groups", "Counters"];
+
 
 function ProfileModeClear()
 {
@@ -861,73 +820,7 @@ function ThreadOrderSort()
 	}
 }
 
-
-
-function InitThreadMenu()
-{
-	var ulThreadMenu = document.getElementById('ThreadSubMenu');
-	var MaxLen = 7;
-
-	ThreadOrder = [];
-	ThreadOrder = CreateOrderArray(S.ThreadNames, function(a){return a;});
-
-	for(var idx in ThreadOrder)
-	{
-		var name = S.ThreadNames[ThreadOrder[idx]];
-		var li = document.createElement('li');
-		if(name.length > MaxLen)
-		{
-			MaxLen = name.length;
-		}
-		li.innerText = name;
-		var asText = li.innerHTML;
-		var html = '<a href="javascript:void(0)" onclick="ToggleThread(\'' + name + '\');">' + asText + '</a>';
-		li.innerHTML = html;
-		ulThreadMenu.appendChild(li);
-	}
-	var LenStr = (5+(1+MaxLen) * (1+FontWidth)) + 'px';
-	var Lis = ulThreadMenu.getElementsByTagName('li');
-	for(var i = 0; i < Lis.length; ++i)
-	{
-		Lis[i].style['width'] = LenStr;
-	}
-}
-
-function UpdateThreadMenu()
-{
-	var ulThreadMenu = document.getElementById('ThreadSubMenu');
-	var as = ulThreadMenu.getElementsByTagName('a');
-	for(let i = 0; i < as.length; ++i)
-	{
-		var elem = as[i];
-		var inner = elem.innerText;
-		var bActive = false;
-		if(i > 2)
-		{
-			bActive = ThreadsActive[inner];
-		}
-		if(bActive)
-		{
-
-			elem.style['text-decoration'] = 'underline';
-		}
-		else
-		{
-			elem.style['text-decoration'] = 'none';
-		}
-	}
-	for(let i = 0; i < S.ThreadNames.length; ++i)
-	{
-		let n = S.ThreadNames[i];
-		if(0 != ThreadsActive[n])
-		{
-			ThreadsActive[n] = 1;
-		}
-	}
-
-}
-
-function ToggleThread(ThreadName, All)
+function ToggleThread(ThreadName, All, FilterArray, State)
 {
 	if(ThreadName)
 	{
@@ -942,48 +835,23 @@ function ToggleThread(ThreadName, All)
 	}
 	else
 	{
-		let B = {};
-		let A = 0;
-		let I = 0;
-		for(let i in ThreadsActive)
+		let Names = All ? S.ThreadNames : FilterArray;
+
+		for(let i in Names)
 		{
-			B[i] = ThreadsActive[i];
-			if(ThreadsActive[i])
+			switch(State)
 			{
-				A++;
+				case 2: if(!ThreadsActive[Names[i]]){ ThreadsActive[Names[i]] = 1;} break;
+				case 1: ThreadsActive[Names[i]] = ThreadsActive[Names[i]] ? 0 : 1; break;
+				case 0: if(ThreadsActive[Names[i]]){ ThreadsActive[Names[i]] = 0;} break;
 			}
-			else
-			{
-				I++;
-			}
-			ThreadsActive[i] = All;
-		}
-		if(All)
-		{
-			for(let i in S.ThreadNames)
-			{
-				if(!ThreadsActive[S.ThreadNames[i]])
-				{
-					ThreadsActive[S.ThreadNames[i]] = 1;
-					I++;
-				}
-			}
-		}
-		if(((I == 0 && All) || (A == 0 && !All)) && Object.keys(ThreadsActiveBackup).length)
-		{
-			ThreadsActive = ThreadsActiveBackup;
-		}
-		else if(I != 0 && A != 0)
-		{
-			ThreadsActiveBackup = B;
 		}
 	}
 	Invalidate = 0;
-	UpdateThreadMenu();
 	FilterSearchReset();
 	WriteCookie();
-	RequestRedraw();
 }
+
 
 function CreateOrderArray(Source, NameFunc)
 {
@@ -1010,143 +878,37 @@ function CreateOrderArray(Source, NameFunc)
 	return OrderArray;
 }
 
-function InitColumnMenu()
+function InitOrderArrays()
 {
-	var ulColumnMenu = document.getElementById('ColumnsSubMenu');
-	var MaxLen = 10;
-	var BaseIndex = ulColumnMenu.getElementsByTagName('li').length;
-	// for(var i = 0; i < MetaNames.length; ++i)
-	// {
-	// 	var li = document.createElement('li');
-	// 	var jsfunc = 'ToggleColumn';
-	// 	var html = '<a href="javascript:void(0)" onclick="' + jsfunc + '(' + (i+BaseIndex) + ', 1);">' + MetaNames[i] + '</a>';
-	// 	li.innerHTML = html;
-	// 	ulColumnMenu.appendChild(li);
-	// 	if(MetaNames[i].length > MaxLen)
-	// 	{
-	// 		MaxLen = MetaNames[i].length;
-	// 	}
-	// }
-	var Lis = ulColumnMenu.getElementsByTagName('li');
-	var LenStr = (5+(4+MaxLen) * FontWidth) + 'px';
-	for(var i = 0; i < Lis.length; ++i)
-	{
-		Lis[i].style['width'] = LenStr;
-	}
-	NumColumns = Lis.length;
+	ThreadOrder = [];
+	ThreadOrder = CreateOrderArray(S.ThreadNames, function(a){return a;});
 
-	while(ColumnsEnabled.length < NumColumns)
-	{
-		ColumnsEnabled.push(1);
-	}
-	while(ColumnsWidth.length < NumColumns)
-	{
-		ColumnsWidth.push(20);
-	}
-	UpdateColumnsMenu();
-}
 
-function InitGroupMenu()
-{
-	var ulGroupMenu = document.getElementById('GroupSubMenu');
-	var MaxLen = 7;
-	var MenuArray = Array();
-	for(var i = 0; i < S.GroupInfo.length; ++i)
+	let MaxLen = 7;
+	let MenuArray = Array();
+	for(let i = 0; i < S.GroupInfo.length; ++i)
 	{
-		var x = {};
+		let x = {};
 		x.IsCategory = 0;
 		x.category = S.GroupInfo[i].category;
 		x.name = S.GroupInfo[i].name;
 		x.index = i;
 		MenuArray.push(x);
 	}
-	for(var i = 0; i < S.CategoryInfo.length; ++i)
+	for(let i = 0; i < S.CategoryInfo.length; ++i)
 	{
-		var x = {};
+		let x = {};
 		x.IsCategory = 1;
 		x.category = i;
 		x.name = S.CategoryInfo[i];
 		x.index = i;
 		MenuArray.push(x);
 	}
-	var OrderFunction = function(a){ return a.category + "__" + a.name; };
-	var OrderFunctionMenu = function(a){ return a.IsCategory ? (a.category + '') : (a.category + "__" + a.name); };
+	let OrderFunction = function(a){ return a.category + "__" + a.name; };
+	let OrderFunctionMenu = function(a){ return a.IsCategory ? (a.category + '') : (a.category + "__" + a.name); };
 	GroupOrder = CreateOrderArray(S.GroupInfo, OrderFunction);
-	var MenuOrder = CreateOrderArray(MenuArray, OrderFunctionMenu);
-
-	for(var idx in MenuOrder)
-	{
-		var MenuItem = MenuArray[MenuOrder[idx]];
-		var name = MenuItem.name;
-		var li = document.createElement('li');
-		if(name.length > MaxLen)
-		{
-			MaxLen = name.length;
-		}
-		var jsfunc = '';
-		if(MenuItem.IsCategory)
-		{				
-			li.innerText = '[' + name + ']';
-			jsfunc = "ToggleCategory";
-		}
-		else
-		{
-			li.innerText = name;
-			jsfunc = "ToggleGroup";
-		}
-		var asText = li.innerHTML;
-		var html = '<a href="javascript:void(0)" onclick="' + jsfunc + '(\'' + name + '\');">' + asText + '</a>';
-		li.innerHTML = html;
-		ulGroupMenu.appendChild(li);
-	}
-	var LenStr = (5+(1+MaxLen) * FontWidth) + 'px';
-	var Lis = ulGroupMenu.getElementsByTagName('li');
-	for(var i = 0; i < Lis.length; ++i)
-	{
-		Lis[i].style['width'] = LenStr;
-	}
-	UpdateGroupMenu();
 }
 
-function UpdateGroupMenu()
-{
-	var ulThreadMenu = document.getElementById('GroupSubMenu');
-	var as = ulThreadMenu.getElementsByTagName('a');
-	for(var i = 0; i < as.length; ++i)
-	{
-		var elem = as[i];
-		var inner = elem.innerText;
-		var bActive = false;
-		if(i < 2)
-		{
-			if(inner == 'All')
-			{
-				bActive = GroupsAllActive;
-			}
-		}
-		else
-		{
-			var CategoryString = inner.length>2 ? inner.substring(1, inner.length-2) : "";
-			var CategoryIdx = CategoryIndex(CategoryString);
-			if(inner[0] == '[' && inner[inner.length-1] == ']' && CategoryIdx >= 0)
-			{
-				bActive = IsCategoryActive(CategoryIdx);
-			}
-			else
-			{
-				bActive = GroupsActive[inner];
-			}
-		}
-		if(bActive)
-		{
-			elem.style['text-decoration'] = 'underline';
-		}
-		else
-		{
-			elem.style['text-decoration'] = 'none';
-		}
-	}
-}
 function CategoryIndex(CategoryName)
 {
 	for(var i = 0; i < S.CategoryInfo.length; ++i)
@@ -1174,7 +936,7 @@ function IsCategoryActive(CategoryIdx)
 	return true;
 
 }
-function ToggleCategory(CategoryName)
+function ToggleCategory(CategoryName, WantRedraw)
 {
 	var CategoryIdx = CategoryIndex(CategoryName);
 	if(CategoryIdx < 0)
@@ -1187,47 +949,71 @@ function ToggleCategory(CategoryName)
 			var Name = S.GroupInfo[i].name;
 			if(CategoryActive)
 			{
-				GroupsActive[Name] = false;
+				delete GroupsDisabled[Name];
 			}
 			else
 			{
-				GroupsActive[Name] = true;
+				GroupsDisabled[Name] = 1;
 			}
 		}
 	}
-	UpdateGroupMenu();
 	WriteCookie();
-	RequestRedraw();
+	if(WantRedraw)
+	{
+		RequestRedraw();
+	}
 }
 
-function ToggleGroup(GroupName)
+function ToggleGroup(GroupName, All, FilterArray, State)
 {
 	if(GroupName)
 	{
-		if(GroupsActive[GroupName])
+		if(GroupsDisabled[GroupName])
 		{
-			GroupsActive[GroupName] = false;
+			delete GroupsDisabled[GroupName];
 		}
 		else
 		{
-			GroupsActive[GroupName] = true;
+			GroupsDisabled[GroupName] = 1;
 		}
 	}
 	else
 	{
-		if(GroupsAllActive)
+		let Names = FilterArray;
+		if(All)
 		{
-			GroupsAllActive = 0;
+			Names = [];
+			for(let i in S.GroupInfo)
+			{
+				Names.push(S.GroupInfo[i].name);
+			}
 		}
-		else
+
+		for(let i in Names)
 		{
-			GroupsAllActive = 1;
+			let N = Names[i];
+			switch(State)
+			{
+				case 2: if(GroupsDisabled[N]){ delete GroupsDisabled[N];} break;
+				case 1: 
+					if(GroupsDisabled[N])
+					{
+						delete GroupsDisabled[N];
+					}
+					else
+					{
+						GroupsDisabled[N] = 1;
+					}
+
+					break;
+				case 0: if(!GroupsDisabled[N]){ GroupsDisabled[N] = 1;} break;
+			}
 		}
 	}
 	UpdateGroupMenu();
 	WriteCookie();
-	RequestRedraw();
 }
+
 function UpdateGroupColors()
 {
 	for(var i = 0; i < S.TimerInfo.length; ++i)
@@ -1242,23 +1028,33 @@ function UpdateGroupColors()
 		}
 	}
 }
-function ToggleDetailedFlameMode()
+function ToggleDetailedFlameMode(WantRedraw)
 {
 	DrawDetailedFlameMode = (DrawDetailedFlameMode+1)%3;
-	RequestRedraw();
+	if(WantRedraw)
+	{
+		RequestRedraw();
+	}
 }	
 
-function ToggleDetailedSecondReverse()
+function ToggleDetailedSecondReverse(WantRedraw)
 {
 	DrawDetailedCompareReverse = 1-DrawDetailedCompareReverse;
-}	RequestRedraw();
+	if(WantRedraw)
+	{
+		RequestRedraw();
+	}
+}	
 
-function ToggleGroupColors()
+function ToggleGroupColors(WantRedraw)
 {
 	GroupColors = (GroupColors+1)%3;
 	UpdateGroupColors();
 	WriteCookie();
-	RequestRedraw();
+	if(WantRedraw)
+	{
+		RequestRedraw();
+	}
 }
 
 function ShowHelp(Show, Forever)
@@ -1280,94 +1076,15 @@ function ShowHelp(Show, Forever)
 }
 function ToggleMode()
 {
-	if(Mode == ModeTimers)
-	{
-		if(TimersGroups == 0)
-		{
-			SetMode('timers', 1);
-		}
-		else if(TimersGroups == 1)
-		{
-			SetMode('timers', 2);
-		}
-		else if(TimersGroups == 2)
-		{
-			SetMode('detailed', 0);
-		}
-
-	}
-	else if(Mode == ModeCounters)
-	{
-		SetMode('timers', 0);
-	}
-	else if(Mode == ModeDetailed)
-	{
-		SetMode('counters', 0);
-	}
+	Mode = (Mode + 1) % ModeCount;
+	SetMode(Mode);
 }
 
-function SetMode(NewMode, Groups)
+function SetMode(NewMode, WantRedraw)
 {
 	ResetColumnWidth();
-	var buttonTimers = document.getElementById('buttonTimers');
-	var buttonDetailed = document.getElementById('buttonDetailed');
-	var buttonGroups = document.getElementById('buttonGroups');
-	var buttonThreads = document.getElementById('buttonThreads');
-	var buttonCounters = document.getElementById('buttonCounters');
-	var ilThreads = document.getElementById('ilThreads');
-	var ilGroups = document.getElementById('ilGroups');
-	var ilColumns = document.getElementById('ilColumns');
-	var ModeElement = null;
-	buttonTimers.style['text-decoration'] = 'none';
-	buttonGroups.style['text-decoration'] = 'none';
-	buttonThreads.style['text-decoration'] = 'none';
-	buttonDetailed.style['text-decoration'] = 'none';
-	buttonCounters.style['text-decoration'] = 'none';
-	ilColumns.style['display'] = 'none';
-
-	if(NewMode == 'counters' || NewMode == ModeCounters)
-	{
-		buttonCounters.style['text-decoration'] = 'underline';
-		ilThreads.style['display'] = 'none';
-		ilGroups.style['display'] = 'none';
-		Mode = ModeCounters;
-		ModeElement = buttonCounters;
-
-	}
-	else if(NewMode == 'timers' || NewMode == ModeTimers)
-	{
-		TimersGroups = Groups;
-		buttonTimers.style['text-decoration'] = TimersGroups ? 'none' : 'underline';
-		buttonGroups.style['text-decoration'] = TimersGroups == 1 ? 'underline' : 'none';
-		buttonThreads.style['text-decoration'] = TimersGroups == 2 ? 'underline' : 'none';
-		buttonDetailed.style['text-decoration'] = 'none';
-		if(TimersGroups == 0)
-		{
-			ilThreads.style['display'] = 'none';
-			ilColumns.style['display'] = 'block';
-		}
-		else
-		{
-			ilThreads.style['display'] = 'block';
-		}
-		ilGroups.style['display'] = 'block';
-		Mode = ModeTimers;
-		ModeElement = TimersGroups == 2 ? buttonThreads : TimersGroups == 1 ? buttonGroups : buttonTimers;
-
-	}
-	else if(NewMode == 'detailed' || NewMode == ModeDetailed)
-	{
-		buttonDetailed.style['text-decoration'] = 'underline';
-	
-		ilThreads.style['display'] = 'block';
-		ilGroups.style['display'] = 'none';
-		Mode = ModeDetailed;
-		ModeElement = buttonDetailed;
-	}
-	var ModeSubMenuText = document.getElementById('ModeSubMenuText');
-	ModeSubMenuText.innerText = 'Mode[' + ModeElement.innerText + ']';
-
-	if(Mode == ModeTimers)
+	Mode = NewMode;
+	if(Mode == ModeTimers || Mode == ModeTimers_Groups || Mode == ModeTimers_Threads)
 	{
 		SetFilterInput(FilterInputGroupString, FilterInputTimerString);
 	}
@@ -1377,9 +1094,12 @@ function SetMode(NewMode, Groups)
 	}
 
 	WriteCookie();
-	RequestRedraw();
-
+	if(WantRedraw)
+	{
+		RequestRedraw();
+	}
 }
+
 
 function UpdateReferenceTime()
 {
@@ -1396,13 +1116,7 @@ function UpdateReferenceTime()
 		{
 			ReferenceTime = Math.max(ReferenceTime, TargetTime * 1.33);
 		}
-		var ReferenceMenu = document.getElementById('ReferenceSubMenu');
-		var Links = ReferenceMenu.getElementsByTagName('a');
-		if(Links.length>0)
-		{
-			Links[0].innerHTML = 'auto [' + Max.toFixed(2) + 'ms]';
-		}
-
+		ReferenceTimeAutoString = 'auto [' + Max.toFixed(2) + 'ms]';
 	}
 	else
 	{
@@ -1410,65 +1124,41 @@ function UpdateReferenceTime()
 	}
 }
 
-function SetReferenceTime(TimeString)
+function SetReferenceTime(TimeString, WantRedraw)
 {
 	ReferenceTimeString = TimeString;
 	UpdateReferenceTime();
-	var ReferenceMenu = document.getElementById('ReferenceSubMenu');
-	var Links = ReferenceMenu.getElementsByTagName('a');
-	for(var i = 0; i < Links.length; ++i)
-	{
-		if(Links[i].innerHTML.match('^' + TimeString))
-		{
-			Links[i].style['text-decoration'] = 'underline';
-		}
-		else
-		{
-			Links[i].style['text-decoration'] = 'none';
-		}
-	}
 	WriteCookie();
-	RequestRedraw();
+	if(WantRedraw)
+	{
+		RequestRedraw();
+	}
 }
 
-function SetTargetTime(TimeString)
+function SetTargetTime(TimeString, WantRedraw)
 {
 	TargetTimeString = TimeString;
 	TargetTime = parseInt(TargetTimeString);
-	var TargetMenu = document.getElementById('TargetSubMenu');
-	var Links = TargetMenu.getElementsByTagName('a');
-	for(var i = 0; i < Links.length; ++i)
-	{
-		if(Links[i].innerHTML.match('^' + TimeString))
-		{
-			Links[i].style['text-decoration'] = 'underline';
-		}
-		else
-		{
-			Links[i].style['text-decoration'] = 'none';
-		}
-	}
-
 	WriteCookie();
-	UpdateReferenceTime();
-	RequestRedraw();
-
+	if(WantRedraw)
+	{
+		RequestRedraw();
+	}
 }
-
-
 
 function ToggleContextSwitch()
 {
 	SetContextSwitch(nContextSwitchEnabled ? 0 : 1);
 }
-function SetContextSwitch(Enabled)
+
+function SetContextSwitch(Enabled, WantRedraw)
 {
 	nContextSwitchEnabled = Enabled ? 1 : 0;
-	var ReferenceMenu = document.getElementById('OptionsMenu');
-	var Links = ReferenceMenu.getElementsByTagName('a');
-	Links[0].style['text-decoration'] = nContextSwitchEnabled ? 'underline' : 'none';
 	WriteCookie();
-	RequestRedraw();
+	if(WantRedraw)
+	{
+		RequestRedraw();
+	}
 }
 
 function ToggleDebug()
@@ -1479,33 +1169,10 @@ function ToggleDebug()
 function ToggleDisableMerge()
 {
 	DisableMerge = DisableMerge ? 0 : 1;
-	var ReferenceMenu = document.getElementById('OptionsMenu');
-	var Links = ReferenceMenu.getElementsByTagName('a');
-	if(DisableMerge)
-	{
-		Links[1].style['text-decoration'] = 'underline';
-	}
-	else
-	{
-		Links[1].style['text-decoration'] = 'none';
-	}
-
 }
-
 function ToggleDisableLod()
 {
 	DisableLod = DisableLod ? 0 : 1;
-	var ReferenceMenu = document.getElementById('OptionsMenu');
-	var Links = ReferenceMenu.getElementsByTagName('a');
-	if(DisableLod)
-	{
-		Links[2].style['text-decoration'] = 'underline';
-	}
-	else
-	{
-		Links[2].style['text-decoration'] = 'none';
-	}
-
 }
 
 function GatherHoverMetaCounters(TimerIndex, StartIndex, nLog, nFrameLast)
@@ -1950,7 +1617,7 @@ function DrawCaptureInfo(context)
 	var Diff = CurrentDate - DumpDate;
 	var DiffString = TimeString(Diff) + " ago";
 	context.fillText(new Date(DumpDate*1000).toLocaleString(), nWidth, FontHeight);
-	if(Mode == ModeTimers)
+	if(Mode == ModeTimers || Mode == ModeTimers_Threads || Mode == ModeTimers_Groups)
 	{
 		context.fillText("Timer Frames: " + S.AggregateInfo.Frames, nWidth, FontHeight*2);
 	}
@@ -2328,7 +1995,7 @@ function DrawHoverToolTip()
 	if(nHoverToken != -1)
 	{
 
-		var bShowTimers = Mode == ModeTimers;
+		var bShowTimers = Mode == ModeTimers || Mode == ModeTimers_Threads || Mode == ModeTimers_Groups;
 		// this confused alot of people.
 		// if(ToolTipFlip == 1)
 		// {
@@ -2473,13 +2140,14 @@ function DrawBarView()
 	var nTotalRows = 0;
 	for(var groupid in S.GroupInfo)
 	{
-		if(GroupsAllActive || GroupsActive[S.GroupInfo[groupid].name])
+		if(!GroupsDisabled[S.GroupInfo[groupid].name])
 		{
 			nTotalRows += S.GroupInfo[groupid].TimerArray.length + 1;
 		}
 	}
 	var nTotalRowPixels = nTotalRows * Height;
 	var nFrameRows = nHeight - BoxHeight;
+
 	if(nOffsetBarsY + nFrameRows > nTotalRowPixels && nTotalRowPixels > nFrameRows)
 	{
 		nOffsetBarsY = nTotalRowPixels - nFrameRows;
@@ -2491,6 +2159,7 @@ function DrawBarView()
 	}
 
 	var Y = -nOffsetBarsY + BoxHeight;
+	let TimersGroups = Mode == ModeTimers_Threads || Mode == ModeTimers_Groups;
 	if(TimersGroups)
 	{
 		nOffsetBarsX = 0;
@@ -2706,14 +2375,14 @@ function DrawBarView()
 			context.fillText(S.GroupInfo[Timer.group].name, 1, YText);
 		}
 	}
-	if(SortColumn && TimersGroups == 0)
+	if(SortColumn && Mode == ModeTimers)
 	{
 		var OrderArray = new Array(S.TimerInfo.length);
 		var KeyArray = new Array(S.TimerInfo.length);
 		for(var idx in GroupOrder)
 		{
 			var Group = S.GroupInfo[idx];
-			if((GroupsAllActive || GroupsActive[Group.name]) && FilterMatch(FilterGroup, Group.name))
+			if((!GroupsDisabled[Group.name]) && FilterMatch(FilterGroup, Group.name))
 			{
 				var TimerArray = Group.TimerArray;
 				for(var timerindex in TimerArray)
@@ -2751,11 +2420,11 @@ function DrawBarView()
 		}			
 
 	}
-	else if(2 == TimersGroups)
+	else if(Mode == ModeTimers_Threads)
 	{
 		for(var i = 0; i < S.ThreadNames.length; ++i)
 		{
-			if((ThreadsActive[S.ThreadNames[i]] || ThreadsAllActive) && FilterMatch(FilterTimer, S.ThreadNames[i]))
+			if((ThreadsActive[S.ThreadNames[i]]) && FilterMatch(FilterTimer, S.ThreadNames[i]))
 			{
 				var X = 0;
 				var YText = Y+Height-FontAscent;
@@ -2775,7 +2444,7 @@ function DrawBarView()
 					var Group = S.GroupInfo[groupid];
 					var PerThreadTimer = S.ThreadGroupTimeArray[i][groupid];
 					var PerThreadTimerTotal = S.ThreadGroupTimeTotalArray[i][groupid];
-					if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (GroupsAllActive || GroupsActive[Group.name]) && FilterMatch(FilterGroup, Group.name))
+					if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (!GroupsDisabled[Group.name]) && FilterMatch(FilterGroup, Group.name))
 					{
 						var GColor = GroupColors ? g_Colors[S.GroupInfo[groupid].cid] : 'white';
 						var X = 0;
@@ -2803,7 +2472,7 @@ function DrawBarView()
 			var groupid = GroupOrder[idx];
 			var Group = S.GroupInfo[groupid];
 			var GColor = GroupColors ? g_Colors[S.GroupInfo[groupid].cid] : 'white';
-			if((GroupsAllActive || GroupsActive[Group.name]) && FilterMatch(FilterGroup, Group.name))
+			if((!GroupsDisabled[Group.name]) && FilterMatch(FilterGroup, Group.name))
 			{
 				R = 0;
 				var TimerArray = Group.TimerArray;
@@ -2824,9 +2493,8 @@ function DrawBarView()
 				context.fillStyle = GColor;
 				context.fillText(Group.name, 1, Y+Height-FontAscent);
 
-
-
 				Y += Height;
+				let TimersGroups = Mode == ModeTimers_Threads || Mode == ModeTimers_Groups;
 				if(TimersGroups)
 				{
 					for(var i = 0; i < S.ThreadNames.length; ++i)
@@ -2834,7 +2502,7 @@ function DrawBarView()
 						R = 0;
 						var PerThreadTimer = S.ThreadGroupTimeArray[i][groupid];
 						var PerThreadTimerTotal = S.ThreadGroupTimeTotalArray[i][groupid];
-						if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (ThreadsActive[S.ThreadNames[i]] || ThreadsAllActive) && FilterMatch(FilterTimer, S.ThreadNames[i]))
+						if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (ThreadsActive[S.ThreadNames[i]]) && FilterMatch(FilterTimer, S.ThreadNames[i]))
 						{
 							var YText = Y+Height-FontAscent;
 							bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
@@ -2876,9 +2544,9 @@ function DrawBarView()
 	context.fillStyle = 'white';
 	SortColumnMouseOverNext = null;
 
-	if(TimersGroups)
+	if(Mode == ModeTimers_Threads || Mode == ModeTimers_Groups)
 	{
-		if(2 == TimersGroups)
+		if(Mode == ModeTimers_Threads)
 		{
 			DrawHeaderSplitLeftRight(StrThread, StrGroup, NameWidth);
 			DrawHeaderSplit(StrAverage);
@@ -4465,10 +4133,10 @@ function DrawDetailed(Animation)
 	DrawTextBox(context, TimeToMsString(fDetailedOffset + fDetailedRange), nWidth, FontHeight, 'right');
 	context.textAlign = 'left';
 
-	if(!FilterSearchActive && !IgnoreInput)
+	if(!FilterSearchActive && !IgnoreInput && SubMenuActive == -1)
 	{
 		let Colors = GroupColors == 2 ? "Color[thread]" : (GroupColors ? "Color[group]" : "Color[timer]");
-		DrawDetailedButtons(context, nWidth * 0.5, 0, [Colors, "Search"],[ToggleGroupColors, FilterInputShow], "center");
+		DrawDetailedButtons(context, nWidth * 0.5, 0, [Colors, "Search"],[function(){ToggleGroupColors(1);}, FilterInputShow], "center");
 	}
 
 
@@ -4738,7 +4406,7 @@ function Draw(RedrawMode)
 	}
 	if(RedrawMode == 1)
 	{
-		if(Mode == ModeTimers)
+		if(Mode == ModeTimers || Mode == ModeTimers_Threads || Mode == ModeTimers_Groups)
 		{
 			DrawBarView();
 			DrawHoverToolTip();
@@ -4755,6 +4423,8 @@ function Draw(RedrawMode)
 		}
 	}
 	DrawDetailedFrameHistory();
+	DrawMenu();
+
 
 	if(ProfileMode)
 	{
@@ -4763,11 +4433,697 @@ function Draw(RedrawMode)
 	}
 
 	InsideDraw = 0;
-	if(RedrawRequested)
+	if(RedrawRequested || MenuRedraw)
 	{
+		if(MenuRedraw)
+		{
+			Invalidate = 0;
+		}
 		requestAnimationFrame(AutoRedraw);
 	}
+	MouseReleased = false;
 }
+
+function MoveFilterInputMenuDiv(x, y, w)
+{
+	if(FilterInputMenuDivPos.x != x || FilterInputMenuDivPos.y != y || FilterInputMenuDivPos.w != w)
+	{
+		FilterInputMenuDivPos.x = x;
+		FilterInputMenuDivPos.y = y;
+		FilterInputMenuDivPos.w = w;
+		FilterInputMenuDiv.style['left'] = x + 'px';
+		FilterInputMenuDiv.style['top'] = y + 'px';
+		FilterInputMenu.style['width'] = w + 'px';
+	}
+}
+function MoveFilterInputDiv(x, y, w)
+{
+	if(FilterInputDivPos.x != x || FilterInputDivPos.y != y || FilterInputDivPos.w != w)
+	{
+		FilterInputDivPos.x = x;
+		FilterInputDivPos.y = y;
+		FilterInputDivPos.w = w;
+		FilterInputDiv.style['left'] = x + 'px';
+		FilterInputDiv.style['top'] = (y + (CanvasHistory.height / DPR)) + 'px';
+		FilterInput.style['width'] = w + 'px';
+	}
+}
+
+
+function MakeMenuItem(name, f, visible)
+{
+	var Item = {};
+	Item.name = name;
+	Item.f = f;
+	Item.w = name.length;
+	Item.x = 0;
+	Item.y = 0;
+	Item.visible = visible;
+	return Item;
+}
+function EnableMenu(m)
+{
+	if(m != SubMenuActive)
+	{
+		if(SubMenuActive == SubMenuThreads)
+		{
+			FilterInputMenuThreadsValue = FilterInputMenu.value;
+		}
+		else if(SubMenuActive == SubMenuGroups)
+		{
+			FilterInputMenuGroupsValue = FilterInputMenu.value;
+		}
+
+		SubMenuActive = m;
+		SubMenuTimeout = new Date();
+
+		if(SubMenuActive == SubMenuThreads)
+		{
+			FilterInputMenu.value = FilterInputMenuThreadsValue;
+			FilterInputMenu.focus();
+		}
+		else if(SubMenuActive == SubMenuGroups)
+		{
+			FilterInputMenu.value = FilterInputMenuGroupsValue;
+			FilterInputMenu.focus();
+		}
+		FilterInputMenuValueLast = FilterInput.value;
+		// if(m == SubMenuHelp)
+		{
+			let info = document.getElementById("divFrameInfo");
+			info.display = 'inline';
+		}
+	}
+	if(m == -1)
+	{
+		SubMenuTimeout = 0;
+	}
+	if(SubMenuActive == SubMenuGroups || SubMenuActive == SubMenuThreads)
+	{
+		FilterInputMenuDiv.style['display'] = 'inline';
+		FilterInputMenu.focus();
+	}
+	else
+	{
+		FilterInputMenuDiv.style['display'] = 'none';
+	}
+}
+function InitMenu()
+{
+	MenuItems = [];
+	MenuItems.push(MakeMenuItem("?", function(){EnableMenu(SubMenuHelp); } ));
+	MenuItems.push(MakeMenuItem("Mode", function(){EnableMenu(SubMenuMode); } ));
+	MenuItems.push(MakeMenuItem("Reference", function(){EnableMenu(SubMenuReference); } ));
+	MenuItems.push(MakeMenuItem("Target", function(){EnableMenu(SubMenuTarget); } ));
+	MenuItems.push(MakeMenuItem("Threads", function(){ EnableMenu(SubMenuThreads); }, function(){ return Mode != ModeCounters && Mode != ModeTimers_Groups; }));
+	MenuItems.push(MakeMenuItem("Groups", function(){ EnableMenu(SubMenuGroups); }, function() { return Mode != ModeCounters && Mode != ModeTimers_Threads /*&& Mode != ModeDetailed*/; } ));
+	MenuItems.push(MakeMenuItem("Columns", function(){ EnableMenu(SubMenuColumns); }, function(){return Mode == ModeTimers; }  ));
+	MenuItems.push(MakeMenuItem("Options", function(){ EnableMenu(SubMenuOptions); } ));
+	MenuItems.push(MakeMenuItem("Compare", function(){ EnableMenu(SubMenuCompare); } ));
+}
+function DrawTopMenu(context)
+{
+	MenuItems[SubMenuMode].name = "Mode[" + ModeItems[Mode] + "]";
+	let X = 2;
+	let Y = 0;
+	let MouseInY = GlobalMouseY < BoxHeight;
+	for(let i = 0; i < MenuItems.length; ++i)
+	{
+		let Item = MenuItems[i];
+		if(Item.visible == null || Item.visible())
+		{
+			let w = context.measureText(Item.name).width + 4;
+			let MouseIn = MouseInY && GlobalMouseX >= X && GlobalMouseX < X + w;
+			let color = MouseIn ? nBackColors[1] : "black";
+			Item.x = X;
+			Item.y = Y + BoxHeight;
+			if(MouseIn)
+			{
+				context.fillStyle = 'white';
+				context.fillRect(X-2, Y, w+4, BoxHeight);
+				// Enable
+				EnableMenu(i);
+			}
+			context.fillStyle = color;
+			context.fillRect(X, Y, w, BoxHeight);
+			context.fillStyle = "white";
+			context.fillText(Item.name, X+2, Y+BoxHeight-FontAscent);
+			if(MouseIn && MouseReleased)
+			{
+				Item.f();
+			}
+			X += w + 6;
+		}
+	}
+
+	return WindowRect(0, 0, X, BoxHeight);
+}
+function MenuSize(w)
+{
+	return WindowRect(nWidth / 2 - w / 2, HistoryHeight + 50,w, nHeight);
+}
+function MouseInRect(Rect)
+{
+	return MouseInside(Rect.x, Rect.y, Rect.w, Rect.h);
+}
+function MouseInside(X, Y, W, H)
+{
+	return GlobalMouseX >= X && GlobalMouseX <= X + W && GlobalMouseY >= Y && GlobalMouseY <= Y + H;
+}
+
+function DrawMenuGeneric(Elements, Active, OnClick, x, y, Elements2)
+{
+	let context = CanvasMenu.getContext('2d');
+	let nColorIndex = 0;
+	if(Elements2 && Elements2.length != Elements.length)
+	{
+		Elements2 = null;
+	}
+	let h = FontHeight * Elements.length;
+	let w = 20;
+	let w2 = 0;
+	for(let i = 0; i < Elements.length; ++i)
+	{
+		let m = context.measureText(Elements[i]).width;
+		w = w > m ? w : m;
+		if(Elements2)
+		{
+			m = context.measureText(Elements2[i]).width;
+			w2 = w2 > m ? w2 : m;
+		}
+	}
+	w += 10 + w2;
+	let SizeInfo = MenuSize(w);
+	SizeInfo.x = x;
+	SizeInfo.y = y;
+	let X = x;
+	let Y = y;
+
+
+	for(let i = 0; i < Elements.length; ++i)
+	{
+		let Selected = Active(i);
+		let Name = Elements[i];
+		let bMouseIn = GlobalMouseY >= Y && GlobalMouseY < Y + BoxHeight;
+		let bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+		let TextY = Y+BoxHeight-FontAscent;
+		context.fillStyle = Selected?'white':bgcolor;
+		context.fillRect(X-2, Y, w+4, BoxHeight);
+		context.fillStyle = bgcolor;
+		context.fillRect(X, Y, w, BoxHeight);
+		context.fillStyle = 'white';
+		context.fillText(Name, X + 2, TextY);
+		if(Elements2)
+		{
+			context.textAlign = "right";
+			context.fillText(Elements2[i], X + w , TextY);
+			context.textAlign = "left";
+		}
+		context.fillText(Name, X + 2, TextY);
+		if(bMouseIn && MouseReleased)
+		{
+			OnClick(i, Name);
+		}
+		Y += BoxHeight;
+		nColorIndex = 1-nColorIndex;
+	}
+	SizeInfo.h = Y - SizeInfo.y;
+	return SizeInfo;
+}
+
+function DrawMenuReference()
+{
+	let Names = [];
+	let ActiveIdx = 0;
+	for(let i in ReferenceTimes)
+	{
+		let v = ReferenceTimes[i];
+		if(v < 0)
+		{
+			Names.push(ReferenceTimeAutoString);
+		}
+		else
+		{
+			if(ReferenceTime == ReferenceTimes[i])
+			{
+				ActiveIdx = i;
+			}
+			Names.push(v + "ms");
+		}
+	}
+	let Click = function(idx, name)
+	{
+		SetReferenceTime(Names[idx]);
+		MenuRedraw = 1;
+		Invalidate = 0;
+
+	};
+	let x = MenuItems[SubMenuReference].x;
+	let y = MenuItems[SubMenuReference].y;
+	let Active = function(Idx) { return ActiveIdx == Idx; };
+	return DrawMenuGeneric(Names, Active, Click, x, y, null);
+}
+function DrawMenuTarget()
+{
+	let Names = [];
+	for(let i in TargetTimes)
+	{
+		Names.push(TargetTimes[i] + "ms");
+	}
+	let Click = function(idx, name)
+	{
+		SetTargetTime(Names[idx]);
+		MenuRedraw = 1;
+		Invalidate = 0;
+
+	};
+	let x = MenuItems[SubMenuTarget].x;
+	let y = MenuItems[SubMenuTarget].y;
+	let Active = function(Idx) { return TargetTimes[Idx] == TargetTime; };
+	return DrawMenuGeneric(Names, Active, Click, x, y, null);
+}
+
+function DrawMenuMode()
+{
+	let Click = function(idx, name)
+	{
+		SetMode(idx,false);
+		MenuItems[SubMenuMode].name = "Mode[" + ModeItems[idx] + "]";
+		MenuRedraw = 1;
+		Invalidate = 0;
+
+	};
+	let x = MenuItems[SubMenuMode].x;
+	let y = MenuItems[SubMenuMode].y;
+	let Active = function(Idx) { return Idx == Mode; };
+	return DrawMenuGeneric(ModeItems, Active, Click, x, y, null);
+}
+function DrawMenuOptions()
+{
+	let OptionNames =["Context Switch", "MergeDisable", "LodDisable", "Flame Mode", "Compare Reverse", "Help"];
+	let Click = function(idx, name)
+	{
+		switch(idx)
+		{
+			case 0: ToggleContextSwitch(); break;
+			case 1: ToggleDisableMerge(); break;
+			case 2: ToggleDisableLod(); break;
+			case 3: ToggleDetailedFlameMode(); break;
+			case 4: ToggleDetailedSecondReverse(); break;
+			case 5: ShowHelp(1,1); break;
+		}
+		MenuRedraw = 1;
+		Invalidate = 0;
+
+	};
+	let x = MenuItems[SubMenuOptions].x;
+	let y = MenuItems[SubMenuOptions].y;
+	let Active = function(Idx) { return false; };
+	return DrawMenuGeneric(OptionNames, Active, Click, x, y, null);
+}
+
+function DrawMenuColumns()
+{
+	let Click = function(idx, name)
+	{
+		ToggleColumn(idx);
+
+	};
+	let x = MenuItems[SubMenuColumns].x;
+	let y = MenuItems[SubMenuColumns].y;
+	let Active = function(Idx) { return ColumnsEnabled[Idx]; };
+	return DrawMenuGeneric(ColumnNames, Active, Click, x, y, null);
+
+}
+
+function GroupMenuSize()
+{
+	return MenuSize(300);
+}
+
+function ThreadMenuSize()
+{
+	return MenuSize(S.ThreadNameWidth + S.ThreadCategoryWidth + 10);
+}
+
+function DrawMultiMenu(context, X, Y, W, Elements, Callbacks)
+{
+	let A = Array();
+	let wtemp = W;
+	let bMouseIn = GlobalMouseY >= Y && GlobalMouseY < Y + BoxHeight;
+
+	for(let i = 0; i < Elements.length; ++i)
+	{
+		let wElement = context.measureText(Elements[i]).width;
+		if(i > 0)
+		{
+			wElement += 15;
+			wtemp -= wElement;
+		}
+		A.push(wElement);
+	}
+	A[0] = Math.max(wtemp, 0);
+
+	context.fillStyle = nBackColors[0];
+	context.fillRect(X-2, Y, W, BoxHeight);
+	let XOff = 0;
+	let TextY = Y+BoxHeight-FontAscent;
+	for(let i = 0; i < Elements.length; ++i)
+	{
+		let width = A[i];
+		let Inside = i != 0 && bMouseIn && GlobalMouseX > XOff + X && GlobalMouseX <= XOff + X + width;
+		context.fillStyle = Inside ? nBackColorOffset : nBackColors[0];
+		context.fillRect(X+XOff, Y, width, BoxHeight);
+		context.fillStyle = 'white';
+		context.textAlign = 'center';
+		context.fillText(Elements[i], X+XOff + width * 0.5, TextY);
+		XOff += width;
+		if(Inside && MouseReleased && Callbacks[i])
+		{
+			Callbacks[i]();
+		}
+	}
+	context.textAlign = 'left';
+}
+
+function DrawMenuThreads()
+{
+	if(FilterInputMenuValueLast != FilterInputMenu.value)
+	{
+		nOffsetMenuThreads = 0;
+	}
+	FilterInputMenuValueLast = FilterInputMenu.value;
+	let FilterArray = CreateFilter(FilterInputMenu.value);
+	let context = CanvasMenu.getContext('2d');
+	let nColorIndex = 0;
+	let SizeInfo = ThreadMenuSize();
+	SizeInfo.x = MenuItems[SubMenuThreads].x;
+	SizeInfo.y = MenuItems[SubMenuThreads].y;
+	let Y = SizeInfo.y;
+	let Width = SizeInfo.w;
+	let Selection = null;
+	let X = SizeInfo.x;
+	MoveFilterInputMenuDiv(SizeInfo.x, SizeInfo.y, SizeInfo.w);
+	Y += 35;
+
+	let bMouseIn = GlobalMouseY >= Y && GlobalMouseY < Y + BoxHeight;
+	let bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+	let TextY = Y+BoxHeight-FontAscent;
+	let YClear = Y;
+	let TextYClear = TextY;
+	let YStart = Y;
+	let MatchCount = 0;
+	let MouseTaken = bMouseIn;
+
+	Y += BoxHeight * 2;
+	nColorIndex = 1-nColorIndex;
+
+	Y -= nOffsetMenuThreads;
+
+	for(let i = 0; i < S.ThreadNames.length; ++i)
+	{
+		let Name = S.ThreadNames[i];
+		let ParentName = "ThreadCategory";
+		if(FilterMatch(FilterArray, ParentName + " " + Name))
+		{
+			if(Y > YStart)
+			{
+				var ParentColor = 'white';
+				let E =	ThreadsActive[Name];
+				bMouseIn = GlobalMouseY >= Y && GlobalMouseY < Y + BoxHeight && !MouseTaken;
+				bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+				TextY = Y+BoxHeight-FontAscent;
+				context.fillStyle = E ? 'white' :bgcolor;
+				context.fillRect(X-2, Y, Width+4, BoxHeight);
+				context.fillStyle = bgcolor;
+				context.fillRect(X, Y, Width, BoxHeight);
+				context.fillStyle = ParentColor;
+				context.fillText(ParentName, X + 2, TextY);
+				context.fillStyle = S.ThreadColors[i].color;//thread color her....
+				context.textAlign = 'right';
+				context.fillText(Name, X + Width - 2, TextY);
+				context.textAlign = 'left';
+				if(bMouseIn && MouseReleased)
+				{
+					ToggleThread(Name);
+					MenuRedraw = 1;
+				}
+			}
+			Y += BoxHeight;
+			nColorIndex = 1-nColorIndex;
+			MatchCount++;
+		}
+	}
+	let TextAll = "All [" + S.ThreadNames.length + "]";
+	let TextFiltered = "Filtered [" + MatchCount +"]";
+
+
+
+	let ElementsAll = [TextAll, "Off", "Flip", "On"];
+	let CallbacksAll = [null, 
+		function(){ ToggleThread(0, 1, 0, 0); },
+		function(){ ToggleThread(0, 1, 0, 1); },
+		function(){ ToggleThread(0, 1, 0, 2); },
+	];
+	let ElementsFiltered = [TextFiltered, "Off", "Flip", "On"];
+	let CreateFilteredArray = function()
+	{
+		if(!FilterArray) return S.ThreadNames;
+		let A = [];
+		for(let i = 0; i < S.ThreadNames.length; ++i)
+		{
+			let Name = S.ThreadNames[i];
+			let ParentName = "ThreadCategory";
+			if(FilterMatch(FilterArray, ParentName + " " + Name))
+			{
+				A.push(Name);
+			}
+		}
+		return A;
+	};
+	let CallbacksFiltered = [null, 
+		function(){let F = CreateFilteredArray(); ToggleThread(0, 0, F, 0); },
+		function(){let F = CreateFilteredArray(); ToggleThread(0, 0, F, 1); },
+		function(){let F = CreateFilteredArray(); ToggleThread(0, 0, F, 2); },
+	];
+
+
+	DrawMultiMenu(context, X, YClear, Width, ElementsAll, CallbacksAll);
+	DrawMultiMenu(context, X, YClear+BoxHeight, Width, ElementsFiltered, CallbacksFiltered);
+
+	SizeInfo.h = Y-SizeInfo.y;
+	return SizeInfo;
+}
+
+function DrawMenuGroups()
+{
+	if(FilterInputMenuValueLast != FilterInputMenu.value)
+	{
+		nOffsetMenuThreads = 0;
+	}
+	FilterInputMenuValueLast = FilterInputMenu.value;
+	let FilterArray = CreateFilter(FilterInputMenu.value);
+	let context = CanvasMenu.getContext('2d');
+	let nColorIndex = 0;
+	let SizeInfo = ThreadMenuSize();
+	SizeInfo.x = MenuItems[SubMenuGroups].x;
+	SizeInfo.y = MenuItems[SubMenuGroups].y;
+	let Y = SizeInfo.y;
+	let Width = SizeInfo.w;
+	let Selection = null;
+	let X = SizeInfo.x;
+	MoveFilterInputMenuDiv(SizeInfo.x, SizeInfo.y, SizeInfo.w);
+	Y += 35;
+
+	let bMouseIn = GlobalMouseY >= Y && GlobalMouseY < Y + BoxHeight;
+	let bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+	let TextY = Y+BoxHeight-FontAscent;
+	let YClear = Y;
+	let TextYClear = TextY;
+	let YStart = Y;
+	let MatchCount = 0;
+	let MouseTaken = bMouseIn;
+
+	Y += BoxHeight * 2;
+	nColorIndex = 1-nColorIndex;
+
+	Y -= nOffsetMenuThreads;
+
+
+
+	for(var i = 0; i < S.GroupInfo.length; ++i)
+	{
+		let Name = S.GroupInfo[i].name;
+		let ParentName = S.CategoryInfo[S.GroupInfo[i].category];
+		let Color = g_Colors[ S.GroupInfo[i].cid ];
+		if(FilterMatch(FilterArray, ParentName + " " + Name))
+		{
+			if(Y > YStart)
+			{
+				var ParentColor = 'white';
+				let E =	!GroupsDisabled[Name];
+				bMouseIn = GlobalMouseY >= Y && GlobalMouseY < Y + BoxHeight && !MouseTaken;
+				bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+				TextY = Y+BoxHeight-FontAscent;
+				context.fillStyle = E ? 'white' :bgcolor;
+				context.fillRect(X-2, Y, Width+4, BoxHeight);
+				context.fillStyle = bgcolor;
+				context.fillRect(X, Y, Width, BoxHeight);
+				context.fillStyle = ParentColor;
+				context.fillText(ParentName, X + 2, TextY);
+				context.fillStyle = Color;
+				context.textAlign = 'right';
+				context.fillText(Name, X + Width - 2, TextY);
+				context.textAlign = 'left';
+				if(bMouseIn && MouseReleased)
+				{
+					ToggleGroup(Name);
+					MenuRedraw = 1;
+				}
+			}
+			Y += BoxHeight;
+			nColorIndex = 1-nColorIndex;
+			MatchCount++;
+		}
+	}
+	let TextAll = "All [" + S.GroupInfo.length + "]";
+	let TextFiltered = "Filtered [" + MatchCount +"]";
+
+
+
+	let ElementsAll = [TextAll, "Off", "Flip", "On"];
+	let CallbacksAll = [null, 
+		function(){ ToggleGroup(0, 1, 0, 0); },
+		function(){ ToggleGroup(0, 1, 0, 1); },
+		function(){ ToggleGroup(0, 1, 0, 2); },
+	];
+	let ElementsFiltered = [TextFiltered, "Off", "Flip", "On"];
+	let CreateFilteredArray = function()
+	{
+		let A = [];
+		for(let i = 0; i < S.GroupInfo.length; ++i)
+		{
+			let Name = S.GroupInfo[i].name;
+			let ParentName = S.CategoryInfo[S.GroupInfo[i].category];
+			if(FilterMatch(FilterArray, ParentName + " " + Name))
+			{
+				A.push(Name);
+			}
+		}
+		return A;
+	};
+	let CallbacksFiltered = [null, 
+		function(){let F = CreateFilteredArray(); ToggleGroup(0, 0, F, 0); },
+		function(){let F = CreateFilteredArray(); ToggleGroup(0, 0, F, 1); },
+		function(){let F = CreateFilteredArray(); ToggleGroup(0, 0, F, 2); },
+	];
+
+
+	DrawMultiMenu(context, X, YClear, Width, ElementsAll, CallbacksAll);
+	DrawMultiMenu(context, X, YClear+BoxHeight, Width, ElementsFiltered, CallbacksFiltered);
+
+	SizeInfo.h = Y-SizeInfo.y;
+	return SizeInfo;
+
+
+}
+
+function DrawMenu()
+{
+	MenuRedraw = 0;
+
+	var context = CanvasMenu.getContext('2d');
+	context.clearRect(0, 0, CanvasMenu.width, CanvasMenu.height);
+
+	var nColorIndex = 0;
+	var Y = 50;
+	var Width = 300;
+	var Selection = null;
+
+	ProfileEnter("DrawMenu");
+	let MenuRect = DrawTopMenu(context);
+	if(SubMenuActive != -1)
+	{
+		MouseMoveTime = new Date();
+	}
+	if(SubMenuActive == SubMenuHelp)
+	{
+		if(MouseReleased)
+		{
+			ToggleDebugMode();
+		}
+	}
+	if(SubMenuActive == SubMenuMode)
+	{
+		MenuRect = DrawMenuMode();
+	}
+	else if(SubMenuActive == SubMenuReference)
+	{
+		MenuRect = DrawMenuReference();
+	}
+	else if(SubMenuActive == SubMenuTarget)
+	{
+		MenuRect = DrawMenuTarget();
+	}
+	else if(SubMenuActive == SubMenuThreads)
+	{
+		MenuRect = DrawMenuThreads();
+	}
+	else if(SubMenuActive == SubMenuGroups)
+	{
+		MenuRect = DrawMenuGroups();
+	}
+	else if(SubMenuActive == SubMenuOptions)
+	{
+		MenuRect = DrawMenuOptions();
+	}
+	else if(SubMenuActive == SubMenuCompare)
+	{
+		if(MouseReleased)
+		{
+			ComparePrompt();
+		}
+	}
+	else if(SubMenuActive == SubMenuColumns)
+	{
+		MenuRect = DrawMenuColumns();
+	}
+	var Grow = 10;
+	MenuRect.x -= Grow;
+	MenuRect.y -= Grow;
+	MenuRect.h += 2*Grow;
+	MenuRect.w += 2*Grow;
+	var MouseMoved = GlobalMouseX != SubMenuMouseX || GlobalMouseY != SubMenuMouseY;
+
+	if(MouseInRect(MenuRect) || !MouseMoved)
+	{
+		SubMenuTimeout = new Date();
+		SubMenuMouseX = GlobalMouseX;
+		SubMenuMouseY = GlobalMouseY;
+	}
+	else
+	{
+		var Time = new Date() - SubMenuTimeout;
+		var Dest = SubMenuTimeoutBase * 1000;
+		if(Time > Dest)
+		{
+			EnableMenu(-1);
+		}
+	}
+	if(0)//debugging of menu extents. dont delete
+	{
+		context.strokeStyle = 'red';
+		context.beginPath();
+		context.moveTo(MenuRect.x,MenuRect.y);
+		context.lineTo(MenuRect.x + MenuRect.w,MenuRect.y);
+		context.lineTo(MenuRect.x + MenuRect.w,MenuRect.y+MenuRect.h);
+		context.lineTo(MenuRect.x,MenuRect.y+MenuRect.h);
+		context.lineTo(MenuRect.x,MenuRect.y);
+		context.stroke();
+	}	// SpinnerDraw(SpinnerShow(), context, SpinnerCorner, 0, nHeight-20,  20, 20);
+	ProfileLeave();
+}
+
 
 function AutoRedraw(Timestamp)
 {
@@ -4798,7 +5154,6 @@ function AutoRedraw(Timestamp)
 	}
 	requestAnimationFrame(AutoRedraw);
 }
-
 
 function ZoomGraph(nZoom)
 {
@@ -4848,8 +5203,13 @@ function ResizeCanvas()
 		CanvasHistory.style.height = 70 + 'px';
 		CanvasHistory.width = window.innerWidth * DPR;
 		CanvasHistory.height = 70 * DPR;
+		CanvasMenu.style.width = window.innerWidth + 'px';
+		CanvasMenu.style.height = window.innerHeight + 'px';
+		CanvasMenu.width = window.innerWidth * DPR;
+		CanvasMenu.height = window.innerHeight * DPR;
 		CanvasHistory.getContext('2d').scale(DPR,DPR);
 		CanvasDetailedView.getContext('2d').scale(DPR,DPR);
+		CanvasMenu.getContext('2d').scale(DPR,DPR);
 
 		CanvasDetailedOffscreen.style.width = nWidth + 'px';
 		CanvasDetailedOffscreen.style.height = nHeight + 'px';
@@ -4865,10 +5225,14 @@ function ResizeCanvas()
 		CanvasDetailedView.height = nHeight;
 		CanvasDetailedOffscreen.width = nWidth;
 		CanvasDetailedOffscreen.height = nHeight;
+
+		CanvasMenu.width = window.innerWidth;
+		CanvasMenu.height = window.innerHeight;
 		CanvasHistory.width = window.innerWidth;
 	}
 	RequestRedraw();
 }
+
 
 var MouseDragOff = 0;
 var MouseDragDown = 1;
@@ -4975,7 +5339,7 @@ function MouseHandleDrag()
 				}
 			}	
 		}
-		else if(Mode == ModeTimers)
+		else if(Mode == ModeTimers || Mode == ModeTimers_Threads || Mode == ModeTimers_Groups)
 		{
 			if(MouseDragKeyShift || MouseDragButton == 1)
 			{
@@ -5136,7 +5500,7 @@ function MouseDragReset()
 }
 function MouseDragKeyUp()
 {
-	if((MouseDragKeyShift && !KeyShiftDown) || (MouseDragKeyCtrl && !KeyCtrlDown) || (MouseDragKeyAlt && !KeyAltDown))
+	if((MouseDragKeyShift && !KeyShiftDown) || (MouseDragKeyCtrl && !KeyCtrlDown) || (MouseDragKeyAlt && !KeyAltDown) || SubMenuActive != -1)
 	{
 		MouseHandleDragEnd();
 		MouseDragReset();
@@ -5144,7 +5508,7 @@ function MouseDragKeyUp()
 }
 function MouseDrag(Source, Event)
 {
-	if(Source == MouseDragOff || (MouseDragTarget && MouseDragTarget != Event.target))
+	if(Source == MouseDragOff || (MouseDragTarget && MouseDragTarget != Event.target) || SubMenuActive != -1)
 	{
 		MouseDragReset();
 		return;
@@ -5197,45 +5561,6 @@ function MouseDrag(Source, Event)
 				MouseDragState = MouseDragMove;
 			}
 		}
-
-		// if(Source == MouseDragDown || KeyShiftDown || KeyCtrlDown)
-		// {
-		// 	if(MouseDragXStart == -1)
-		// 	{
-		// 		MouseDragXStart = MouseDragX;
-		// 		MouseDragYStart = MouseDragY;
-		// 		MouseDragTarget = Event.target;
-		// 		MouseDragButtonNext = MapMouseButton(Event);
-		// 	}
-		// 	else if(MouseDragXStart != MouseDragX || MouseDragYStart != MouseDragY)
-		// 	{
-
-		// 		//revert det her lort.
-		// 		fix mouse released til at
-		// 		MouseDragState = MouseDragDown;
-		// 		MouseDragButton = MouseDragButtonNext;
-		// 		MouseDragKeyCtrl = 0;
-		// 		MouseDragKeyShift = 0;
-
-
-		// 		if(KeyShiftDown || KeyCtrlDown)
-		// 		{
-		// 			MouseDragKeyShift = KeyShiftDown;
-		// 			MouseDragKeyCtrl = KeyCtrlDown;
-		// 			MouseDragState = MouseDragMove;
-		// 		}
-
-		// 	}
-
-
-
-		// }
-		// else
-		// {
-		// 	MouseDragXStart = -1;
-		// 	MouseDragYStart = -1;
-
-		// }
 	}
 	else if(MouseDragState == MouseDragDown)
 	{
@@ -5260,15 +5585,17 @@ function MouseDrag(Source, Event)
 
 function MouseMove(evt)
 {
-    evt.preventDefault();
-    ZoomActive = 0;
-    MouseDrag(MouseDragMove, evt);
+	evt.preventDefault();
+	ZoomActive = 0;
+	MouseDrag(MouseDragMove, evt);
  	MouseHistory = 0;
 	MouseDetailed = 0;
 	HistoryViewMouseX = HistoryViewMouseY = -1;
 	var rect = evt.target.getBoundingClientRect();
 	var x = evt.clientX - rect.left;
 	var y = evt.clientY - rect.top;
+	GlobalMouseX = evt.pageX;
+	GlobalMouseY = evt.pageY;
 	if(evt.target == CanvasDetailedView)
 	{
 		if(!MouseDragSelectRange())
@@ -5283,7 +5610,6 @@ function MouseMove(evt)
 		var Rect = CanvasHistory.getBoundingClientRect();
 		HistoryViewMouseX = x;
 		HistoryViewMouseY = y;
-
 
 		DetailedViewMouseX = -1;
 		DetailedViewMouseY = -1;
@@ -5353,9 +5679,10 @@ function MouseSortClick()
 
 function MouseButton(bPressed, evt)
 {
-    evt.preventDefault();
+	evt.preventDefault();
+	MouseReleased = !bPressed;
 	MouseDrag(bPressed ? MouseDragDown : MouseDragUp, evt);
-	if(!bPressed)
+	if(!bPressed && SubMenuActive == -1)
 		MouseSortClick();
 	RequestRedraw();
 }
@@ -5452,7 +5779,7 @@ function KeyUp(evt)
 		ToolTipFlip = 0;
 	}
 	// ShowFlashMessage(evt.keyCode + ' <<', 100);
-	if(!FilterSearchActive && !IgnoreInput)
+	if(!FilterSearchActive && !IgnoreInput && SubMenuActive == -1)
 	{
 		if(evt.keyCode == 112)
 		{
@@ -5512,7 +5839,7 @@ function KeyUp(evt)
 					MouseHandleDragEnd();
 				}
 			}
-			else if(Mode == ModeTimers)
+			else if(Mode == ModeTimers || Mode == ModeTimers_Threads || Mode == ModeTimers_Groups)
 			{
 				ToggleFilterInput(0);
 				evt.preventDefault();
@@ -5547,11 +5874,23 @@ function KeyUp(evt)
 		RangeSelect = RangeInit();
 		SortColumn = 0;
 		SortColumnMouseOver = "";
-		if(Mode == ModeTimers)
+		if(Mode == ModeTimers || Mode == ModeTimers_Threads || Mode == ModeTimers_Groups)
 		{
 			ToggleFilterInput(1);
 			evt.preventDefault();
 		}
+		if(SubMenuActive != -1)
+		{
+			if(FilterInputMenu.value.trim() != "")
+			{
+				FilterInputMenu.value = "";
+			}
+			else
+			{
+				EnableMenu(-1);
+			}			
+		}
+
 		if(FilterSearchActive)
 		{
 			if(FilterInput.value != '')
@@ -5726,7 +6065,7 @@ function ReadCookie()
 		var Obj = C.offline;
 		if(Obj.Mode)
 		{
-			NewMode = Obj.Mode;
+			NewMode = Obj.ModeX;
 		}
 		if(Obj.ReferenceTimeString)
 		{
@@ -5735,14 +6074,6 @@ function ReadCookie()
 		if(Obj.TargetTimeString)
 		{
 			TargetTimeString = Obj.TargetTimeString;
-		}
-		if(Obj.ThreadsAllActive || Obj.ThreadsAllActive == 0 || Obj.ThreadsAllActive == false)
-		{
-			ThreadsAllActive = Obj.ThreadsAllActive;
-		}
-		else
-		{
-			ThreadsAllActive = 1;
 		}
 		if(Obj.ThreadsActive)
 		{
@@ -5756,9 +6087,9 @@ function ReadCookie()
 		{
 			GroupsAllActive = 1;
 		}
-		if(Obj.GroupsActive)
+		if(Obj.GroupsDisabled)
 		{
-			GroupsActive = Obj.GroupsActive;
+			GroupsDisabled = Obj.GroupsDisabled;
 		}
 		if(Obj.nContextSwitchEnabled)
 		{
@@ -5800,10 +6131,9 @@ function ReadCookie()
 		{
 			ThreadOrderNames = Obj.ThreadOrderNames;
 		}
-		TimersGroups = Obj.TimersGroups?Obj.TimersGroups:0;
 	}
 	SetContextSwitch(nContextSwitchEnabled);
-	SetMode(NewMode, TimersGroups);
+	SetMode(NewMode);
 	SetReferenceTime(ReferenceTimeString);
 	SetTargetTime(TargetTimeString);
 	UpdateGroupColors();
@@ -5812,15 +6142,13 @@ function WriteCookie()
 {
 	var C = GetCookie();
 	var Obj = new Object();
-	Obj.Mode = Mode;
+	Obj.ModeX = Mode;
 	Obj.ReferenceTimeString = ReferenceTimeString;
 	Obj.TargetTimeString = TargetTimeString;
 	Obj.ThreadsActive = ThreadsActive;
-	Obj.ThreadsAllActive = ThreadsAllActive;
-	Obj.GroupsActive = GroupsActive;
+	Obj.GroupsDisabled = GroupsDisabled;
 	Obj.GroupsAllActive = GroupsAllActive;
 	Obj.nContextSwitchEnabled = nContextSwitchEnabled;
-	Obj.TimersGroups = TimersGroups?TimersGroups:0;
 	Obj.GroupColors = GroupColors;
 	Obj.ColumnsEnabled = ColumnsEnabled;
 	Obj.ToolTipCorner = ToolTipCorner;
@@ -5857,18 +6185,6 @@ function MenuSize(w)
 function TimerMenuSize()
 {
 	return MenuSize(200 + 5 + FontWidth); //fix menu size
-}
-function MoveFilterInputDiv(x, y, w)
-{
-	if(FilterInputDivPos.x != x || FilterInputDivPos.y != y || FilterInputDivPos.w != w)
-	{
-		FilterInputDivPos.x = x;
-		FilterInputDivPos.y = y;
-		FilterInputDivPos.w = w;
-		FilterInputDiv.style['left'] = x + 'px';
-		FilterInputDiv.style['top'] = (y + (CanvasHistory.height / DPR)) + 'px';
-		FilterInput.style['width'] = w + 'px';
-	}
 }
 
 function DrawFilterSearch()
@@ -6475,23 +6791,34 @@ function PreprocessThreadColors(S)
 
 function PreprocessWidths()
 {
-	var context = CanvasHistory.getContext('2d');
+	let context = CanvasHistory.getContext('2d');
 	context.font = Font;
 	S.TimerNameWidth = 0;
 	S.GroupNameWidth = 0;
-	for(var i = 0; i < S.TimerInfo.length; ++i)
+
+	for(let i in S.TimerInfo)
 	{
-		var str = S.GroupInfo[S.TimerInfo[i].group].name + "XXX" + S.TimerInfo[i].name;		
-		var width = context.measureText(str).width;
-		var widthname = context.measureText(S.TimerInfo[i].name).width;
+		let str = S.GroupInfo[S.TimerInfo[i].group].name + "XXX" + S.TimerInfo[i].name;		
+		let width = context.measureText(str).width;
+		let widthname = context.measureText(S.TimerInfo[i].name).width;
 		S.TimerInfo[i].wtotal = width;
 		S.TimerInfo[i].w = widthname;
 		S.TimerNameWidth = Math.max(S.TimerNameWidth, widthname);
 	}
-	for(var i = 0; i < S.GroupInfo.length; ++i)
+	for(let i in S.GroupInfo)
 	{
-		var widthname = context.measureText(S.TimerInfo[i].name).width;
+		let widthname = context.measureText(S.TimerInfo[i].name).width;
 		S.GroupNameWidth = Math.max(S.GroupNameWidth, widthname);
+	}
+	for(let i in S.ThreadNames)
+	{
+		let w = context.measureText(S.ThreadNames[i]).width;
+		S.ThreadNameWidth = Math.max(S.ThreadNameWidth, w);
+	}
+	for(let i in S.CategoryInfo)
+	{
+		let w = context.measureText(S.CategoryInfo[i]).width;
+		S.ThreadCategoryWidth = Math.max(S.ThreadCategoryWidth, w);
 	}
 }
 
@@ -6672,9 +6999,8 @@ function Preprocess_S()
 	S.CSwitchOnlyThreads = [];
 	S.GroupNameWidth = 200;
 	S.TimerNameWidth = 200;
-
-
-
+	S.ThreadNameWidth = 150;
+	S.ThreadCategoryWidth = 150;
 
 	PreprocessCalculateAllTimers();
 	PreprocessFindFirstFrames();
@@ -7113,7 +7439,6 @@ function ParseCompareData(Data)
 
 
 	ThreadOrderSort();
-	InitThreadMenu();
 
 	console.log('file loaded ' + idxbegin + ' ' + idxend );
 	console.log('time ' + (Comp1 - Comp0));
@@ -7152,27 +7477,31 @@ CanvasHistory.addEventListener('mouseup', function(evt) { MouseButton(false, evt
 CanvasHistory.addEventListener('mouseout', MouseOut);
 CanvasHistory.addEventListener("contextmenu", function (e) { e.preventDefault(); }, false);
 CanvasHistory.addEventListener(mousewheelevt, MouseWheel, false);
+CanvasMenu.addEventListener('mousemove', MouseMove);
+CanvasMenu.addEventListener('mousedown', function(evt) { MouseButton(true, evt); });
+CanvasMenu.addEventListener('mouseup', function(evt) { MouseButton(false, evt); } );
+CanvasMenu.addEventListener('mouseout', MouseOut);
+CanvasMenu.addEventListener("contextmenu", function (e) { e.preventDefault(); }, false);
+CanvasMenu.addEventListener(mousewheelevt, MouseWheel, false);
 FilterInputTimer.addEventListener('keyup', FilterKeyUp);
 FilterInputGroup.addEventListener('keyup', FilterKeyUp);
 window.addEventListener('keydown', KeyDown);
 window.addEventListener('keyup', KeyUp);
 window.addEventListener('resize', ResizeCanvas, false);
 
-
 InitGroups();
 ReadCookie();
 MeasureFont();
 ThreadOrderSort();
-InitThreadMenu();
-InitGroupMenu();
-InitColumnMenu();
+InitOrderArrays();
+InitMenu();
 InitFrameInfo();
-UpdateThreadMenu();
 ResizeCanvas();
 Preprocess();
 OnPageReady();
 Draw(1);
 AutoRedraw();
+
 
 </script>
 </body>

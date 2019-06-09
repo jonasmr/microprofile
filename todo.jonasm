@@ -1,4 +1,6 @@
 
+delay capture/autocapture
+repeat auto-capture
 rewrite capture menu
 fix graph for recursion?
 

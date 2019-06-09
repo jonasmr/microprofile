@@ -6695,7 +6695,7 @@ function MouseSortClick()
 function MouseButton(bPressed, evt)
 {
     evt.preventDefault();
-    MouseReleased = !bPressed;
+	MouseReleased = !bPressed;
 	MouseDrag(bPressed ? MouseDragDown : MouseDragUp, evt);
 	if(!bPressed)
 		MouseSortClick();
