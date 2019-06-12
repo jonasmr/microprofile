@@ -1,7 +1,9 @@
 
-delay capture/autocapture
+
+* delay capture/autocapture
+* rewrite capture menu
+
 repeat auto-capture
-rewrite capture menu
 fix graph for recursion?
 
 verify merge

@@ -180,8 +180,14 @@ var AutoCaptureSourceIndex = -1;
 
 var CaptureFramesDefault = 30;
 Settings.CaptureFrames = CaptureFramesDefault;
+Settings.CaptureDelay = 0;
 var CaptureFramesPresets = [5,10,15,30,50,66,90,100];
+var CaptureDelayPresets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 var CaptureTweak = -1;
+var CaptureDelayTweak = -1;
+
+var CaptureTriggerTime = null;
+var CaptureTriggerDelta = 0;
 
 
 var ProfileData = {};
@@ -368,6 +374,8 @@ var FunctionsInstrumented = [];
 var FunctionsInstrumentedUnmangled = [];
 var FunctionsInstrumentedModule = [];
 var PopupsAllowed = 0;
+var PopupsFailed = 0;
+var PopupTestPending = 0;
 
 var ThreadInfo = {};
 
@@ -2887,6 +2895,7 @@ function DrawCaptureMenu(context)
 	context.fillText(CaptureText, XCenter, Y + FontHeight);
 
 
+
 	X += w + 2;
 	var MenuText = "^";
 	var w2 = 10 + context.measureText(MenuText).width;
@@ -2896,6 +2905,19 @@ function DrawCaptureMenu(context)
 
 	context.fillStyle = '#ffffff';
 	context.fillText(MenuText, X + w2*0.5, Y + FontHeight);
+
+	let X1 = X + w2 + 10;
+	if(CaptureTriggerDelta)
+	{
+		let text = FormatTime(CaptureTriggerDelta);
+		let w = 10 + context.measureText("text").width;
+		context.fillStyle = 'black';
+		context.fillRect(X1, Y, w, 4 + FontHeight);
+		context.fillStyle = '#ffffff';
+		context.fillText(text, X1 + w*0.5, Y + FontHeight);	
+	}
+
+
 	context.textAlign = 'left';
 	if(bMouseInCaptureMenu)
 	{
@@ -3089,6 +3111,33 @@ function EnableMenu(m)
 function Clamp(v, low, high)
 {
 	return v < low ? low : (v > high ? high : v);
+}
+function TriggerCapture()
+{
+	if(Settings.CaptureDelay <= 0)
+	{
+		Capture();
+	}
+	else
+	{
+		CaptureTriggerTime = new Date();
+	}
+}
+function CaptureUpdate()
+{
+	if(CaptureTriggerTime)
+	{
+		let Time = new Date();
+		let Delta = Time - CaptureTriggerTime;
+		CaptureTriggerDelta = Math.max(0.0, (Settings.CaptureDelay * 1000 - Delta) / 1000.0);
+		if(Delta > Settings.CaptureDelay * 1000)
+		{
+			Capture();
+			CaptureTriggerTime = null;
+			CaptureTriggerDelta = 0;
+		}
+	}
+
 }
 function Capture()
 {
@@ -3772,6 +3821,23 @@ function CaptureRoll(Direction, Tweak, SetDirect)
 		Settings.CaptureFrames = NextValue(CaptureFramesPresets, Settings.CaptureFrames, Direction);
 	}
 }
+function CaptureDelayRoll(Direction, Tweak, SetDirect)
+{
+	if(SetDirect)
+	{
+		Settings.CaptureDelay = SetDirect;
+	}
+	else if(Tweak)
+	{
+		Settings.CaptureDelay = TweakValue(Settings.CaptureDelay, Tweak, 0.98, 5, 300);
+
+	}
+	else if(Direction)
+	{
+		Settings.CaptureDelay = NextValue(CaptureDelayPresets, Settings.CaptureDelay, Direction);
+	}
+}
+
 function GetAutoCaptureString()
 {
 	if(AutoCaptureSourceIndex >= 0)
@@ -3984,34 +4050,45 @@ function DrawMenuRoll(M, Name, RollValue, RollExt, RollFunction, Tweak, Type)
 }
 function CheckPopupAllowed()
 {
-	if(!PopupsAllowed)
+	if(!PopupsAllowed && !PopupTestPending)
 	{
-		var W = window.open("about:blank");
-		var Fail = function()
+		PopupTestPending = 1;
+		PopupsAllowed = 0;
+		PopupsFailed = 0;
+		let DoPopupTest = function()
 		{
-			window.alert('To use Autocapture, you need to allow popups. please click the icon in the right side of the adress bar');
-		};
-		var Check = function()
-		{
-			if(!(W.innerHeight>0))
-				Fail();
+			var W = window.open("about:blank");
+			var Fail = function()
+			{
+				PopupTestPending = 0;
+				PopupsFailed = 1;
+				PopupsAllowed = 0;
+			};
+			var Check = function()
+			{
+				if(!(W.innerHeight>0))
+					Fail();
+				else
+				{
+					PopupTestPending = 0;
+					PopupsFailed = 0;
+					PopupsAllowed = 1;
+					W.close();
+				}
+			};
+			if(W)
+			{
+				if(/chrome/.test(navigator.userAgent.toLowerCase()))
+					setTimeout(Check, 200);
+				else
+					W.onload = Check;
+			}
 			else
 			{
-				PopupsAllowed = 1;
-				W.close();
+				Fail();
 			}
 		};
-		if(W)
-		{
-            if(/chrome/.test(navigator.userAgent.toLowerCase()))
-            	setTimeout(Check, 200);
-            else
-            	W.onload = Check;
-		}
-		else
-		{
-			Fail();
-		}
+		setTimeout(DoPopupTest, 5000);
 	}
 }
 
@@ -4101,8 +4178,8 @@ function DrawMenuCapture()
 {
 	let Selection = null;
 	let SizeInfo = {};
-	SizeInfo.h = 4 * BoxHeight;
-	let Strings = ["AutoCapture Enabled", "AutoCapture Threshold", "AutoCapture Source", "Capture Length"];
+	SizeInfo.h = 6 * BoxHeight;
+	let Strings = ["Popups Allowed", "AutoCapture Enabled", "AutoCapture Threshold", "AutoCapture Source", "Capture Length", "Capture Delay"];
 	let wLeft = MeasureArray(0, Strings);
 	let wRight = 50;
 	wRight = MeasureArray(wRight, ["Frame Time"]);
@@ -4115,14 +4192,23 @@ function DrawMenuCapture()
 	let M = CreateMenuState(SizeInfo);
 	let context = CanvasDetailedView.getContext('2d');
 	context.fillRect(M.x, M.y, Width, SizeInfo.h);
+	let t = new Date().getMilliseconds() / 200;
+	let dots = [".  ",".. ","...",".. "];
+	let x = Math.floor(t) %4;
+	let d = dots[x];
+	let PopupStatus = PopupsAllowed ? "Yes" :  (PopupsFailed ? "No" : (PopupTestPending ? ("Testing"+d) : "Untested"));
+	if(DrawMenuElement(M, 0, "Popups Allowed", PopupStatus, 'white', 0))
+	{
+		CheckPopupAllowed();
+	}
 	if(DrawMenuElement(M, 0, "AutoCapture Enabled", AutoCaptureEnabled ? "on" : "off", 'white', 0))
 	{
 		AutoCaptureEnabled = !AutoCaptureEnabled;
-		CheckPopupAllowed();
 	}
 	AutoCaptureSourceTweak = DrawMenuRoll(M, "AutoCapture Source", GetAutoCaptureString(), '', AutoCaptureSourceRoll, AutoCaptureSourceTweak);
 	AutoCaptureTweak = DrawMenuRoll(M, "AutoCapture Threshold", Settings.AutoCaptureTheshold, 'ms', AutoCaptureRoll, AutoCaptureTweak, 'int');
 	CaptureTweak = DrawMenuRoll(M, "Capture Length",  Settings.CaptureFrames, '', CaptureRoll, CaptureTweak, 'int');
+	CaptureDelayTweak = DrawMenuRoll(M, "Capture Delay",  Settings.CaptureDelay, '', CaptureDelayRoll, CaptureDelayTweak, 'int');
 
 	SizeInfo.h = M.y - SizeInfo.y;
 	return SizeInfo;
@@ -5482,6 +5568,7 @@ var PendingDraw = 0;
 
 function Draw()
 {
+	CaptureUpdate();
 	PendingDraw = 0;
 	ProfileModeClear();
 	ProfileEnter("Total");
@@ -6222,7 +6309,7 @@ function ProcessFrame(F, Inactive)
 
 		if(TriggerAutoCapture)
 		{
-			Capture();
+			TriggerCapture();
 			AutoCaptureEnabled = 0;
 		}
 		ReferenceGraphAutomaticGroup = 1.05 * GraphTimeGroupMax;
@@ -6547,10 +6634,10 @@ function MouseHandleDragClick()
 			}
 			Draw(1);
 		}
-		if(MouseInCaptureButton)
-		{
-			Capture();
-		}
+	}
+	if(MouseInCaptureButton)
+	{
+		TriggerCapture();
 	}
 }
 
@@ -6761,7 +6848,7 @@ function KeyUp(evt)
 		}
 		if(k == 13)
 		{
-			Capture();
+			TriggerCapture();
 		}
 		if(k == 72)
 		{
