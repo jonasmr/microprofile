@@ -170,11 +170,15 @@ var AggregateHistorySize = 5;
 var AggregateTweak = -1;
 var AggregateCurrent = 0;
 
+var AutoCaptureCooldown = -1;
 var AutoCaptureEnabled = 0;
 var AutoCaptureDefaultThreshold = 66;
 Settings.AutoCaptureTheshold = AutoCaptureDefaultThreshold;
+Settings.AutoCaptureRepeat = 1;
 var AutoCaptureThesholdPresets = [1,3,5,10,15,30,50,66,90,100,250,500,1000];
+var AutoCaptureRepeatPresets = [1,2,3,4,5,6,7,8,9,10, 25, 50, 100];
 var AutoCaptureTweak = -1;
+var AutoCaptureRepeatTweak = -1;
 var AutoCaptureSourceTweak = -1;
 var AutoCaptureSourceIndex = -1;
 
@@ -187,6 +191,7 @@ var CaptureTweak = -1;
 var CaptureDelayTweak = -1;
 
 var CaptureTriggerTime = null;
+var CaptureTriggerTimeType = 0;
 var CaptureTriggerDelta = 0;
 
 
@@ -2915,8 +2920,24 @@ function DrawCaptureMenu(context)
 		context.fillRect(X1, Y, w, 4 + FontHeight);
 		context.fillStyle = '#ffffff';
 		context.fillText(text, X1 + w*0.5, Y + FontHeight);	
+		X1 += w;
 	}
 
+	let Pending = (CaptureTriggerTime != null && CaptureTriggerTimeType == 2);
+	if(AutoCaptureEnabled || Pending)
+	{
+		let d = Dots();
+		let AutoStatus = Pending ? (" pending" + Dots()) : "";
+		let Source = GetAutoCaptureString();
+		let Threshold = FormatTime(Settings.AutoCaptureTheshold);
+		let str = "Autocapture " + AutoStatus + " Source:'" + Source + "' Threshold:" + Threshold + "ms Repeat=" + (Pending?Settings.AutoCaptureRepeat:AutoCaptureEnabled);
+		let w = 10 + context.measureText(str).width;
+		context.fillStyle = 'black';
+		context.fillRect(X1, Y, w, 4 + FontHeight);
+		context.fillStyle = '#ffffff';
+		context.fillText(str, X1 + w*0.5, Y + FontHeight);	
+		X1 += w;
+	}
 
 	context.textAlign = 'left';
 	if(bMouseInCaptureMenu)
@@ -3121,6 +3142,7 @@ function TriggerCapture()
 	else
 	{
 		CaptureTriggerTime = new Date();
+		CaptureTriggerTimeType = 1; 
 	}
 }
 function CaptureUpdate()
@@ -3132,15 +3154,24 @@ function CaptureUpdate()
 		CaptureTriggerDelta = Math.max(0.0, (Settings.CaptureDelay * 1000 - Delta) / 1000.0);
 		if(Delta > Settings.CaptureDelay * 1000)
 		{
-			Capture();
+			if(CaptureTriggerTimeType == 1)
+			{
+				Capture();
+			}
+			else if(CaptureTriggerTimeType == 2)
+			{
+				AutoCaptureEnabled = Settings.AutoCaptureRepeat > 0 ? Settings.AutoCaptureRepeat : 1;
+			}
 			CaptureTriggerTime = null;
 			CaptureTriggerDelta = 0;
+			CaptureTriggerTimeType = 0;
 		}
 	}
 
 }
 function Capture()
 {
+	AutoCaptureCooldown = Settings.CaptureFrames + 5;
 	var ext = '' + Settings.CaptureFrames;
 	if(MouseDragActiveXEnd > MouseDragActiveXStart)
 	{
@@ -3804,7 +3835,21 @@ function AutoCaptureRoll(Direction, Tweak, SetDirect)
 		Settings.AutoCaptureTheshold = NextValue(AutoCaptureThesholdPresets, Settings.AutoCaptureTheshold, Direction);
 	}
 }
-
+function AutoCaptureRepeatRoll(Direction, Tweak, SetDirect)
+{
+	if(SetDirect)
+	{
+		Settings.AutoCaptureRepeat = SetDirect;
+	}
+	else if(Tweak)
+	{
+		Settings.AutoCaptureRepeat = TweakValue(Settings.AutoCaptureRepeat, Tweak, 0.98, 1, 500);
+	}
+	else if(Direction)
+	{
+		Settings.AutoCaptureRepeat = NextValue(AutoCaptureRepeatPresets, Settings.AutoCaptureRepeat, Direction);
+	}
+}
 function CaptureRoll(Direction, Tweak, SetDirect)
 {
 	if(SetDirect)
@@ -4174,11 +4219,18 @@ function DrawMenuGraphSettings()
 
 }
 
+function Dots()
+{
+	let t = new Date().getMilliseconds() / 200;
+	let dots = [".  ",".. ","...",".. "];
+	let x = Math.floor(t) %4;
+	return dots[x];
+}
 function DrawMenuCapture()
 {
 	let Selection = null;
 	let SizeInfo = {};
-	SizeInfo.h = 6 * BoxHeight;
+	SizeInfo.h = 7 * BoxHeight;
 	let Strings = ["Popups Allowed", "AutoCapture Enabled", "AutoCapture Threshold", "AutoCapture Source", "Capture Length", "Capture Delay"];
 	let wLeft = MeasureArray(0, Strings);
 	let wRight = 50;
@@ -4192,21 +4244,44 @@ function DrawMenuCapture()
 	let M = CreateMenuState(SizeInfo);
 	let context = CanvasDetailedView.getContext('2d');
 	context.fillRect(M.x, M.y, Width, SizeInfo.h);
-	let t = new Date().getMilliseconds() / 200;
-	let dots = [".  ",".. ","...",".. "];
-	let x = Math.floor(t) %4;
-	let d = dots[x];
+	let d = Dots();
 	let PopupStatus = PopupsAllowed ? "Yes" :  (PopupsFailed ? "No" : (PopupTestPending ? ("Testing"+d) : "Untested"));
 	if(DrawMenuElement(M, 0, "Popups Allowed", PopupStatus, 'white', 0))
 	{
 		CheckPopupAllowed();
 	}
-	if(DrawMenuElement(M, 0, "AutoCapture Enabled", AutoCaptureEnabled ? "on" : "off", 'white', 0))
+	let AutoStatus = AutoCaptureEnabled > 0 ? "on" : "off";
+	if(CaptureTriggerTime != null && CaptureTriggerTimeType == 2)
 	{
-		AutoCaptureEnabled = !AutoCaptureEnabled;
+		AutoStatus = "pending"+d;
+	}
+	if(DrawMenuElement(M, 0, "AutoCapture Enabled", AutoStatus, 'white', 0))
+	{
+		if(!AutoCaptureEnabled && CaptureTriggerTime == null)
+		{
+			if(Settings.CaptureDelay <= 0)
+			{
+				AutoCaptureEnabled = Settings.AutoCaptureRepeat > 0 ? Settings.AutoCaptureRepeat : 1;
+			}
+			else
+			{
+				CaptureTriggerTime = new Date();
+				CaptureTriggerTimeType = 2; 
+			}
+		}
+		else
+		{
+			AutoCaptureEnabled = 0;
+			if(CaptureTriggerTimeType == 2)
+			{
+				CaptureTriggerTimeType = 0;
+				CaptureTriggerTime = null;
+			}
+		}
 	}
 	AutoCaptureSourceTweak = DrawMenuRoll(M, "AutoCapture Source", GetAutoCaptureString(), '', AutoCaptureSourceRoll, AutoCaptureSourceTweak);
 	AutoCaptureTweak = DrawMenuRoll(M, "AutoCapture Threshold", Settings.AutoCaptureTheshold, 'ms', AutoCaptureRoll, AutoCaptureTweak, 'int');
+	AutoCaptureRepeatTweak = DrawMenuRoll(M, "AutoCapture Repeat", Settings.AutoCaptureRepeat, '', AutoCaptureRepeatRoll, AutoCaptureRepeatTweak, 'int');
 	CaptureTweak = DrawMenuRoll(M, "Capture Length",  Settings.CaptureFrames, '', CaptureRoll, CaptureTweak, 'int');
 	CaptureDelayTweak = DrawMenuRoll(M, "Capture Delay",  Settings.CaptureDelay, '', CaptureDelayRoll, CaptureDelayTweak, 'int');
 
@@ -6022,17 +6097,16 @@ function ProcessFrame(F, Inactive)
 		var CaptureId = null;
 		var AutoCapture = AutoCaptureEnabled && !IsFrozen;
 		AggregateCurrent = F.a;
-		//SetMessage("AGGR. " + AggregateCurrent);
 		if(F.m != Settings.ViewActive)
 		{
 			WSSendMessage("v" + Settings.ViewActive);
 		}
-		if(AutoCapture)
+		if(AutoCapture > 0 && null == CaptureTriggerTime && AutoCaptureCooldown < 0)
 		{
 			if(AutoCaptureSourceIndex == -1 && F.t > Settings.AutoCaptureTheshold)
 			{
+				AutoCaptureEnabled -= 1;
 				TriggerAutoCapture = 1;
-				console.log('trigger capture! ', F.t, ' ', Settings.AutoCaptureTheshold);
 			}
 			else if(AutoCaptureSourceIndex >= 0 && AutoCaptureSourceIndex < EnabledArray.length)
 			{
@@ -6043,11 +6117,13 @@ function ProcessFrame(F, Inactive)
 				 	if(Data[0] > Settings.AutoCaptureTheshold)
 				 	{
 				 		TriggerAutoCapture = 1;
+				 		AutoCaptureEnabled -= 1;
 						console.log('trigger capture! ', Data[0], ' ', Settings.AutoCaptureTheshold);
 				 	}
 				}
 			}
 		}
+		AutoCaptureCooldown = AutoCaptureCooldown - 1;
 
 		var GraphTimeMax = 0;
 		var GraphTimeGroupMax = 0;
@@ -6309,8 +6385,7 @@ function ProcessFrame(F, Inactive)
 
 		if(TriggerAutoCapture)
 		{
-			TriggerCapture();
-			AutoCaptureEnabled = 0;
+			Capture();
 		}
 		ReferenceGraphAutomaticGroup = 1.05 * GraphTimeGroupMax;
 		ReferenceGraphAutomatic = 1.05 * GraphTimeMax;
