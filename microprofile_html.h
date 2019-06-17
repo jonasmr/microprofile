@@ -595,6 +595,9 @@ const char g_MicroProfileHtml_end_0[] =
 "let ReferenceTimes = [-1, 5, 10, 15, 16, 20, 30, 33, 50, 100, 250, 500, 1000];\n"
 "let TargetTimes = [5, 10, 15, 16, 20, 30, 33, 50, 100, 250, 500, 1000];\n"
 "let ModeItems = [\"Detailed\", \"Timers\", \"Threads\", \"Groups\", \"Counters\"];\n"
+"let HideModeCollapsed = 0;\n"
+"let HideModeHidden = 1;\n"
+"let HideMode = HideModeCollapsed;\n"
 "\n"
 "\n"
 "function ProfileModeClear()\n"
@@ -1024,7 +1027,6 @@ const char g_MicroProfileHtml_end_0[] =
 "			}\n"
 "		}\n"
 "	}\n"
-"	UpdateGroupMenu();\n"
 "	WriteCookie();\n"
 "}\n"
 "\n"
@@ -1791,15 +1793,15 @@ const char g_MicroProfileHtml_end_0[] =
 "	}\n"
 "	else\n"
 "	{\n"
+"";
+
+const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
+const char g_MicroProfileHtml_end_1[] =
 "		return (Time*1000000).toFixed(0) + \"ns\";\n"
 "	}\n"
 "}\n"
 "\n"
-"function DrawDet";
-
-const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
-const char g_MicroProfileHtml_end_1[] =
-"ailedBackground(context)\n"
+"function DrawDetailedBackground(context)\n"
 "{\n"
 "	var fMs = fDetailedRange;\n"
 "	var fMsEnd = fMs + fDetailedOffset;\n"
@@ -3038,11 +3040,11 @@ const char g_MicroProfileHtml_end_1[] =
 "	ProfileLeave();\n"
 "}\n"
 "\n"
-"function DrawContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetaile";
+"function Dra";
 
 const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
 const char g_MicroProfileHtml_end_2[] =
-"dOffset, nHoverColor, MinWidth, bDrawEnabled, bSecond)\n"
+"wContextSwitchBars(context, ThreadId, fScaleX, fOffsetY, fDetailedOffset, nHoverColor, MinWidth, bDrawEnabled, bSecond)\n"
 "{\n"
 "	ProfileEnter(\"DrawContextSwitchBars\");\n"
 "	var CSObject = S.CSwitchCache[ThreadId];\n"
@@ -3384,8 +3386,15 @@ const char g_MicroProfileHtml_end_2[] =
 "		{\n"
 "			let nLog = ThreadOrderT[i];\n"
 "			let ThreadName = S0.ThreadNames[nLog];\n"
+"			let Active = ThreadsActive[ThreadName];\n"
 "			let ThreadColors = S0.ThreadColors[nLog];\n"
 "			ThreadYBegin[nLog] = fOffsetY;\n"
+"			if(HideMode == HideModeCollapsed && !Active)\n"
+"			{\n"
+"				continue;\n"
+"			}\n"
+"\n"
+"\n"
 "			var SMul = 2;\n"
 "			var LogHeight = (S0.MaxStack[nLog]) * BoxHeightScaledPos + BoxHeight;\n"
 "			var LogHeight2 = (S0.MaxStack2[nLog]) * BoxHeightScaledPos + BoxHeight;\n"
@@ -3410,7 +3419,7 @@ const char g_MicroProfileHtml_end_2[] =
 "					OY += LogHeight2 - 5;\n"
 "				}\n"
 "			}\n"
-"			let Active = ThreadsActive[ThreadName];\n"
+"			\n"
 "			let fOffsetYDelta = Active ? (LogHeight + LogHeight2 + Padding) : BoxHeight;\n"
 "\n"
 "			ThreadYBegin[nLog] = fOffsetY;\n"
@@ -4358,7 +4367,11 @@ const char g_MicroProfileHtml_end_2[] =
 "		var OffsetYTarget = OffsetYDest;\n"
 "		var TimestampStart = new Date();\n"
 "		var count = 0;\n"
-"		if(!ZoomTime)\n"
+"		if";
+
+const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
+const char g_MicroProfileHtml_end_3[] =
+"(!ZoomTime)\n"
 "		{			\n"
 "			ZoomTime = ZOOM_TIME;\n"
 "		}\n"
@@ -4366,11 +4379,7 @@ const char g_MicroProfileHtml_end_2[] =
 "		function ZoomFunc(Timestamp)\n"
 "		{\n"
 "			ZoomActive = 1;\n"
-"			var fPrc = (new Date() - TimestampSta";
-
-const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
-const char g_MicroProfileHtml_end_3[] =
-"rt) / (ZoomTime * 1000.0);\n"
+"			var fPrc = (new Date() - TimestampStart) / (ZoomTime * 1000.0);\n"
 "			if(fPrc > 1.0 || ZoomTime < 0.01)\n"
 "			{\n"
 "				fPrc = 1.0;\n"
@@ -4861,7 +4870,7 @@ const char g_MicroProfileHtml_end_3[] =
 "	let MatchCount = 0;\n"
 "	let MouseTaken = bMouseIn;\n"
 "\n"
-"	Y += BoxHeight * 2;\n"
+"	Y += BoxHeight * 3;\n"
 "	nColorIndex = 1-nColorIndex;\n"
 "\n"
 "	Y -= nOffsetMenuThreads;\n"
@@ -4932,10 +4941,14 @@ const char g_MicroProfileHtml_end_3[] =
 "		function(){let F = CreateFilteredArray(); ToggleThread(0, 0, F, 1); },\n"
 "		function(){let F = CreateFilteredArray(); ToggleThread(0, 0, F, 2); },\n"
 "	];\n"
+"	let ElementsOptions = [\"Hide mode\", HideMode ? \"Collapsed\" : \"Invisible\"];\n"
+"	let CallbacksOptions = [ null, function(){ HideMode = !HideMode; }];\n"
 "\n"
-"\n"
+"	DrawMultiMenu(context, X, YClear, Width, ElementsOptions, CallbacksOptions);\n"
+"	YClear += BoxHeight;\n"
 "	DrawMultiMenu(context, X, YClear, Width, ElementsAll, CallbacksAll);\n"
-"	DrawMultiMenu(context, X, YClear+BoxHeight, Width, ElementsFiltered, CallbacksFiltered);\n"
+"	YClear += BoxHeight;\n"
+"	DrawMultiMenu(context, X, YClear, Width, ElementsFiltered, CallbacksFiltered);\n"
 "\n"
 "	SizeInfo.h = Y-SizeInfo.y;\n"
 "	return SizeInfo;\n"
@@ -5764,7 +5777,11 @@ const char g_MicroProfileHtml_end_3[] =
 "function ToggleFilterInput(escape)\n"
 "{\n"
 "	var ActiveElement = -1;\n"
-"	for(var i = 0; i < FilterInputArray.length; ++i)\n"
+"	for(v";
+
+const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
+const char g_MicroProfileHtml_end_4[] =
+"ar i = 0; i < FilterInputArray.length; ++i)\n"
 "	{\n"
 "		if(FilterInputArray[i] == document.activeElement)\n"
 "		{\n"
@@ -5784,11 +5801,7 @@ const char g_MicroProfileHtml_end_3[] =
 "			ShowFilterInput(1);\n"
 "			FilterInputArray[ActiveElement].focus();\n"
 "		}\n"
-"	}";
-
-const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
-const char g_MicroProfileHtml_end_4[] =
-"\n"
+"	}\n"
 "	else\n"
 "	{\n"
 "		if(-1 == OldActiveElement)\n"
@@ -7359,7 +7372,11 @@ const char g_MicroProfileHtml_end_4[] =
 "	S1.GroupInfo = NewGroupInfo;\n"
 "	for(let i = 0; i < S1.GroupInfo.length; ++i)\n"
 "	{\n"
-"		if(S1.GroupInfo[i].id != i)\n"
+"		if(S1.GroupInfo[i].id != ";
+
+const size_t g_MicroProfileHtml_end_4_size = sizeof(g_MicroProfileHtml_end_4);
+const char g_MicroProfileHtml_end_5[] =
+"i)\n"
 "			debugger;\n"
 "		if(S0.GroupInfo[i].id != i)\n"
 "			debugger;\n"
@@ -7380,11 +7397,7 @@ const char g_MicroProfileHtml_end_4[] =
 "			debugger;\n"
 "	}\n"
 "\n"
-"	if(S0.GroupInfo.length != S1.GroupInfo.le";
-
-const size_t g_MicroProfileHtml_end_4_size = sizeof(g_MicroProfileHtml_end_4);
-const char g_MicroProfileHtml_end_5[] =
-"ngth)\n"
+"	if(S0.GroupInfo.length != S1.GroupInfo.length)\n"
 "		debugger;\n"
 "	for(let i = 0; i < S0.GroupInfo.length; ++i)\n"
 "	{\n"

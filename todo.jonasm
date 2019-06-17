@@ -1,10 +1,13 @@
 
+live: fix graph for recursion
 
-* delay capture/autocapture
-* rewrite capture menu
+capture: fix search no longer finds undrawn elements
+capture: when collapsing, view is zoomed so nothing is visible, snap to bottom
 
-repeat auto-capture
-fix graph for recursion?
+* capture: make an option to autohide fully
+* live: delay capture/autocapture
+* live: rewrite capture menu
+* live: repeat auto-capture
 
 verify merge
 patching x86

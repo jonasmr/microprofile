@@ -581,6 +581,9 @@ let MouseMoveTime = new Date();
 let ReferenceTimes = [-1, 5, 10, 15, 16, 20, 30, 33, 50, 100, 250, 500, 1000];
 let TargetTimes = [5, 10, 15, 16, 20, 30, 33, 50, 100, 250, 500, 1000];
 let ModeItems = ["Detailed", "Timers", "Threads", "Groups", "Counters"];
+let HideModeCollapsed = 0;
+let HideModeHidden = 1;
+let HideMode = HideModeCollapsed;
 
 
 function ProfileModeClear()
@@ -1010,7 +1013,6 @@ function ToggleGroup(GroupName, All, FilterArray, State)
 			}
 		}
 	}
-	UpdateGroupMenu();
 	WriteCookie();
 }
 
@@ -3362,8 +3364,15 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 		{
 			let nLog = ThreadOrderT[i];
 			let ThreadName = S0.ThreadNames[nLog];
+			let Active = ThreadsActive[ThreadName];
 			let ThreadColors = S0.ThreadColors[nLog];
 			ThreadYBegin[nLog] = fOffsetY;
+			if(HideMode == HideModeCollapsed && !Active)
+			{
+				continue;
+			}
+
+
 			var SMul = 2;
 			var LogHeight = (S0.MaxStack[nLog]) * BoxHeightScaledPos + BoxHeight;
 			var LogHeight2 = (S0.MaxStack2[nLog]) * BoxHeightScaledPos + BoxHeight;
@@ -3388,7 +3397,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					OY += LogHeight2 - 5;
 				}
 			}
-			let Active = ThreadsActive[ThreadName];
+			
 			let fOffsetYDelta = Active ? (LogHeight + LogHeight2 + Padding) : BoxHeight;
 
 			ThreadYBegin[nLog] = fOffsetY;
@@ -4835,7 +4844,7 @@ function DrawMenuThreads()
 	let MatchCount = 0;
 	let MouseTaken = bMouseIn;
 
-	Y += BoxHeight * 2;
+	Y += BoxHeight * 3;
 	nColorIndex = 1-nColorIndex;
 
 	Y -= nOffsetMenuThreads;
@@ -4906,10 +4915,14 @@ function DrawMenuThreads()
 		function(){let F = CreateFilteredArray(); ToggleThread(0, 0, F, 1); },
 		function(){let F = CreateFilteredArray(); ToggleThread(0, 0, F, 2); },
 	];
+	let ElementsOptions = ["Hide mode", HideMode ? "Collapsed" : "Invisible"];
+	let CallbacksOptions = [ null, function(){ HideMode = !HideMode; }];
 
-
+	DrawMultiMenu(context, X, YClear, Width, ElementsOptions, CallbacksOptions);
+	YClear += BoxHeight;
 	DrawMultiMenu(context, X, YClear, Width, ElementsAll, CallbacksAll);
-	DrawMultiMenu(context, X, YClear+BoxHeight, Width, ElementsFiltered, CallbacksFiltered);
+	YClear += BoxHeight;
+	DrawMultiMenu(context, X, YClear, Width, ElementsFiltered, CallbacksFiltered);
 
 	SizeInfo.h = Y-SizeInfo.y;
 	return SizeInfo;
