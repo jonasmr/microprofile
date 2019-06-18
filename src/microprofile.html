@@ -3151,18 +3151,18 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 	{
 		return;
 	}
-	var bSecond = S != S0;
+	let bSecond = S != S0;
 	if(bDrawEnabled && !bSecond)
 	{
 		DrawDetailedBackground(context);
 	}
 
-	var colors = [ '#ff0000', '#ff00ff', '#ffff00'];
-	var fScaleX = nWidth / fDetailedRange; 
-	var fOffsetY = -nOffsetY + BoxHeight;
+	let colors = [ '#ff0000', '#ff00ff', '#ffff00'];
+	let fScaleX = nWidth / fDetailedRange; 
+	let fOffsetY = -nOffsetY + BoxHeight;
 
 
-	var nHoverTokenStack = -1;
+	let nHoverTokenStack = -1;
 	if(S == S0)
 	{
 		nHoverCounter += nHoverCounterDelta;
@@ -3177,20 +3177,20 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			nHoverCounterDelta = -nHoverCounterDelta;
 		}
 	}
-	var nHoverHigh = nHoverCounter.toString(16);
-	var nHoverLow = (127+255-nHoverCounter).toString(16);
-	var nHoverColor = '#' + nHoverHigh + nHoverHigh + nHoverHigh;
-	var nHoverColorIndex;
+	let nHoverHigh = nHoverCounter.toString(16);
+	let nHoverLow = (127+255-nHoverCounter).toString(16);
+	let nHoverColor = '#' + nHoverHigh + nHoverHigh + nHoverHigh;
+	let nHoverColorIndex;
 
 	context.fillStyle = 'black';
 	context.font = Font;
 	// context.textBaseline = 'alphabetic';
 
-	var nNumLogs = S.Frames[0].ts.length;
+	let nNumLogs = S.Frames[0].ts.length;
 	if(S0)
 	{
-		var l0 = S0.Frames[0].ts.length;
-		var l1 = S.Frames[0].ts.length
+		let l0 = S0.Frames[0].ts.length;
+		let l1 = S.Frames[0].ts.length
 		if(l1 != l0)
 			debugger;
 	}
@@ -3201,9 +3201,9 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 		XOffset = fDetailedOffsetSecond;
 		Off += XOffset;
 	}
-	var fTimeEnd = Off + fDetailedRange;
+	let fTimeEnd = Off + fDetailedRange;
 
-	var FirstFrame = 0;
+	let FirstFrame = 0;
 	for(let i = 0; i < S.Frames.length ; i++)
 	{
 		if(S.Frames[i].frameend < Off)
@@ -3212,11 +3212,11 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 		}
 	}
 
-	var BoxHeightScaled = BoxHeight;
-	var Scale = 1;
-	var fExtra = 0;
-	var Padding = 15;
-	var SecondReverseOffset = 0;
+	let BoxHeightScaled = BoxHeight;
+	let Scale = 1;
+	let fExtra = 0;
+	let Padding = 15;
+	let SecondReverseOffset = 0;
 	if(DrawDetailedFlameMode == 1)
 	{
 		BoxHeightScaled = Math.ceil(BoxHeight*0.5);
@@ -3233,16 +3233,16 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 		BoxHeightScaled = -BoxHeightScaled;
 		SecondReverseOffset = 5-BoxHeight;
 	}
-	var BoxHeightScaledPos = Math.abs(BoxHeightScaled);
-	var Levels = [];
-	var BatchesTxtColor = ['#ffffff', '#333333'];
+	let BoxHeightScaledPos = Math.abs(BoxHeightScaled);
+	let Levels = [];
+	let BatchesTxtColor = ['#ffffff', '#333333'];
 
-	var AddBatch = function(StackPos, index, X, Y, W, Name, NameLen, Duration)
+	let AddBatch = function(StackPos, index, X, Y, W, Name, NameLen, Duration)
 	{
-		var L = Levels[StackPos];
+		let L = Levels[StackPos];
 		if(!L)
 		{
-			for(var j = 0; j < StackPos+1; ++j)
+			for(let j = 0; j < StackPos+1; ++j)
 			{
 				if(!Levels[j])
 				{
@@ -3251,44 +3251,44 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					L.Batches = new Array(g_Colors.length+1);
 					L.BatchesTxt = new Array();
 					L.BatchesTxtPos = new Array();
-					for(var i = 0; i < 2; ++i)
+					for(let i = 0; i < 2; ++i)
 					{
 						L.BatchesTxt[i] = Array();
 						L.BatchesTxtPos[i] = Array();
 					}
-					for(var i = 0; i < L.Batches.length; ++i)
+					for(let i = 0; i < L.Batches.length; ++i)
 					{
 						L.Batches[i] = Array();
 					}
 				}
 			}
 		}
-		var B = L.Batches[index];
-		var txtidx = g_ColorsTextIndex[index];
+		let B = L.Batches[index];
+		let txtidx = g_ColorsTextIndex[index];
 		if(txtidx < 0 || txtidx > 1)
 			debugger;
-		var BTxt = L.BatchesTxt[txtidx];
-		var BTxtPos = L.BatchesTxtPos[txtidx];
+		let BTxt = L.BatchesTxt[txtidx];
+		let BTxtPos = L.BatchesTxtPos[txtidx];
 		B.push(X);
 		B.push(Y);
 		B.push(W);
 		DebugDrawQuadCount++;
 
-		var XText = X < 0 ? 0 : X;
-		var WText = W - (XText-X);
+		let XText = X < 0 ? 0 : X;
+		let WText = W - (XText-X);
 		if(XText + WText > nWidth)
 		{
 			WText = nWidth - XText;
 		}
-		var BarTextLen = Math.floor((WText-2)/FontWidth);
-		var TimeText = TimeToMsString(Duration);
-		var TimeTextLen = TimeText.length;
+		let BarTextLen = Math.floor((WText-2)/FontWidth);
+		let TimeText = TimeToMsString(Duration);
+		let TimeTextLen = TimeText.length;
 
 		if(BarTextLen >= 2)
 		{
 			if(BarTextLen < NameLen)
 				Name = Name.substr(0, BarTextLen);
-			var YPos = Y+BoxHeight-FontAscent;
+			let YPos = Y+BoxHeight-FontAscent;
 			BTxt.push(Name);
 			BTxtPos.push(XText+2);
 
@@ -3310,29 +3310,29 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 		fOffsetY += BoxHeight;
 
 
-		var Times = Timeline.Times;
-		var Colors = Timeline.Colors;
-		var Ends = Timeline.Ends;
-		var Positions = Timeline.Positions;
-		var Names = Timeline.Names;
-		var off = 0.7;
-		var off2 = 2*off;
-		var MaxPosition = 1;
+		let Times = Timeline.Times;
+		let Colors = Timeline.Colors;
+		let Ends = Timeline.Ends;
+		let Positions = Timeline.Positions;
+		let Names = Timeline.Names;
+		let off = 0.7;
+		let off2 = 2*off;
+		let MaxPosition = 1;
 
 		for(let i = 0; i < Timeline.Positions.length; ++i)
 		{
-			var TimeStart = Times[i];
-			var TimeEnd = Ends[i];
-			var Position = Positions[i];
+			let TimeStart = Times[i];
+			let TimeEnd = Ends[i];
+			let Position = Positions[i];
 			if(Position >= 0)
 			{
 				MaxPosition = Math.max(Position, MaxPosition);
-				var Color = Colors[i];
-				var Name = Names[i];
-				var P = Positions[i];
-				var X = (TimeStart - Off) * fScaleX;
-				var Y = fOffsetY + P * (BoxHeight+2);
-				var W = (TimeEnd-TimeStart)*fScaleX;
+				let Color = Colors[i];
+				let Name = Names[i];
+				let P = Positions[i];
+				let X = (TimeStart - Off) * fScaleX;
+				let Y = fOffsetY + P * (BoxHeight+2);
+				let W = (TimeEnd-TimeStart)*fScaleX;
 				if(!bSecond)
 				{
 					if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
@@ -3350,8 +3350,8 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 		}
 		fOffsetY += (1+MaxPosition) * (BoxHeight+3);
 	}
-	var nMinTimeMs = MinWidth / fScaleX;
-	var DrawGuides = 1;
+	let nMinTimeMs = MinWidth / fScaleX;
+	let DrawGuides = 1;
 	{
 		if(!ThreadYBegin)
 		{
@@ -3372,9 +3372,9 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			}
 
 
-			var SMul = 2;
-			var LogHeight = (S0.MaxStack[nLog]) * BoxHeightScaledPos + BoxHeight;
-			var LogHeight2 = (S0.MaxStack2[nLog]) * BoxHeightScaledPos + BoxHeight;
+			let SMul = 2;
+			let LogHeight = (S0.MaxStack[nLog]) * BoxHeightScaledPos + BoxHeight;
+			let LogHeight2 = (S0.MaxStack2[nLog]) * BoxHeightScaledPos + BoxHeight;
 			if(nContextSwitchEnabled)
 			{
 				LogHeight += (CSwitchHeight+4);
@@ -3384,7 +3384,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			{
 				LogHeight2 = 0;
 			}
-			var OY = fOffsetY;
+			let OY = fOffsetY;
 			if(!bSecond)
 			{
 				OY += LogHeight2+1;
@@ -3402,7 +3402,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			ThreadYBegin[nLog] = fOffsetY;
 			ThreadYEnd[nLog] = fOffsetY + fOffsetYDelta;
 
-			var ThreadHover = false;
+			let ThreadHover = false;
 			if(bDrawEnabled)
 			{
 				if(Active || !bSecond)
@@ -3464,9 +3464,9 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 
 			if(Active)
 			{
-				var LodIndex = 0;
-				var MinDelta = 0;
-				var NextLod = 1;
+				let LodIndex = 0;
+				let MinDelta = 0;
+				let NextLod = 1;
 				while(NextLod < S.LodData.length && S.LodData[NextLod].MinDelta[nLog] < nMinTimeMs)
 				{
 					LodIndex = NextLod;
@@ -3477,7 +3477,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				{
 					LodIndex = S.LodData.length-1;
 				}
-				if(DisableLod)
+				if(DisableLod || FilterSearchPassIndex != -1)
 				{
 					LodIndex = 0;
 				}
@@ -3490,28 +3490,28 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					OY += Scale * (CSwitchHeight+2);
 				}
 				OY += SecondReverseOffset;
-				var MaxDepth = 1;
-				var StackPos = 0;
-				var Stack = Array(20);
-				var Lod = S.LodData[LodIndex];
+				let MaxDepth = 1;
+				let StackPos = 0;
+				let Stack = Array(20);
+				let Lod = S.LodData[LodIndex];
 
-				var TypeArray = Lod.TypeArray[nLog];
-				var IndexArray = Lod.IndexArray[nLog];
-				var TimeArray = Lod.TimeArray[nLog];
+				let TypeArray = Lod.TypeArray[nLog];
+				let IndexArray = Lod.IndexArray[nLog];
+				let TimeArray = Lod.TimeArray[nLog];
 
-				var LocalFirstFrame = S.Frames[FirstFrame].FirstFrameIndex[nLog];
-				var IndexStart = S.ISGPU[nLog] ? 0 : Lod.LogStart[LocalFirstFrame][nLog];
-				var IndexEnd = TimeArray.length;
+				let LocalFirstFrame = S.Frames[FirstFrame].FirstFrameIndex[nLog];
+				let IndexStart = S.ISGPU[nLog] ? 0 : Lod.LogStart[LocalFirstFrame][nLog];
+				let IndexEnd = TimeArray.length;
 				IndexEnd = TimeArray.length;
-				var HasSetHover = 0;
+				let HasSetHover = 0;
 
 
 
 				for(let j = IndexStart; j < IndexEnd; ++j)
 				{
-					var type = TypeArray[j];
-					var index = IndexArray[j];
-					var time = TimeArray[j];
+					let type = TypeArray[j];
+					let index = IndexArray[j];
+					let time = TimeArray[j];
 					if(type == 1)
 					{
 						//push
@@ -3528,19 +3528,19 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 						{
 							StackPos--;
 
-							var StartIndex = Stack[StackPos];
-							var timestart = TimeArray[StartIndex];
-							var timeend = time;
-							var X = (timestart - Off) * fScaleX;
-							var Y = OY + StackPos * BoxHeightScaled;
+							let StartIndex = Stack[StackPos];
+							let timestart = TimeArray[StartIndex];
+							let timeend = time;
+							let X = (timestart - Off) * fScaleX;
+							let Y = OY + StackPos * BoxHeightScaled;
 
-							var W = (timeend-timestart)*fScaleX;
+							let W = (timeend-timestart)*fScaleX;
 
 							if(X < nWidth && X+W > 0)
 							{
 								if(index == FilterSearchPassIndex)
 								{
-									var Range = RangeInit();
+									let Range = RangeInit();
 									Range.Begin = timestart;
 									Range.End = timeend;
 									Range.Thread = nLog;
@@ -3560,7 +3560,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 								{
 									if(bDrawEnabled || index == nHoverToken)
 									{
-										var cid = GroupColors == 2 ? ThreadColors.colordark_cid : S0.TimerInfo[index].cid;
+										let cid = GroupColors == 2 ? ThreadColors.colordark_cid : S0.TimerInfo[index].cid;
 										if(index == nHoverToken)
 										{
 											nHoverColorIndex = cid;
@@ -3613,7 +3613,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				{
 					for(let i = 0; i < S.Frames.length-1; ++i)
 					{
-						var IndexStart = Lod.LogStart[i][nLog];
+						let IndexStart = Lod.LogStart[i][nLog];
 						if(nHoverTokenIndexNext >= IndexStart)
 						{
 							nHoverFrame = i;
@@ -3621,7 +3621,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					}
 				}
 			}
-			var w = context.measureText(ThreadName).width;
+			let w = context.measureText(ThreadName).width;
 			context.fillStyle = nBackColors[0];
 			context.fillStyle = 'white';
 			context.fillText(ThreadName, 0, fOffsetY+FontHeight-1);
@@ -3644,11 +3644,11 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 
 		if(nContextSwitchEnabled && !bSecond) //non instrumented threads.
 		{
-			var CurrentPid = -112;
-			var ContextSwitchThreads = S.CSwitchOnlyThreads;
+			let CurrentPid = -112;
+			let ContextSwitchThreads = S.CSwitchOnlyThreads;
 			function DrawHeader(str, X, Y)
 			{
-				var width = str.length * FontWidth;
+				let width = str.length * FontWidth;
 				context.globalAlpha = 0.5;
 				context.fillStyle = 'grey';
 				context.fillRect(X, Y-FontHeight + 2, width, FontHeight);
@@ -3660,9 +3660,9 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			}
 			for(let i = 0; i < ContextSwitchThreads.length; ++i)
 			{
-				var ThreadId = ContextSwitchThreads[i];
-				var ThreadName = '' + ThreadId;
-				var TI = S.CSwitchThreads[ThreadId];
+				let ThreadId = ContextSwitchThreads[i];
+				let ThreadName = '' + ThreadId;
+				let TI = S.CSwitchThreads[ThreadId];
 
 				if(TI)
 				{
@@ -3670,7 +3670,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					{
 						fOffsetY += BoxHeight + 1;
 						CurrentPid = TI.pid;
-						var str = TI.pid.toString(16) +':' +TI.p;
+						let str = TI.pid.toString(16) +':' +TI.p;
 						DrawHeader(str, 0, fOffsetY+5);
 						fOffsetY += BoxHeight + 1;
 					}
@@ -3696,14 +3696,14 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			nOffsetY += Math.floor(Diff);
 			nOffsetY = Math.max(0, nOffsetY);
 		}
-		var FillRects = function(a, color, colordark)
+		let FillRects = function(a, color, colordark)
 		{
 			context.fillStyle = color;
-			for(var j = 0; j < a.length; j += 3)
+			for(let j = 0; j < a.length; j += 3)
 			{						
-				var X = a[j];
-				var Y = a[j+1];
-				var W = a[j+2];
+				let X = a[j];
+				let Y = a[j+1];
+				let W = a[j+2];
 				if(W >= 1)
 				{
 					context.fillRect(X, Y, W, BoxHeight-1);
@@ -3724,28 +3724,28 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 
 		for(let l = 0; l < Levels.length; ++l)
 		{
-			var Batches = Levels[l].Batches;
-			for(var i = 0; i < Batches.length; ++i)
+			let Batches = Levels[l].Batches;
+			for(let i = 0; i < Batches.length; ++i)
 			{
-				var a = Batches[i];
+				let a = Batches[i];
 				if(a.length)
 				{
 					if(!DisableMerge)
 					{
 						for(let j = 0; j < a.length; j += 3)
 						{						
-							var X = a[j];
-							var Y = a[j+1];
-							var BaseWidth = j + 2;
-							var W = a[BaseWidth];
+							let X = a[j];
+							let Y = a[j+1];
+							let BaseWidth = j + 2;
+							let W = a[BaseWidth];
 							while(j+1 < a.length && W < 1)
 							{
-								var jnext = j+3;
-								var XNext = a[jnext];
-								var YNext = a[jnext+1];
-								var WNext = a[jnext+2];
-								var Delta = XNext - (X+W);
-								var YDelta = Math.abs(Y - YNext);							
+								let jnext = j+3;
+								let XNext = a[jnext];
+								let YNext = a[jnext+1];
+								let WNext = a[jnext+2];
+								let Delta = XNext - (X+W);
+								let YDelta = Math.abs(Y - YNext);							
 								if(Delta < 0.3 && YDelta < 0.5 && WNext < 1)
 								{
 									W = (XNext+WNext) - X;
@@ -3761,24 +3761,24 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 							}
 						}
 					}
-					var Color = i == 0 ? nHoverColor : g_Colors[i];
-					var ColorDark = i == 0 ? nHoverColor : g_ColorsDark[i];
+					let Color = i == 0 ? nHoverColor : g_Colors[i];
+					let ColorDark = i == 0 ? nHoverColor : g_ColorsDark[i];
 					if(i == 0)
 					{
 						if(nHoverColorIndex)
 						{
-							var mult = nHoverCounter / 255.0;
-							var m2 =mult -0.5;
-							var m4 = m2 * 0.5;
-							var f = function()
+							let mult = nHoverCounter / 255.0;
+							let m2 =mult -0.5;
+							let m4 = m2 * 0.5;
+							let f = function()
 							{
-								var H = g_ColorH[nHoverColorIndex];
-								var S = g_ColorS[nHoverColorIndex];
-								var L = g_ColorL[nHoverColorIndex];
-								var offset = 0;
+								let H = g_ColorH[nHoverColorIndex];
+								let S = g_ColorS[nHoverColorIndex];
+								let L = g_ColorL[nHoverColorIndex];
+								let offset = 0;
 								if(S> 0.5)
 									offset = 0.5 - S;
-								var offsetL = 0;
+								let offsetL = 0;
 								if(L > 0.75)
 									offsetL = 0.75 - L;
 								L = L + m4 + offsetL;
@@ -3787,7 +3787,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 								S = S > 1 ? 1 : (S < 0 ? 0 : S);
 								return ConvertHslToColor(H, S, L);
 							};
-							var ColorCV = f();
+							let ColorCV = f();
 							ColorDark = Color = ColorCV; ;
 						}
 					}
@@ -3795,13 +3795,13 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 
 				}
 			}
-			var BatchesTxt = Levels[l].BatchesTxt;
-			var BatchesTxtPos = Levels[l].BatchesTxtPos;	
+			let BatchesTxt = Levels[l].BatchesTxt;
+			let BatchesTxtPos = Levels[l].BatchesTxtPos;	
 			for(let i = 0; i < BatchesTxt.length; ++i)
 			{
 				context.fillStyle = BatchesTxtColor[i];
-				var TxtArray = BatchesTxt[i];
-				var PosArray = BatchesTxtPos[i];
+				let TxtArray = BatchesTxt[i];
+				let PosArray = BatchesTxtPos[i];
 				for(let j = 0; j < TxtArray.length; ++j)
 				{
 					let k = j * 2;
@@ -3814,9 +3814,9 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 }
 function DrawTextBox(context, text, x, y, align)
 {
-	var textsize = context.measureText(text).width;
-	var offsetx = 0;
-	var offsety = -FontHeight;
+	let textsize = context.measureText(text).width;
+	let offsetx = 0;
+	let offsety = -FontHeight;
 	if(align == 'center')
 	{
 		offsetx = -textsize / 2.0;

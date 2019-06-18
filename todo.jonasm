@@ -1,8 +1,8 @@
 
 live: fix graph for recursion
 
-capture: fix search no longer finds undrawn elements
-capture: when collapsing, view is zoomed so nothing is visible, snap to bottom
+* capture: fix search no longer finds undrawn elements
+* capture: when collapsing, view is zoomed so nothing is visible, snap to bottom
 
 * capture: make an option to autohide fully
 * live: delay capture/autocapture
