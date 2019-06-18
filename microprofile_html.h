@@ -3375,7 +3375,6 @@ const char g_MicroProfileHtml_end_2[] =
 "	var nMinTimeMs = MinWidth / fScaleX;\n"
 "	var DrawGuides = 1;\n"
 "	{\n"
-"\n"
 "		if(!ThreadYBegin)\n"
 "		{\n"
 "			ThreadYBegin = Array(S0.ThreadNames.length);\n"
@@ -3464,7 +3463,7 @@ const char g_MicroProfileHtml_end_2[] =
 "					context.fillRect(0,BaseY,200,HeightY);\n"
 "				}\n"
 "			}\n"
-"				let D = fOffsetY + BoxHeight - DetailedViewMouseY;\n"
+"			let D = fOffsetY + BoxHeight - DetailedViewMouseY;\n"
 "			\n"
 "			if(bDrawEnabled && G_DEBUG && 0)\n"
 "			{\n"
@@ -3707,6 +3706,17 @@ const char g_MicroProfileHtml_end_2[] =
 " 				}\n"
 "				fOffsetY += BoxHeight + 1;\n"
 "			}\n"
+"		}\n"
+"		{\n"
+"			let h = nHeight;\n"
+"\n"
+"		}\n"
+"		let TOP_LIMIT = 100;\n"
+"		if(fOffsetY < TOP_LIMIT)\n"
+"		{\n"
+"			let Diff = fOffsetY - TOP_LIMIT;\n"
+"			nOffsetY += Math.floor(Diff);\n"
+"			nOffsetY = Math.max(0, nOffsetY);\n"
 "		}\n"
 "		var FillRects = function(a, color, colordark)\n"
 "		{\n"
@@ -4361,17 +4371,17 @@ const char g_MicroProfileHtml_end_2[] =
 "		AnimationActive = true;\n"
 "		var fDetailedOffsetOriginal = fDetailedOffset;\n"
 "		var fDetailedRangeOriginal = fDetailedRange;\n"
-"		var fDetailedOffsetTarget = fZoomBegin;\n"
+"		var fDetailedOffsetTarget ";
+
+const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
+const char g_MicroProfileHtml_end_3[] =
+"= fZoomBegin;\n"
 "		var fDetailedRangeTarget = fZoomEnd - fZoomBegin;\n"
 "		var OffsetYOriginal = nOffsetY;\n"
 "		var OffsetYTarget = OffsetYDest;\n"
 "		var TimestampStart = new Date();\n"
 "		var count = 0;\n"
-"		if";
-
-const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
-const char g_MicroProfileHtml_end_3[] =
-"(!ZoomTime)\n"
+"		if(!ZoomTime)\n"
 "		{			\n"
 "			ZoomTime = ZOOM_TIME;\n"
 "		}\n"
@@ -5761,7 +5771,11 @@ const char g_MicroProfileHtml_end_3[] =
 "	FilterInputGroupString = group;\n"
 "	FilterInputTimerString = timer;\n"
 "	FilterInputGroup.value = group?group:\'\';\n"
-"	FilterInputTimer.value = timer?timer:\'\';\n"
+"	FilterInputTimer.valu";
+
+const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
+const char g_MicroProfileHtml_end_4[] =
+"e = timer?timer:\'\';\n"
 "	FilterUpdate();\n"
 "	if(group || timer)\n"
 "	{\n"
@@ -5777,11 +5791,7 @@ const char g_MicroProfileHtml_end_3[] =
 "function ToggleFilterInput(escape)\n"
 "{\n"
 "	var ActiveElement = -1;\n"
-"	for(v";
-
-const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
-const char g_MicroProfileHtml_end_4[] =
-"ar i = 0; i < FilterInputArray.length; ++i)\n"
+"	for(var i = 0; i < FilterInputArray.length; ++i)\n"
 "	{\n"
 "		if(FilterInputArray[i] == document.activeElement)\n"
 "		{\n"
@@ -7364,7 +7374,11 @@ const char g_MicroProfileHtml_end_4[] =
 "	for(let i = 0; i < NewGroupInfo.length; ++i)\n"
 "	{\n"
 "		if(!NewGroupInfo[i])\n"
-"		{\n"
+"		{";
+
+const size_t g_MicroProfileHtml_end_4_size = sizeof(g_MicroProfileHtml_end_4);
+const char g_MicroProfileHtml_end_5[] =
+"\n"
 "			NewGroupInfo[i] = CloneGroup(S0.GroupInfo[i]);\n"
 "			NewGroupInfo[i].id = i;\n"
 "		}\n"
@@ -7372,11 +7386,7 @@ const char g_MicroProfileHtml_end_4[] =
 "	S1.GroupInfo = NewGroupInfo;\n"
 "	for(let i = 0; i < S1.GroupInfo.length; ++i)\n"
 "	{\n"
-"		if(S1.GroupInfo[i].id != ";
-
-const size_t g_MicroProfileHtml_end_4_size = sizeof(g_MicroProfileHtml_end_4);
-const char g_MicroProfileHtml_end_5[] =
-"i)\n"
+"		if(S1.GroupInfo[i].id != i)\n"
 "			debugger;\n"
 "		if(S0.GroupInfo[i].id != i)\n"
 "			debugger;\n"
@@ -7498,7 +7508,6 @@ const char g_MicroProfileHtml_end_5[] =
 "	if(index < fname.length)\n"
 "		fname = fname.substring(index);\n"
 "	let CompStr = \'Compare [\' + fname + \']\';\n"
-"	document.getElementById(\'ComparePromptA\').innerHTML = CompStr;\n"
 "	RequestRedraw();\n"
 "	return true;\n"
 "}\n"

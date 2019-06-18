@@ -3353,7 +3353,6 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 	var nMinTimeMs = MinWidth / fScaleX;
 	var DrawGuides = 1;
 	{
-
 		if(!ThreadYBegin)
 		{
 			ThreadYBegin = Array(S0.ThreadNames.length);
@@ -3442,7 +3441,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					context.fillRect(0,BaseY,200,HeightY);
 				}
 			}
-				let D = fOffsetY + BoxHeight - DetailedViewMouseY;
+			let D = fOffsetY + BoxHeight - DetailedViewMouseY;
 			
 			if(bDrawEnabled && G_DEBUG && 0)
 			{
@@ -3685,6 +3684,17 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
  				}
 				fOffsetY += BoxHeight + 1;
 			}
+		}
+		{
+			let h = nHeight;
+
+		}
+		let TOP_LIMIT = 100;
+		if(fOffsetY < TOP_LIMIT)
+		{
+			let Diff = fOffsetY - TOP_LIMIT;
+			nOffsetY += Math.floor(Diff);
+			nOffsetY = Math.max(0, nOffsetY);
 		}
 		var FillRects = function(a, color, colordark)
 		{
@@ -7464,7 +7474,6 @@ function ParseCompareData(Data)
 	if(index < fname.length)
 		fname = fname.substring(index);
 	let CompStr = 'Compare [' + fname + ']';
-	document.getElementById('ComparePromptA').innerHTML = CompStr;
 	RequestRedraw();
 	return true;
 }
