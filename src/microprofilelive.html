@@ -276,18 +276,18 @@ var WidthTree = 0;
 Settings.ViewActive = 0;
 Settings.ViewCompressed = 0;
 Settings.AllowHighDPI = 1;
-var ViewNames = ["Graph", "Graph", "Graph", "Graph", "Bars", "Bars", "Bars", "Counters"];
-var ViewNames2 = ["[split]", "[single]", "[percentile]","[group/thread]","[table]", "[all]", "[single]", ""];
+var ViewNames = ["Graph", "Graph", "Graph", "Bars", "Bars", "Bars", "Counters"];
+var ViewNames2 = ["[split]", "[percentile]","[group/thread]","[table]", "[all]", "[single]", ""];
 
 var VIEW_GRAPH_SPLIT = 0;
-var VIEW_GRAPH = 1;
-var VIEW_GRAPH_PERCENTILE = 2;
-var VIEW_GRAPH_THREAD_GROUP = 3;
-var VIEW_BAR = 4;
-var VIEW_BAR_ALL = 5;
-var VIEW_BAR_SINGLE = 6;
-var VIEW_COUNTERS = 7;
-var VIEW_SIZE = 8;
+// var VIEW_GRAPH = 1;
+var VIEW_GRAPH_PERCENTILE = 1;
+var VIEW_GRAPH_THREAD_GROUP = 2;
+var VIEW_BAR = 3;
+var VIEW_BAR_ALL = 4;
+var VIEW_BAR_SINGLE = 5;
+var VIEW_COUNTERS = 6;
+var VIEW_SIZE = 7;
 
 var GRAPH_ALPHA = 0.5;
 
@@ -1616,11 +1616,6 @@ function DrawGraphSplit(View, LocalMouseX, LocalMouseY, SubIndex)
 {
 	DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, 1);
 }
-function DrawGraphSingle(View, LocalMouseX, LocalMouseY, SubIndex)
-{
-	DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, 0);
-}
-
 
 function DrawGraphThreadExclusive(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 {
@@ -3217,7 +3212,6 @@ function DrawTopMenu()
 		if(i == SubMenuColumns)
 		{
 			if(Settings.ViewActive == VIEW_GRAPH_SPLIT || 
-				Settings.ViewActive == VIEW_GRAPH || 
 				Settings.ViewActive == VIEW_GRAPH_THREAD_GROUP ||
 				Settings.ViewActive == VIEW_GRAPH_PERCENTILE || 
 				Settings.ViewActive == VIEW_COUNTERS)
@@ -3712,11 +3706,6 @@ function ActivateView(idx)
 	else if(idx == VIEW_GRAPH_PERCENTILE)
 	{
 		MainView.DisplayFunc = DrawGraphPercentile;
-		MainView.visible = true;
-	}
-	else if(idx == VIEW_GRAPH)
-	{
-		MainView.DisplayFunc = DrawGraphSingle;
 		MainView.visible = true;
 	}
 	else if(idx == VIEW_GRAPH_THREAD_GROUP)

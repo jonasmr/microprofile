@@ -7865,18 +7865,18 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "Settings.ViewActive = 0;\n"
 "Settings.ViewCompressed = 0;\n"
 "Settings.AllowHighDPI = 1;\n"
-"var ViewNames = [\"Graph\", \"Graph\", \"Graph\", \"Graph\", \"Bars\", \"Bars\", \"Bars\", \"Counters\"];\n"
-"var ViewNames2 = [\"[split]\", \"[single]\", \"[percentile]\",\"[group/thread]\",\"[table]\", \"[all]\", \"[single]\", \"\"];\n"
+"var ViewNames = [\"Graph\", \"Graph\", \"Graph\", \"Bars\", \"Bars\", \"Bars\", \"Counters\"];\n"
+"var ViewNames2 = [\"[split]\", \"[percentile]\",\"[group/thread]\",\"[table]\", \"[all]\", \"[single]\", \"\"];\n"
 "\n"
 "var VIEW_GRAPH_SPLIT = 0;\n"
-"var VIEW_GRAPH = 1;\n"
-"var VIEW_GRAPH_PERCENTILE = 2;\n"
-"var VIEW_GRAPH_THREAD_GROUP = 3;\n"
-"var VIEW_BAR = 4;\n"
-"var VIEW_BAR_ALL = 5;\n"
-"var VIEW_BAR_SINGLE = 6;\n"
-"var VIEW_COUNTERS = 7;\n"
-"var VIEW_SIZE = 8;\n"
+"// var VIEW_GRAPH = 1;\n"
+"var VIEW_GRAPH_PERCENTILE = 1;\n"
+"var VIEW_GRAPH_THREAD_GROUP = 2;\n"
+"var VIEW_BAR = 3;\n"
+"var VIEW_BAR_ALL = 4;\n"
+"var VIEW_BAR_SINGLE = 5;\n"
+"var VIEW_COUNTERS = 6;\n"
+"var VIEW_SIZE = 7;\n"
 "\n"
 "var GRAPH_ALPHA = 0.5;\n"
 "\n"
@@ -8959,12 +8959,12 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "\n"
 "	var wfirst = 100;\n"
 "	var OrderArray = new Array();\n"
-"	var nTotalRows =";
+"	var nTotalRows = 0;\n"
+"	for(var key i";
 
 const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
 const char g_MicroProfileHtmlLive_begin_1[] =
-" 0;\n"
-"	for(var key in TimerMap)\n"
+"n TimerMap)\n"
 "	{\n"
 "		var idx = GetTimer(key);\n"
 "		var T = TimerArray[idx];\n"
@@ -9209,11 +9209,6 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "{\n"
 "	DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, 1);\n"
 "}\n"
-"function DrawGraphSingle(View, LocalMouseX, LocalMouseY, SubIndex)\n"
-"{\n"
-"	DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, 0);\n"
-"}\n"
-"\n"
 "\n"
 "function DrawGraphThreadExclusive(View, LocalMouseX, LocalMouseY, SubIndex, Split)\n"
 "{\n"
@@ -10326,11 +10321,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	MessageText = text;\n"
 "	MessageShowSpinner = ShowSpinner;\n"
 "}\n"
-"function ClearMessage(Mes";
-
-const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
-const char g_MicroProfileHtmlLive_begin_2[] =
-"sage)\n"
+"function ClearMessage(Message)\n"
 "{\n"
 "	if(Message == MessageText)\n"
 "	{\n"
@@ -10341,7 +10332,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "\n"
 "function DrawMessage()\n"
 "{\n"
-"	var context = CanvasDetailedView.getContext(\'2d\');\n"
+"	var context = CanvasDetailedView.";
+
+const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
+const char g_MicroProfileHtmlLive_begin_2[] =
+"getContext(\'2d\');\n"
 "	var Now = new Date();\n"
 "	var Delta = Now - MessageTimeoutLast;\n"
 "	if(MessageTimeout>0)\n"
@@ -10814,7 +10809,6 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "		if(i == SubMenuColumns)\n"
 "		{\n"
 "			if(Settings.ViewActive == VIEW_GRAPH_SPLIT || \n"
-"				Settings.ViewActive == VIEW_GRAPH || \n"
 "				Settings.ViewActive == VIEW_GRAPH_THREAD_GROUP ||\n"
 "				Settings.ViewActive == VIEW_GRAPH_PERCENTILE || \n"
 "				Settings.ViewActive == VIEW_COUNTERS)\n"
@@ -11309,11 +11303,6 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	else if(idx == VIEW_GRAPH_PERCENTILE)\n"
 "	{\n"
 "		MainView.DisplayFunc = DrawGraphPercentile;\n"
-"		MainView.visible = true;\n"
-"	}\n"
-"	else if(idx == VIEW_GRAPH)\n"
-"	{\n"
-"		MainView.DisplayFunc = DrawGraphSingle;\n"
 "		MainView.visible = true;\n"
 "	}\n"
 "	else if(idx == VIEW_GRAPH_THREAD_GROUP)\n"
@@ -11811,11 +11800,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "			let TimerMap = FrameData.TimerMap;\n"
 "			if(TimerMap)\n"
 "			{\n"
-"				let Timer";
-
-const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
-const char g_MicroProfileHtmlLive_begin_3[] =
-"State = TimerMap[SubMenuGraphSettingsKey];\n"
+"				let TimerState = TimerMap[SubMenuGraphSettingsKey];\n"
 "				TimerState.PercentileMax = -1e38;\n"
 "				TimerState.PercentileMin = 1e38;\n"
 "				TimerState.Percentile = [];\n"
@@ -11830,7 +11815,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "function Dots()\n"
 "{\n"
 "	let t = new Date().getMilliseconds() / 200;\n"
-"	let dots = [\".  \",\".. \",\"...\",\".. \"];\n"
+"	let dots = [";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+"\".  \",\".. \",\"...\",\".. \"];\n"
 "	let x = Math.floor(t) %4;\n"
 "	return dots[x];\n"
 "}\n"
@@ -13132,11 +13121,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "		else\n"
 "		{\n"
 "			var Time = new Date() - SubMenuTimeout;\n"
-"			var Dest = SubMenuTimeoutBase * 1";
-
-const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
-const char g_MicroProfileHtmlLive_begin_4[] =
-"000;\n"
+"			var Dest = SubMenuTimeoutBase * 1000;\n"
 "			if(Time > Dest)\n"
 "			{\n"
 "				EnableMenu(-1);\n"
@@ -13148,7 +13133,11 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "			context.beginPath();\n"
 "			context.moveTo(MenuRect.x,MenuRect.y);\n"
 "			context.lineTo(MenuRect.x + MenuRect.w,MenuRect.y);\n"
-"			context.lineTo(MenuRect.x + MenuRect.w,MenuRect.y+MenuRect.h);\n"
+"			context.lineTo(MenuRect.x ";
+
+const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
+const char g_MicroProfileHtmlLive_begin_4[] =
+"+ MenuRect.w,MenuRect.y+MenuRect.h);\n"
 "			context.lineTo(MenuRect.x,MenuRect.y+MenuRect.h);\n"
 "			context.lineTo(MenuRect.x,MenuRect.y);\n"
 "			context.stroke();\n"
@@ -14640,11 +14629,7 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "	nMaxWidth += 15;\n"
 "	//bounds check.\n"
 "	x = Math.max(0, x - 10 - nMaxWidth);\n"
-"	var CanvasRect = Canvas";
-
-const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
-const char g_MicroProfileHtmlLive_begin_5[] =
-".getBoundingClientRect();\n"
+"	var CanvasRect = Canvas.getBoundingClientRect();\n"
 "	if(y + nHeight > CanvasRect.height)\n"
 "	{\n"
 "		y = CanvasRect.height - nHeight;\n"
@@ -14657,7 +14642,11 @@ const char g_MicroProfileHtmlLive_begin_5[] =
 "\n"
 "	context.fillStyle = \'black\';\n"
 "	context.fillRect(x-1, y, nMaxWidth+2, nHeight);\n"
-"	context.fillStyle = \'white\';\n"
+"	context.fillStyl";
+
+const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
+const char g_MicroProfileHtmlLive_begin_5[] =
+"e = \'white\';\n"
 "\n"
 "	var XPos = x;\n"
 "	var XPosRight = x + nMaxWidth;\n"
