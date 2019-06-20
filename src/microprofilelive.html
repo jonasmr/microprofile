@@ -2801,13 +2801,16 @@ function DrawMessage()
 	PresetPending++; //hack: wait 20 frames before showing enable messages to prevent it from showing when loading settings. [[[test]]]
 	if(WSIsOpen && PresetPending > 20)
 	{
-		if(GroupsEnabled == 0)
+		if(Settings.ViewActive != VIEW_COUNTERS)
 		{
-			MSG("Paused: Enable groups in 'Control' menu to unpause");
-		}
-		if(TimersEnabled == 0 && Settings.ViewActive != VIEW_COUNTERS && Settings.ViewActive != VIEW_GRAPH_THREAD_GROUP)
-		{
-			MSG("Enable Timers or Functions");
+			if(GroupsEnabled == 0)
+			{
+				MSG("Paused: Enable groups in 'Control' menu to unpause");
+			}
+			if(TimersEnabled == 0 && Settings.ViewActive != VIEW_GRAPH_THREAD_GROUP)
+			{
+				MSG("Enable Timers or Functions");
+			}
 		}
 	}
 	context.textAlign = 'left';

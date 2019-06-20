@@ -10398,13 +10398,16 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	PresetPending++; //hack: wait 20 frames before showing enable messages to prevent it from showing when loading settings. [[[test]]]\n"
 "	if(WSIsOpen && PresetPending > 20)\n"
 "	{\n"
-"		if(GroupsEnabled == 0)\n"
+"		if(Settings.ViewActive != VIEW_COUNTERS)\n"
 "		{\n"
-"			MSG(\"Paused: Enable groups in \'Control\' menu to unpause\");\n"
-"		}\n"
-"		if(TimersEnabled == 0 && Settings.ViewActive != VIEW_COUNTERS && Settings.ViewActive != VIEW_GRAPH_THREAD_GROUP)\n"
-"		{\n"
-"			MSG(\"Enable Timers or Functions\");\n"
+"			if(GroupsEnabled == 0)\n"
+"			{\n"
+"				MSG(\"Paused: Enable groups in \'Control\' menu to unpause\");\n"
+"			}\n"
+"			if(TimersEnabled == 0 && Settings.ViewActive != VIEW_GRAPH_THREAD_GROUP)\n"
+"			{\n"
+"				MSG(\"Enable Timers or Functions\");\n"
+"			}\n"
 "		}\n"
 "	}\n"
 "	context.textAlign = \'left\';\n"
@@ -11806,12 +11809,12 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "			{\n"
 "				let TimerState = TimerMap[SubMenuGraphSettingsKey];\n"
 "				TimerState.PercentileMax = -1e38;\n"
-"				TimerState.PercentileMin = 1e38;\n"
-"				TimerStat";
+"				TimerState.PercentileMin = ";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-"e.Percentile = [];\n"
+"1e38;\n"
+"				TimerState.Percentile = [];\n"
 "			}\n"
 "		}\n"
 "	}\n"
@@ -13133,11 +13136,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "		}\n"
 "		if(0)//debugging of menu extents. dont delete\n"
 "		{\n"
-"			context.strokeStyl";
+"		";
 
 const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
 const char g_MicroProfileHtmlLive_begin_4[] =
-"e = \'red\';\n"
+"	context.strokeStyle = \'red\';\n"
 "			context.beginPath();\n"
 "			context.moveTo(MenuRect.x,MenuRect.y);\n"
 "			context.lineTo(MenuRect.x + MenuRect.w,MenuRect.y);\n"
@@ -14638,12 +14641,12 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "	{\n"
 "		y = CanvasRect.height - nHeight;\n"
 "		x += 20;\n"
-"	}\n"
-"	if(x + nMaxWidt";
+"";
 
 const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
 const char g_MicroProfileHtmlLive_begin_5[] =
-"h > CanvasRect.width)\n"
+"	}\n"
+"	if(x + nMaxWidth > CanvasRect.width)\n"
 "	{\n"
 "		x = CanvasRect.width - nMaxWidth;\n"
 "	}\n"

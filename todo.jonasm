@@ -1,6 +1,10 @@
 
 live: fix graph for recursion
 
+live: graph control is shown in views where it is not used
+live: kill single view
+
+* live: counter view is not updating
 * capture: fix search no longer finds undrawn elements
 * capture: when collapsing, view is zoomed so nothing is visible, snap to bottom
 
