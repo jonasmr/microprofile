@@ -10425,6 +10425,10 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	{\n"
 "		return;\n"
 "	}\n"
+"	if(!(Settings.ViewActive == VIEW_GRAPH_SPLIT || Settings.ViewActive == VIEW_GRAPH_PERCENTILE))\n"
+"	{\n"
+"		return;\n"
+"	}\n"
 "	let NumGraphs = 0;\n"
 "	let TimerMap = FrameData.TimerMap;\n"
 "\n"
@@ -11807,13 +11811,13 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "			let TimerMap = FrameData.TimerMap;\n"
 "			if(TimerMap)\n"
 "			{\n"
-"				let TimerState = TimerMap[SubMenuGraphSettingsKey];\n"
-"				TimerState.PercentileMax = -1e38;\n"
-"				TimerState.PercentileMin = ";
+"				let Timer";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-"1e38;\n"
+"State = TimerMap[SubMenuGraphSettingsKey];\n"
+"				TimerState.PercentileMax = -1e38;\n"
+"				TimerState.PercentileMin = 1e38;\n"
 "				TimerState.Percentile = [];\n"
 "			}\n"
 "		}\n"
@@ -13128,7 +13132,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "		else\n"
 "		{\n"
 "			var Time = new Date() - SubMenuTimeout;\n"
-"			var Dest = SubMenuTimeoutBase * 1000;\n"
+"			var Dest = SubMenuTimeoutBase * 1";
+
+const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
+const char g_MicroProfileHtmlLive_begin_4[] =
+"000;\n"
 "			if(Time > Dest)\n"
 "			{\n"
 "				EnableMenu(-1);\n"
@@ -13136,11 +13144,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "		}\n"
 "		if(0)//debugging of menu extents. dont delete\n"
 "		{\n"
-"		";
-
-const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
-const char g_MicroProfileHtmlLive_begin_4[] =
-"	context.strokeStyle = \'red\';\n"
+"			context.strokeStyle = \'red\';\n"
 "			context.beginPath();\n"
 "			context.moveTo(MenuRect.x,MenuRect.y);\n"
 "			context.lineTo(MenuRect.x + MenuRect.w,MenuRect.y);\n"
@@ -14636,15 +14640,15 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "	nMaxWidth += 15;\n"
 "	//bounds check.\n"
 "	x = Math.max(0, x - 10 - nMaxWidth);\n"
-"	var CanvasRect = Canvas.getBoundingClientRect();\n"
+"	var CanvasRect = Canvas";
+
+const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
+const char g_MicroProfileHtmlLive_begin_5[] =
+".getBoundingClientRect();\n"
 "	if(y + nHeight > CanvasRect.height)\n"
 "	{\n"
 "		y = CanvasRect.height - nHeight;\n"
 "		x += 20;\n"
-"";
-
-const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
-const char g_MicroProfileHtmlLive_begin_5[] =
 "	}\n"
 "	if(x + nMaxWidth > CanvasRect.width)\n"
 "	{\n"

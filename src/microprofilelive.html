@@ -2828,6 +2828,10 @@ function DrawGraphSettingsMenu(context, XBase, Y, width, height)
 	{
 		return;
 	}
+	if(!(Settings.ViewActive == VIEW_GRAPH_SPLIT || Settings.ViewActive == VIEW_GRAPH_PERCENTILE))
+	{
+		return;
+	}
 	let NumGraphs = 0;
 	let TimerMap = FrameData.TimerMap;
 
