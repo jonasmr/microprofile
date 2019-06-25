@@ -5683,7 +5683,7 @@ function RequestDraw()
 
 
 
-function WSOpen()
+function WSOpen(event)
 {
 	SetMessage("Connected!", 1000);
 	WSSend = 0;
@@ -6390,7 +6390,7 @@ function ProcessFrame(F, Inactive)
 	RequestDraw();
 }
 
-function WSMessage()
+function WSMessage(event)
 {
 	// console.log(event.data);
 	var Obj = JSON.parse(event.data);
@@ -6506,11 +6506,11 @@ function WSMessage()
 	}
 
 }
-function WSError()
+function WSError(event)
 {
 	console.log('WSError');
 }
-function WSClose()
+function WSClose(event)
 {
 	console.log('WSClose');
 	WSIsOpen = 0;
@@ -6881,7 +6881,6 @@ function MouseWheel(e)
 function KeyUp(evt)
 {
 	var k = evt.keyCode;
-	console.log('key is ' + k + 'submenu is ' + SubMenuActive);
 	var InputActive = SubMenuActive == SubMenuTimers || SubMenuActive == SubMenuGroup || SubMenuActive == SubMenuFunctions || SubMenuActive == SubMenuPatched || SubMenuActive == SubMenuModules;
 	if(!InputActive)
 	{
@@ -6963,6 +6962,7 @@ function KeyUp(evt)
 
 function KeyDown(evt)
 {
+	// console.log("keydow ", k);
 	if(evt.keyCode == 17)
 	{
 		KeyCtrlDown = 1;
