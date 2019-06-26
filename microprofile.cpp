@@ -6223,6 +6223,7 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 				MicroProfileWebSocketClearTimers();
 				memset(&S.nActiveGroupsWanted, 0, sizeof(S.nActiveGroupsWanted));
 				S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
+				break;
 			}
 		case 'c':
 			{
