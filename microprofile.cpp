@@ -421,6 +421,11 @@ struct MicroProfileFrameState
 	int32_t nHistoryTimeline;	
 };
 
+#ifdef _WIN32
+#pragma warning(push)
+#pragma warning(disable: 4200) //zero-sized struct
+#endif
+
 struct MicroProfileStringBlock
 {
 	enum{DEFAULT_SIZE = 8192,};
@@ -429,6 +434,10 @@ struct MicroProfileStringBlock
 	uint32_t nSize;
 	char Memory[];
 };
+
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 
 typedef bool (*MicroProfileHashCompareFunction)(uint64_t l, uint64_t r);
 typedef uint64_t (*MicroProfileHashFunction)(uint64_t p);
@@ -1091,13 +1100,23 @@ uint64_t MicroProfileTick()
 
 #ifdef _WIN32
 #include <windows.h>
-#define snprintf _snprintf
+#define fopen microprofile_fopen_helper
 
 #pragma warning(push)
 #pragma warning(disable: 4244) //possible loss of data
 #pragma warning(disable: 4100) //unreferenced formal parameter
-#pragma warning(disable: 4200) //zero-sized struct
 #pragma warning(disable: 4091)
+
+FILE* microprofile_fopen_helper(const char* filename, const char* mode)
+{
+	FILE* F = 0;
+	if(0 == fopen_s(&F, filename, mode))
+	{
+		return F;
+	}
+	return 0;
+}
+
 
 int64_t MicroProfileTicksPerSecondCpu()
 {
@@ -1346,7 +1365,7 @@ void MicroProfileInit()
 			S.CategoryInfo[i].pName[0] = '\0';
 			memset(S.CategoryInfo[i].nGroupMask, 0, sizeof(S.CategoryInfo[i].nGroupMask));
 		}
-		strcpy(&S.CategoryInfo[0].pName[0], "default");
+		memcpy(&S.CategoryInfo[0].pName[0], "default", sizeof("default"));
 		S.nCategoryCount = 1;
 		for(int i = 0; i < MICROPROFILE_MAX_TIMERS; ++i)
 		{
@@ -13191,6 +13210,7 @@ void MicroProfileHashTableTest()
 #undef S
 #ifdef _WIN32
 #pragma warning(pop)
+#undef microprofile_fopen_helper
 #endif
 
 #ifdef MICROPROFILE_PS4
