@@ -424,6 +424,10 @@ struct MicroProfileFrameState
 #ifdef _WIN32
 #pragma warning(push)
 #pragma warning(disable: 4200) //zero-sized struct
+#pragma warning(disable: 4201) //nameless struct/union
+#pragma warning(disable: 4244) //possible loss of data
+#pragma warning(disable: 4100) //unreferenced formal parameter
+#pragma warning(disable: 4091)
 #endif
 
 struct MicroProfileStringBlock
@@ -434,10 +438,6 @@ struct MicroProfileStringBlock
 	uint32_t nSize;
 	char Memory[];
 };
-
-#ifdef _WIN32
-#pragma warning(pop)
-#endif
 
 typedef bool (*MicroProfileHashCompareFunction)(uint64_t l, uint64_t r);
 typedef uint64_t (*MicroProfileHashFunction)(uint64_t p);
@@ -5370,19 +5370,22 @@ void MicroProfileSocketDumpState()
 	uprintf("\n");
 	for(uint32_t i = 1; i < S.nNumWebSockets; i++)
 	{
-#ifndef _WINDOWS ///windowssocket
 		MpSocket s = S.WebSockets[i];
 		int error_code;
 		socklen_t error_code_size = sizeof(error_code);
 		int r = getsockopt(s, SOL_SOCKET, SO_ERROR, (char*)&error_code, &error_code_size);
 		MP_ASSERT(r >= 0);
-		if (error_code != 0) {
-		    /* socket has a non zero error status */
-		    fprintf(stderr, "socket error: %d %s\n", (int)s, strerror(error_code));
+		if (error_code != 0)
+		{
+#ifdef _WIN32
+			char buffer[1024];
+			strerror_s(buffer, sizeof(buffer) - 1, error_code);
+			fprintf(stderr, "socket error: %d %s\n", (int)s, buffer);
+#else
+			fprintf(stderr, "socket error: %d %s\n", (int)s, strerror(error_code));
+#endif
 		    MP_ASSERT(0);
 		}
-#endif
-
 	}
 
 }
