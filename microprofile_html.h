@@ -5531,7 +5531,7 @@ const char g_MicroProfileHtml_end_3[] =
 "\n"
 "function MapMouseButton(event)\n"
 "{\n"
-"	if(event.button == 1)\n"
+"	if(event.button == 1 || event.which == 1)\n"
 "	{\n"
 "		return 1;\n"
 "	}\n"
@@ -5776,12 +5776,12 @@ const char g_MicroProfileHtml_end_3[] =
 "}\n"
 "\n"
 "function SetFilterInput(group, timer)\n"
-"{\n"
-"	FilterInputGroupSt";
+"{";
 
 const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
 const char g_MicroProfileHtml_end_4[] =
-"ring = group;\n"
+"\n"
+"	FilterInputGroupString = group;\n"
 "	FilterInputTimerString = timer;\n"
 "	FilterInputGroup.value = group?group:\'\';\n"
 "	FilterInputTimer.value = timer?timer:\'\';\n"
@@ -7378,11 +7378,11 @@ const char g_MicroProfileHtml_end_4[] =
 "		}\n"
 "	}\n"
 "	S1.TimerInfo = NewTimerInfo;\n"
-"	var NewGroupInfo = A";
+"	";
 
 const size_t g_MicroProfileHtml_end_4_size = sizeof(g_MicroProfileHtml_end_4);
 const char g_MicroProfileHtml_end_5[] =
-"rray(S0.GroupInfo.length);\n"
+"var NewGroupInfo = Array(S0.GroupInfo.length);\n"
 "\n"
 "	for(let i = 0; i < S1.GroupInfo.length; ++i)\n"
 "	{\n"
