@@ -362,6 +362,10 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #define MICROPROFILE_GPU_TIMERS 1
 #endif
 
+#ifndef MICROPROFILE_GPU_TIMER_CALLBACKS
+#define MICROPROFILE_GPU_TIMER_CALLBACKS 0
+#endif
+
 #ifndef MICROPROFILE_GPU_FRAME_DELAY
 #define MICROPROFILE_GPU_FRAME_DELAY 5 //must be > 0
 #endif
@@ -636,12 +640,29 @@ MICROPROFILE_API void MicroProfileDumpFileImmediately(const char* pHtml, const c
 MICROPROFILE_API uint32_t MicroProfileWebServerPort();
 
 #if MICROPROFILE_GPU_TIMERS
+#if MICROPROFILE_GPU_TIMER_CALLBACKS
+typedef uint32_t (*MicroProfileGpuInsertTimeStamp_CB)(void* pContext);
+typedef uint64_t (*MicroProfileGpuGetTimeStamp_CB)(uint32_t nKey);
+typedef uint64_t (*MicroProfileTicksPerSecondGpu_CB)();
+typedef int (*MicroProfileGetGpuTickReference_CB)(int64_t* pOutCPU, int64_t* pOutGpu);
+typedef uint32_t (*MicroProfileGpuFlip_CB)(void*);
+typedef void (*MicroProfileGpuShutdown_CB)();
+MICROPROFILE_API void MicroProfileGpuSetCallbacks(
+MicroProfileGpuInsertTimeStamp_CB InsertTimeStamp,
+MicroProfileGpuGetTimeStamp_CB GetTimeStamp,
+MicroProfileTicksPerSecondGpu_CB TicksPerSecond,
+MicroProfileGetGpuTickReference_CB GetTickReference,
+MicroProfileGpuFlip_CB Flip, 
+MicroProfileGpuShutdown_CB Shutdown);
+#else
 MICROPROFILE_API uint32_t MicroProfileGpuInsertTimeStamp(void* pContext);
 MICROPROFILE_API uint64_t MicroProfileGpuGetTimeStamp(uint32_t nKey);
 MICROPROFILE_API uint64_t MicroProfileTicksPerSecondGpu();
 MICROPROFILE_API int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu);
 MICROPROFILE_API uint32_t MicroProfileGpuFlip(void*);
 MICROPROFILE_API void MicroProfileGpuShutdown();
+#endif
+
 #else
 #define MicroProfileGpuInsertTimeStamp(a) 1
 #define MicroProfileGpuGetTimeStamp(a) 0

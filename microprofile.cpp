@@ -4,6 +4,35 @@
 
 
 
+#if MICROPROFILE_GPU_TIMERS && MICROPROFILE_GPU_TIMER_CALLBACKS
+static MicroProfileGpuInsertTimeStamp_CB MicroProfileGpuInsertTimeStamp = 0;
+static MicroProfileGpuGetTimeStamp_CB MicroProfileGpuGetTimeStamp = 0;
+static MicroProfileTicksPerSecondGpu_CB MicroProfileTicksPerSecondGpu = 0;
+static MicroProfileGetGpuTickReference_CB MicroProfileGetGpuTickReference = 0;
+static MicroProfileGpuFlip_CB MicroProfileGpuFlip = 0;
+static MicroProfileGpuShutdown_CB MicroProfileGpuShutdown = 0;
+
+void MicroProfileGpuSetCallbacks(
+	MicroProfileGpuInsertTimeStamp_CB InsertTimeStamp,
+	MicroProfileGpuGetTimeStamp_CB GetTimeStamp,
+	MicroProfileTicksPerSecondGpu_CB TicksPerSecond,
+	MicroProfileGetGpuTickReference_CB GetTickReference,
+	MicroProfileGpuFlip_CB Flip,
+	MicroProfileGpuShutdown_CB Shutdown)
+{
+	MicroProfileGpuInsertTimeStamp = InsertTimeStamp;
+	MicroProfileGpuGetTimeStamp = GetTimeStamp;
+	MicroProfileTicksPerSecondGpu = TicksPerSecond;
+	MicroProfileGetGpuTickReference = GetTickReference;
+	MicroProfileGpuFlip = Flip;
+	MicroProfileGpuShutdown = Shutdown;
+}
+#endif
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#endif
+
 #include <thread>
 #include <mutex>
 #include <atomic>
@@ -1102,11 +1131,6 @@ uint64_t MicroProfileTick()
 #include <windows.h>
 #define fopen microprofile_fopen_helper
 
-#pragma warning(push)
-#pragma warning(disable: 4244) //possible loss of data
-#pragma warning(disable: 4100) //unreferenced formal parameter
-#pragma warning(disable: 4091)
-
 FILE* microprofile_fopen_helper(const char* filename, const char* mode)
 {
 	FILE* F = 0;
@@ -1224,7 +1248,19 @@ void MicroProfileDumpToFile();
 
 
 #if MICROPROFILE_DEBUG
+#ifdef _WIN32
+void uprintf(const char* fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	char buffer[1024];
+	vsnprintf(buffer, sizeof(buffer) - 1, fmt, args);
+	OutputDebugStringA(buffer);
+	va_end(args);
+}
+#else
 #define uprintf(...) printf(__VA_ARGS__)
+#endif
 #else
 #define uprintf(...) do{}while(0)
 #endif
@@ -2492,7 +2528,7 @@ void MicroProfileEnterGpu(MicroProfileToken nToken, MicroProfileThreadLogGpu* pL
 	uint32_t nStackPos = pLog->nStackScope++;
 	if(nStackPos < MICROPROFILE_STACK_MAX)
 	{
-		MicroProfileScopeStateC* pScopeState = &pLog->ScopeState[pLog->nStackScope];
+		MicroProfileScopeStateC* pScopeState = &pLog->ScopeState[nStackPos];
 		pScopeState->Token = nToken;
 		pScopeState->nTick = MicroProfileGpuEnterInternal(pLog, nToken);
 	}
