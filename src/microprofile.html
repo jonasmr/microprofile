@@ -525,6 +525,7 @@ var ProfileStackTime = {};
 var ProfileStackName = {};
 var Debug = 1;
 
+var ThreadLogAutoHide = 0;
 var NumLodSplits = 10;
 var SplitMin = 100;
 var SPLIT_LIMIT = 1e20;
@@ -3354,6 +3355,8 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 		fOffsetY += (1+MaxPosition) * (BoxHeight+3);
 	}
 	let nMinTimeMs = MinWidth / fScaleX;
+	let AutoHideCount = 0;
+	let VisibleThreadCount = 0;
 	let DrawGuides = 1;
 	{
 		if(!ThreadYBegin)
@@ -3369,12 +3372,16 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			let Active = ThreadsActive[ThreadName];
 			let ThreadColors = S0.ThreadColors[nLog];
 			ThreadYBegin[nLog] = fOffsetY;
+			if(0 != S.ThreadLogAutoHidden[nLog])
+			{
+				AutoHideCount++;
+				continue;
+			}
 			if(HideMode == HideModeCollapsed && !Active)
 			{
 				continue;
 			}
-
-
+			VisibleThreadCount++;
 			let SMul = 2;
 			let LogHeight = (S0.MaxStack[nLog]) * BoxHeightScaledPos + BoxHeight;
 			let LogHeight2 = (S0.MaxStack2[nLog]) * BoxHeightScaledPos + BoxHeight;
@@ -3643,6 +3650,22 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			// context.textBaseline = 'alphabetic';
 			fOffsetY += fOffsetYDelta;
 			// ThreadY[nLog+1] = fOffsetY;
+		}
+		if(AutoHideCount)
+		{
+			fOffsetY += FontHeight;
+			let Text = AutoHideCount + " Threads Auto Hidden. Toggle in Thread Menu to show";
+			let w = context.measureText(Text).width;
+			context.fillStyle = "orange";
+			context.fillText(Text, 0, fOffsetY+FontHeight-1);
+		}
+		if(VisibleThreadCount == 0 && HideMode == HideModeCollapsed)
+		{
+			fOffsetY += FontHeight;
+			let Text = "All Threads Hidden. Toggle in Thread Menu to show";
+			let w = context.measureText(Text).width;
+			context.fillStyle = "red";
+			context.fillText(Text, 0, fOffsetY+FontHeight-1);
 		}
 
 		if(nContextSwitchEnabled && !bSecond) //non instrumented threads.
@@ -4476,7 +4499,6 @@ function Draw()
 		}
 		else if(Mode == ModeDetailed)
 		{
-			console.log("DRAWDetailed");
 			DrawDetailed(false);
 			DrawHoverToolTip();
 		}
@@ -4910,16 +4932,17 @@ function DrawMenuThreads()
 			{
 				var ParentColor = 'white';
 				let E =	ThreadsActive[Name];
+				let AutoHidden = S.ThreadLogAutoHidden[i];
 				bMouseIn = GlobalMouseY >= Y && GlobalMouseY < Y + BoxHeight && !MouseTaken;
 				bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
 				TextY = Y+BoxHeight-FontAscent;
-				context.fillStyle = E ? 'white' :bgcolor;
+				context.fillStyle = E ? (AutoHidden?'orange':'white') :bgcolor;
 				context.fillRect(X-2, Y, Width+4, BoxHeight);
 				context.fillStyle = bgcolor;
 				context.fillRect(X, Y, Width, BoxHeight);
 				context.fillStyle = ParentColor;
 				context.fillText(ParentName, X + 2, TextY);
-				context.fillStyle = S.ThreadColors[i].color;//thread color her....
+				context.fillStyle = S.ThreadColors[i].color;
 				context.textAlign = 'right';
 				context.fillText(Name, X + Width - 2, TextY);
 				context.textAlign = 'left';
@@ -4966,8 +4989,21 @@ function DrawMenuThreads()
 		function(){let F = CreateFilteredArray(); ToggleThread(0, 0, F, 1); },
 		function(){let F = CreateFilteredArray(); ToggleThread(0, 0, F, 2); },
 	];
-	let ElementsOptions = ["Hide mode", HideMode ? "Collapsed" : "Invisible"];
-	let CallbacksOptions = [ null, function(){ HideMode = !HideMode; }];
+
+
+	let ElementsOptions = ["Options", "Hide mode:" + (HideMode ? "Collapsed" : "Invisible"), "AutoHide Empty:" + (ThreadLogAutoHide ? "On": "Off")];
+	let CallbacksOptions = [null,
+	function(){ 
+		HideMode = !HideMode; 
+		RequestRedraw();
+		Invalidate = 0;
+	}, 
+	function(){
+		ThreadLogAutoHide = ThreadLogAutoHide ? 0 : 1; UpdateThreadLogAutoHide()
+		RequestRedraw();
+		Invalidate = 0;
+	}
+	];
 
 	DrawMultiMenu(context, X, YClear, Width, ElementsOptions, CallbacksOptions);
 	YClear += BoxHeight;
@@ -6064,7 +6100,7 @@ function ParseCookie(str)
 {
 	if(!str) return null;
 	var result = str.match(/fisk=([^;]+)/);
-	console.log("cookie is " + str);
+	// console.log("cookie is " + str);
 	if(result && result.length > 0)
 	{
 		var Obj = JSON.parse(result[1]);
@@ -6168,12 +6204,17 @@ function ReadCookie()
 		{
 			ThreadOrderNames = Obj.ThreadOrderNames;
 		}
+		if(Obj.ThreadLogAutoHide)
+		{
+			ThreadLogAutoHide = Obj.ThreadLogAutoHide;
+		}
 	}
 	SetContextSwitch(nContextSwitchEnabled);
 	SetMode(NewMode);
 	SetReferenceTime(ReferenceTimeString);
 	SetTargetTime(TargetTimeString);
 	UpdateGroupColors();
+	UpdateThreadLogAutoHide();
 }
 function WriteCookie()
 {
@@ -6192,6 +6233,7 @@ function WriteCookie()
 	Obj.DrawDetailedFlameMode = DrawDetailedFlameMode;
 	Obj.DrawDetailedCompareReverse = DrawDetailedCompareReverse;
 	Obj.ThreadOrderNames = ThreadOrderNames;
+	Obj.ThreadLogAutoHide = ThreadLogAutoHide;
 	if(nHideHelp)
 	{
 		Obj.nHideHelp = 1;
@@ -6648,44 +6690,124 @@ function PreprocessGlobalArray()
 	ProfileLeave();
 }
 
+function InitThreadLogAutoHidden()
+{
+	let nNumLogs = S.Frames[0].ts.length;
+	if(!S.ThreadLogAutoHidden)
+	{
+		S.ThreadLogAutoHidden = Array();
+	}
+	while(S.ThreadLogAutoHidden.length < nNumLogs)
+	{
+		S.ThreadLogAutoHidden.push(0);
+	}
+	if(!S.ThreadLogTypesUsed)
+	{
+		S.ThreadLogTypesUsed = Array();
+	}
+	while(S.ThreadLogTypesUsed.length < nNumLogs)
+	{
+		S.ThreadLogTypesUsed.push([]);
+	}
+}
+
+function UpdateThreadLogAutoHide()
+{
+	let AutoHide = ThreadLogAutoHide;
+	let nNumLogs = S.Frames[0].ts.length;
+	InitThreadLogAutoHidden();
+	for(let nLog = 0; nLog < nNumLogs; ++nLog)
+	{
+		if(AutoHide)
+		{
+			let TypesUsed = S.ThreadLogTypesUsed[nLog];
+			S.ThreadLogAutoHidden[nLog] = 1;
+			for(let i = 0; i < TypesUsed.length; ++i)
+			{
+				if(TypesUsed[i])
+				{
+					S.ThreadLogAutoHidden[nLog] = 0;
+					break;
+				}
+			}
+		}
+		else
+		{
+			S.ThreadLogAutoHidden[nLog] = 0;
+		}
+		console.log("AutoHide ", nLog, " ", S.ThreadLogAutoHidden[nLog]);
+	}
+}
+
+function PreprocessGatherLogTypes()
+{
+	ProfileEnter("PreprocessGatherLogTypes");
+	let TimerCount = S.TimerInfo.length;
+	let nNumLogs = S.Frames[0].ts.length;
+	InitThreadLogAutoHidden();
+	for(let nLog = 0; nLog < nNumLogs; nLog++)
+	{
+		S.ThreadLogAutoHidden[nLog] = 0;
+		let TypesUsed = Array(TimerCount);
+		for(let i = 0; i < TypesUsed.length; ++i)
+		{
+			TypesUsed[i] = 0;
+		}
+		for(let i = 0; i < S.Frames.length; i++)
+		{
+			let F = S.Frames[i];
+			console.assert(F.tt.length == nNumLogs);
+			let Data = F.ti[nLog];
+			for(let j in Data)
+			{
+				let t = Data[j];
+				console.assert(t < TimerCount);
+				TypesUsed[t] = 1;
+			}
+		}
+		S.ThreadLogTypesUsed[nLog] = TypesUsed;
+	}
+	ProfileLeave();
+}
+
 function PreprocessFindFirstFrames()
 {
 	ProfileEnter("PreprocesFindFirstFrames");
 	//create arrays that show how far back we need to start search in order to get all markers.
-	var nNumLogs = S.Frames[0].ts.length;
-	for(var i = 0; i < S.Frames.length; i++)
+	let nNumLogs = S.Frames[0].ts.length;
+	for(let i = 0; i < S.Frames.length; i++)
 	{
 		S.Frames[i].FirstFrameIndex = new Array(nNumLogs);
-		for(var j = 0; j < S.Frames[i].FirstFrameIndex.length; ++j)
+		for(let j = 0; j < S.Frames[i].FirstFrameIndex.length; ++j)
 		{
 			S.Frames[i].FirstFrameIndex[j] = 0;
 		}
 	}
 
-	var StackPos = 0;
-	var Stack = Array(20);
+	let StackPos = 0;
+	let Stack = Array(20);
 	S.MaxStack = Array(nNumLogs);
 	
 	for(nLog = 0; nLog < nNumLogs; nLog++)
 	{
-		var MaxStack = 0;
+		let MaxStack = 0;
 		StackPos = 0;
-		for(var i = 0; i < S.Frames.length; i++)
+		for(let i = 0; i < S.Frames.length; i++)
 		{
-			var Frame_ = S.Frames[i];			
-			var tt = Frame_.tt[nLog];
-			var count = tt.length;
+			let Frame_ = S.Frames[i];			
+			let tt = Frame_.tt[nLog];
+			let count = tt.length;
 
-			var FirstFrame = i;
+			let FirstFrame = i;
 			if(StackPos>0)
 			{
 				FirstFrame = Stack[0];
 			}
 			S.Frames[i].FirstFrameIndex[nLog] = FirstFrame;
 
-			for(var j = 0; j < count; j++)
+			for(let j = 0; j < count; j++)
 			{
-				var type = tt[j];
+				let type = tt[j];
 				if(type == 1)
 				{
 					Stack[StackPos] = i;//store the frame which it comes from
@@ -6707,7 +6829,7 @@ function PreprocessFindFirstFrames()
 		S.MaxStack[nLog] = MaxStack;
 	}
 	S.MaxStack2 = Array(S.MaxStack.length);
-	for(var i = 0; i < S.MaxStack2.length; ++i)
+	for(let i = 0; i < S.MaxStack2.length; ++i)
 		S.MaxStack2[i] = 0;
 	S.SecondActive = 0;
 	ProfileLeave();
@@ -6756,8 +6878,8 @@ function PreprocessMeta()
 
 function StringHash(s) //note: matching code in microprofile.cpp: uint32_t MicroProfileStringHash(const char* pString)
 { 
-	var h = 0xfeedba3e;
-	for(var i = 0; i < s.length; ++i)
+	let h = 0xfeedba3e;
+	for(let i = 0; i < s.length; ++i)
 	{
 		h = s.charCodeAt(i) + (h << 5) - h;
 		h = h & h;
@@ -6767,35 +6889,35 @@ function StringHash(s) //note: matching code in microprofile.cpp: uint32_t Micro
 
 function StringColorIndex(Name)
 {
-	var h = StringHash(Name);
-	var cidx = Math.floor(360*(h  / (1<<32-1)) );
+	let h = StringHash(Name);
+	let cidx = Math.floor(360*(h  / (1<<32-1)) );
 	return cidx;
 }
 
 function ColorFromString(Name, S, L)
 {
-	var H = StringColorIndex(Name);
+	let H = StringColorIndex(Name);
 	return "hsl(" + H + "," + S + "%, " + L+ "%)";
 }
 function LerpColor(v)
 {
-	var R_0 = 0;
-	var G_0 = 1;
-	var B_0 = 0;
+	let R_0 = 0;
+	let G_0 = 1;
+	let B_0 = 0;
 
-	var R_1 = 1;
-	var G_1 = 0.5;
-	var B_1 = 0;
+	let R_1 = 1;
+	let G_1 = 0.5;
+	let B_1 = 0;
 
-	var R_2 = 1;
-	var G_2 = 0;
-	var B_3 = 0;
-	var R;
-	var G;
+	let R_2 = 1;
+	let G_2 = 0;
+	let B_3 = 0;
+	let R;
+	let G;
 	if(v < 0.5)
 	{
 		v *= 2;
-		var v0 = (1-v);
+		let v0 = (1-v);
 		R = R_0 * v0 + R_1 * v;
 		G = G_0 * v0 + G_1 * v;
 
@@ -6803,7 +6925,7 @@ function LerpColor(v)
 	else
 	{
 		v = (v-0.5) * 2;
-		var v0 = (1-v);
+		let v0 = (1-v);
 		R = R_1 * v0 + R_2 * v;
 		G = G_1 * v0 + G_2 * v;
 	}
@@ -7042,6 +7164,7 @@ function Preprocess_S()
 
 	PreprocessCalculateAllTimers();
 	PreprocessFindFirstFrames();
+	PreprocessGatherLogTypes();
 
 	PreprocessGlobalArray();
 	PreprocessLods();
@@ -7050,6 +7173,9 @@ function Preprocess_S()
 
 	PreprocessContextSwitchCache();
 	PreprocessWidths();
+
+	UpdateThreadLogAutoHide();
+
 	console.log('preprocessing done\n');
 	console.log("SS " + S.LodData.length);
 }
@@ -7061,6 +7187,7 @@ function Preprocess()
 	ProfileEnter("Preprocess");
 	Preprocess_S();
 	UpdateReferenceTime();
+
 	ProfileLeave();
 	ProfileModeDump();
 	ProfileMode = ProfileModeOld;
