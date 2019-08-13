@@ -196,8 +196,8 @@ var CaptureTriggerDelta = 0;
 
 
 var ProfileData = {};
-var ProfileStackTime = {};
-var ProfileStackName = {};
+var ProfileStackTime = [];
+var ProfileStackName = [];
 var ProfileMode = 0;
 var ProfileRedraw0 = 0;
 var ProfileRedraw1 = 0;
@@ -473,7 +473,6 @@ function ProfileModeClear()
 {
 	if(ProfileMode)
 	{
-
 		for(var idx in ProfileData)
 		{
 			if(idx == "Plot")
@@ -492,7 +491,7 @@ function ProfileEnter(Name)
 {
 	if(ProfileMode)
 	{
-		ProfileStackTime.push(new Date());
+		ProfileStackTime.push(performance.now());
 		ProfileStackName.push(Name);
 	}
 }
@@ -500,7 +499,7 @@ function ProfileLeave()
 {
 	if(ProfileMode)
 	{
-		var Time = new Date();
+		var Time = performance.now();
 		var Delta = Time - ProfileStackTime.pop();
 		var Name = ProfileStackName.pop();
 		var Obj = ProfileData[Name];
@@ -512,7 +511,10 @@ function ProfileLeave()
 			Obj.Time = 0;
 			Obj.AggrCount = 0;
 			Obj.AggrTime = 0;
+			Obj.AggrMax = 0;
 			Obj.AvgTime = 0;
+			Obj.MaxTime = 0;
+			Obj.TotalTime = 0;
 			ProfileData[Name] = Obj;
 		}
 		Obj.Time += Delta;
@@ -554,13 +556,17 @@ function ProfileModeDraw(Canvas)
 		var StringArray = [];
 		function FormatTime(f)
 		{
-			return ("         " + f.toFixed(2)).slice(-8);
+			return ("             " + f.toFixed(2)).slice(-12);
 		}
-		function FormatStr(t, count, avg)
+		function FormatStr(t, count, avg, max, total)
 		{
-			var str = FormatTime(t) + "ms #" + count + "" + FormatTime(avg) + "ms";
+			var str = FormatTime(t) + "ms " + ("        #" + count).slice(-8) + 
+			"" + FormatTime(avg) + "ms " + FormatTime(max) + "ms " + FormatTime(total) + "ms";
 			return str;
 		}
+		StringArray.push("");
+		StringArray.push("time    count         avg            max       total/" +  AggrFrames + "  ");
+
 		for(var idx in ProfileData)
 		{
 			if(idx == "Plot")
@@ -568,16 +574,18 @@ function ProfileModeDraw(Canvas)
 			var Timer = ProfileData[idx];
 			Timer.AggrCount += Timer.Count;
 			Timer.AggrTime += Timer.Time;
+			Timer.AggrMax = Math.max(Timer.AggrMax, Timer.Time);
 			if(ProfileFpsCount == AggrFrames)
 			{
 				Timer.AvgTime = Timer.AggrTime / AggrFrames;
+				Timer.MaxTime = Timer.AggrMax;
+				Timer.TotalTime = Timer.AggrTime;
 				Timer.AggrCount = 0;
 				Timer.AggrTime = 0;
+				Timer.AggrMax = 0;
 			}
 			StringArray.push(Timer.Name);
-			StringArray.push(FormatStr(Timer.Time, Timer.Count, Timer.AvgTime));
-			// StringArray.push("#");
-			// StringArray.push("" + Timer.Count);
+			StringArray.push(FormatStr(Timer.Time, Timer.Count, Timer.AvgTime, Timer.MaxTime, Timer.TotalTime));
 		}
 		var Time = new Date();
 		var Delta = Time - ProfileLastTimeStamp;
@@ -5641,7 +5649,6 @@ function Draw()
 {
 	CaptureUpdate();
 	PendingDraw = 0;
-	ProfileModeClear();
 	ProfileEnter("Total");
 
 	UpdateSettings();
@@ -5666,6 +5673,8 @@ function Draw()
 
 	ProfileLeave();
 	ProfileModeDraw(CanvasDetailedView);
+	ProfileModeClear();
+
 
 	PlotfClear();
 
@@ -6177,15 +6186,19 @@ function ProcessFrame(F, Inactive)
 			T.count = FD.Count[Pos];
 
 		};
+
 		let UpdateFrameDataInternal = function(id, Time, TimeExcl, Count, bIsGroup)
 		{
+
 			let FD = GetFrameData(id);
 			if(!IsFrozen)
 			{
+				ProfileEnter("PercentileAccum");
 				FD.PercentileMax = Math.max(FD.PercentileMax, Time);
 				FD.PercentileMin = Math.min(FD.PercentileMin, Time);
 				FD.Percentile.push(Time);
 				FD.Percentile.sort(function(a, b){ return a - b; });
+				ProfileLeave();
 			}
 			PushIntoArray(FD.Time, Time);
 			PushIntoArray(FD.TimeExcl, TimeExcl);

@@ -7926,8 +7926,8 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "\n"
 "\n"
 "var ProfileData = {};\n"
-"var ProfileStackTime = {};\n"
-"var ProfileStackName = {};\n"
+"var ProfileStackTime = [];\n"
+"var ProfileStackName = [];\n"
 "var ProfileMode = 0;\n"
 "var ProfileRedraw0 = 0;\n"
 "var ProfileRedraw1 = 0;\n"
@@ -8203,7 +8203,6 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "{\n"
 "	if(ProfileMode)\n"
 "	{\n"
-"\n"
 "		for(var idx in ProfileData)\n"
 "		{\n"
 "			if(idx == \"Plot\")\n"
@@ -8222,7 +8221,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "{\n"
 "	if(ProfileMode)\n"
 "	{\n"
-"		ProfileStackTime.push(new Date());\n"
+"		ProfileStackTime.push(performance.now());\n"
 "		ProfileStackName.push(Name);\n"
 "	}\n"
 "}\n"
@@ -8230,7 +8229,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "{\n"
 "	if(ProfileMode)\n"
 "	{\n"
-"		var Time = new Date();\n"
+"		var Time = performance.now();\n"
 "		var Delta = Time - ProfileStackTime.pop();\n"
 "		var Name = ProfileStackName.pop();\n"
 "		var Obj = ProfileData[Name];\n"
@@ -8242,7 +8241,10 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "			Obj.Time = 0;\n"
 "			Obj.AggrCount = 0;\n"
 "			Obj.AggrTime = 0;\n"
+"			Obj.AggrMax = 0;\n"
 "			Obj.AvgTime = 0;\n"
+"			Obj.MaxTime = 0;\n"
+"			Obj.TotalTime = 0;\n"
 "			ProfileData[Name] = Obj;\n"
 "		}\n"
 "		Obj.Time += Delta;\n"
@@ -8284,13 +8286,17 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "		var StringArray = [];\n"
 "		function FormatTime(f)\n"
 "		{\n"
-"			return (\"         \" + f.toFixed(2)).slice(-8);\n"
+"			return (\"             \" + f.toFixed(2)).slice(-12);\n"
 "		}\n"
-"		function FormatStr(t, count, avg)\n"
+"		function FormatStr(t, count, avg, max, total)\n"
 "		{\n"
-"			var str = FormatTime(t) + \"ms #\" + count + \"\" + FormatTime(avg) + \"ms\";\n"
+"			var str = FormatTime(t) + \"ms \" + (\"        #\" + count).slice(-8) + \n"
+"			\"\" + FormatTime(avg) + \"ms \" + FormatTime(max) + \"ms \" + FormatTime(total) + \"ms\";\n"
 "			return str;\n"
 "		}\n"
+"		StringArray.push(\"\");\n"
+"		StringArray.push(\"time    count         avg            max       total/\" +  AggrFrames + \"  \");\n"
+"\n"
 "		for(var idx in ProfileData)\n"
 "		{\n"
 "			if(idx == \"Plot\")\n"
@@ -8298,16 +8304,18 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "			var Timer = ProfileData[idx];\n"
 "			Timer.AggrCount += Timer.Count;\n"
 "			Timer.AggrTime += Timer.Time;\n"
+"			Timer.AggrMax = Math.max(Timer.AggrMax, Timer.Time);\n"
 "			if(ProfileFpsCount == AggrFrames)\n"
 "			{\n"
 "				Timer.AvgTime = Timer.AggrTime / AggrFrames;\n"
+"				Timer.MaxTime = Timer.AggrMax;\n"
+"				Timer.TotalTime = Timer.AggrTime;\n"
 "				Timer.AggrCount = 0;\n"
 "				Timer.AggrTime = 0;\n"
+"				Timer.AggrMax = 0;\n"
 "			}\n"
 "			StringArray.push(Timer.Name);\n"
-"			StringArray.push(FormatStr(Timer.Time, Timer.Count, Timer.AvgTime));\n"
-"			// StringArray.push(\"#\");\n"
-"			// StringArray.push(\"\" + Timer.Count);\n"
+"			StringArray.push(FormatStr(Timer.Time, Timer.Count, Timer.AvgTime, Timer.MaxTime, Timer.TotalTime));\n"
 "		}\n"
 "		var Time = new Date();\n"
 "		var Delta = Time - ProfileLastTimeStamp;\n"
@@ -9077,7 +9085,11 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "			let P = TimerArray[T.parent];\n"
 "			context.fillStyle = P.color;\n"
 "			var ParentName = P.name;\n"
-"			context.fillText(ParentName, 1, YText);\n"
+"			context.fillTex";
+
+const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
+const char g_MicroProfileHtmlLive_begin_1[] =
+"t(ParentName, 1, YText);\n"
 "		}\n"
 "	}\n"
 "	function FilterMatch(FilterArray, value)\n"
@@ -9101,11 +9113,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "	var wfirst = 100;\n"
 "	var OrderArray = new Array();\n"
 "	var nTotalRows = 0;\n"
-"	for(var key i";
-
-const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
-const char g_MicroProfileHtmlLive_begin_1[] =
-"n TimerMap)\n"
+"	for(var key in TimerMap)\n"
 "	{\n"
 "		var idx = GetTimer(key);\n"
 "		var T = TimerArray[idx];\n"
@@ -10447,7 +10455,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "\n"
 "var MessageText = \"\";\n"
 "var MessageTimeout = -1;\n"
-"var MessageTimeoutLast = new Date();\n"
+"var MessageTimeo";
+
+const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
+const char g_MicroProfileHtmlLive_begin_2[] =
+"utLast = new Date();\n"
 "var MessageShowSpinner = 0;\n"
 "function SetMessage(text, TimeOut, ShowSpinner)\n"
 "{\n"
@@ -10473,11 +10485,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "\n"
 "function DrawMessage()\n"
 "{\n"
-"	var context = CanvasDetailedView.";
-
-const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
-const char g_MicroProfileHtmlLive_begin_2[] =
-"getContext(\'2d\');\n"
+"	var context = CanvasDetailedView.getContext(\'2d\');\n"
 "	var Now = new Date();\n"
 "	var Delta = Now - MessageTimeoutLast;\n"
 "	if(MessageTimeout>0)\n"
@@ -11936,7 +11944,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	if(Percentile)\n"
 "	{\n"
 "		PercentileTweak = DrawMenuRoll(M, \"Percentile\", SubGraphSettings.Percentile, \'\', PercentileRollSubGraph, PercentileTweak, \'int\');\n"
-"		if(DrawMenuElement(M, 0, \"Clear Aggregate\", \"\", \'white\'))\n"
+"		if(DrawMenuElem";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+"ent(M, 0, \"Clear Aggregate\", \"\", \'white\'))\n"
 "		{\n"
 "			let TimerMap = FrameData.TimerMap;\n"
 "			if(TimerMap)\n"
@@ -11956,11 +11968,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "function Dots()\n"
 "{\n"
 "	let t = new Date().getMilliseconds() / 200;\n"
-"	let dots = [";
-
-const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
-const char g_MicroProfileHtmlLive_begin_3[] =
-"\".  \",\".. \",\"...\",\".. \"];\n"
+"	let dots = [\".  \",\".. \",\"...\",\".. \"];\n"
 "	let x = Math.floor(t) %4;\n"
 "	return dots[x];\n"
 "}\n"
@@ -13257,7 +13265,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "		{\n"
 "			SubMenuTimeout = new Date();\n"
 "			SubMenuMouseX = MouseX;\n"
-"			SubMenuMouseY = MouseY;\n"
+"		";
+
+const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
+const char g_MicroProfileHtmlLive_begin_4[] =
+"	SubMenuMouseY = MouseY;\n"
 "		}\n"
 "		else\n"
 "		{\n"
@@ -13274,11 +13286,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "			context.beginPath();\n"
 "			context.moveTo(MenuRect.x,MenuRect.y);\n"
 "			context.lineTo(MenuRect.x + MenuRect.w,MenuRect.y);\n"
-"			context.lineTo(MenuRect.x ";
-
-const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
-const char g_MicroProfileHtmlLive_begin_4[] =
-"+ MenuRect.w,MenuRect.y+MenuRect.h);\n"
+"			context.lineTo(MenuRect.x + MenuRect.w,MenuRect.y+MenuRect.h);\n"
 "			context.lineTo(MenuRect.x,MenuRect.y+MenuRect.h);\n"
 "			context.lineTo(MenuRect.x,MenuRect.y);\n"
 "			context.stroke();\n"
@@ -13387,7 +13395,6 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "{\n"
 "	CaptureUpdate();\n"
 "	PendingDraw = 0;\n"
-"	ProfileModeClear();\n"
 "	ProfileEnter(\"Total\");\n"
 "\n"
 "	UpdateSettings();\n"
@@ -13412,6 +13419,8 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "\n"
 "	ProfileLeave();\n"
 "	ProfileModeDraw(CanvasDetailedView);\n"
+"	ProfileModeClear();\n"
+"\n"
 "\n"
 "	PlotfClear();\n"
 "\n"
@@ -13923,15 +13932,19 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "			T.count = FD.Count[Pos];\n"
 "\n"
 "		};\n"
+"\n"
 "		let UpdateFrameDataInternal = function(id, Time, TimeExcl, Count, bIsGroup)\n"
 "		{\n"
+"\n"
 "			let FD = GetFrameData(id);\n"
 "			if(!IsFrozen)\n"
 "			{\n"
+"				ProfileEnter(\"PercentileAccum\");\n"
 "				FD.PercentileMax = Math.max(FD.PercentileMax, Time);\n"
 "				FD.PercentileMin = Math.min(FD.PercentileMin, Time);\n"
 "				FD.Percentile.push(Time);\n"
 "				FD.Percentile.sort(function(a, b){ return a - b; });\n"
+"				ProfileLeave();\n"
 "			}\n"
 "			PushIntoArray(FD.Time, Time);\n"
 "			PushIntoArray(FD.TimeExcl, TimeExcl);\n"
@@ -14761,7 +14774,11 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "		var nSum = nWidth0 + nWidth1;\n"
 "		WidthArray[i] = nWidth0;\n"
 "		WidthArray[i+1] = nWidth1;\n"
-"		if(nSum > nMaxWidth)\n"
+"		if(nS";
+
+const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
+const char g_MicroProfileHtmlLive_begin_5[] =
+"um > nMaxWidth)\n"
 "		{\n"
 "			nMaxWidth = nSum;\n"
 "		}\n"
@@ -14783,11 +14800,7 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "\n"
 "	context.fillStyle = \'black\';\n"
 "	context.fillRect(x-1, y, nMaxWidth+2, nHeight);\n"
-"	context.fillStyle = \'white";
-
-const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
-const char g_MicroProfileHtmlLive_begin_5[] =
-"\';\n"
+"	context.fillStyle = \'white\';\n"
 "\n"
 "	var XPos = x;\n"
 "	var XPosRight = x + nMaxWidth;\n"
