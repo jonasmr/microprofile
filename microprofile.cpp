@@ -12545,7 +12545,7 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 			bool bProcess = false;
 			for(uint32_t j = 0; j < nNumModules; ++j)
 			{
-				if(nModules[j] == i)
+				if(nModules[j] == (uint32_t)i)
 				{
 					bProcess = true;
 					break;

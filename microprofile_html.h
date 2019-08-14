@@ -7805,6 +7805,8 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "var Settings = {};\n"
 "var Cookie = {};\n"
 "\n"
+"const PERCENTILE_SAMPLES = 1000;\n"
+"\n"
 "var HistoryHeight = 100;\n"
 "var CanvasDetailedView = document.getElementById(\'DetailedView\');\n"
 "var CanvasDetailedOffscreen = document.createElement(\'canvas\');\n"
@@ -7885,7 +7887,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "Settings.SubGraphSettings = {};\n"
 "Settings.ReferenceTime = 50.0;\n"
 "var ReferencePresets = [5.0, 10.0, 15.0, 20, 30, 33.33, 50, 66.66,100.0,250.0,500,1000.0];\n"
-"var PercentilePresets = [0.0, 50.0, 90.0, 99.0];\n"
+"var PercentilePresets = [0.0, 1.0, 5.0, 10.0, 50.0, 75.0, 99.0];\n"
 "var ReferenceTimeTweak = -1;\n"
 "var PercentileTweak = -1;\n"
 "\n"
@@ -9083,13 +9085,13 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "			context.fillText(T.name, NameWidth - 5, YText);\n"
 "			context.textAlign = \'left\';\n"
 "			let P = TimerArray[T.parent];\n"
-"			context.fillStyle = P.color;\n"
-"			var ParentName = P.name;\n"
-"			context.fillTex";
+"			context.fillStyle = P.col";
 
 const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
 const char g_MicroProfileHtmlLive_begin_1[] =
-"t(ParentName, 1, YText);\n"
+"or;\n"
+"			var ParentName = P.name;\n"
+"			context.fillText(ParentName, 1, YText);\n"
 "		}\n"
 "	}\n"
 "	function FilterMatch(FilterArray, value)\n"
@@ -9610,12 +9612,13 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "			let idx = GetTimer(key);\n"
 "			let TimerState = TimerMap[key];\n"
 "			TimerState.tooltipstring = null;\n"
-"			if(!IsGroup(key) && TimerArray[idx].e && TimerState.PercentileMax > TimerState.PercentileMin)\n"
+"			let Valid = TimerState.PercentileMax > TimerState.PercentileMin;\n"
+"			if(!IsGroup(key) && TimerArray[idx].e)\n"
 "			{\n"
-"				let Max = TimerState.PercentileMax;\n"
-"				let Min = TimerState.PercentileMin;\n"
+"				let Max = Valid ? TimerState.PercentileMax : 1;\n"
+"				let Min = Valid ? TimerState.PercentileMin : 0;\n"
 "				let SubGraphSettings = GetSubGraphSettings(key);\n"
-"				let Percentile = SubGraphSettings.Percentile;\n"
+"				let Percentile = 0.0;\n"
 "				if(Percentile == null)\n"
 "					Percentile = 0.0;\n"
 "				Percentile = Math.max(0.0, Math.min(99.0, Percentile));\n"
@@ -9624,8 +9627,13 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "					Max = SubGraphSettings.ReferenceTime;\n"
 "				}\n"
 "				let Reference = Max;\n"
-"\n"
 "				let PercentileData = TimerState.Percentile;\n"
+"				let PercentileCount = TimerState.PercentileCount;\n"
+"				let BasePrc = 0;\n"
+"				if(PercentileCount > PERCENTILE_SAMPLES)\n"
+"				{\n"
+"					BasePrc = 100 * (1- PERCENTILE_SAMPLES / PercentileCount);\n"
+"				}\n"
 "				let Total = PercentileData.length-1;\n"
 "				let NumElementsOnScreen = Total * (100 - Percentile) / (100);\n"
 "				let WidthPerElement = w / NumElementsOnScreen;\n"
@@ -9638,7 +9646,6 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "				let Y = hstart + gh;\n"
 "				let YStart = Y;\n"
 "				let MouseInside = LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1;\n"
-"\n"
 "\n"
 "				context.globalAlpha = 1;\n"
 "				context.fillStyle = nBackColorsDark[cidx];\n"
@@ -9667,9 +9674,10 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "				context.fillText(FormatTime(Reference) + \'ms\', nWidth, hstart + FontHeight);\n"
 "				context.fillText(\'100%\', nWidth, hstart + gh-2);\n"
 "				context.textAlign=\'centered\';\n"
-"				context.fillText( ((Percentile + 100)/2) + \'%\', nWidth/2, hstart + gh-2);\n"
+"				Percentile = BasePrc;\n"
+"				context.fillText( ((Percentile + 100)/2).toFixed(2) + \'%\', nWidth/2, hstart + gh-2);\n"
 "				context.textAlign=\'left\';\n"
-"				context.fillText(Percentile + \"%  [Samples:\" + PercentileData.length + \"]\", 0, hstart + gh-2);\n"
+"				context.fillText(Percentile.toFixed(2) + \"%  [Samples:\" + PercentileCount + \"]\", 0, hstart + gh-2);\n"
 "				context.fillText(TimerArray[idx].name, 15, hstart + FontHeight);\n"
 "				context.fillText(Percentile + \'%\', nWidth, hstart + FontHeight);\n"
 "\n"
@@ -9692,7 +9700,18 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "					context.lineTo(CrossX, hstart + gh);\n"
 "					context.stroke();\n"
 "					TimerState.tooltipy = Math.min(YStart - BoxHeight, Y) + View.y;\n"
-"					let Perc = 100 * HighlightIndex / (PercentileData.length-1)\n"
+"					let Perc = 0;\n"
+"					if(PERCENTILE_SAMPLES < PercentileCount)\n"
+"					{\n"
+"						let Idx = PercentileCount - PERCENTILE_SAMPLES + HighlightIndex;\n"
+"						Perc = 100 * Idx / (PercentileCount-1);\n"
+"					}\n"
+"					else\n"
+"					{\n"
+"						let Idx = HighlightIndex - (PERCENTILE_SAMPLES - PercentileCount);\n"
+"						Idx = Math.max(Idx, 0);\n"
+"						Perc = 100 * (Idx / (PercentileCount-1))\n"
+"					}\n"
 "					TimerState.tooltipstring = FormatTime(Perc) + \'% \' + FormatTime(PercentileData[HighlightIndex]) + \'ms\';;\n"
 "				}\n"
 "				hstart += gh;\n"
@@ -10424,7 +10443,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	{\n"
 "		var fMs = FrameData.Time[ToolTipFrame];\n"
 "		var Frozen = FrameData.Frozen[ToolTipFrame];\n"
-"		ToolTipCallback = function()\n"
+"		T";
+
+const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
+const char g_MicroProfileHtmlLive_begin_2[] =
+"oolTipCallback = function()\n"
 "		{\n"
 "			var StringArray = [];\n"
 "			StringArray.push(\"Frame\");\n"
@@ -10455,11 +10478,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "\n"
 "var MessageText = \"\";\n"
 "var MessageTimeout = -1;\n"
-"var MessageTimeo";
-
-const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
-const char g_MicroProfileHtmlLive_begin_2[] =
-"utLast = new Date();\n"
+"var MessageTimeoutLast = new Date();\n"
 "var MessageShowSpinner = 0;\n"
 "function SetMessage(text, TimeOut, ShowSpinner)\n"
 "{\n"
@@ -11919,7 +11938,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	let Percentile = Settings.ViewActive == VIEW_GRAPH_PERCENTILE;\n"
 "	let Selection = null;\n"
 "	let SizeInfo = {};\n"
-"	SizeInfo.h = (Percentile?4:2) * BoxHeight;\n"
+"	SizeInfo.h = (Percentile?3:2) * BoxHeight;\n"
 "	let Strings = [\"AutoCapture Enabled\", \"AutoCapture Threshold\", \"AutoCapture Source\", \"Capture Length\"];\n"
 "	let wLeft = MeasureArray(0, Strings);\n"
 "	let wRight = 50;\n"
@@ -11932,7 +11951,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	\n"
 "	let M = CreateMenuState(SizeInfo);\n"
 "	let context = CanvasDetailedView.getContext(\'2d\');\n"
-"	context.fillRect(M.x, M.y, Width, SizeInfo.h);\n"
+"	context.fillRect(M.x, M.y, Width, SizeInfo.h);";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+"\n"
 "	let SubGraphSettings = GetSubGraphSettings(SubMenuGraphSettingsKey);\n"
 "\n"
 "\n"
@@ -11943,12 +11966,8 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	}\n"
 "	if(Percentile)\n"
 "	{\n"
-"		PercentileTweak = DrawMenuRoll(M, \"Percentile\", SubGraphSettings.Percentile, \'\', PercentileRollSubGraph, PercentileTweak, \'int\');\n"
-"		if(DrawMenuElem";
-
-const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
-const char g_MicroProfileHtmlLive_begin_3[] =
-"ent(M, 0, \"Clear Aggregate\", \"\", \'white\'))\n"
+"		//PercentileTweak = DrawMenuRoll(M, \"Percentile\", SubGraphSettings.Percentile, \'\', PercentileRollSubGraph, PercentileTweak, \'int\');\n"
+"		if(DrawMenuElement(M, 0, \"Clear Aggregate\", \"\", \'white\'))\n"
 "		{\n"
 "			let TimerMap = FrameData.TimerMap;\n"
 "			if(TimerMap)\n"
@@ -11956,7 +11975,9 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "				let TimerState = TimerMap[SubMenuGraphSettingsKey];\n"
 "				TimerState.PercentileMax = -1e38;\n"
 "				TimerState.PercentileMin = 1e38;\n"
-"				TimerState.Percentile = [];\n"
+"				TimerState.Percentile = new Float32Array(PERCENTILE_SAMPLES);\n"
+"				TimerState.Percentile.fill(0.0);\n"
+"				TimerState.PercentileCount = 0;\n"
 "			}\n"
 "		}\n"
 "	}\n"
@@ -12205,7 +12226,9 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "				{\n"
 "					TimerState.PercentileMax = -1e38;\n"
 "					TimerState.PercentileMin = 1e38;\n"
-"					TimerState.Percentile = [];\n"
+"					TimerState.Percentile = new Float32Array(PERCENTILE_SAMPLES);\n"
+"					TimerState.Percentile.fill(0.0);\n"
+"					TimerState.PercentileCount = 0;\n"
 "				}\n"
 "			}\n"
 "		}\n"
@@ -13228,7 +13251,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "		}\n"
 "		else if(SubMenuActive == SubMenuPatched)\n"
 "		{\n"
-"			MenuRect = DrawMenuPatched();\n"
+"			MenuRect = DrawM";
+
+const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
+const char g_MicroProfileHtmlLive_begin_4[] =
+"enuPatched();\n"
 "		}\n"
 "		else if(SubMenuActive == SubMenuSettings)\n"
 "		{\n"
@@ -13265,11 +13292,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "		{\n"
 "			SubMenuTimeout = new Date();\n"
 "			SubMenuMouseX = MouseX;\n"
-"		";
-
-const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
-const char g_MicroProfileHtmlLive_begin_4[] =
-"	SubMenuMouseY = MouseY;\n"
+"			SubMenuMouseY = MouseY;\n"
 "		}\n"
 "		else\n"
 "		{\n"
@@ -13733,9 +13756,11 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "		FD.TimeTotal = AllocClearedArray(AggregateHistorySize);\n"
 "		FD.TimeExclTotal = AllocClearedArray(AggregateHistorySize);\n"
 "		FD.CallCount = AllocClearedArray(AggregateHistorySize);\n"
-"		FD.Percentile = [];\n"
+"		FD.Percentile = new Float32Array(PERCENTILE_SAMPLES);\n"
+"		FD.Percentile.fill(0.0);\n"
 "		FD.PercentileMax = -1e38;\n"
 "		FD.PercentileMin = 1e38;\n"
+"		FD.PercentileCount = 0;\n"
 "		FD.EmptyFrames = 0;\n"
 "		\n"
 "\n"
@@ -13805,6 +13830,7 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "\n"
 "function ProcessFrame(F, Inactive)\n"
 "{\n"
+"	ProfileEnter(\"ProcessFrame\");\n"
 "	if(F.s)\n"
 "	{\n"
 "		if(F.s.l == F.s.r)\n"
@@ -13833,6 +13859,7 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "	if(F.fr)\n"
 "	{\n"
 "		IsFrozen = 10;//allow it to stabilize after freezing\n"
+"		ProfileLeave();\n"
 "		return;\n"
 "	}\n"
 "	if(IsFrozen)\n"
@@ -13942,8 +13969,12 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "				ProfileEnter(\"PercentileAccum\");\n"
 "				FD.PercentileMax = Math.max(FD.PercentileMax, Time);\n"
 "				FD.PercentileMin = Math.min(FD.PercentileMin, Time);\n"
-"				FD.Percentile.push(Time);\n"
-"				FD.Percentile.sort(function(a, b){ return a - b; });\n"
+"				FD.PercentileCount += 1;\n"
+"				if(Time > FD.Percentile[0])\n"
+"				{\n"
+"					FD.Percentile[0] = Time;\n"
+"					FD.Percentile.sort( function(a,b){return a - b;} );\n"
+"				}\n"
 "				ProfileLeave();\n"
 "			}\n"
 "			PushIntoArray(FD.Time, Time);\n"
@@ -14147,6 +14178,7 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "		ReferenceHistoryAutomatic = 1.05 * HistoryTimeMax;\n"
 "	}\n"
 "	RequestDraw();\n"
+"	ProfileLeave();\n"
 "}\n"
 "\n"
 "function WSMessage(event)\n"
@@ -14739,7 +14771,11 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "{\n"
 "	var mousewheelevt = (/Firefox/i.test(navigator.userAgent)) ? \"DOMMouseScroll\" : \"mousewheel\"; //FF doesn\'t recognize mousewheel as of \n"
 "	CanvasDetailedView.addEventListener(\'mousemove\', MouseMove, false);\n"
-"	CanvasDetailedView.addEventListener(\'mousedown\', function(evt) { MouseButton(true, evt); });\n"
+"	CanvasDetailedView.addEventListener(\'mousedown\', function(evt) { MouseButton(t";
+
+const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
+const char g_MicroProfileHtmlLive_begin_5[] =
+"rue, evt); });\n"
 "	CanvasDetailedView.addEventListener(\'mouseup\', function(evt) { MouseButton(false, evt); } );\n"
 "	CanvasDetailedView.addEventListener(\'mouseout\', MouseOut);\n"
 "	CanvasDetailedView.addEventListener(\"contextmenu\", function (e) { e.preventDefault(); }, false);\n"
@@ -14774,11 +14810,7 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "		var nSum = nWidth0 + nWidth1;\n"
 "		WidthArray[i] = nWidth0;\n"
 "		WidthArray[i+1] = nWidth1;\n"
-"		if(nS";
-
-const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
-const char g_MicroProfileHtmlLive_begin_5[] =
-"um > nMaxWidth)\n"
+"		if(nSum > nMaxWidth)\n"
 "		{\n"
 "			nMaxWidth = nSum;\n"
 "		}\n"

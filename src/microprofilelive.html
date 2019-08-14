@@ -75,6 +75,8 @@ var FRAME_HISTORY_COLOR_GPU = '#ffffff';
 var Settings = {};
 var Cookie = {};
 
+const PERCENTILE_SAMPLES = 1000;
+
 var HistoryHeight = 100;
 var CanvasDetailedView = document.getElementById('DetailedView');
 var CanvasDetailedOffscreen = document.createElement('canvas');
@@ -155,7 +157,7 @@ var ReadOnlyPresetsCache = {};
 Settings.SubGraphSettings = {};
 Settings.ReferenceTime = 50.0;
 var ReferencePresets = [5.0, 10.0, 15.0, 20, 30, 33.33, 50, 66.66,100.0,250.0,500,1000.0];
-var PercentilePresets = [0.0, 50.0, 90.0, 99.0];
+var PercentilePresets = [0.0, 1.0, 5.0, 10.0, 50.0, 75.0, 99.0];
 var ReferenceTimeTweak = -1;
 var PercentileTweak = -1;
 
@@ -1876,12 +1878,13 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 			let idx = GetTimer(key);
 			let TimerState = TimerMap[key];
 			TimerState.tooltipstring = null;
-			if(!IsGroup(key) && TimerArray[idx].e && TimerState.PercentileMax > TimerState.PercentileMin)
+			let Valid = TimerState.PercentileMax > TimerState.PercentileMin;
+			if(!IsGroup(key) && TimerArray[idx].e)
 			{
-				let Max = TimerState.PercentileMax;
-				let Min = TimerState.PercentileMin;
+				let Max = Valid ? TimerState.PercentileMax : 1;
+				let Min = Valid ? TimerState.PercentileMin : 0;
 				let SubGraphSettings = GetSubGraphSettings(key);
-				let Percentile = SubGraphSettings.Percentile;
+				let Percentile = 0.0;
 				if(Percentile == null)
 					Percentile = 0.0;
 				Percentile = Math.max(0.0, Math.min(99.0, Percentile));
@@ -1890,8 +1893,13 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 					Max = SubGraphSettings.ReferenceTime;
 				}
 				let Reference = Max;
-
 				let PercentileData = TimerState.Percentile;
+				let PercentileCount = TimerState.PercentileCount;
+				let BasePrc = 0;
+				if(PercentileCount > PERCENTILE_SAMPLES)
+				{
+					BasePrc = 100 * (1- PERCENTILE_SAMPLES / PercentileCount);
+				}
 				let Total = PercentileData.length-1;
 				let NumElementsOnScreen = Total * (100 - Percentile) / (100);
 				let WidthPerElement = w / NumElementsOnScreen;
@@ -1904,7 +1912,6 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 				let Y = hstart + gh;
 				let YStart = Y;
 				let MouseInside = LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1;
-
 
 				context.globalAlpha = 1;
 				context.fillStyle = nBackColorsDark[cidx];
@@ -1933,9 +1940,10 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 				context.fillText(FormatTime(Reference) + 'ms', nWidth, hstart + FontHeight);
 				context.fillText('100%', nWidth, hstart + gh-2);
 				context.textAlign='centered';
-				context.fillText( ((Percentile + 100)/2) + '%', nWidth/2, hstart + gh-2);
+				Percentile = BasePrc;
+				context.fillText( ((Percentile + 100)/2).toFixed(2) + '%', nWidth/2, hstart + gh-2);
 				context.textAlign='left';
-				context.fillText(Percentile + "%  [Samples:" + PercentileData.length + "]", 0, hstart + gh-2);
+				context.fillText(Percentile.toFixed(2) + "%  [Samples:" + PercentileCount + "]", 0, hstart + gh-2);
 				context.fillText(TimerArray[idx].name, 15, hstart + FontHeight);
 				context.fillText(Percentile + '%', nWidth, hstart + FontHeight);
 
@@ -1958,7 +1966,18 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 					context.lineTo(CrossX, hstart + gh);
 					context.stroke();
 					TimerState.tooltipy = Math.min(YStart - BoxHeight, Y) + View.y;
-					let Perc = 100 * HighlightIndex / (PercentileData.length-1)
+					let Perc = 0;
+					if(PERCENTILE_SAMPLES < PercentileCount)
+					{
+						let Idx = PercentileCount - PERCENTILE_SAMPLES + HighlightIndex;
+						Perc = 100 * Idx / (PercentileCount-1);
+					}
+					else
+					{
+						let Idx = HighlightIndex - (PERCENTILE_SAMPLES - PercentileCount);
+						Idx = Math.max(Idx, 0);
+						Perc = 100 * (Idx / (PercentileCount-1))
+					}
 					TimerState.tooltipstring = FormatTime(Perc) + '% ' + FormatTime(PercentileData[HighlightIndex]) + 'ms';;
 				}
 				hstart += gh;
@@ -4181,7 +4200,7 @@ function DrawMenuGraphSettings()
 	let Percentile = Settings.ViewActive == VIEW_GRAPH_PERCENTILE;
 	let Selection = null;
 	let SizeInfo = {};
-	SizeInfo.h = (Percentile?4:2) * BoxHeight;
+	SizeInfo.h = (Percentile?3:2) * BoxHeight;
 	let Strings = ["AutoCapture Enabled", "AutoCapture Threshold", "AutoCapture Source", "Capture Length"];
 	let wLeft = MeasureArray(0, Strings);
 	let wRight = 50;
@@ -4205,7 +4224,7 @@ function DrawMenuGraphSettings()
 	}
 	if(Percentile)
 	{
-		PercentileTweak = DrawMenuRoll(M, "Percentile", SubGraphSettings.Percentile, '', PercentileRollSubGraph, PercentileTweak, 'int');
+		//PercentileTweak = DrawMenuRoll(M, "Percentile", SubGraphSettings.Percentile, '', PercentileRollSubGraph, PercentileTweak, 'int');
 		if(DrawMenuElement(M, 0, "Clear Aggregate", "", 'white'))
 		{
 			let TimerMap = FrameData.TimerMap;
@@ -4214,7 +4233,9 @@ function DrawMenuGraphSettings()
 				let TimerState = TimerMap[SubMenuGraphSettingsKey];
 				TimerState.PercentileMax = -1e38;
 				TimerState.PercentileMin = 1e38;
-				TimerState.Percentile = [];
+				TimerState.Percentile = new Float32Array(PERCENTILE_SAMPLES);
+				TimerState.Percentile.fill(0.0);
+				TimerState.PercentileCount = 0;
 			}
 		}
 	}
@@ -4463,7 +4484,9 @@ function DrawMenuSettings()
 				{
 					TimerState.PercentileMax = -1e38;
 					TimerState.PercentileMin = 1e38;
-					TimerState.Percentile = [];
+					TimerState.Percentile = new Float32Array(PERCENTILE_SAMPLES);
+					TimerState.Percentile.fill(0.0);
+					TimerState.PercentileCount = 0;
 				}
 			}
 		}
@@ -5987,9 +6010,11 @@ function GetFrameData(id)
 		FD.TimeTotal = AllocClearedArray(AggregateHistorySize);
 		FD.TimeExclTotal = AllocClearedArray(AggregateHistorySize);
 		FD.CallCount = AllocClearedArray(AggregateHistorySize);
-		FD.Percentile = [];
+		FD.Percentile = new Float32Array(PERCENTILE_SAMPLES);
+		FD.Percentile.fill(0.0);
 		FD.PercentileMax = -1e38;
 		FD.PercentileMin = 1e38;
+		FD.PercentileCount = 0;
 		FD.EmptyFrames = 0;
 		
 
@@ -6059,6 +6084,7 @@ function ProcessCounters(C)
 
 function ProcessFrame(F, Inactive)
 {
+	ProfileEnter("ProcessFrame");
 	if(F.s)
 	{
 		if(F.s.l == F.s.r)
@@ -6087,6 +6113,7 @@ function ProcessFrame(F, Inactive)
 	if(F.fr)
 	{
 		IsFrozen = 10;//allow it to stabilize after freezing
+		ProfileLeave();
 		return;
 	}
 	if(IsFrozen)
@@ -6196,8 +6223,12 @@ function ProcessFrame(F, Inactive)
 				ProfileEnter("PercentileAccum");
 				FD.PercentileMax = Math.max(FD.PercentileMax, Time);
 				FD.PercentileMin = Math.min(FD.PercentileMin, Time);
-				FD.Percentile.push(Time);
-				FD.Percentile.sort(function(a, b){ return a - b; });
+				FD.PercentileCount += 1;
+				if(Time > FD.Percentile[0])
+				{
+					FD.Percentile[0] = Time;
+					FD.Percentile.sort( function(a,b){return a - b;} );
+				}
 				ProfileLeave();
 			}
 			PushIntoArray(FD.Time, Time);
@@ -6401,6 +6432,7 @@ function ProcessFrame(F, Inactive)
 		ReferenceHistoryAutomatic = 1.05 * HistoryTimeMax;
 	}
 	RequestDraw();
+	ProfileLeave();
 }
 
 function WSMessage(event)
