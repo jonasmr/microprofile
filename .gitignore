@@ -1,2 +1,11 @@
 demo/noui/mppresets
 *.o
+*.obj
+*.log
+*.pdb
+*.tlog
+*.suo
+*.user
+*.exe
+*.iobj
+*.ipdb
