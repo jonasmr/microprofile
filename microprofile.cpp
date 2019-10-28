@@ -30,7 +30,9 @@ void MicroProfileGpuSetCallbacks(
 #endif
 
 #ifdef _WIN32
+#if !defined(WIN32_LEAN_AND_MEAN)
 #define WIN32_LEAN_AND_MEAN
+#endif
 #endif
 
 #include <thread>
@@ -58,7 +60,6 @@ void MicroProfileGpuSetCallbacks(
 #define MICROPROFILE_BUFFER_SIZE ((MICROPROFILE_PER_THREAD_BUFFER_SIZE)/sizeof(MicroProfileLogEntry))
 #define MICROPROFILE_GPU_BUFFER_SIZE ((MICROPROFILE_PER_THREAD_GPU_BUFFER_SIZE)/sizeof(MicroProfileLogEntry))
 #define MICROPROFILE_MAX_CONTEXT_SWITCH_THREADS 256
-#define MICROPROFILE_STACK_MAX 32
 #define MICROPROFILE_WEBSOCKET_BUFFER_SIZE (64<<10)
 #define MICROPROFILE_INVALID_TICK ((uint64_t)-1)
 #define MICROPROFILE_DROPPED_TICK ((uint64_t)-2)
@@ -198,8 +199,6 @@ inline uint64_t MicroProfileGetCurrentThreadId()
 #define MP_THREAD_LOCAL __thread
 #define MP_NOINLINE __attribute__((noinline))
 
-typedef uint64_t MicroProfileThreadIdType;
-
 void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 {
 	void* p; 
@@ -274,8 +273,6 @@ inline int64_t MicroProfileGetTick()
 #define MP_THREAD_LOCAL __thread
 #define MP_NOINLINE __attribute__((noinline))
 
-typedef uint64_t MicroProfileThreadIdType;
-
 void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 {
 	void* p;
@@ -307,6 +304,18 @@ void MicroProfileFreeAligned(void* pMem)
 #else
 #ifdef _WIN32
 #include <d3d11_1.h>
+#endif
+#endif
+
+#ifdef _WIN32
+typedef uint32_t MicroProfileThreadIdType;
+#else
+#ifdef MICROPROFILE_THREADID_SIZE_4BYTE
+typedef uint32_t MicroProfileThreadIdType;
+#elif MICROPROFILE_THREADID_SIZE_8BYTE
+typedef uint64_t MicroProfileThreadIdType;
+#else
+typedef uint64_t MicroProfileThreadIdType;
 #endif
 #endif
 
