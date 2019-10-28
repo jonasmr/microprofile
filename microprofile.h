@@ -169,8 +169,8 @@ typedef uint16_t MicroProfileGroupId;
 #define MicroProfileDumpFile(html,csv,spikecpu,spikegpu) do{} while(0)
 #define MicroProfileDumpFileImmediately(html,csv,gfcontext) do{} while(0)
 #define MicroProfileWebServerPort() ((uint32_t)-1)
+#define MicroProfileSetWebServerPort(a) do{} while(0)
 #define MicroProfileStartContextSwitchTrace() do{}while(0)
-#define MicroProfileWebServerPort() ((uint32_t)-1)
 #define MicroProfileGpuInsertTimeStamp(a) 1
 #define MicroProfileGpuGetTimeStamp(a) 0
 #define MicroProfileTicksPerSecondGpu() 1
@@ -642,6 +642,7 @@ MICROPROFILE_API void MicroProfileSetCurrentNodeVulkan(uint32_t nNode);
 MICROPROFILE_API void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, float fGpuSpike);
 MICROPROFILE_API void MicroProfileDumpFileImmediately(const char* pHtml, const char* pCsv, void* pGpuContext);
 MICROPROFILE_API uint32_t MicroProfileWebServerPort();
+MICROPROFILE_API void MicroProfileSetWebServerPort(int port);
 
 #if MICROPROFILE_GPU_TIMERS
 #if MICROPROFILE_GPU_TIMER_CALLBACKS
