@@ -1438,6 +1438,7 @@ void MicroProfileInit()
 			S.Frames[i].nFrameStartCpu = nTick;
 			S.Frames[i].nFrameStartGpu = MICROPROFILE_INVALID_TICK;
 		}
+		S.nWebServerPort = MICROPROFILE_WEBSERVER_PORT;		// Use defined value as default port
 		S.nWebServerDataSent = (uint64_t)-1;
 		S.WebSocketTimers = -1;
 		S.nSocketFail = 0;
@@ -3819,6 +3820,17 @@ uint32_t MicroProfileWebServerPort()
 	return S.nWebServerPort;
 }
 
+void MicroProfileSetWebServerPort(int port)
+{
+	if (S.nWebServerPort != port)
+	{
+		MicroProfileWebServerJoin();
+		MicroProfileWebServerStop();
+		S.nWebServerPort = port;
+		S.nWebServerDataSent = (uint64_t)-1;	// Will cause the web server and its thread to be restarted next time MicroProfileFlip() is called.
+	}
+}
+
 void MicroProfileDumpFileImmediately(const char* pHtml, const char* pCsv, void* pGpuContext)
 {
 	for(uint32_t i = 0; i < 2; ++i)
@@ -5003,16 +5015,16 @@ void MicroProfileWebServerStart()
 
 
 
-	S.nWebServerPort = (uint32_t)-1;
+	int startPort = S.nWebServerPort;
 	struct sockaddr_in Addr; 
 	Addr.sin_family = AF_INET; 
 	Addr.sin_addr.s_addr = INADDR_ANY; 
 	for(int i = 0; i < 20; ++i)
 	{
-		Addr.sin_port = htons(MICROPROFILE_WEBSERVER_PORT+i); 
+		Addr.sin_port = htons(startPort+i);
 		if(0 == bind(S.ListenerSocket, (sockaddr*)&Addr, sizeof(Addr)))
 		{
-			S.nWebServerPort = MICROPROFILE_WEBSERVER_PORT+i;
+			S.nWebServerPort = startPort+i;
 			break;
 		}
 	}
@@ -8550,8 +8562,6 @@ uint32_t MicroProfileGpuFlip(void* pContext)
 	VkDevice Device = S.pGPU->Devices[nNode];
 	VkQueue Queue = S.pGPU->Queues[nNode];
 
-	int r;
-
 	vkWaitForFences(Device, 1, &Fence, 1, (uint64_t)-1);
 	uint32_t nFrameTimeStamp = MicroProfileGpuInsertTimeStamp(pContext);
 	vkResetCommandBuffer(F.CommandBuffer[nNode], VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
@@ -8686,7 +8696,6 @@ void MicroProfileSetCurrentNodeVulkan(uint32_t nNode)
 
 int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu)
 {	
-	int r;
 	auto& F = S.pGPU->Frames[S.pGPU->nFrame%MICROPROFILE_VULKAN_INTERNAL_DELAY];
 	uint32_t nGpu = S.pGPU->nCurrentNode;
 
