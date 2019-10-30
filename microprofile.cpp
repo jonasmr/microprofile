@@ -3820,13 +3820,13 @@ uint32_t MicroProfileWebServerPort()
 	return S.nWebServerPort;
 }
 
-void MicroProfileSetWebServerPort(int port)
+void MicroProfileSetWebServerPort(uint32_t nPort)
 {
-	if (S.nWebServerPort != port)
+	if (S.nWebServerPort != nPort)
 	{
 		MicroProfileWebServerJoin();
 		MicroProfileWebServerStop();
-		S.nWebServerPort = port;
+		S.nWebServerPort = nPort;
 		S.nWebServerDataSent = (uint64_t)-1;	// Will cause the web server and its thread to be restarted next time MicroProfileFlip() is called.
 	}
 }
@@ -5015,16 +5015,16 @@ void MicroProfileWebServerStart()
 
 
 
-	int startPort = S.nWebServerPort;
+	int nStartPort = S.nWebServerPort;
 	struct sockaddr_in Addr; 
 	Addr.sin_family = AF_INET; 
 	Addr.sin_addr.s_addr = INADDR_ANY; 
 	for(int i = 0; i < 20; ++i)
 	{
-		Addr.sin_port = htons(startPort+i);
+		Addr.sin_port = htons(nStartPort+i);
 		if(0 == bind(S.ListenerSocket, (sockaddr*)&Addr, sizeof(Addr)))
 		{
-			S.nWebServerPort = startPort+i;
+			S.nWebServerPort = (uint32_t)(nStartPort+i);
 			break;
 		}
 	}
