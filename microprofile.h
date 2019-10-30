@@ -642,7 +642,7 @@ MICROPROFILE_API void MicroProfileSetCurrentNodeVulkan(uint32_t nNode);
 MICROPROFILE_API void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, float fGpuSpike);
 MICROPROFILE_API void MicroProfileDumpFileImmediately(const char* pHtml, const char* pCsv, void* pGpuContext);
 MICROPROFILE_API uint32_t MicroProfileWebServerPort();
-MICROPROFILE_API void MicroProfileSetWebServerPort(int port);
+MICROPROFILE_API void MicroProfileSetWebServerPort(uint32_t nPort);
 
 #if MICROPROFILE_GPU_TIMERS
 #if MICROPROFILE_GPU_TIMER_CALLBACKS
