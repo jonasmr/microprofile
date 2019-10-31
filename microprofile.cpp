@@ -148,20 +148,6 @@ void* MicroProfileReallocInternal(void* pPtr, size_t nSize);
 void* MicroProfileAllocAligned(size_t nSize, size_t nAlign);
 void MicroProfileFreeAligned(void* pMem);
 
-#ifdef MICROPROFILE_PS4
-#define MICROPROFILE_PS4_DECL
-#include "microprofile_ps4.h"
-#endif
-
-#ifdef MICROPROFILE_XBOXONE
-#define MICROPROFILE_XBOXONE_DECL
-#include "microprofile_xboxone.h"
-#else
-#ifdef _WIN32
-#include <d3d11_1.h>
-#endif
-#endif
-
 #if defined(__APPLE__)
 #include <mach/mach.h>
 #include <mach/mach_time.h>
@@ -303,6 +289,20 @@ void MicroProfileFreeAligned(void* pMem)
 }
 #endif
 
+#endif
+
+#ifdef MICROPROFILE_PS4
+#define MICROPROFILE_PS4_DECL
+#include "microprofile_ps4.h"
+#endif
+
+#ifdef MICROPROFILE_XBOXONE
+#define MICROPROFILE_XBOXONE_DECL
+#include "microprofile_xboxone.h"
+#else
+#ifdef _WIN32
+#include <d3d11_1.h>
+#endif
 #endif
 
 #ifdef _WIN32
