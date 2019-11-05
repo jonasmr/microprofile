@@ -1504,7 +1504,10 @@ void MicroProfileShutdown()
 			S.pJsonSettings = 0;
 			S.nJsonSettingsBufferSize = 0;
 		}
-		MicroProfileGpuShutdown();
+		if (S.pGPU)
+		{
+			MicroProfileGpuShutdown();
+		}
 		MicroProfileHashTableDestroy(&S.Strings.HashTable);
 		MicroProfileStringsDestroy(&S.Strings);
 		MICROPROFILE_FREE_NON_ALIGNED(S.WSBuf.pBufferAllocation);
