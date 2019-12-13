@@ -1272,6 +1272,40 @@ void uprintf(const char* fmt, ...)
 #define uprintf(...) do{}while(0)
 #endif
 
+thread_local char g_FloatToStr[64];
+
+#ifdef MICROPROFILE_LOCALE_INDEPENDENT_FLOAT
+#include <locale.h>
+char* MicroProfileDToStr(float value)
+{
+  memset(g_FloatToStr, 0, 64);
+  char tmp[64];
+  memset(tmp, 0, 64);
+  sprintf(tmp, "%f", value);
+  const struct lconv* loc = localeconv();
+  char* p = &tmp[0];
+  char* q = &g_FloatToStr[0];
+  while(*p)
+  {
+    if (*p != loc->thousands_sep[0])
+      *q = *p;
+    if (*p == loc->decimal_point[0])
+      *q = '.';
+    ++q;
+    ++p;
+  }
+  return g_FloatToStr;
+}
+#else
+char* MicroProfileDToStr(float value)
+{
+  memset(g_FloatToStr, 0, 64);
+  snprintf(g_FloatToStr, 64, "%f", value);
+  return g_FloatToStr;
+}
+#endif
+#define MP_DTOSTR(value) MicroProfileDToStr(value)
+
 #define S g_MicroProfile
 
 MicroProfile g_MicroProfile;
@@ -4073,7 +4107,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 	time_t CaptureTime;
 	time(&CaptureTime);
 	MicroProfilePrintf(CB, Handle, "S.DumpUtcCaptureTime = %ld;\n", CaptureTime);
-	MicroProfilePrintf(CB, Handle, "S.AggregateInfo = {'Frames':%d, 'Time':%f};\n", S.nAggregateFrames, fAggregateMs);
+	MicroProfilePrintf(CB, Handle, "S.AggregateInfo = {'Frames':%d, 'Time':%s};\n", S.nAggregateFrames, MP_DTOSTR(fAggregateMs));
 
 	//categories
 	MicroProfilePrintf(CB, Handle, "S.CategoryInfo = Array(%d);\n",S.nCategoryCount);
@@ -4102,16 +4136,16 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 			pColorStr = &ColorString[0];
 
 		}
-		MicroProfilePrintf(CB, Handle, "S.GroupInfo[%d] = MakeGroup(%d, \"%s\", %d, %d, %d, %f, %f, %f, '%s');\n", 
+		MicroProfilePrintf(CB, Handle, "S.GroupInfo[%d] = MakeGroup(%d, \"%s\", %d, %d, %d, %s, %s, %s, '%s');\n", 
 			S.GroupInfo[i].nGroupIndex, 
 			S.GroupInfo[i].nGroupIndex, 
 			S.GroupInfo[i].pName, 
 			S.GroupInfo[i].nCategory, 
 			S.GroupInfo[i].nNumTimers, 
 			S.GroupInfo[i].Type == MicroProfileTokenTypeGpu?1:0, 
-			fToMs * S.AggregateGroup[i], 
-			fToMs * S.AggregateGroup[i] / nAggregateFrames, 
-			fToMs * S.AggregateGroupMax[i], pColorStr);
+			MP_DTOSTR(fToMs * S.AggregateGroup[i]), 
+			MP_DTOSTR(fToMs * S.AggregateGroup[i] / nAggregateFrames), 
+			MP_DTOSTR(fToMs * S.AggregateGroupMax[i]), pColorStr);
 	}
 	//timers
 
@@ -4140,21 +4174,21 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 
 		uint32_t nColor = S.TimerInfo[i].nColor;
 		uint32_t nColorDark = (nColor >> 1) & ~0x80808080;
-		MicroProfilePrintf(CB, Handle, "S.TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x','#%02x%02x%02x', %f, %f, %f, %f, %f, %f, %d, %f, S.Meta%d, S.MetaAvg%d, S.MetaMax%d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
+		MicroProfilePrintf(CB, Handle, "S.TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x','#%02x%02x%02x', %s, %s, %s, %s, %s, %s, %d, %s, S.Meta%d, S.MetaAvg%d, S.MetaMax%d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex, 
 			MICROPROFILE_UNPACK_RED(nColor) & 0xff,
 			MICROPROFILE_UNPACK_GREEN(nColor) & 0xff,
 			MICROPROFILE_UNPACK_BLUE(nColor) & 0xff,
 			MICROPROFILE_UNPACK_RED(nColorDark) & 0xff,
 			MICROPROFILE_UNPACK_GREEN(nColorDark) & 0xff,
 			MICROPROFILE_UNPACK_BLUE(nColorDark) & 0xff,
-			pAverage[nIdx],
-			pMax[nIdx],
-			pMin[nIdx],
-			pAverageExclusive[nIdx],
-			pMaxExclusive[nIdx],
-			pCallAverage[nIdx],
+			MP_DTOSTR(pAverage[nIdx]),
+			MP_DTOSTR(pMax[nIdx]),
+			MP_DTOSTR(pMin[nIdx]),
+			MP_DTOSTR(pAverageExclusive[nIdx]),
+			MP_DTOSTR(pMaxExclusive[nIdx]),
+			MP_DTOSTR(pCallAverage[nIdx]),
 			S.Aggregate[i].nCount,
-			pTotal[nIdx],
+			MP_DTOSTR(pTotal[nIdx]),
 			i,i,i);
 
 	}
@@ -4188,7 +4222,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 			float fToMs = S.Pool[i]->nGpu ? fToMsGPU : fToMsCPU;
 			for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
 			{
-				MicroProfilePrintf(CB, Handle, "%f,", S.Pool[i]->nAggregateGroupTicks[j]/nAggregateFrames * fToMs);
+				MicroProfilePrintf(CB, Handle, "%s,", MP_DTOSTR(S.Pool[i]->nAggregateGroupTicks[j]/nAggregateFrames * fToMs));
 			}
 			MicroProfilePrintf(CB, Handle, "];\n");
 		}
@@ -4212,7 +4246,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 			float fToMs = S.Pool[i]->nGpu ? fToMsGPU : fToMsCPU;
 			for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
 			{
-				MicroProfilePrintf(CB, Handle, "%f,", S.Pool[i]->nAggregateGroupTicks[j] * fToMs);
+				MicroProfilePrintf(CB, Handle, "%s,", MP_DTOSTR(S.Pool[i]->nAggregateGroupTicks[j] * fToMs));
 			}
 			MicroProfilePrintf(CB, Handle, "];\n");
 		}
@@ -4281,7 +4315,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 				uint32_t nHistoryIndex = (nBaseIndex + j) % MICROPROFILE_GRAPH_HISTORY;
 				int64_t nValue = MicroProfileClamp(S.nCounterHistory[nHistoryIndex][i], nCounterMin, nCounterMax);
 				float fPrc = (nValue+nCounterOffset) * fRcp;
-				MicroProfilePrintf(CB, Handle, "%f,",fPrc);
+				MicroProfilePrintf(CB, Handle, "%s,",MP_DTOSTR(fPrc));
 			}
 			MicroProfilePrintf(CB, Handle, "];\n");
 			MicroProfilePrintf(CB, Handle, "S.CounterHistory%d = MakeCounterHistory(%d, S.CounterHistoryArray%d, S.CounterHistoryArrayPrc%d)\n", i, i, i, i);
@@ -4314,7 +4348,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 		char FormattedLimit[64];
 		MicroProfileFormatCounter(S.CounterInfo[i].eFormat, nCounter, Formatted, sizeof(Formatted)-1);
 		MicroProfileFormatCounter(S.CounterInfo[i].eFormat, S.CounterInfo[i].nLimit, FormattedLimit, sizeof(FormattedLimit)-1);
-		MicroProfilePrintf(CB, Handle, "MakeCounter(%d, %d, %d, %d, %d, '%s', %lld, %lld, %lld, '%s', %lld, '%s', %f, %f, %d, S.CounterHistory%d),", 
+		MicroProfilePrintf(CB, Handle, "MakeCounter(%d, %d, %d, %d, %d, '%s', %lld, %lld, %lld, '%s', %lld, '%s', %s, %s, %d, S.CounterHistory%d),", 
 			i,
 			S.CounterInfo[i].nParent,
 			S.CounterInfo[i].nSibling,
@@ -4327,8 +4361,8 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 			Formatted,
 			nLimit,
 			FormattedLimit,
-			fCounterPrc,
-			fBoxPrc,
+			MP_DTOSTR(fCounterPrc),
+			MP_DTOSTR(fBoxPrc),
 			S.CounterInfo[i].eFormat == MICROPROFILE_COUNTER_FORMAT_BYTES ? 1 : 0, 
 			i
 			);
@@ -4490,7 +4524,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 				case MP_LOG_ENTER:
 				case MP_LOG_LEAVE:
 					fTime = MicroProfileLogTickDifference(nTickStart, v) * fToMs;
-					pp("%c%f", f++ ? ',' : ' ', fTime);
+					pp("%c%s", f++ ? ',' : ' ', MP_DTOSTR(fTime));
 					break;
 				case MP_LOG_EXTRA_DATA:
 				case MP_LOG_PAYLOAD:
@@ -4607,7 +4641,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 					{
 							fTime = MicroProfileLogTickDifference(nStartTick, pLog->Log[k]) * fToMs;
 					}
-					MicroProfilePrintf(CB, Handle, f++?",%f":"%f",fTime);
+					MicroProfilePrintf(CB, Handle, f++?",%s":"%s",MP_DTOSTR(fTime));
 				}
 			}
 			MicroProfilePrintf(CB, Handle, "];\n");
@@ -4684,7 +4718,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 			fFrameGpuMs = MicroProfileLogTickDifference(nTickStartGpu, S.Frames[nFrameIndex].nFrameStartGpu) * fToMsGPU;
 			fFrameGpuEndMs = MicroProfileLogTickDifference(nTickStartGpu, S.Frames[nFrameIndexNext].nFrameStartGpu) * fToMsGPU;
 		}
-		MicroProfilePrintf(CB, Handle, "S.Frames[%d] = MakeFrame(%d, %f, %f, %f, %f, S.ts%d, S.tt%d, S.ti%d);\n", i, 0, fFrameMs, fFrameEndMs, fFrameGpuMs, fFrameGpuEndMs, i, i, i);
+		MicroProfilePrintf(CB, Handle, "S.Frames[%d] = MakeFrame(%d, %s, %s, %s, %s, S.ts%d, S.tt%d, S.ti%d);\n", i, 0, MP_DTOSTR(fFrameMs), MP_DTOSTR(fFrameEndMs), MP_DTOSTR(fFrameGpuMs), MP_DTOSTR(fFrameGpuEndMs), i, i, i);
 	}
 	
 	uint32_t nContextSwitchStart = 0;
@@ -4706,7 +4740,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 	{
 		MicroProfileContextSwitch CS = S.ContextSwitch[j];
 		float fTime = MicroProfileLogTickDifference(nTickStart, CS.nTicks) * fToMsCpu;
-		MicroProfilePrintf(CB, Handle, "%f,", fTime);
+		MicroProfilePrintf(CB, Handle, "%s,", MP_DTOSTR(fTime));
 	}
 	MicroProfilePrintf(CB, Handle, "];\n");
 
@@ -6574,8 +6608,8 @@ void MicroProfileSymbolSendModuleState()
 			// nProgress = MicroProfileMin(nProgressTarget, M.nProgress);
 			float fLoadPrc = M.nProgress / float(nProgressTarget);
 			uint64_t nNumSymbols = M.nSymbolsLoaded;
-			#define FMT "{\"n\":\"%s\",\"a\":\"%llx\",\"s\":\"%lld\", \"p\":%f}"
-			MicroProfileWSPrintf(bFirst ? FMT : ("," FMT), pModuleName, nAddrBegin, nNumSymbols, fLoadPrc);
+			#define FMT "{\"n\":\"%s\",\"a\":\"%llx\",\"s\":\"%lld\", \"p\":%s}"
+			MicroProfileWSPrintf(bFirst ? FMT : ("," FMT), pModuleName, nAddrBegin, nNumSymbols, MP_DTOSTR(fLoadPrc));
 			#undef FMT
 			bFirst = false;
 		}
@@ -6603,7 +6637,7 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 		uint64_t nFrameTicks = pFrameNext->nFrameStartCpu - pFrameCurrent->nFrameStartCpu;
 		uint64_t nFrame = pFrameCurrent->nFrameId;
 		double fTime = nFrameTicks * fTickToMsCpu;
-		MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{\"t\":%f,\"f\":%lld,\"a\":%d,\"fr\":%d,\"m\":%d", MSG_FRAME, fTime, nFrame, MicroProfileGetCurrentAggregateFrames(), S.nFrozen, S.nWSViewMode);
+    MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{\"t\":%s,\"f\":%lld,\"a\":%d,\"fr\":%d,\"m\":%d", MSG_FRAME, MP_DTOSTR(fTime), nFrame, MicroProfileGetCurrentAggregateFrames(), S.nFrozen, S.nWSViewMode);
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
 		MicroProfileWSPrintf(",\"s\":{\"n\":%d,\"f\":%d,\"r\":%d,\"l\":%d,\"q\":%d}", 
 			S.SymbolNumModules,
@@ -6627,7 +6661,7 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 					float fCount = (float)pFrameGroup[i].nCount;
 					float fToMs = S.GroupInfo[i].Type == MicroProfileTokenTypeCpu ? fTickToMsCpu : fTickToMsGpu;
 
-					MicroProfileWSPrintf("%c[%f,%f,%f]", f ? ',' : ' ', nTicks * fToMs, nTicksExcl * fToMs, fCount);
+					MicroProfileWSPrintf("%c[%s,%s,%s]", f ? ',' : ' ', MP_DTOSTR(nTicks * fToMs), MP_DTOSTR(nTicksExcl * fToMs), MP_DTOSTR(fCount));
 					f = 1;
 				}
 			}
@@ -6698,7 +6732,7 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 					fTime = fCount = fTimeExcl = 0.f;
 				}
 				nTimer = TI.nWSNext;
-				MicroProfileWSPrintf("\"%d\":[%f,%f,%f]%c", id, fTime, fTimeExcl, fCount, nTimer == -1 ? ' ' : ',');
+				MicroProfileWSPrintf("\"%d\":[%s,%s,%s]%c", id, MP_DTOSTR(fTime), MP_DTOSTR(fTimeExcl), MP_DTOSTR(fCount), nTimer == -1 ? ' ' : ',');
 			}
 			// uprintf("\n");
 			MicroProfileWSPrintf("}");
@@ -8788,7 +8822,7 @@ int MicroProfileGetGpuTickReference(int64_t* pOutCpu, int64_t* pOutGpu)
 			double fDistanceGpu = (nCurGpu - nGpuStart) / (double)nTicksPerSecondGpu;
 
 			char buf[254];
-			snprintf(buf, sizeof(buf)-1,"Distance %f %f diff %f\n", fDistanceCpu, fDistanceGpu, fDistanceCpu-fDistanceGpu);
+			snprintf(buf, sizeof(buf)-1,"Distance %s %s diff %s\n", MP_DTOSTR(fDistanceCpu), MP_DTOSTR(fDistanceGpu), MP_DTOSTR(fDistanceCpu-fDistanceGpu));
 			OutputDebugString(buf);
 			nCountDown = 100;
 		}
