@@ -1281,17 +1281,16 @@ char* MicroProfileDToStr(float value)
   memset(g_FloatToStr, 0, 64);
   char tmp[64];
   memset(tmp, 0, 64);
-  sprintf(tmp, "%f", value);
+  snprintf(tmp, 64, "%f", value);
   const struct lconv* loc = localeconv();
   char* p = &tmp[0];
   char* q = &g_FloatToStr[0];
   while(*p)
   {
-    if (*p != loc->thousands_sep[0])
-      *q = *p;
     if (*p == loc->decimal_point[0])
-      *q = '.';
-    ++q;
+      *p = '.';
+    if (*p != loc->thousands_sep[0])
+      *q++ = *p;
     ++p;
   }
   return g_FloatToStr;
