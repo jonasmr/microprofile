@@ -6349,7 +6349,11 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 				uprintf("got INSTRUMENT Message: %s\n", (const char*)&Bytes[0]);
 				char* pGet = (char*)&Bytes[1];
 				uint32_t nNumArguments = 0;
+#ifdef _WIN32
+				int r = sscanf_s(pGet, "%d", &nNumArguments);
+#else
 				int r = sscanf(pGet, "%d", &nNumArguments);
+#endif
 				if(r != 1)
 				{
 					uprintf("failed to parse..\n");
@@ -6405,7 +6409,11 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 				uprintf("got Message: %s\n", (const char*)&Bytes[0]);
 				void* p = 0;
 				uint32_t nColor = 0x0;
-				int r = sscanf((const char*)&Bytes[1],"%p %x", &p, &nColor);
+#ifdef _WIN32
+				int r = sscanf_s((const char*)&Bytes[1],"%p %x", &p, &nColor);
+#else
+				int r = sscanf((const char*)&Bytes[1], "%p %x", &p, &nColor);
+#endif
 				if(r == 2)
 				{
 					uprintf("success!\n");
