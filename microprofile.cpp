@@ -43,6 +43,10 @@ void MicroProfileGpuSetCallbacks(
 #include <ctype.h>
 #include <string.h>
 
+#define STB_SPRINTF_IMPLEMENTATION
+#include "stb/stb_sprintf.h"
+
+
 #if defined(_WIN32) && _MSC_VER == 1700
 #define PRIx64 "llx"
 #define PRIu64 "llu"
@@ -1261,7 +1265,7 @@ void uprintf(const char* fmt, ...)
 	va_list args;
 	va_start(args, fmt);
 	char buffer[1024];
-	vsnprintf(buffer, sizeof(buffer) - 1, fmt, args);
+	stbsp_vsnprintf(buffer, sizeof(buffer) - 1, fmt, args);
 	OutputDebugStringA(buffer);
 	va_end(args);
 }
@@ -3816,7 +3820,7 @@ extern const char* g_MicroProfileHtmlLive_end[];
 extern size_t g_MicroProfileHtmlLive_end_sizes[];
 extern size_t g_MicroProfileHtmlLive_end_count;
 
-typedef void MicroProfileWriteCallback(void* Handle, size_t size, const char* pData);
+typedef void (*MicroProfileWriteCallback)(void* Handle, size_t size, const char* pData);
 
 uint32_t MicroProfileWebServerPort()
 {
@@ -3919,17 +3923,30 @@ void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, 
 	}
 }
 
+struct MicroProfilePrintfArgs
+{
+	MicroProfileWriteCallback CB;
+	void* Handle;
+
+};
+
+char* MicroProfilePrintfCallback(char* buf, void* user, int len)
+{
+	MicroProfilePrintfArgs* A = (MicroProfilePrintfArgs*)user;
+	(A->CB)(A->Handle, len, buf);
+	return buf;
+};
+
 void MicroProfilePrintf(MicroProfileWriteCallback CB, void* Handle, const char* pFmt, ...)
 {
-	char buffer[32*1024];
 	va_list args;
 	va_start (args, pFmt);
-#ifdef _WIN32
-	size_t size = vsprintf_s(buffer, pFmt, args);
-#else
-	size_t size = vsnprintf(buffer, sizeof(buffer)-1,  pFmt, args);
-#endif
-	CB(Handle, size, &buffer[0]);
+	MicroProfilePrintfArgs A;
+	A.CB = CB;
+	A.Handle = Handle;
+	char Buffer[STB_SPRINTF_MIN];
+	int size = stbsp_vsprintfcb(MicroProfilePrintfCallback, (void*)&A, Buffer, pFmt, args);
+	(void)size;
 	va_end (args);
 }
 
@@ -4095,7 +4112,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 		const char* pColorStr = "";
 		if(S.GroupInfo[i].nColor != 0x42)
 		{
-			snprintf(ColorString, sizeof(ColorString)-1, "#%02x%02x%02x",
+			stbsp_snprintf(ColorString, sizeof(ColorString)-1, "#%02x%02x%02x",
 				MICROPROFILE_UNPACK_RED(S.GroupInfo[i].nColor) & 0xff,
 				MICROPROFILE_UNPACK_GREEN(S.GroupInfo[i].nColor) & 0xff,
 				MICROPROFILE_UNPACK_BLUE(S.GroupInfo[i].nColor) & 0xff);
@@ -6393,7 +6410,7 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 				{
 					uprintf("success!\n");
 					const char* pModule = (const char*)&Bytes[1];
-					int nNumChars = snprintf(0, 0, "%p %x", p, nColor);
+					int nNumChars = stbsp_snprintf(0, 0, "%p %x", p, nColor);
 					pModule += nNumChars;
 					while(*pModule != ' ' && *pModule != '\0')
 						++pModule;
@@ -6479,7 +6496,7 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 	"Sec-WebSocket-Accept: ";
 
 	char EncodeBuffer[512];
-	int nLen = snprintf(EncodeBuffer, sizeof(EncodeBuffer)-1, "%s%s", pWebSocketKey, pGUID);
+	int nLen = stbsp_snprintf(EncodeBuffer, sizeof(EncodeBuffer)-1, "%s%s", pWebSocketKey, pGUID);
 	//uprintf("encode buffer is '%s' %d, %d\n", EncodeBuffer, nLen, (int)strlen(EncodeBuffer));
 
 	uint8_t sha[20];
@@ -6492,7 +6509,7 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 	MicroProfileBase64Encode(&HashOut[0], &sha[0], sizeof(sha));
 
 	char Reply[11024];
-	nLen = snprintf(Reply, sizeof(Reply)-1, "%s%s\r\n\r\n", pHandShake, HashOut);;
+	nLen = stbsp_snprintf(Reply, sizeof(Reply)-1, "%s%s\r\n\r\n", pHandShake, HashOut);;
 	MP_ASSERT(nLen >= 0);
 	MicroProfileSocketSend(Connection, Reply, nLen);
 	S.WebSockets[S.nNumWebSockets++] = Connection;
@@ -6843,48 +6860,39 @@ void MicroProfileWSPrintStart(MpSocket C)
 	MP_ASSERT(S.WSBuf.Socket == 0);
 	MP_ASSERT(S.WSBuf.nPut == 0);
 	S.WSBuf.Socket = C;
+}
 
+void MicroProfileResizeWSBuf(uint32_t nMinSize = 0)
+{
+	uint32_t nNewSize = MicroProfileMax(S.WSBuf.nPut + 2 * (nMinSize + 2 + 20), MicroProfileMax(S.WSBuf.nBufferSize * 3 / 2, (uint32_t)MICROPROFILE_WEBSOCKET_BUFFER_SIZE));
+	S.WSBuf.pBufferAllocation = (char*)MICROPROFILE_REALLOC(S.WSBuf.pBufferAllocation, nNewSize);
+	S.WSBuf.pBuffer = S.WSBuf.pBufferAllocation + 20;
+	S.WSBuf.nBufferSize = nNewSize - 20;
+}
+
+char* MicroProfileWSPrintfCallback(char* buf, void* user, int len)
+{
+	MP_ASSERT(S.WSBuf.nPut == buf - S.WSBuf.pBuffer);
+	S.WSBuf.nPut += len;
+	if(S.WSBuf.nPut + STB_SPRINTF_MIN + 2 >= S.WSBuf.nBufferSize) //
+	{
+		MicroProfileResizeWSBuf(S.WSBuf.nPut + STB_SPRINTF_MIN);
+	}
+	return S.WSBuf.pBuffer + S.WSBuf.nPut;
 }
 
 void MicroProfileWSPrintf(const char* pFmt, ...) 
 {
+	if(!S.WSBuf.nBufferSize)
+	{
+		MicroProfileResizeWSBuf(STB_SPRINTF_MIN*2);
+	}
 	va_list args;
 	va_start (args, pFmt);
-
-	int nRequiredSize = 0;
-	MP_ASSERT(S.WSBuf.nPut <= S.WSBuf.nBufferSize);
-
-
-#ifdef _WIN32
-	nRequiredSize = (int)_vscprintf(pFmt, args);
-#else
-    va_list args_copy;
-    va_copy(args_copy, args);
-	nRequiredSize = (int)vsnprintf(0, 0, pFmt, args_copy);
-    va_end(args_copy);
-#endif
-
-	if(S.WSBuf.nPut + nRequiredSize + 2 > S.WSBuf.nBufferSize)
-	{
-		uint32_t nNewSize = MicroProfileMax(S.WSBuf.nPut + 2 * (nRequiredSize + 2 + 20), MicroProfileMax(S.WSBuf.nBufferSize * 3 / 2, (uint32_t)MICROPROFILE_WEBSOCKET_BUFFER_SIZE));
-		S.WSBuf.pBufferAllocation = (char*)MICROPROFILE_REALLOC(S.WSBuf.pBufferAllocation, nNewSize);
-		S.WSBuf.pBuffer = S.WSBuf.pBufferAllocation + 20;
-		S.WSBuf.nBufferSize = nNewSize - 20;
-	}
-
-	uint32_t nSpace = S.WSBuf.nBufferSize - S.WSBuf.nPut - 1;
-	MP_ASSERT((int)nSpace > nRequiredSize);
-	char* pPut = &S.WSBuf.pBuffer[S.WSBuf.nPut];
-#ifdef _WIN32
-	int nSize = (int)vsnprintf_s(pPut, nSpace, nSpace, pFmt, args);
-#else
-	int nSize = (int)vsnprintf(pPut, nSpace, pFmt, args);
-#endif
+	MP_ASSERT(S.WSBuf.nPut + STB_SPRINTF_MIN < S.WSBuf.nBufferSize);
+	stbsp_vsprintfcb(MicroProfileWSPrintfCallback, 0, S.WSBuf.pBuffer + S.WSBuf.nPut, pFmt, args);
 	va_end(args);
-	MP_ASSERT(nSize>=0);
-	S.WSBuf.nPut += nSize;
 }
-
 
 void MicroProfileWSPrintEnd()
 {
@@ -10925,11 +10933,11 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 			const char* pCode = (const char*)f;
 			memset(pError->Code, 0, sizeof(pError->Code));
 			memcpy(pError->Code, pCode, nInstructionBytesSrc);
-			int off = snprintf(pError->Message, sizeof(pError->Message), "Failed to move %d code bytes ", nInstructionBytesSrc);
+			int off = stbsp_snprintf(pError->Message, sizeof(pError->Message), "Failed to move %d code bytes ", nInstructionBytesSrc);
 			pError->nCodeSize = nInstructionBytesSrc;
 			for(int i = 0; i < nInstructionBytesSrc; ++i)
 			{
-				off += snprintf(off + pError->Message, sizeof(pError->Message) - off, "%02x ", 0xff&pCode[i]);
+				off += stbsp_snprintf(off + pError->Message, sizeof(pError->Message) - off, "%02x ", 0xff&pCode[i]);
 			}
 			uprintf("%s\n", pError->Message);
 		}
@@ -11309,7 +11317,7 @@ BOOL CALLBACK MicroProfileEnumModules(
 	int r1 = GetLastError();
 	if(r == 0)
 	{
-		snprintf(buffer, sizeof(buffer)-1, "Error %d\n", r1);
+		stbsp_snprintf(buffer, sizeof(buffer)-1, "Error %d\n", r1);
 		OutputDebugString(buffer);
 		MP_BREAK();
 
@@ -11527,7 +11535,7 @@ BOOL MicroProfileQueryContextEnumSymbols1 (
 	 if(pSymInfo->Tag == 5 || pSymInfo->Tag == 10)
 	 {
 	 	char str[200];
-	 	snprintf(str, sizeof(str)-1, "%s : %p\n", pSymInfo->Name, (void*)pSymInfo->Address);
+		stbsp_snprintf(str, sizeof(str)-1, "%s : %p\n", pSymInfo->Name, (void*)pSymInfo->Address);
 	 	OutputDebugStringA(str);
 		g_pFunctionpNameFound = pSymInfo->Name;
 		g_pFunctionFoundHack = (void*)pSymInfo->Address;
@@ -11550,7 +11558,7 @@ void MicroProfileInstrumentWithoutSymbols(const char** pModules, const char** pS
 		HANDLE h = GetCurrentProcess();
 		for(uint32_t i = 0; i < nNumSymbols; ++i)
 		{
-			int nCount = snprintf(SymString, sizeof(SymString)-1, "%s!%s", pModules[i], pSymbols[i]);
+			int nCount = stbsp_snprintf(SymString, sizeof(SymString)-1, "%s!%s", pModules[i], pSymbols[i]);
 			if(nCount <= sizeof(SymString)-1)
 			{
 				g_pFunctionFoundHack = 0;
@@ -11693,11 +11701,11 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 			const char* pCode = (const char*)f;
 			memset(pError->Code, 0, sizeof(pError->Code));
 			memcpy(pError->Code, pCode, nInstructionBytesSrc);
-			int off = snprintf(pError->Message, sizeof(pError->Message), "Failed to move %d code bytes ", nInstructionBytesSrc);
+			int off = stbsp_snprintf(pError->Message, sizeof(pError->Message), "Failed to move %d code bytes ", nInstructionBytesSrc);
 			pError->nCodeSize = nInstructionBytesSrc;
 			for(int i = 0; i < nInstructionBytesSrc; ++i)
 			{
-				off += snprintf(off + pError->Message, sizeof(pError->Message) - off, "%02x ", 0xff&pCode[i]);
+				off += stbsp_snprintf(off + pError->Message, sizeof(pError->Message) - off, "%02x ", 0xff&pCode[i]);
 			}
 			uprintf("%s\n", pError->Message);
 		}
@@ -12290,11 +12298,11 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 			const char* pCode = (const char*)f;
 			memset(pError->Code, 0, sizeof(pError->Code));
 			memcpy(pError->Code, pCode, nInstructionBytesSrc);
-			int off = snprintf(pError->Message, sizeof(pError->Message), "Failed to move %d code bytes ", nInstructionBytesSrc);
+			int off = stbsp_snprintf(pError->Message, sizeof(pError->Message), "Failed to move %d code bytes ", nInstructionBytesSrc);
 			pError->nCodeSize = nInstructionBytesSrc;
 			for(int i = 0; i < nInstructionBytesSrc; ++i)
 			{
-				off += snprintf(off + pError->Message, sizeof(pError->Message) - off, "%02x ", 0xff&pCode[i]);
+				off += stbsp_snprintf(off + pError->Message, sizeof(pError->Message) - off, "%02x ", 0xff&pCode[i]);
 			}
 			uprintf("%s\n", pError->Message);
 		}
