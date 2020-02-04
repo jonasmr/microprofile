@@ -7161,7 +7161,7 @@ const char g_MicroProfileHtml_end_4[] =
 "			Pairs[i] = -1;\n"
 "			var ID = Ids[i];\n"
 "			var match = Matching[ID];\n"
-"			if(match)\n"
+"			if(match != null)\n"
 "			{\n"
 "				if(match > Ids.length || match < 0)\n"
 "					debugger;\n"
