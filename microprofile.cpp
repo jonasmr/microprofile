@@ -7721,6 +7721,10 @@ int main(int argc, char* argv[])
 	
 	if (g_pShared != NULL)
 	{
+		while (g_pShared->nTickProgram.load(std::memory_order_acquire) == 0 || g_pShared->nTickTrace.load(std::memory_order_acquire) == 0) {
+			Sleep(20);
+		}
+
 		MicroProfileStartWin32Trace(MicroProfileContextSwitchCallbackCollector, MicroProfileBufferCallbackCollector);
 		UnmapViewOfFile(g_pShared);
 	}
@@ -7754,9 +7758,9 @@ void* MicroProfileTraceThread(void* unused)
 #else
 #define CSWITCH_EXE "microprofile-win32-cswitch_x64.exe"
 #endif
+				HINSTANCE Instance = ShellExecuteA(NULL, "runas", CSWITCH_EXE, Filename, "", SW_SHOWMINNOACTIVE);
 				pShared->nTickProgram.store(MP_TICK());
 				pShared->nTickTrace.store(MP_TICK());
-				HINSTANCE Instance = ShellExecuteA(NULL, "runas", CSWITCH_EXE, Filename, "", SW_SHOWMINNOACTIVE);
 				int64_t nInstance = (int64_t)Instance;
 				if(nInstance >= 32)
 				{
