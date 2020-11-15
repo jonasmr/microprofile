@@ -11383,6 +11383,8 @@ BOOL MicroProfileQueryContextEnumSymbols (
 };
 
 
+bool MicroProfileSymInit();
+void MicroProfileSymCleanup();
 
 template<typename Callback>
 void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumModules)
