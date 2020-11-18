@@ -8492,7 +8492,7 @@ void MicroProfileGpuFetchRange(VkCommandBuffer CommandBuffer, uint32_t nNode, ui
 	if (nCount <= 0)
 		return;
 
-	vkGetQueryPoolResults(S.pGPU->Devices[nNode], S.pGPU->QueryPool[nNode], nBegin, nCount, 8*nCount, &S.pGPU->nResults[nBegin], 8, VK_QUERY_RESULT_64_BIT|VK_QUERY_RESULT_PARTIAL_BIT );	
+	vkGetQueryPoolResults(S.pGPU->Devices[nNode], S.pGPU->QueryPool[nNode], nBegin, nCount, 8*nCount, &S.pGPU->nResults[nBegin], 8, VK_QUERY_RESULT_64_BIT);
 	vkCmdResetQueryPool(CommandBuffer, S.pGPU->QueryPool[nNode], nBegin, nCount);
 	for (int i = 0; i < nCount; ++i)
 	{
