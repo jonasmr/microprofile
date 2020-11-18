@@ -633,7 +633,7 @@ MICROPROFILE_API void MicroProfileSetCurrentNodeD3D12(uint32_t nNode);
 
 #if MICROPROFILE_GPU_TIMERS_VULKAN
 #include <vulkan/vulkan.h>
-void MicroProfileGpuInitVulkan(VkDevice* pDevices, VkPhysicalDevice* pPhysicalDevices, VkQueue* pQueues, uint32_t* QueueFamily, uint32_t nNodeCount);
+MICROPROFILE_API void MicroProfileGpuInitVulkan(VkDevice* pDevices, VkPhysicalDevice* pPhysicalDevices, VkQueue* pQueues, uint32_t* QueueFamily, uint32_t nNodeCount);
 MICROPROFILE_API void MicroProfileGpuShutdown();
 MICROPROFILE_API void MicroProfileSetCurrentNodeVulkan(uint32_t nNode);
 #endif
