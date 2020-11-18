@@ -8705,6 +8705,18 @@ void MicroProfileGpuInitVulkan(VkDevice* pDevices, VkPhysicalDevice* pPhysicalDe
 
 void MicroProfileGpuShutdown()
 {
+	for(uint32_t i = 0; i < S.pGPU->nNodeCount; ++i)
+	{
+		for(uint32_t j = 0; j < MICROPROFILE_VULKAN_INTERNAL_DELAY; ++j)
+		{
+			auto& F = S.pGPU->Frames[j];
+			vkFreeCommandBuffers(S.pGPU->Devices[i], S.pGPU->CommandPool[i], 1, &F.CommandBuffer[i]);
+			vkDestroyFence(S.pGPU->Devices[i], F.Fences[i], nullptr);
+		}
+		vkDestroyQueryPool(S.pGPU->Devices[i], S.pGPU->QueryPool[i], nullptr);
+		vkDestroyCommandPool(S.pGPU->Devices[i], S.pGPU->CommandPool[i], nullptr);
+	}
+
 	MP_FREE(S.pGPU);
 	S.pGPU = 0;
 }
