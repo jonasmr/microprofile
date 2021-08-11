@@ -1,6 +1,15 @@
 
-live: fix graph for recursion
+csv viewer
+capture: Zones
+capture: compress file data
+capture: offload aggregation to thread.
+capture: make aggregation faster
+capture: support for custom format/string
 
+variable
+
+
+live: fix graph for recursion
 live: graph control is shown in views where it is not used
 live: kill single view
 

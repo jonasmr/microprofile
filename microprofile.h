@@ -92,6 +92,18 @@ typedef uint16_t MicroProfileGroupId;
 #define MICROPROFILE_ENTER_TOKEN(var) do{}while(0)
 #define MICROPROFILE_ENTERI(group, name, color) do{}while(0)
 #define MICROPROFILE_LEAVE() do{}while(0)
+
+#define MICROPROFILE_ENTER_NEGATIVE() do {} while(0)
+#define MICROPROFILE_LEAVE_NEGATIVE() do {} while(0)
+#define MICROPROFILE_ENTER_NEGATIVEGPU() do {} while(0)
+#define MICROPROFILE_LEAVE_NEGATIVEGPU() do {} while(0)
+#define MICROPROFILE_ENTER_NEGATIVEGPU_C(c) do {} while(0)
+#define MICROPROFILE_LEAVE_NEGATIVEGPU_C(c) do {} while(0)
+#define MICROPROFILE_ENTER_SECTION() do {} while(0)
+#define MICROPROFILE_LEAVE_SECTION() do {} while(0)
+
+
+
 #define MICROPROFILE_GPU_ENTER(var) do{}while(0)
 #define MICROPROFILE_GPU_ENTER_TOKEN(token) do{}while(0)
 #define MICROPROFILE_GPU_ENTERI(group, name, color) do{}while(0)
@@ -106,6 +118,13 @@ typedef uint16_t MicroProfileGroupId;
 #define MICROPROFILE_GPU_SET_CONTEXT(pContext, pLog) do {} while(0)
 #define MICROPROFILE_GPU_END(pLog) 0
 #define MICROPROFILE_GPU_SUBMIT(Queue, Work) do {} while(0)
+#define MICROPROFILE_GPU_ENTER_SECTION() do {} while(0)
+#define MICROPROFILE_GPU_LEAVE_SECTION() do {} while(0)
+#define MICROPROFILE_GPU_ENTER_SECTION_L(Log, name, color) do {} while(0)
+#define MICROPROFILE_GPU_LEAVE_SECTION_L(Log, name, color) do {} while(0)
+
+
+
 #define MICROPROFILE_TIMELINE_TOKEN(token) do{}while(0)
 #define MICROPROFILE_TIMELINE_ENTER(token, color, name) do{}while(0)
 #define MICROPROFILE_TIMELINE_ENTERF(token, color, fmt, ...) do{}while(0)
@@ -244,6 +263,10 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #define MICROPROFILE_LEAVE_NEGATIVEGPU() MicroProfileLeaveGpu(MicroProfileGetGlobalGpuThreadLog())
 #define MICROPROFILE_ENTER_NEGATIVEGPU_C(c) MicroProfileEnterNegativeGpu(c)
 #define MICROPROFILE_LEAVE_NEGATIVEGPU_C(c) MicroProfileLeaveGpu(c)
+#define MICROPROFILE_ENTER_SECTION() MicroProfileEnterSection(name, color)
+#define MICROPROFILE_LEAVE_SECTION() MicroProfileLeaveSection()
+
+
 #define MICROPROFILE_GPU_ENTER(var) MicroProfileEnterGpu(g_mpGPU_##var, MicroProfileGetGlobalGpuThreadLog())
 #define MICROPROFILE_GPU_ENTER_TOKEN(token) MicroProfileEnterGpu(token, MicroProfileGetGlobalGpuThreadLog())
 #define MICROPROFILE_GPU_ENTERI(group, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__) = MICROPROFILE_INVALID_TOKEN; if(MICROPROFILE_INVALID_TOKEN == MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__)){MicroProfileGetTokenC(&MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__), group, name, color, MicroProfileTokenTypeGpu);} MicroProfileEnterGpu(MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__), MicroProfileGetGlobalGpuThreadLog())
@@ -259,6 +282,14 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #define MICROPROFILE_GPU_SET_CONTEXT(pContext, pLog) MicroProfileGpuSetContext(pContext, pLog)
 #define MICROPROFILE_GPU_END(pLog) MicroProfileGpuEnd(pLog)
 #define MICROPROFILE_GPU_SUBMIT(Queue, Work) MicroProfileGpuSubmit(Queue, Work)
+#define MICROPROFILE_GPU_ENTER_SECTION() MicroProfileEnterSectionGpu(name, color, MicroProfileGetGlobalGpuThreadLog())
+#define MICROPROFILE_GPU_LEAVE_SECTION() MicroProfileLeaveSectionGpu(MicroProfileGetGlobalGpuThreadLog())
+#define MICROPROFILE_GPU_ENTER_SECTION_L(Log, name, color) MicroProfileEnterSectionGpu(name, color, Log)
+#define MICROPROFILE_GPU_LEAVE_SECTION_L(Log, name, color) MicroProfileLeaveSectionGpu(Log)
+
+
+
+
 #define MICROPROFILE_TIMELINE_TOKEN(token) uint32_t token = 0
 #define MICROPROFILE_TIMELINE_ENTER(token, color, name) token = MicroProfileTimelineEnter(color, name)
 #define MICROPROFILE_TIMELINE_ENTERF(token, color, fmt, ...) token = MicroProfileTimelineEnterf(color, fmt, ##__VA_ARGS__)
@@ -512,6 +543,11 @@ MICROPROFILE_API uint64_t MicroProfileEnterInternal(MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileLeaveInternal(MicroProfileToken nToken, uint64_t nTick);
 MICROPROFILE_API void MicroProfileEnter(MicroProfileToken nToken);
 MICROPROFILE_API void MicroProfileLeave();
+
+MICROPROFILE_API void MicroProfileEnterSection(const char* pName, uint32_t nColor);
+MICROPROFILE_API void MicroProfileLeaveSection();
+
+
 MICROPROFILE_API void MicroProfileEnterGpu(MicroProfileToken nToken, struct MicroProfileThreadLogGpu* pLog);
 MICROPROFILE_API void MicroProfileLeaveGpu(struct MicroProfileThreadLogGpu* pLog);
 MICROPROFILE_API void MicroProfileEnterNegative();
@@ -534,6 +570,11 @@ MICROPROFILE_API void MicroProfileGpuSubmit(int nQueue, uint64_t nWork);
 MICROPROFILE_API int MicroProfileInitGpuQueue(const char* pQueueName);
 MICROPROFILE_API void MicroProfileFreeGpuQueue(int nQueue);
 MICROPROFILE_API int MicroProfileGetGpuQueue(const char* pQueueName);
+
+MICROPROFILE_API void MicroProfileEnterSectionGpu(const char* pSectionName, uint32_t nColor, struct MicroProfileThreadLogGpu* pLog);
+MICROPROFILE_API void MicroProfileLeaveSectionGpu(struct MicroProfileThreadLogGpu* pLog);
+
+
 MICROPROFILE_API void MicroProfileFlip(void* pGpuContext); //! call once per frame.
 MICROPROFILE_API void MicroProfileFlip_CB(void* pGpuContext, MicroProfileOnFreeze FreezeCB); //! call once per frame.
 MICROPROFILE_API void MicroProfileToggleFrozen();
