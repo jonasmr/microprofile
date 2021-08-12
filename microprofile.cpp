@@ -2402,7 +2402,7 @@ void MicroProfileTimelineLeaveStatic(const char* pStr)
 {
 	for(uint32_t i = 0; i < MICROPROFILE_TIMELINE_MAX_TOKENS; ++i)
 	{
-		if(S.TimelineTokenStaticString[i] && 0 == MP_STRCASECMP(pStr, S.TimelineTokenStaticString[i]))
+		if(S.TimelineTokenStaticString[i] && 0 == MP_STRCASECMP(pStr,S.TimelineTokenStaticString[i]))
 		{
 			MicroProfileTimelineLeave(S.TimelineToken[i]);
 		}
@@ -2416,7 +2416,6 @@ uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, ui
 	MP_ASSERT(pStr[nStrLen] == '\0');
 	nStrLen += 1;
 	uint32_t nStringQwords = MicroProfileGetQWordSize(nStrLen);
-	//;;(uint32_t)(nStrLen + 6) / 7;
 	uint32_t nNumMessages = nStringQwords;
 
 	uint32_t nPut = pLog->nPut.load(std::memory_order_relaxed);
@@ -2434,17 +2433,20 @@ uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, ui
 
 		uint32_t token = pLog->nCustomId;
 		uint32_t nFrameLeave = S.TimelineTokenFrameLeave[token%MICROPROFILE_TIMELINE_MAX_TOKENS];
+		uint32_t nFrameEnter = S.TimelineTokenFrameEnter[token%MICROPROFILE_TIMELINE_MAX_TOKENS];
 		uint32_t nCounter = 0;
 		uint32_t nFrameCurrent = S.nFrameCurrent;
 		{
 
 			/// dont reuse tokens until their leave command has been dead for the maximum amount of frames we can generate a capture for.
 			while(   token == 0
-				  || (    nFrameCurrent - nFrameLeave < MICROPROFILE_WEBSERVER_MAXFRAMES + 3
+				  || nFrameEnter != MICROPROFILE_INVALID_FRAME
+				  || ( nFrameCurrent - nFrameLeave < MICROPROFILE_WEBSERVER_MAXFRAMES + 3
 					   && nFrameLeave != MICROPROFILE_INVALID_FRAME))
 			{
 				token = (uint32_t)pLog->nCustomId++;
 				nFrameLeave = S.TimelineTokenFrameLeave[token%MICROPROFILE_TIMELINE_MAX_TOKENS];
+				nFrameEnter = S.TimelineTokenFrameEnter[token%MICROPROFILE_TIMELINE_MAX_TOKENS];
 				if(++nCounter == MICROPROFILE_TIMELINE_MAX_TOKENS)
 				{
 					// MP_BREAK();
@@ -2466,7 +2468,6 @@ uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, ui
 		uint64_t LEEnter = MicroProfileMakeLogIndex(MP_LOG_ENTER, ETOKEN_CUSTOM_NAME, MP_TICK());
 		uint64_t LEColor = MicroProfileMakeLogExtended(ETOKEN_CUSTOM_COLOR, 0, nColor);
 		uint64_t LEId = MicroProfileMakeLogExtended(ETOKEN_CUSTOM_ID, nStringQwords, token);
-		printf("pushed token %d ---> %p\n", token, (void*)LEId);
 
 		pLog->Log[nPut++] = LEEnter; nPut %= MICROPROFILE_BUFFER_SIZE;
 		pLog->Log[nPut++] = LEColor; nPut %= MICROPROFILE_BUFFER_SIZE;
@@ -4667,8 +4668,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 				case MP_LOG_EXTENDED:
 					if(nIndex == ETOKEN_CUSTOM_ID)
 					{
-						printf("READ token %d ---> %p", (uint32_t)nTick, (void*)v);
-
 						pp("%c%d", f++ ? ',' : ' ', (uint32_t)nTick);
 					}
 					k += MicroProfileLogGetDataSize(v);

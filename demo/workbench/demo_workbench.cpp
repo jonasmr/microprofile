@@ -305,18 +305,29 @@ int main(int argc, char* argv[])
 		MICROPROFILE_TIMELINE_ENTER_STATIC(MP_DARKGOLDENROD, "one");
 		if(0 == hest%4)
 		{
-			MICROPROFILE_TIMELINE_ENTER_STATIC(MP_DARKGOLDENROD, "two");
+			MICROPROFILE_TIMELINE_ENTER_STATIC(MP_PINK, "two");
 		}
 		else if(2 == hest%4)
 		{
 			MICROPROFILE_TIMELINE_LEAVE_STATIC("Two");
 		}
 
+		if(0 == hest%8)
+		{
+			MICROPROFILE_TIMELINE_ENTER_STATIC(MP_GREEN, "fourone");
+		}
+		else if(4 == hest%8)
+		{
+			MICROPROFILE_TIMELINE_LEAVE_STATIC("fourone");
+		}
+
+
+
 		if(0 == hest%12)
 		{
 			MICROPROFILE_TIMELINE_ENTERF(htok_three, MP_YELLOW, "three %d", hest);
 		}
-		else if(10 == hest%12)
+		else if(11 == hest%12)
 		{
 			MICROPROFILE_TIMELINE_LEAVE(htok_three);
 		}

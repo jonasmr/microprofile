@@ -1125,6 +1125,9 @@ const char g_MicroProfileHtml_end_0[] =
 "\n"
 "function UpdateReferenceTime()\n"
 "{\n"
+"	S.CaptureStartTime = S.Frames[0].framestart;\n"
+"	S.CaptureEndTime = S.Frames[S.Frames.length-1].frameend;\n"
+"\n"
 "	if(\'auto\' == ReferenceTimeString.substring(0,4))\n"
 "	{\n"
 "		let Max = 0.1;\n"
@@ -1785,17 +1788,17 @@ const char g_MicroProfileHtml_end_0[] =
 "}\n"
 "function TimeToString(Time)\n"
 "{\n"
-"	if(Time > 1000)\n"
+"	if(Time ";
+
+const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
+const char g_MicroProfileHtml_end_1[] =
+"> 1000)\n"
 "	{\n"
 "		return (Time/1000.0).toFixed(0) +\"s\";\n"
 "	}\n"
 "	else if(Time > 0.9)\n"
 "	{\n"
-"		return Time.toFixed(0) + ";
-
-const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
-const char g_MicroProfileHtml_end_1[] =
-"\"ms\";\n"
+"		return Time.toFixed(0) + \"ms\";\n"
 "	}\n"
 "	else if(Time > 0.0009)\n"
 "	{\n"
@@ -3037,14 +3040,14 @@ const char g_MicroProfileHtml_end_1[] =
 "		else\n"
 "			return a.tid - b.tid;\n"
 "	}\n"
-"	S.CSwitchOnlyThreads.sort( function(a, b){\n"
-"		HandleMissingThread(a);\n"
-"		HandleMissingThread(b);\n"
-"		return CompareThreadInfo(S.CSwitchThreads[a";
+"	S.CSwitchOnlyThreads.sort( function";
 
 const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
 const char g_MicroProfileHtml_end_2[] =
-"], S.CSwitchThreads[b]);\n"
+"(a, b){\n"
+"		HandleMissingThread(a);\n"
+"		HandleMissingThread(b);\n"
+"		return CompareThreadInfo(S.CSwitchThreads[a], S.CSwitchThreads[b]);\n"
 "	} );\n"
 "\n"
 "	ProfileLeave();\n"
@@ -4360,16 +4363,16 @@ const char g_MicroProfileHtml_end_2[] =
 "	{\n"
 "		nOffsetYDest = nOffsetYBottom;\n"
 "	}\n"
-"	if(nOffsetYDest > YTop)\n"
+"	if(nOffsetYDest";
+
+const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
+const char g_MicroProfileHtml_end_3[] =
+" > YTop)\n"
 "	{\n"
 "		nOffsetYDest = YTop;\n"
 "	}\n"
 "	var fRange = fDetailedRange;\n"
-"	var fMinRange = (fMoveEnd-fMoveBegin";
-
-const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
-const char g_MicroProfileHtml_end_3[] =
-") * 2.0;\n"
+"	var fMinRange = (fMoveEnd-fMoveBegin) * 2.0;\n"
 "	if(fRange < fMinRange)\n"
 "	{\n"
 "		fRange = fMinRange;\n"
@@ -5757,16 +5760,16 @@ const char g_MicroProfileHtml_end_3[] =
 "		{\n"
 "			SortColumn = 7;\n"
 "		}\n"
-"		else if(SortColumnMouseOver == StrExclAverage)\n"
+"		else if(SortCol";
+
+const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
+const char g_MicroProfileHtml_end_4[] =
+"umnMouseOver == StrExclAverage)\n"
 "		{\n"
 "			SortColumn = 8;\n"
 "		}\n"
 "		else if(SortColumnMouseOver == StrExclMax)\n"
-"	";
-
-const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
-const char g_MicroProfileHtml_end_4[] =
-"	{\n"
+"		{\n"
 "			SortColumn = 9;\n"
 "		}\n"
 "		else if(SortColumnMouseOver == StrGroup)\n"
@@ -7147,6 +7150,12 @@ const char g_MicroProfileHtml_end_4[] =
 "\n"
 "	};\n"
 "\n"
+"	let HasMatchingName = function(index)\n"
+"	{\n"
+"		let name = Timeline.Names[index];\n"
+"		return name && name.length > 0;\n"
+"	};\n"
+"\n"
 "\n"
 "\n"
 "\n"
@@ -7163,7 +7172,7 @@ const char g_MicroProfileHtml_end_4[] =
 "			Pairs[i] = -1;\n"
 "			var ID = Ids[i];\n"
 "			var match = Matching[ID];\n"
-"			if(match)\n"
+"			if(match >= 0)\n"
 "			{\n"
 "				if(match > Ids.length || match < 0)\n"
 "					debugger;\n"
@@ -7174,11 +7183,36 @@ const char g_MicroProfileHtml_end_4[] =
 "				Ends[match] = Times[i];\n"
 "				var Track = AddToTrack(Times[match], Ends[match], match);\n"
 "				Timeline.Positions[match] = Track;\n"
+"				delete Matching[ID];\n"
 "			}\n"
 "			else\n"
 "			{\n"
-"				Matching[ID] = i;\n"
+"				if(HasMatchingName(i))\n"
+"				{\n"
+"					Matching[ID] = i;\n"
+"				}\n"
 "			}\n"
+"		}\n"
+"	}\n"
+"	// add any unclosed markers\n"
+"	for(let id in Matching)\n"
+"	{\n"
+"		let index = Matching[id];\n"
+"		let name = Timeline.Names[index];\n"
+"		if(HasMatchingName(index)) // only close if there is a matching name...\n"
+"		{\n"
+"			let StartTime = Times[index];\n"
+"			let EndTime = S.CaptureEndTime;\n"
+"			if(StartTime >= EndTime)\n"
+"			{\n"
+"				EndTime = EndTime + 42;\n"
+"				console.log(\"End marker after captureend time. this should not happen. adding 42\");\n"
+"				debugger;\n"
+"			}\n"
+"\n"
+"			Ends[index] = S.CaptureEndTime;\n"
+"			let Track = AddToTrack(Times[index], Ends[index], index);\n"
+"			Timeline.Positions[index] = Track;\n"
 "		}\n"
 "	}\n"
 "}\n"
@@ -7314,7 +7348,11 @@ const char g_MicroProfileHtml_end_4[] =
 "	// 	}\n"
 "\n"
 "	// };\n"
-"	// dump(S0, \"S0be4\");\n"
+"	// dump(S0, \"";
+
+const size_t g_MicroProfileHtml_end_4_size = sizeof(g_MicroProfileHtml_end_4);
+const char g_MicroProfileHtml_end_5[] =
+"S0be4\");\n"
 "	// dump(S1, \"S1be4\");\n"
 "\n"
 "	for(var i = 0; i < S1.GroupInfo.length; ++i)\n"
@@ -7351,11 +7389,7 @@ const char g_MicroProfileHtml_end_4[] =
 "		}\n"
 "		else\n"
 "		{\n"
-"			console.log(\'added timer \' + TI.name + \' idx \' +";
-
-const size_t g_MicroProfileHtml_end_4_size = sizeof(g_MicroProfileHtml_end_4);
-const char g_MicroProfileHtml_end_5[] =
-" S0.TimerInfo.length);\n"
+"			console.log(\'added timer \' + TI.name + \' idx \' + S0.TimerInfo.length);\n"
 "			TimerRemap[i] = S0.TimerInfo.length;\n"
 "			TI.id = S0.TimerInfo.length;\n"
 "			S0.TimerInfo.push(TI);\n"

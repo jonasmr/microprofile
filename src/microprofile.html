@@ -1111,6 +1111,9 @@ function SetMode(NewMode, WantRedraw)
 
 function UpdateReferenceTime()
 {
+	S.CaptureStartTime = S.Frames[0].framestart;
+	S.CaptureEndTime = S.Frames[S.Frames.length-1].frameend;
+
 	if('auto' == ReferenceTimeString.substring(0,4))
 	{
 		let Max = 0.1;
@@ -7117,6 +7120,12 @@ function PreprocessTimeline()
 
 	};
 
+	let HasMatchingName = function(index)
+	{
+		let name = Timeline.Names[index];
+		return name && name.length > 0;
+	};
+
 
 
 
@@ -7133,7 +7142,7 @@ function PreprocessTimeline()
 			Pairs[i] = -1;
 			var ID = Ids[i];
 			var match = Matching[ID];
-			if(match)
+			if(match >= 0)
 			{
 				if(match > Ids.length || match < 0)
 					debugger;
@@ -7144,11 +7153,36 @@ function PreprocessTimeline()
 				Ends[match] = Times[i];
 				var Track = AddToTrack(Times[match], Ends[match], match);
 				Timeline.Positions[match] = Track;
+				delete Matching[ID];
 			}
 			else
 			{
-				Matching[ID] = i;
+				if(HasMatchingName(i))
+				{
+					Matching[ID] = i;
+				}
 			}
+		}
+	}
+	// add any unclosed markers
+	for(let id in Matching)
+	{
+		let index = Matching[id];
+		let name = Timeline.Names[index];
+		if(HasMatchingName(index)) // only close if there is a matching name...
+		{
+			let StartTime = Times[index];
+			let EndTime = S.CaptureEndTime;
+			if(StartTime >= EndTime)
+			{
+				EndTime = EndTime + 42;
+				console.log("End marker after captureend time. this should not happen. adding 42");
+				debugger;
+			}
+
+			Ends[index] = S.CaptureEndTime;
+			let Track = AddToTrack(Times[index], Ends[index], index);
+			Timeline.Positions[index] = Track;
 		}
 	}
 }
