@@ -1,17 +1,17 @@
 LDFLAGS+=-lpthread
-CFLAGS=-Wno-c++11-extensions -I../..
+CFLAGS=-I../..
 #CFLAGS+=-fsanitize=undefined-trap -fsanitize-undefined-trap-on-error
 CFLAGS+=-Wall -DMICROPROFILE_UI=0 -DMICROPROFILE_WEBSERVER=1 -DMICROPROFILE_GPU_TIMERS=0
 CFLAGS+=-g -O0 -Wno-invalid-offsetof -Wall -Werror
 
 #CFLAGS+=-DMICROPROFILE_ENABLED=0
 CPPFLAGS=$(CFLAGS)
-CPPFLAGS+=-stdlib=libc++ -std=c++11
+CPPFLAGS+=-std=c++14
 
 
 CPP_SOURCES = demo_simple.cpp ../../microprofile.cpp
-C_SOURCES = 
-ASM_SOURCES = 
+C_SOURCES =
+ASM_SOURCES =
 
 TARGET=demo_simple
 CC=clang
@@ -35,7 +35,7 @@ $(TARGET): $(C_OBJS) $(CPP_OBJS) $(ASM_OBJS)
 .s.o:
 	as -masm=intel $< -o $@
 
-.cpp.o: 
+.cpp.o:
 	$(CPP) -c $< $(CPPFLAGS) -o $@
 
 .c.o:
@@ -53,5 +53,5 @@ embed_target:
 
 embed: embed_target all
 
-	
+
 

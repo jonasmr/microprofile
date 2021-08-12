@@ -5,12 +5,12 @@ FLAGS+=-Wall -DMICROPROFILE_GPU_TIMERS=0
 FLAGS+=-g -O0 -Wno-invalid-offsetof -Wall -Werror
 #FLAGS+=-DMICROPROFILE_ENABLED=0
 
-CPPFLAGS= $(FLAGS) -std=c++11
-CFLAGS = $(FLAGS) -std=c99 
+CPPFLAGS= $(FLAGS) -std=c++14
+CFLAGS = $(FLAGS) -std=c99
 
 
 CPP_SOURCES = fakework.cpp noframes.cpp ../../microprofile.cpp
-C_SOURCES = 
+C_SOURCES =
 
 TARGET=noframes
 CC ?= clang
@@ -27,7 +27,7 @@ $(TARGET): $(C_OBJS) $(CPP_OBJS)
 
 -include .depend
 
-.cpp.o: 
+.cpp.o:
 	$(CXX) -c $< $(CPPFLAGS) -o $@
 
 .c.o:
@@ -44,5 +44,5 @@ embed_target:
 	cd ../../src && make
 
 embed: embed_target all
-	
+
 

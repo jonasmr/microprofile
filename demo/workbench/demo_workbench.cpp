@@ -203,7 +203,7 @@ void t3()
 	usleep(4000);
 }
 
-#endif	
+#endif
 
 void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pFunctionName);
 
@@ -254,7 +254,7 @@ int main(int argc, char* argv[])
 
 	#if DUMP_SPIKE_TEST
 	MicroProfileDumpFile("spike.html", "spike.csv", 200.f, -1.f);
-	#endif	
+	#endif
 
 
 	// MicroProfileInstrumentFunctionsCalled((void*)&MicroProfileFlip, "fisk");
@@ -264,11 +264,11 @@ int main(int argc, char* argv[])
 	// exit(0);
 
 
-	// MICROPROFILE_TIMELINE_TOKEN(htok_three);
-	// MICROPROFILE_TIMELINE_TOKEN(htok_four);
-	// MICROPROFILE_TIMELINE_TOKEN(htok_five);
-	// MICROPROFILE_TIMELINE_TOKEN(htok);
-	// MICROPROFILE_TIMELINE_TOKEN(htok2);
+	MICROPROFILE_TIMELINE_TOKEN(htok_three);
+	MICROPROFILE_TIMELINE_TOKEN(htok_four);
+	MICROPROFILE_TIMELINE_TOKEN(htok_five);
+	MICROPROFILE_TIMELINE_TOKEN(htok);
+	MICROPROFILE_TIMELINE_TOKEN(htok2);
 
 	MICROPROFILE_REGISTER_GROUP("ThreadSafe", "Category0", MP_PALEGREEN);
 
@@ -296,57 +296,57 @@ int main(int argc, char* argv[])
 		{
 			MICROPROFILE_SCOPEI("geddehest", "fiszzk", 0xff00ff);
 			usleep(201 * 1000);
-		} 
+		}
 		C_Test();
 
 		static int hest = 0;
 		hest++;
 		MICROPROFILE_TIMELINE_LEAVE_STATIC("one");
 		MICROPROFILE_TIMELINE_ENTER_STATIC(MP_DARKGOLDENROD, "one");
-		// if(0 == hest%4)
-		// {
-		// 	MICROPROFILE_TIMELINE_ENTER_STATIC(MP_DARKGOLDENROD, "two");
-		// }
-		// else if(2 == hest%4)
-		// {
-		// 	MICROPROFILE_TIMELINE_LEAVE_STATIC("Two");
-		// }
+		if(0 == hest%4)
+		{
+			MICROPROFILE_TIMELINE_ENTER_STATIC(MP_DARKGOLDENROD, "two");
+		}
+		else if(2 == hest%4)
+		{
+			MICROPROFILE_TIMELINE_LEAVE_STATIC("Two");
+		}
 
-		// if(0 == hest%12)
-		// {
-		// 	MICROPROFILE_TIMELINE_ENTERF(htok_three, MP_YELLOW, "three %d", hest);
-		// }
-		// else if(10 == hest%12)
-		// {
-		// 	MICROPROFILE_TIMELINE_LEAVE(htok_three);
-		// }
-		// if(1 == hest%8)
-		// {
-		// 	MICROPROFILE_TIMELINE_ENTERF(htok_four, MP_YELLOW, "four %d", hest);
-		// }
-		// else if(7 == hest%8)
-		// {
-		// 	MICROPROFILE_TIMELINE_LEAVE(htok_four);
-		// }
-		// if(2 == hest%7)
-		// {
-		// 	MICROPROFILE_TIMELINE_ENTERF(htok_five, MP_RED, "five %d", hest);
-		// }
-		// else if(5 == hest%7)
-		// {
-		// 	MICROPROFILE_TIMELINE_LEAVE(htok_five);
-		// }
+		if(0 == hest%12)
+		{
+			MICROPROFILE_TIMELINE_ENTERF(htok_three, MP_YELLOW, "three %d", hest);
+		}
+		else if(10 == hest%12)
+		{
+			MICROPROFILE_TIMELINE_LEAVE(htok_three);
+		}
+		if(1 == hest%8)
+		{
+			MICROPROFILE_TIMELINE_ENTERF(htok_four, MP_YELLOW, "four %d", hest);
+		}
+		else if(7 == hest%8)
+		{
+			MICROPROFILE_TIMELINE_LEAVE(htok_four);
+		}
+		if(2 == hest%7)
+		{
+			MICROPROFILE_TIMELINE_ENTERF(htok_five, MP_RED, "five %d", hest);
+		}
+		else if(5 == hest%7)
+		{
+			MICROPROFILE_TIMELINE_LEAVE(htok_five);
+		}
 
-		// if(1 == (hest%5))
-		// {
-		// 	MICROPROFILE_TIMELINE_ENTERF(htok, MP_PINK3, "hest %s %d", "ged", hest);
-		// 	MICROPROFILE_TIMELINE_ENTERF(htok2, MP_CYAN, "CyAN", 1);
-		// }
-		// else if(3 == (hest%5))
-		// {
-		// 	MICROPROFILE_TIMELINE_LEAVE(htok);
-		// 	MICROPROFILE_TIMELINE_LEAVE(htok2);
-		// }
+		if(1 == (hest%5))
+		{
+			MICROPROFILE_TIMELINE_ENTERF(htok, MP_PINK3, "hest %s %d", "ged", hest);
+			MICROPROFILE_TIMELINE_ENTERF(htok2, MP_CYAN, "CyAN", 1);
+		}
+		else if(3 == (hest%5))
+		{
+			MICROPROFILE_TIMELINE_LEAVE(htok);
+			MICROPROFILE_TIMELINE_LEAVE(htok2);
+		}
 		MICROPROFILE_COUNTER_LOCAL_ADD(LocalCounter, 3);
 		MICROPROFILE_COUNTER_LOCAL_SUB(LocalCounter, 1);
 		MicroProfileFlip(0);
@@ -368,7 +368,7 @@ int main(int argc, char* argv[])
 			{
 				printf("\nsleeping 1s\n");
 				MICROPROFILE_SCOPEI("SPIKE_TEST", "Test", 0xff00ff00);
-				usleep(1000*1000);	
+				usleep(1000*1000);
 				printf("sleep done, spike.html should be saved in 5 frames\n");
 			}
 		}
@@ -391,12 +391,12 @@ int main(int argc, char* argv[])
 		MICROPROFILE_COUNTER_SET("/test/sinus", sinus);
 		MICROPROFILE_COUNTER_SET("/test/cosinus", cosinus);
 
-		
+
 
 	}
 
 	StopFakeWork();
-	
+
 	MicroProfileShutdown();
 
 	return 0;

@@ -16,12 +16,12 @@ CFLAGS+= -I../../distorm/include
 
 
 CPPFLAGS=$(CFLAGS)
-CPPFLAGS+=-stdlib=libc++ -std=c++11
+CPPFLAGS+=-std=c++14
 
 
 CPP_SOURCES = demo_dynamic_instrument.cpp ../../microprofile.cpp
-C_SOURCES = 
-ASM_SOURCES = 
+C_SOURCES =
+ASM_SOURCES =
 
 
 # Remember to update submodule and compile distorm
@@ -51,7 +51,7 @@ $(TARGET): $(C_OBJS) $(CPP_OBJS) $(ASM_OBJS)
 .s.o:
 	$(CC) -c $< -o $@
 
-.cpp.o: 
+.cpp.o:
 	$(CPP) -c $< $(CPPFLAGS) -o $@
 
 .c.o:
@@ -69,5 +69,5 @@ embed_target:
 
 embed: embed_target all
 
-	
+
 

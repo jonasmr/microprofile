@@ -13,7 +13,14 @@
 						"shell_cmd": "make",
 						"file_regex": "(...*?):([0-9]*):([0-9]*):",
 						"working_dir": "${project_path}/demo/workbench"
+					},
+    		"linux" : {
+						"shell_cmd": "make",
+						"file_regex": "(...*?):([0-9]*):([0-9]*):",
+						"working_dir": "${project_path}/demo/workbench"
 					}
+
+
 		},
     	{
     		"name":"dynamic_instrument",

@@ -83,7 +83,7 @@ void ExclusiveTest()
 	{
 		MICROPROFILE_SCOPEI("exclusive-test", "outer", MP_PINK);
 		spinsleep(5000);
-		int NEG = hest++ % 100 > 50?1:0; 
+		int NEG = hest++ % 100 > 50?1:0;
 		if(NEG != NEGLAST)
 		{
 			NEGLAST = NEG;

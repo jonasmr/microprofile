@@ -12,17 +12,18 @@ FLAGS+=-g -O0 -Wall -Werror
 #FLAGS+=-DMICROPROFILE_ENABLED=0
 FLAGS+=-DMICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE
 FLAGS+= -I../../distorm/include
+FLAGS+=-Wno-misleading-indentation -Wno-class-memaccess -Wno-format-truncation
 
 
 
 CPPFLAGS= $(FLAGS) -std=c++11 -Wno-invalid-offsetof
-CFLAGS = $(FLAGS) -std=c99 
+CFLAGS = $(FLAGS) -std=c99
 
 
 
 CPP_SOURCES = fakework.cpp demo_workbench.cpp ../../microprofile.cpp
 C_SOURCES = test.c
-ASM_SOURCES = 
+ASM_SOURCES =
 
 
 #comment in the following lines to enable function instrumentation.
@@ -53,7 +54,7 @@ $(TARGET): $(C_OBJS) $(CPP_OBJS) $(ASM_OBJS)
 .s.o:
 	clang -c $< -o $@
 
-.cpp.o: 
+.cpp.o:
 	$(CXX) -c $< $(CPPFLAGS) -o $@
 
 .c.o:
@@ -71,5 +72,5 @@ embed_target:
 
 embed: embed_target all
 
-	
+
 
