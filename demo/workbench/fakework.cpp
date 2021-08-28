@@ -14,8 +14,8 @@ extern uint32_t g_nQuit;
 #undef near
 #undef far
 #include <windows.h>
-void usleep(__int64 usec) 
-{ 
+void usleep(__int64 usec)
+{
 	if(usec > 20000)
 	{
 		Sleep((DWORD)(usec/1000));
@@ -85,12 +85,12 @@ void WorkerThreadLong(int threadId)
 	MicroProfileOnThreadCreate(&name[0]);
 	while(!g_nQuit)
 	{
-		MICROPROFILE_SCOPEI("long", "outer 150ms", c0); 
+		MICROPROFILE_SCOPEI("long", "outer 150ms", c0);
 		MICROPROFILE_META_CPU("Sleep",100);
 		usleep(100*1000);
 		for(int i = 0; i < 10; ++i)
 		{
-			MICROPROFILE_ENTERI("long", "inner 5ms", c1); 
+			MICROPROFILE_ENTERI("long", "inner 5ms", c1);
 			MICROPROFILE_META_CPU("Sleep",5);
 			usleep(5000);
 			MICROPROFILE_LEAVE();
@@ -116,23 +116,24 @@ void WorkerThread(int threadId)
 		{
 		case 0:
 		{
+			MICROPROFILE_ENTER_SECTION(MP_DARKGREEN);
 			usleep(100);
 			{
-				MICROPROFILE_SCOPEI("Thread0", "Work Thread0", c4); 
+				MICROPROFILE_SCOPEI("Thread0", "Work Thread0", c4);
 				MICROPROFILE_META_CPU("Sleep",10);
 				usleep(200);
 				{
-					MICROPROFILE_SCOPEI("Thread0", "Work Thread1", c3); 
+					MICROPROFILE_SCOPEI("Thread0", "Work Thread1", c3);
 					MICROPROFILE_META_CPU("DrawCalls", 1);
 					MICROPROFILE_META_CPU("DrawCalls", 1);
 					MICROPROFILE_META_CPU("DrawCalls", 1);
 					usleep(200);
 					{
-						MICROPROFILE_SCOPEI("Thread0", "Work Thread2", c2); 
+						MICROPROFILE_SCOPEI("Thread0", "Work Thread2", c2);
 						MICROPROFILE_META_CPU("DrawCalls", 1);
 						usleep(200);
 						{
-							MICROPROFILE_SCOPEI("Thread0", "Work Thread3", c1); 
+							MICROPROFILE_SCOPEI("Thread0", "Work Thread3", c1);
 							MICROPROFILE_META_CPU("DrawCalls", 4);
 							MICROPROFILE_META_CPU("Triangles",1000);
 							usleep(200);
@@ -140,73 +141,64 @@ void WorkerThread(int threadId)
 					}
 				}
 			}
+			MICROPROFILE_LEAVE_SECTION();
 		}
 		break;
-		
+
 		case 1:
 			{
+				MICROPROFILE_ENTER_SECTION(MP_CORNFLOWERBLUE);
 				usleep(100);
 				MICROPROFILE_SCOPEI("Thread1", "Work Thread 1", c1);
 				usleep(2000);
+				MICROPROFILE_LEAVE_SECTION();
 			}
 			break;
 
 		case 2:
+		{
+			usleep(1000);
 			{
-				usleep(1000);
+				MICROPROFILE_SCOPEI("Thread2", "Worker2", c0);
+				spinsleep(100000);
 				{
-					MICROPROFILE_SCOPEI("Thread2", "Worker2", c0); 
-					spinsleep(100000);
+					MICROPROFILE_SCOPEI("Thread2", "InnerWork0", c1);
+					spinsleep(100);
 					{
-						MICROPROFILE_SCOPEI("Thread2", "InnerWork0", c1); 
-						spinsleep(100);
-						{
-							MICROPROFILE_SCOPEI("Thread2", "InnerWork1", c2); 
-							usleep(100);
-							{
-								MICROPROFILE_SCOPEI("Thread2", "InnerWork2", c3); 
-								usleep(100);
-								{
-									// for(uint32_t i = 0; i < 1000; ++i)
-									// {
-									// 	MICROPROFILE_SCOPEI("Thread2", "InnerWork3", c4); 
-									// 	spinsleep(10);
-									// }
-								}
-							}
-						}
+						MICROPROFILE_SCOPEI("Thread2", "InnerWork1", c2);
+						usleep(100);
 					}
 				}
 			}
 			break;
+		}
 		case 3:
+		{
+			MICROPROFILE_ENTER_SECTION(MP_YELLOW);
+			MICROPROFILE_SCOPEI("ThreadWork", "MAIN", c0); usleep(1000);;
+			for(uint32_t i = 0; i < 10; ++i)
 			{
-				MICROPROFILE_SCOPEI("ThreadWork", "MAIN", c0);
-				usleep(1000);;
-				for(uint32_t i = 0; i < 10; ++i)
+				MICROPROFILE_SCOPEI("ThreadWork", "Inner0", c1);
+				usleep(100);
+				for(uint32_t j = 0; j < 4; ++j)
 				{
-					MICROPROFILE_SCOPEI("ThreadWork", "Inner0", c1);
-					usleep(100);
-					for(uint32_t j = 0; j < 4; ++j)
+					MICROPROFILE_SCOPEI("ThreadWork", "Inner1", c4); usleep(50);
+					MICROPROFILE_SCOPEI("ThreadWork", "Inner1", c4); usleep(50);
+					MICROPROFILE_SCOPEI("ThreadWork", "Inner2", c2); usleep(50);
+					MICROPROFILE_SCOPEI("ThreadWork", "Inner3", c3); usleep(50);
+					MICROPROFILE_SCOPEI("ThreadWork", "Inner4", c3); usleep(50);
+					for(uint32_t k = 0; k < 25; ++k)
 					{
-						MICROPROFILE_SCOPEI("ThreadWork", "Inner1", c4);
-						usleep(50);
-						MICROPROFILE_SCOPEI("ThreadWork", "Inner1", c4);
-						usleep(50);
-						MICROPROFILE_SCOPEI("ThreadWork", "Inner2", c2);
-						usleep(50);
-						MICROPROFILE_SCOPEI("ThreadWork", "Inner3", c3);
-						usleep(50);
-						MICROPROFILE_SCOPEI("ThreadWork", "Inner4", c3);
-						usleep(50);
+						MICROPROFILE_SCOPEI("ThreadWork", "MegaSpin", c3);
 					}
 				}
-
-
 			}
+			MICROPROFILE_LEAVE_SECTION();
+
 			break;
+		}
 		default:
-			
+
 			MICROPROFILE_SCOPE(ThreadSafeMain);
 			usleep(1000);;
 			for(uint32_t i = 0; i < 5; ++i)
@@ -224,6 +216,12 @@ void WorkerThread(int threadId)
 					usleep(150);
 					MICROPROFILE_SCOPE(ThreadSafeInner4);
 					usleep(150);
+
+					for(uint32_t k = 0; k < 25; ++k)
+					{
+						MICROPROFILE_SCOPEI("ThreadWork", "MegaSpin", c3);
+					}
+
 				}
 				MICROPROFILE_LEAVE();
 			}

@@ -44,10 +44,13 @@ li li a{ display:block;float:none;text-align:left;word-break: keep-all;white-spa
 .filterinputsearchdiv{position:fixed; background-color: #313131;display:none;}
 .filterinputsearchdivmenu{position:absolute; background-color: #313131;display:none;}
 .filterinputsearch{width:100px;}
+.filtersearchdiv{position:fixed;top:71px;right:75px; display:block;}
+.filterinputsearch2{width:100px;}
 </style>
 </head>
 <body style="">
 <input type="file" id="file-input" style="display:none"/>
+<div class="filtersearchdiv" id="filtersearchdiv"><input type="text" id="FilterInputSearch2" class="filterinputsearch2"></div>
 <div id='filterinput'>
 <div class="filterinput0">Group<br><input type="text" id="filtergroup"></div>
 <div class="filterinput1">Timer/Thread<br><input type="text" id="filtertimer"></div>
@@ -224,7 +227,7 @@ function MakeTimer(id, name, group, color, colordark, average, max, min, exclave
 	}
 	var spike = max <= 0 || average <= 0 ? 0 : (100 * max / average);
 	var cid = GetColorIndex(color);
-	var timer = {"id":id, "name":name, "len":name.length, "cid":cid, "timercid":cid, "group":group, "average":average, "max":max, "min":min, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "spike":spike,"total":total, "meta":meta, "metaavg":metaavg, "metamax":metamax, "worst":0, "worststart":0, "worstend":0};
+	var timer = {"id":id, "name":name, "len":name.length, "cid":cid, "timercid":cid, "group":group, "average":average, "max":max, "min":min, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "spike":spike,"total":total, "meta":meta, "metaavg":metaavg, "metamax":metamax, "worst":0, "worststart":0, "worstend":0, "search":cid};
 	return timer;
 }
 
@@ -307,6 +310,9 @@ g_ColorH.push(0);
 g_ColorS.push(0);
 g_ColorL.push(0);
 
+const CIDMatch = GetColorIndex("#AA3333");
+const CIDFail = GetColorIndex("#555555");
+
 var S = {};
 var S2 = {};
 var Timeline = {};
@@ -337,6 +343,12 @@ var FilterInputMenu = document.getElementById('FilterInputMenu');
 var FilterInputMenuDiv = document.getElementById('FilterInputMenuDiv');
 var FilterInputMenuDivPos = {"x":-1,"y":-1,"w":-1,"h":-1};
 var FilterInputMenuValueLast = '';
+
+var FilterInputSearch2 = document.getElementById('FilterInputSearch2');
+var FilterInputSearchValue = '';
+let FilterInputSearchActive2 = 0;
+
+
 
 
 var FilterInputGroupString = null;
@@ -405,6 +417,7 @@ var DisableLod = 0;
 var DisableMerge = 0;
 var GroupColors = 0;
 var DrawDetailedFlameMode = 0;
+var DrawDetailedNewDraw = 0;
 var DrawDetailedCompareReverse = 1;
 var nModDown = 0;
 var g_MSG = 'no';
@@ -423,7 +436,7 @@ var nHoverCSCpuNext = -1;
 var nHoverCSToolTip = null;
 var nHoverToken = -1;
 var HoverTokenOwner = null;
-var nHoverFrame = -1;
+//var nHoverFrame = -1;
 var nHoverTokenIndex = -1;
 var nHoverTokenLogIndex = -1;
 var nHoverCounter = 0;
@@ -624,6 +637,7 @@ function ProfileLeave()
 		}
 		Obj.Time += Delta;
 		Obj.Count += 1;
+		console.log("prof ", Name, " took ", Delta);
 	}
 }
 
@@ -1044,6 +1058,15 @@ function ToggleDetailedFlameMode(WantRedraw)
 	}
 }
 
+function ToggleDetailedNewDraw()
+{
+	DrawDetailedNewDraw = DrawDetailedNewDraw ? 0 : 1;
+	WriteCookie();
+	RequestRedraw();
+}
+
+
+
 function ToggleDetailedSecondReverse(WantRedraw)
 {
 	DrawDetailedCompareReverse = 1-DrawDetailedCompareReverse;
@@ -1100,6 +1123,7 @@ function SetMode(NewMode, WantRedraw)
 	{
 		ShowFilterInput(0);
 	}
+	ShowDetailedSearch(Mode == ModeDetailed);
 
 	WriteCookie();
 	if(WantRedraw)
@@ -1900,7 +1924,7 @@ function DrawToolTip(StringArray, Canvas, x, y, bSecondary)
 	return {"x":x, "y":y};
 }
 
-function BuildToolTipDetailed(S, nHoverToken, nHoverFrame, HoverTokenOwner, bSecond)
+function BuildToolTipDetailed(S, nHoverToken, HoverTokenOwner, bSecond)
 {
 	var StringArray = [];
 	var groupid = S.TimerInfo[nHoverToken].group;
@@ -2059,16 +2083,14 @@ function DrawHoverToolTip()
 			StringArray.push(S.AggregateInfo.Time.toFixed(2) + "ms");
 
 
-
-
 		}
 		else
 		{
-			StringArray = BuildToolTipDetailed(S, nHoverToken, nHoverFrame, HoverTokenOwner, 0);
+			StringArray = BuildToolTipDetailed(S, nHoverToken, HoverTokenOwner, 0);
 			let nCompareHoverToken = TimerRemapReverse[nHoverToken];
 			if(nCompareHoverToken > -1)
 			{
-				StringArray2 = BuildToolTipDetailed(S2, nCompareHoverToken, null, HoverTokenOwner, 1);
+				StringArray2 = BuildToolTipDetailed(S2, nCompareHoverToken, HoverTokenOwner, 1);
 			}
 		}
 		if(ToolTipCorner)
@@ -2139,7 +2161,6 @@ function DrawBarView()
 	ProfileEnter("DrawBarView");
 	Invalidate++;
 	nHoverToken = -1;
-	nHoverFrame = -1;
 	var context = CanvasDetailedView.getContext('2d');
 	context.clearRect(0, 0, nWidth, nHeight);
 
@@ -2712,7 +2733,6 @@ function DrawCounterView()
 	ProfileEnter("DrawCounterView");
 	Invalidate++;
 	nHoverToken = -1;
-	nHoverFrame = -1;
 	var context = CanvasDetailedView.getContext('2d');
 	context.clearRect(0, 0, nWidth, nHeight);
 
@@ -3245,9 +3265,11 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 	let BoxHeightScaledPos = Math.abs(BoxHeightScaled);
 	let Levels = [];
 	let BatchesTxtColor = ['#ffffff', '#333333'];
+	let TotalBatches = 0;
 
-	let AddBatch = function(StackPos, index, X, Y, W, Name, NameLen, Duration)
+	let AddBatch = function(StackPos, index, X, Y, W, Name, NameLen, Duration, Opacity)
 	{
+		TotalBatches++;
 		let L = Levels[StackPos];
 		if(!L)
 		{
@@ -3272,6 +3294,8 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				}
 			}
 		}
+		let O = Opacity ? Opacity : 1.0;
+		O = 1-((1-O)*(1-O));
 		let B = L.Batches[index];
 		let txtidx = g_ColorsTextIndex[index];
 		if(txtidx < 0 || txtidx > 1)
@@ -3281,6 +3305,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 		B.push(X);
 		B.push(Y);
 		B.push(W);
+		B.push(O);
 		DebugDrawQuadCount++;
 
 		let XText = X < 0 ? 0 : X;
@@ -3424,7 +3449,6 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				{
 					let Color = bSecond ? ThreadColors.coloroff : ThreadColors.color;
 					let ColorLine = !bSecond ? ThreadColors.colordark : ThreadColors.color;
-					let Gradient = bSecond ? ThreadColors.gradientoff : ThreadColors.gradient;
 					let BaseY = (bSecond||!Active) ? (fOffsetY+1) : (fOffsetY+1+LogHeight2);
 					let HeightY = !Active ? BoxHeight : (bSecond ? LogHeight2 : (LogHeight + Padding));
 					let TransparentLine = S2.Frames != null && !bSecond;
@@ -3434,26 +3458,22 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					}
 					context.strokeStyle = ColorLine;
 					context.beginPath();
-					context.moveTo(0, BaseY);
-					context.lineTo(nWidth, BaseY);
+					context.moveTo(0, BaseY+HeightY-1);
+					context.lineTo(nWidth, BaseY+HeightY-1);
 					context.stroke();
 					if(TransparentLine)
 					{
 						context.globalAlpha = 1.0;
 					}
-
-					if(!Gradient)
-					{
-						Gradient = context.createLinearGradient(0,0,200,0);
-						Gradient.addColorStop(0, Color);
-						Gradient.addColorStop(1,'transparent');
-						if(bSecond)
-							ThreadColors.gradientoff = Gradient;
-						else
-							ThreadColors.gradient = Gradient;
-					}
+					let Gradient = context.createLinearGradient(0,BaseY,0,40 + BaseY);
+					Gradient.addColorStop(0, ThreadColors.colortrans);
+					Gradient.addColorStop(1,'transparent');
+					if(bSecond)
+						ThreadColors.gradientoff = Gradient;
+					else
+						ThreadColors.gradient = Gradient;
 					context.fillStyle = Gradient;
-					context.fillRect(0,BaseY,200,HeightY);
+					context.fillRect(0,BaseY,nWidth,HeightY);
 				}
 			}
 			let D = fOffsetY + BoxHeight - DetailedViewMouseY;
@@ -3476,164 +3496,318 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					ThreadHover = 1;
 				}
 			}
+			let HasSetHover = 0;
+
 
 			if(Active)
 			{
-				let LodIndex = 0;
-				let MinDelta = 0;
-				let NextLod = 1;
-				while(NextLod < S.LodData.length && S.LodData[NextLod].MinDelta[nLog] < nMinTimeMs)
+				if(DrawDetailedNewDraw)
 				{
-					LodIndex = NextLod;
-					NextLod = NextLod + 1;
-					MinDelta = S.LodData[LodIndex].MinDelta[nLog];
-				}
-				if(LodIndex == S.LodData.length)
-				{
-					LodIndex = S.LodData.length-1;
-				}
-				if(DisableLod || FilterSearchPassIndex != -1)
-				{
-					LodIndex = 0;
-				}
+					OY += 4;
 
-				OY += 4;
-
-				if(nContextSwitchEnabled)
-				{
-					DrawContextSwitchBars(context, S.ThreadIds[nLog], fScaleX, OY, Off, nHoverColor, MinWidth, bDrawEnabled, bSecond);
-					OY += Scale * (CSwitchHeight+2);
-				}
-				OY += SecondReverseOffset;
-				let MaxDepth = 1;
-				let StackPos = 0;
-				let Stack = Array(20);
-				let Lod = S.LodData[LodIndex];
-
-				let TypeArray = Lod.TypeArray[nLog];
-				let IndexArray = Lod.IndexArray[nLog];
-				let TimeArray = Lod.TimeArray[nLog];
-
-				let LocalFirstFrame = S.Frames[FirstFrame].FirstFrameIndex[nLog];
-				let IndexStart = S.ISGPU[nLog] ? 0 : Lod.LogStart[LocalFirstFrame][nLog];
-				let IndexEnd = TimeArray.length;
-				IndexEnd = TimeArray.length;
-				let HasSetHover = 0;
-
-
-
-				for(let j = IndexStart; j < IndexEnd; ++j)
-				{
-					let type = TypeArray[j];
-					let index = IndexArray[j];
-					let time = TimeArray[j];
-					if(type == 1)
+					if(nContextSwitchEnabled)
 					{
-						//push
-						Stack[StackPos] = j;
-						StackPos++;
-						if(StackPos > MaxDepth)
-						{
-							MaxDepth = StackPos;
-						}
+						DrawContextSwitchBars(context, S.ThreadIds[nLog], fScaleX, OY, Off, nHoverColor, MinWidth, bDrawEnabled, bSecond);
+						OY += Scale * (CSwitchHeight+2);
 					}
-					else if(type == 0)
+					OY += SecondReverseOffset;
+					// Duration of 1 pixel
+					let ThresholdPixelDuration =  fDetailedRange / nWidth;
+					let ThresholdLimit = ThresholdPixelDuration * 0.5; // if below this we dont go further down
+
+//					console.log("ThresholdPixelDuration ", ThresholdPixelDuration, " ThresholdLimit ", ThresholdLimit);
+
+
+
+					let Rows = S.LogRows[nLog];
+					for(let r in Rows)
 					{
-						if(StackPos>0)
 						{
-							StackPos--;
+							let Row = Rows[r];
+							let Size = Row.Tree.length;
+							let Tree = Row.Tree;
+							const Y = OY + r * BoxHeightScaled;
+							const MY = DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y;
 
-							let StartIndex = Stack[StackPos];
-							let timestart = TimeArray[StartIndex];
-							let timeend = time;
-							let X = (timestart - Off) * fScaleX;
-							let Y = OY + StackPos * BoxHeightScaled;
 
-							let W = (timeend-timestart)*fScaleX;
-
-							if(X < nWidth && X+W > 0)
+							let DrawRange = function(Depth, Begin, End)
 							{
-								if(index == FilterSearchPassIndex)
+								let TreeLevel = Tree[Depth];
+								for(let j = Begin; j < End; ++j)
 								{
-									let Range = RangeInit();
-									Range.Begin = timestart;
-									Range.End = timeend;
-									Range.Thread = nLog;
-									Range.YBegin = Y - ThreadYBegin[nLog];
-									Range.Second = bSecond;
-
-									if(FilterSearchArray.length < 500)
+									let TimeBegin = TreeLevel.Begin[j];
+									let Duration = TreeLevel.Duration[j];
+									let TimeEnd = TimeBegin + Duration;
+									if(TimeBegin < fTimeEnd && TimeEnd > Off)
 									{
-										FilterSearchArray.push(Range);
-										if(FilterSearchArray.length == 500)
-										{
-											ShowFlashMessage('Capping Search Result to 500', 30);
-										}
-									}
-								}
-								if(W > MinWidth)
-								{
-									if(bDrawEnabled || index == nHoverToken)
-									{
-										let cid = GroupColors == 2 ? ThreadColors.colordark_cid : S0.TimerInfo[index].cid;
-										if(index == nHoverToken)
-										{
-											nHoverColorIndex = cid;
-											cid = cidhovercolor;
-										}
-										AddBatch(StackPos, cid, X, Y, W, S0.TimerInfo[index].name, S0.TimerInfo[index].len, timeend-timestart);
-									}
 
-
-									if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y && StackPos > nHoverTokenStack)
-									{
-										RangeCpuNext.Off = bSecond ? fDetailedOffsetSecond : 0;
-										RangeCpuNext.Begin = timestart;
-										RangeCpuNext.End = timeend;
-										RangeCpuNext.Thread = nLog;
-										RangeCpuNext.Off = XOffset;
-										if(TypeArray[StartIndex+1] == 3 && TypeArray[j+1] == 3)
+										if(Depth > 0 && TreeLevel.Duration[j] > ThresholdLimit)
 										{
-											RangeGpuNext.Begin = RangeCpuNext.Begin;
-											RangeGpuNext.End = RangeCpuNext.End;
-											RangeGpuNext.Thread = nLog;
-											RangeGpuNext.Off = XOffset;
-											//cpu tick is stored following
-											RangeCpuNext.Begin = TimeArray[StartIndex+1];
-											RangeCpuNext.End = TimeArray[j+1];
-											RangeCpuNext.Thread = IndexArray[StartIndex+1];
-											RangeCpuNext.Off = XOffset;
+											DrawRange(Depth-1, j*2, j*2 + 2);
 										}
 										else
 										{
-											RangeGpuNext.Begin = -1;
-											RangeGpuNext.End = -1
-										}
+											let Index = TreeLevel.Index[j];
+											let cid = FilterInputSearchActive2 ? CIDFail : TreeLevel.ColorIds[j];
+											let Opacity = Depth == 0 ? 1.0 : TreeLevel.SumDuration[j] / TreeLevel.Duration[j];
+											if(Depth == 0)
+											{
+												cid = GroupColors == 2 ? ThreadColors.colordark_cid : S0.TimerInfo[Index].cid;
 
-										nHoverTokenNext = index;
-										nHoverTokenStack = StackPos;
-										nHoverTokenIndexNext = j;
-										nHoverTokenLogIndexNext = nLog;
-										HoverTokenNextOwner = S;
-										HasSetHover = 1;
+												if(Index == nHoverToken)
+												{
+													nHoverColorIndex = cid;
+													cid = cidhovercolor;
+												}
+												if(FilterInputSearchActive2)
+												{
+													cid = S0.TimerInfo[Index].search;
+												}
+
+											}
+											let Name = Depth == 0 ? S0.TimerInfo[Index].name : "";
+											let NameLen = Depth == 0 ? S0.TimerInfo[Index].len : 0;
+											let X = (TimeBegin - Off) * fScaleX;
+											let W = (TimeEnd-TimeBegin)*fScaleX;
+											AddBatch(Depth, cid, X, Y, W, Name, NameLen, TimeEnd-TimeBegin, Opacity);
+
+											const M = MY && DetailedViewMouseX >= X && DetailedViewMouseX <= X+W;
+											if(Depth == 0 && M)
+											{
+												RangeCpuNext.Off = bSecond ? fDetailedOffsetSecond : 0;
+												RangeCpuNext.Begin = TimeBegin;
+												RangeCpuNext.End = TimeEnd;
+												RangeCpuNext.Thread = nLog;
+												RangeCpuNext.Off = XOffset;
+												if(TreeLevel.CpuDuration && TreeLevel.CpuDuration[j]) // detect if its a gpu marker, with embedded cpu ticks.
+												{
+													RangeGpuNext.Begin = RangeCpuNext.Begin;
+													RangeGpuNext.End = RangeCpuNext.End;
+													RangeGpuNext.Thread = nLog;
+													RangeGpuNext.Off = XOffset;
+
+													RangeCpuNext.Begin = TreeLevel.CpuBegin[j];
+													RangeCpuNext.End = TreeLevel.CpuBegin[j] + TreeLevel.CpuDuration[j];
+													RangeCpuNext.Thread = TreeLevel.CpuThread[j];
+													RangeCpuNext.Off = XOffset;
+												}
+												else
+												{
+													RangeGpuNext.Begin = -1;
+													RangeGpuNext.End = -1
+												}
+												nHoverTokenNext = Index;
+												nHoverTokenStack = r;
+												nHoverTokenIndexNext = TreeLevel.Source[j];
+												nHoverTokenLogIndexNext = nLog;
+												HoverTokenNextOwner = S;
+												HasSetHover = 1;
+
+
+												if(Index == FilterSearchPassIndex)
+												{
+													console.log("kill this");
+													let Range = RangeInit();
+													Range.Begin = TimeBegin;
+													Range.End = TimeEnd;
+													Range.Thread = nLog;
+													Range.YBegin = Y - ThreadYBegin[nLog];
+													Range.Second = bSecond;
+
+													if(FilterSearchArray.length < 500)
+													{
+														FilterSearchArray.push(Range);
+														if(FilterSearchArray.length == 500)
+														{
+															ShowFlashMessage('Capping Search Result to 500', 30);
+														}
+													}
+												}
+
+
+
+											}
+										}
 									}
 								}
 							}
-							if(StackPos == 0 && time > fTimeEnd)
-								break;
+							DrawRange(Size-1, 0, Tree[Size-1].Length);
 						}
 					}
+					// /// GET RID OF LOD DATA
+					// let Lod = S.LodData[0];
+					// if(HasSetHover)
+
+					// {
+					// 	for(let i = 0; i < S.Frames.length-1; ++i)
+					// 	{
+					// 		let IndexStart = Lod.LogStart[i][nLog];
+					// 		if(nHoverTokenIndexNext >= IndexStart)
+					// 		{
+					// 			nHoverFrame = i;
+					// 		}
+					// 	}
+					// }
+
 				}
-				if(HasSetHover)
+				else
 				{
-					for(let i = 0; i < S.Frames.length-1; ++i)
+
+					let LodIndex = 0;
+					let MinDelta = 0;
+					let NextLod = 1;
+					while(NextLod < S.LodData.length && S.LodData[NextLod].MinDelta[nLog] < nMinTimeMs)
 					{
-						let IndexStart = Lod.LogStart[i][nLog];
-						if(nHoverTokenIndexNext >= IndexStart)
+						LodIndex = NextLod;
+						NextLod = NextLod + 1;
+						MinDelta = S.LodData[LodIndex].MinDelta[nLog];
+					}
+					if(LodIndex == S.LodData.length)
+					{
+						LodIndex = S.LodData.length-1;
+					}
+					if(DisableLod || FilterSearchPassIndex != -1)
+					{
+						LodIndex = 0;
+					}
+
+					OY += 4;
+
+					if(nContextSwitchEnabled)
+					{
+						DrawContextSwitchBars(context, S.ThreadIds[nLog], fScaleX, OY, Off, nHoverColor, MinWidth, bDrawEnabled, bSecond);
+						OY += Scale * (CSwitchHeight+2);
+					}
+					OY += SecondReverseOffset;
+					let MaxDepth = 1;
+					let StackPos = 0;
+					let Stack = Array(20);
+					let Lod = S.LodData[LodIndex];
+
+					let TypeArray = Lod.TypeArray[nLog];
+					let IndexArray = Lod.IndexArray[nLog];
+					let TimeArray = Lod.TimeArray[nLog];
+
+					let LocalFirstFrame = S.Frames[FirstFrame].FirstFrameIndex[nLog];
+					let IndexStart = S.ISGPU[nLog] ? 0 : Lod.LogStart[LocalFirstFrame][nLog];
+					let IndexEnd = TimeArray.length;
+					IndexEnd = TimeArray.length;
+
+
+
+					for(let j = IndexStart; j < IndexEnd; ++j)
+					{
+						let type = TypeArray[j];
+						let index = IndexArray[j];
+						let time = TimeArray[j];
+						if(type == 1)
 						{
-							nHoverFrame = i;
+							//push
+							Stack[StackPos] = j;
+							StackPos++;
+							if(StackPos > MaxDepth)
+							{
+								MaxDepth = StackPos;
+							}
+						}
+						else if(type == 0)
+						{
+							if(StackPos>0)
+							{
+								StackPos--;
+
+								let StartIndex = Stack[StackPos];
+								let timestart = TimeArray[StartIndex];
+								let timeend = time;
+								let X = (timestart - Off) * fScaleX;
+								let Y = OY + StackPos * BoxHeightScaled;
+
+								let W = (timeend-timestart)*fScaleX;
+
+								if(X < nWidth && X+W > 0)
+								{
+									if(index == FilterSearchPassIndex)
+									{
+										let Range = RangeInit();
+										Range.Begin = timestart;
+										Range.End = timeend;
+										Range.Thread = nLog;
+										Range.YBegin = Y - ThreadYBegin[nLog];
+										Range.Second = bSecond;
+
+										if(FilterSearchArray.length < 500)
+										{
+											FilterSearchArray.push(Range);
+											if(FilterSearchArray.length == 500)
+											{
+												ShowFlashMessage('Capping Search Result to 500', 30);
+											}
+										}
+									}
+									if(W > MinWidth)
+									{
+										if(bDrawEnabled || index == nHoverToken)
+										{
+											let cid = GroupColors == 2 ? ThreadColors.colordark_cid : S0.TimerInfo[index].cid;
+											if(index == nHoverToken)
+											{
+												nHoverColorIndex = cid;
+												cid = cidhovercolor;
+											}
+											AddBatch(StackPos, cid, X, Y, W, S0.TimerInfo[index].name, S0.TimerInfo[index].len, timeend-timestart);
+										}
+
+
+										if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y && StackPos > nHoverTokenStack)
+										{
+											RangeCpuNext.Off = bSecond ? fDetailedOffsetSecond : 0;
+											RangeCpuNext.Begin = timestart;
+											RangeCpuNext.End = timeend;
+											RangeCpuNext.Thread = nLog;
+											RangeCpuNext.Off = XOffset;
+											if(TypeArray[StartIndex+1] == 3 && TypeArray[j+1] == 3)
+											{
+												RangeGpuNext.Begin = RangeCpuNext.Begin;
+												RangeGpuNext.End = RangeCpuNext.End;
+												RangeGpuNext.Thread = nLog;
+												RangeGpuNext.Off = XOffset;
+												//cpu tick is stored following
+												RangeCpuNext.Begin = TimeArray[StartIndex+1];
+												RangeCpuNext.End = TimeArray[j+1];
+												RangeCpuNext.Thread = IndexArray[StartIndex+1];
+												RangeCpuNext.Off = XOffset;
+											}
+											else
+											{
+												RangeGpuNext.Begin = -1;
+												RangeGpuNext.End = -1
+											}
+
+											nHoverTokenNext = index;
+											nHoverTokenStack = StackPos;
+											nHoverTokenIndexNext = j;
+											nHoverTokenLogIndexNext = nLog;
+											HoverTokenNextOwner = S;
+											HasSetHover = 1;
+										}
+									}
+								}
+								if(StackPos == 0 && time > fTimeEnd)
+									break;
+							}
 						}
 					}
+					// if(HasSetHover)
+					// {
+					// 	for(let i = 0; i < S.Frames.length-1; ++i)
+					// 	{
+					// 		let IndexStart = Lod.LogStart[i][nLog];
+					// 		if(nHoverTokenIndexNext >= IndexStart)
+					// 		{
+					// 			nHoverFrame = i;
+					// 		}
+					// 	}
+					// }
 				}
 			}
 			let w = context.measureText(ThreadName).width;
@@ -3730,28 +3904,21 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 		let FillRects = function(a, color, colordark)
 		{
 			context.fillStyle = color;
-			for(let j = 0; j < a.length; j += 3)
+			let opac = -1;
+			for(let j = 0; j < a.length; j += 4)
 			{
 				let X = a[j];
 				let Y = a[j+1];
 				let W = a[j+2];
-				if(W >= 1)
+				let O = a[j+3];
+				if(O != opac)
 				{
-					context.fillRect(X, Y, W, BoxHeight-1);
+					opac = O;
+					context.globalAlpha = opac;
 				}
+				context.fillRect(X, Y, W, BoxHeight-1);
 			}
-			// context.fillStyle = color;
-			// for(var j = 0; j < a.length; j += 3)
-			// {
-			// 	var X = a[j];
-			// 	var Y = a[j+1];
-			// 	var W = a[j+2];
-			// 	if(W > 0)
-			// 	{
-			// 		context.fillRect(X+off, Y+off, W-off2, BoxHeight-1-off2);
-			// 	}
-			// }
-		}
+		};
 
 		for(let l = 0; l < Levels.length; ++l)
 		{
@@ -3761,37 +3928,6 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				let a = Batches[i];
 				if(a.length)
 				{
-					if(!DisableMerge)
-					{
-						for(let j = 0; j < a.length; j += 3)
-						{
-							let X = a[j];
-							let Y = a[j+1];
-							let BaseWidth = j + 2;
-							let W = a[BaseWidth];
-							while(j+1 < a.length && W < 1)
-							{
-								let jnext = j+3;
-								let XNext = a[jnext];
-								let YNext = a[jnext+1];
-								let WNext = a[jnext+2];
-								let Delta = XNext - (X+W);
-								let YDelta = Math.abs(Y - YNext);
-								if(Delta < 0.3 && YDelta < 0.5 && WNext < 1)
-								{
-									W = (XNext+WNext) - X;
-									a[BaseWidth] = W;
-									a[jnext+2] = 0;
-									j += 3;
-								}
-								else
-								{
-									break;
-								}
-
-							}
-						}
-					}
 					let Color = i == 0 ? nHoverColor : g_Colors[i];
 					let ColorDark = i == 0 ? nHoverColor : g_ColorsDark[i];
 					if(i == 0)
@@ -3826,6 +3962,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 
 				}
 			}
+			context.globalAlpha = 1.0;
 			let BatchesTxt = Levels[l].BatchesTxt;
 			let BatchesTxtPos = Levels[l].BatchesTxtPos;
 			for(let i = 0; i < BatchesTxt.length; ++i)
@@ -3842,7 +3979,11 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 
 		}
 	}
+//	console.log("Total Batches ", TotalBatches);
+
 }
+
+
 function DrawTextBox(context, text, x, y, align)
 {
 	let textsize = context.measureText(text).width;
@@ -4125,7 +4266,7 @@ function DrawDetailed(Animation)
 
 
 
-	if(Invalidate == 0) //when panning, only draw bars that are a certain width to keep decent framerate
+	if(DrawDetailedNewDraw || Invalidate == 0) //when panning, only draw bars that are a certain width to keep decent framerate
 	{
 		context.clearRect(0, 0, CanvasDetailedView.width, CanvasDetailedView.height);
 		DrawDetailedView(S, S, context, nMinWidthPan, true);
@@ -4183,8 +4324,9 @@ function DrawDetailed(Animation)
 
 	if(!FilterSearchActive && !IgnoreInput && SubMenuActive == -1)
 	{
+		let DrawMode = DrawDetailedNewDraw ? "DrawMode[New]":"DrawMode[Old]";
 		let Colors = GroupColors == 2 ? "Color[thread]" : (GroupColors ? "Color[group]" : "Color[timer]");
-		DrawDetailedButtons(context, nWidth * 0.5, 0, [Colors, "Search"],[function(){ToggleGroupColors(1);}, FilterInputShow], "center");
+		DrawDetailedButtons(context, nWidth * 0.5, 0, [Colors, "Search", DrawMode],[function(){ToggleGroupColors(1);}, FilterInputShow, ToggleDetailedNewDraw], "center");
 	}
 
 
@@ -4449,8 +4591,49 @@ function RequestRedraw(FullRedraw)
 	}
 }
 
+function UpdateFilterSearch()
+{
+	let Value = FilterInputSearch2.value;
+	if(Value != FilterInputSearchValue)
+	{
+		FilterInputSearchValue = Value;
+		let FilterSearch = CreateFilter(FilterInputSearchValue);
+		if(!FilterSearch)
+		{
+			FilterInputSearchActive2 = false;
+		}
+		else
+		{
+			FilterInputSearchActive2 = true;
+			let States = new Array();
+			States.push(S);
+			if(S2 && S2.TimerInfo)
+				States.push(S2);
+			for(let i in States)
+			{
+				let State = States[i];
+				for(let j in State.TimerInfo)
+				{
+					let TI = State.TimerInfo[j];
+					let Name = TI.name;
+					if(FilterMatch(FilterSearch, Name))
+					{
+						TI.search = CIDMatch;
+					}
+					else
+					{
+						TI.search = CIDFail;
+					}
+				}
+			}
+		}
+	}
+}
+
+
 function Draw()
 {
+	UpdateFilterSearch();
 	let RedrawMode = 1;
 	let RedrawAgain = 0;
 	RedrawMode = 1;
@@ -4807,7 +4990,7 @@ function DrawMenuMode()
 }
 function DrawMenuOptions()
 {
-	let OptionNames =["Context Switch", "MergeDisable", "LodDisable", "Flame Mode", "Compare Reverse", "Help"];
+	let OptionNames =["Context Switch", "MergeDisable", "LodDisable", "Flame Mode", "Compare Reverse", "Help", "New Draw"];
 	let Click = function(idx, name)
 	{
 		switch(idx)
@@ -4818,6 +5001,7 @@ function DrawMenuOptions()
 			case 3: ToggleDetailedFlameMode(); break;
 			case 4: ToggleDetailedSecondReverse(); break;
 			case 5: ShowHelp(1,1); break;
+			case 6: ToggleDetailedNewDraw(); break;
 		}
 		RequestRedraw();
 		Invalidate = 0;
@@ -5778,6 +5962,19 @@ function MouseWheel(e)
     ZoomGraph((-4 * delta / 120.0) | 0);
     Draw(1);
 }
+
+function ShowDetailedSearch(bShow)
+{
+	if(bShow)
+	{
+		FilterInputSearch2.style['display'] = 'block';
+	}
+	else
+	{
+		FilterInputSearch2.style['display'] = 'none';
+	}
+}
+
 function ShowFilterInput(bShow)
 {
 	if(bShow)
@@ -5891,6 +6088,18 @@ function KeyUp(evt)
 				MouseHandleDragEnd();
 			}
 		}
+		if(evt.keyCode == 192)
+		{
+			if(Mode == ModeDetailed)
+			{
+				FilterInputSearch2.focus();
+			}
+			else if(Mode == ModeTimers || Mode == ModeTimers_Threads || Mode == ModeTimers_Groups)
+			{
+				ToggleFilterInput(0);
+				evt.preventDefault();
+			}
+		}
 		if(evt.keyCode == 9)
 		{
 			evt.preventDefault();
@@ -5913,6 +6122,11 @@ function KeyUp(evt)
 					MoveTo(RangeSelect.Begin, RangeSelect.End, ThreadYBegin[RangeSelect.Thread] + nOffsetY, ThreadYEnd[RangeSelect.Thread+1] + nOffsetY);
 					MouseHandleDragEnd();
 				}
+				else
+				{
+					FilterInputSearch2.focus();
+				}
+
 			}
 			else if(Mode == ModeTimers || Mode == ModeTimers_Threads || Mode == ModeTimers_Groups)
 			{
@@ -5946,7 +6160,37 @@ function KeyUp(evt)
 
 	if(evt.keyCode == 27)
 	{
-		RangeSelect = RangeInit();
+		if(Mode == ModeDetailed)
+		{
+			let SearchString = FilterInputSearch2.value;
+			if(SearchString.length > 0)
+			{
+				//when search is active, esc clears in the following order:
+				//focus from search
+				//clears active range
+				//clears search
+				if(document.activeElement == FilterInputSearch2)
+				{
+					document.activeElement.blur();
+				}
+				else
+				{
+					if(RangeValid(RangeSelect))
+					{
+						RangeSelect = RangeInit();
+					}
+					else
+					{
+						FilterInputSearch2.value = "";
+					}
+				}
+			}
+			else
+			{
+				RangeSelect = RangeInit();
+			}
+		}
+
 		SortColumn = 0;
 		SortColumnMouseOver = "";
 		if(Mode == ModeTimers || Mode == ModeTimers_Threads || Mode == ModeTimers_Groups)
@@ -6213,6 +6457,11 @@ function ReadCookie()
 		{
 			ThreadLogAutoHide = Obj.ThreadLogAutoHide;
 		}
+		if(Obj.DrawDetailedNewDraw)
+		{
+			DrawDetailedNewDraw = Obj.DrawDetailedNewDraw;
+		}
+
 	}
 	SetContextSwitch(nContextSwitchEnabled);
 	SetMode(NewMode);
@@ -6239,6 +6488,7 @@ function WriteCookie()
 	Obj.DrawDetailedCompareReverse = DrawDetailedCompareReverse;
 	Obj.ThreadOrderNames = ThreadOrderNames;
 	Obj.ThreadLogAutoHide = ThreadLogAutoHide;
+	Obj.DrawDetailedNewDraw = DrawDetailedNewDraw;
 	if(nHideHelp)
 	{
 		Obj.nHideHelp = 1;
@@ -6626,6 +6876,202 @@ function PreprocessLods()
 	}
 	ProfileLeave();
 }
+
+
+function HistogramCreate(MaxTime)
+{
+	let Histogram = new Object();
+	Histogram.MaxTime = MaxTime;
+	Histogram.MaxOccurence = 0;
+	Histogram.Occurences = new Uint32Array(100);
+	return Histogram;
+}
+function HistogramAdd(Histogram, Value)
+{
+	if(Value > Histogram.MaxTime)
+		debugger;
+	let Index = Math.floor(Value / Histogram.MaxTime);
+	Index = Math.max(0, Math.min(99, Index));
+	Occurrences[Index]++;
+	Histogram.MaxOccurence = Math.max(Histogram.MaxOccurence, Occurrences[Index]);
+
+}
+
+function PreprocessLogBarArray()
+{
+	ProfileEnter("PreprocessLogBarArray");
+
+	let NumLogs = S.NumLogs;
+	let Stack = Array(20);
+
+	let LogRows = new Array(NumLogs);
+	S.LogRows = LogRows;
+
+	for(let nLog = 0; nLog < NumLogs; nLog++)
+	{
+		let MaxStack = S.MaxStack[nLog];
+		let StackPos = 0;
+
+		let Rows = new Array(MaxStack);
+		LogRows[nLog] = Rows;
+		for(let i = 0; i < MaxStack; ++i)
+		{
+			Row = new Object();
+			//Note; This has always got implied begin / end tied together
+			Row.Offset = i;
+			Row.Tree = new Array()
+			Row.Tree[0] = new Object();
+			Row.Tree[0].Source = new Array();
+			Row.Tree[0].Index = new Array();
+			Row.Tree[0].ColorIds = new Array();
+			Row.Tree[0].Begin = new Array();
+			Row.Tree[0].Duration = new Array();
+			Row.Tree[0].MaxDuration = new Array();
+			Row.Tree[0].SumDuration = new Array();
+			Row.Tree[0].Parent = -1;
+			Row.Tree[0].Tail = 0;
+			Row.Tree[0].Length = 0;
+
+			Rows[i] = Row;
+		}
+
+		let SrcTypeArray = S.TypeArray[nLog];
+		let SrcTimeArray = S.TimeArray[nLog];
+		let SrcIndexArray = S.IndexArray[nLog];
+		let len = SrcTypeArray.length;
+
+		for(let i = 0; i < len; ++i)
+		{
+			let type = SrcTypeArray[i];
+			let time = SrcTimeArray[i];
+			let index = SrcIndexArray[i];
+			if(type == 1)
+			{
+				Stack[StackPos] = i;
+				StackPos++;
+			}
+			else if(type == 0 && StackPos > 0)
+			{
+				StackPos--;
+				let stackindex = Stack[StackPos];
+				let begintype = SrcTypeArray[stackindex];
+				let begintime = SrcTimeArray[stackindex];
+				let beginindex = SrcIndexArray[stackindex];
+				if(type != 0)
+					debugger;
+				if(begintype != 1)
+					debugger;
+				if(index != beginindex)
+					debugger;
+				if(StackPos >= MaxStack || StackPos < 0)
+					debugger;
+				let rt0 = Rows[StackPos].Tree[0];
+				rt0.Source.push(i);
+				rt0.Index.push(beginindex);
+				rt0.ColorIds.push(S.TimerInfo[beginindex].cid);
+				rt0.Begin.push(begintime);
+				let Duration = time - begintime;
+				rt0.Duration.push(Duration);
+				rt0.SumDuration.push(Duration);
+				rt0.MaxDuration.push(Duration);
+				if(SrcTypeArray[stackindex+1] == 3) // this is a gpu log with a cpu marker appended
+				{
+					if(SrcTypeArray[i+1] != 3)
+						debugger; //should be matching pairs
+					let CpuBegin = TimeArray[stackindex+1];
+					let CpuEnd = TimeArray[i+1];
+					let Thread = IndexArray[StartIndex+1];
+					if(!rt0.CpuDuration) //only there for gpu logs, so created on demand
+					{
+						rt0.CpuBegin = new Array();
+						rt0.CpuDuration = new Array();
+						rt0.CpuThread = new Array();
+						for(let j = 0; j < rt0.Length; ++j)
+						{
+							rt0.CpuBegin.push(0);
+							rt0.CpuDuration.push(0);
+							rt0.CpuThread.push(0);
+						}
+					}
+					rt0.CpuBegin.push(CpuBegin);
+					rt0.CpuDuration.push(CpuEnd - CpuBegin);
+					rt0.CpuThread.push(Thread);
+				}
+				else if(rt0.CpuDuration)
+				{
+					rt0.CpuBegin.push(0);
+					rt0.CpuDuration.push(0);
+					rt0.CpuThread.push(0);
+				}
+
+				rt0.Length++;
+
+			}
+			else if(type != 0)
+			{
+			}
+		}
+
+		for(let r = 0; r < Rows.length; ++r)
+		{
+			let Row = Rows[r];
+			let RowTreeIndex = 0;
+			// stop at 100 elements...
+			while(Row.Tree[RowTreeIndex].Begin.length > 100)
+			{
+
+				//Use RowTreeIndex to build RowTreeIndex+1 with half as much data.
+				let RowTreeLevelParent = Row.Tree[RowTreeIndex];
+				let Size = Math.floor(RowTreeLevelParent.Index.length / 2);
+				let Tail = RowTreeLevelParent.Index.length % 2;
+				if(Size < 0)
+					debugger;
+
+				let RowTreeLevel = new Object();
+				RowTreeLevel.Index = new Array(Size);
+				RowTreeLevel.ColorIds = new Array(Size);
+				RowTreeLevel.Begin = new Array(Size);
+				RowTreeLevel.Duration = new Array(Size);
+				RowTreeLevel.SumDuration = new Array(Size);
+				RowTreeLevel.MaxDuration = new Array(Size);
+				RowTreeLevel.Parent = RowTreeIndex;
+				RowTreeLevel.Tail = Tail;
+				RowTreeLevel.Length = 0;
+
+				for(let i = 0; i < Size; ++i)
+				{
+					let i0 = i * 2;
+					let i1 = i0 + 1;
+					RowTreeLevel.Index[i] = i0;
+					//Should do fancy color merging, but hey just taking the color of the largest seems to work well enough.
+					if(RowTreeLevelParent.MaxDuration[i1] > RowTreeLevelParent.MaxDuration[i0])
+					{
+						RowTreeLevel.ColorIds[i] = RowTreeLevelParent.ColorIds[i1];
+						RowTreeLevel.MaxDuration[i] = RowTreeLevelParent.MaxDuration[i1];
+					}
+					else
+					{
+						RowTreeLevel.ColorIds[i] = RowTreeLevelParent.ColorIds[i0];
+						RowTreeLevel.MaxDuration[i] = RowTreeLevelParent.MaxDuration[i0];
+					}
+					RowTreeLevel.SumDuration[i] = RowTreeLevelParent.SumDuration[i0] + RowTreeLevelParent.SumDuration[i1];
+					RowTreeLevel.Begin[i] =	RowTreeLevelParent.Begin[i0];
+					RowTreeLevel.Duration[i] = RowTreeLevelParent.Begin[i1] - RowTreeLevelParent.Begin[i0]  + RowTreeLevelParent.Duration[i1];
+					RowTreeLevel.Length++;
+				}
+
+
+				if(Row.Tree.length != RowTreeIndex+1)
+					debugger;
+				Row.Tree.push(RowTreeLevel);
+				Row.MaxTree = Row.Tree.length;
+				RowTreeIndex++;
+			}
+		}
+	}
+	ProfileLeave();
+}
+
 function PreprocessGlobalArray()
 {
 	ProfileEnter("PreprocessGlobalArray");
@@ -6635,8 +7081,7 @@ function PreprocessGlobalArray()
 	S.TypeArray = new Array(nNumLogs);
 	S.TimeArray = new Array(nNumLogs);
 	S.IndexArray = new Array(nNumLogs);
-	var StackPos = 0;
-	var Stack = Array(20);
+	S.NumLogs = nNumLogs;
 	var LogStartArray = new Array(S.Frames.length);
 	for(var i = 0; i < S.Frames.length; i++)
 	{
@@ -6950,7 +7395,8 @@ function PreprocessThreadColors(S)
 		var coloroff = "hsl(" + cidx + ",85%, 50%)";
 		var colordark = "hsl(" + cidx + ",80%, 30%)";
 		var colordark_cid = GetColorIndex(colordark);
-		S.ThreadColors[i] = {"color":color, "colordark":colordark, "cidx":cidx, "gradient":null,"gradientoff":null, "coloroff":coloroff, "colordark_cid":colordark_cid};
+		var colortrans = "hsla(" + cidx + ",55%, 80%, 0.2)";
+		S.ThreadColors[i] = {"color":color, "colordark":colordark, "cidx":cidx, "gradient":null,"gradientoff":null, "coloroff":coloroff, "colordark_cid":colordark_cid, "colortrans":colortrans};
 	}
 }
 
@@ -7203,8 +7649,9 @@ function Preprocess_S()
 	PreprocessGatherLogTypes();
 
 	PreprocessGlobalArray();
-	PreprocessLods();
-	PreprocessMeta();
+	PreprocessLogBarArray();
+	PreprocessLods();//kill
+	PreprocessMeta();//kill
 	PreprocessThreadColors(S);
 
 	PreprocessContextSwitchCache();

@@ -93,6 +93,8 @@ enum EMicroProfileTokenExtended
 	ETOKEN_CUSTOM_NAME=0x3ffc,
 	ETOKEN_CUSTOM_COLOR=0x3ffb,
 	ETOKEN_CUSTOM_ID=0x3ffa,
+	ETOKEN_SECTION_ENTER=0x3ff9,
+	ETOKEN_SECTION_LEAVE=0x3ff8,
 
 	ETOKEN_MAX=0x3ff0,
 };
@@ -2655,32 +2657,23 @@ void MicroProfileLeave()
 }
 void MicroProfileEnterSection(const char* pName, uint32_t nColor)
 {
-	// MicroProfileThreadLog* pLog = MicroProfileGetThreadLog2();
-
-
-// uint64_t MicroProfileEnterInternal(MicroProfileToken nToken_)
-// {
-// 	if(MicroProfileGroupTokenActive(nToken_))
-// 	{
-// 		uint64_t nTick = MP_TICK();
-// 		if(MICROPROFILE_PLATFORM_MARKERS_ENABLED)
-// 		{
-// 			uint32_t idx = MicroProfileGetTimerIndex(nToken_);
-// 			MicroProfileTimerInfo& TI = S.TimerInfo[idx];
-// 			MICROPROFILE_PLATFORM_MARKER_BEGIN(TI.nColor, TI.pNameExt);
-// 			return nTick;
-// 		}
-// 		else
-// 		{
-// 			return MicroProfileLogPutEnter(nToken_, nTick, MicroProfileGetThreadLog2());
-// 		}
-// 	}
-// 	return MICROPROFILE_INVALID_TICK;
-// }
-
+	if(MicroProfileAnyGroupActive())
+	{
+		MicroProfileThreadLog* pLog = MicroProfileGetThreadLog2();
+		uint64_t LE = MicroProfileMakeLogExtended(ETOKEN_SECTION_ENTER, 0, nColor);
+		MicroProfileLogPut(LE, pLog);
+	}
 }
 void MicroProfileLeaveSection()
 {
+
+	if(MicroProfileAnyGroupActive())
+	{
+		MicroProfileThreadLog* pLog = MicroProfileGetThreadLog2();
+		uint64_t LE = MicroProfileMakeLogExtended(ETOKEN_SECTION_LEAVE, 0, 0);
+		MicroProfileLogPut(LE, pLog);
+	}
+
 	// uint64_t MicroProfileEnterInternal(MicroProfileToken nToken_)
 	// {
 	// 	if(MicroProfileGroupTokenActive(nToken_))
