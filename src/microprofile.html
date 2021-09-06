@@ -391,6 +391,7 @@ var KeyCtrlDown = 0;
 var MouseDragButton = 0;
 var ToolTipFlip = 0;
 var ToolTipCorner = 1;
+let ToolTipImmediate = null;
 var DetailedViewMouseX = 0;
 var DetailedViewMouseY = 0;
 var DetailedMouseOverButton = 0;
@@ -536,6 +537,19 @@ var ProfileLastTimeStamp = new Date();
 var ProfileData = {};
 var ProfileStackTime = {};
 var ProfileStackName = {};
+let ProfileDrawStartLast = new Date();
+let ProfileDrawEndLast = new Date();
+function CreateEmptyFloatArray(Size)
+{
+	let a = Array(Size);
+	for(let i = 0; i < Size; ++i)
+		a[i] = 0.0;
+	return a;
+}
+let ProfileDrawTime = CreateEmptyFloatArray(120);
+let ProfileDeltaTime = CreateEmptyFloatArray(120);
+let ProfileDraw2Draw = CreateEmptyFloatArray(120);
+
 var Debug = 1;
 
 var ThreadLogAutoHide = 0;
@@ -637,7 +651,6 @@ function ProfileLeave()
 		}
 		Obj.Time += Delta;
 		Obj.Count += 1;
-		console.log("prof ", Name, " took ", Delta);
 	}
 }
 
@@ -664,8 +677,44 @@ function ProfileModeDump()
 		var Timer = ProfileData[idx];
 		console.log(Timer.Name + " " + Timer.Time + "ms " + Timer.Count);
 	}
-
 }
+
+function ProfileDrawFrameTimeGraph(context)
+{
+	if(ProfileMode)
+	{
+		let Params = CreateDrawGraphParameters();
+		let Mouse = {};
+		Mouse.X = DetailedViewMouseX;
+		Mouse.Y = DetailedViewMouseY;
+		Params.RangeMin = 0;
+		Params.RangeMax = 50;
+
+		let DrawTimeData = CreateGraphData(ProfileDrawTime, "DrawTime", "#ff2288");
+		let DeltaTimeData = CreateGraphData(ProfileDeltaTime, "DeltaTime", "#2288ee");
+		let Draw2DrawData = CreateGraphData(ProfileDraw2Draw, "Draw2Draw", "#11aa33");
+
+		{
+			Params.Rect = WindowRect(0, nHeight-200, 200, 200);
+
+			DrawGraph(context, Params, [DrawTimeData], Mouse);
+		}
+		{
+			Params.Rect = WindowRect(200, nHeight-200, 200, 200);
+
+			DrawGraph(context, Params, [DeltaTimeData], Mouse);
+		}
+		{
+			Params.Rect = WindowRect(400, nHeight-200, 200, 200);
+			DrawGraph(context, Params, [Draw2DrawData], Mouse);
+		}
+		{
+			Params.Rect = WindowRect(610, nHeight-200, 200, 200);
+			DrawGraph(context, Params, [DrawTimeData, DeltaTimeData,Draw2DrawData], Mouse);
+		}
+	}
+}
+
 function ProfileModeDraw(Canvas)
 {
 	if(ProfileMode)
@@ -1195,7 +1244,11 @@ function SetContextSwitch(Enabled, WantRedraw)
 		RequestRedraw();
 	}
 }
-
+function PushIntoArray(A, v)
+{
+	A.shift();
+	A.push(v);
+}
 function ToggleDebug()
 {
 	Debug = (Debug + 1) % 2;
@@ -2025,12 +2078,18 @@ function BuildToolTipDetailed(S, nHoverToken, HoverTokenOwner, bSecond)
 function DrawHoverToolTip()
 {
 	ProfileEnter("DrawHoverToolTip");
-	var StringArray = [];
+	let StringArray = [];
 	let StringArray2;
-	if(nHoverToken != -1)
+	if(ToolTipImmediate != null)
+	{
+		DrawToolTip(ToolTipImmediate, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20);
+		ToolTipImmediate = null;
+
+	}
+	else if(nHoverToken != -1)
 	{
 
-		var bShowTimers = Mode == ModeTimers || Mode == ModeTimers_Threads || Mode == ModeTimers_Groups;
+		let bShowTimers = Mode == ModeTimers || Mode == ModeTimers_Threads || Mode == ModeTimers_Groups;
 		// this confused alot of people.
 		// if(ToolTipFlip == 1)
 		// {
@@ -2039,7 +2098,7 @@ function DrawHoverToolTip()
 		if(bShowTimers)
 		{
 			// var StringArray = [];
-			var groupid = S.TimerInfo[nHoverToken].group;
+			let groupid = S.TimerInfo[nHoverToken].group;
 			StringArray.push("Timer");
 			StringArray.push(S.TimerInfo[nHoverToken].name);
 			StringArray.push("Group");
@@ -2047,7 +2106,7 @@ function DrawHoverToolTip()
 
 			StringArray.push("");
 			StringArray.push("");
-			var Timer = S.TimerInfo[nHoverToken];
+			let Timer = S.TimerInfo[nHoverToken];
 			StringArray.push("Average");
 			StringArray.push(Timer.average);
 			StringArray.push("Max");
@@ -2108,7 +2167,7 @@ function DrawHoverToolTip()
 	}
 	else if(nHoverCSCpu >= 0)
 	{
-		var StringArray = [];
+		StringArray = [];
 		StringArray.push("Context Switch");
 		StringArray.push("");
 		StringArray.push("");
@@ -3315,11 +3374,11 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			WText = nWidth - XText;
 		}
 		let BarTextLen = Math.floor((WText-2)/FontWidth);
-		let TimeText = TimeToMsString(Duration);
-		let TimeTextLen = TimeText.length;
 
 		if(BarTextLen >= 2)
 		{
+			let TimeText = TimeToMsString(Duration);
+			let TimeTextLen = TimeText.length;
 			if(BarTextLen < NameLen)
 				Name = Name.substr(0, BarTextLen);
 			let YPos = Y+BoxHeight-FontAscent;
@@ -3349,6 +3408,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 		let Ends = Timeline.Ends;
 		let Positions = Timeline.Positions;
 		let Names = Timeline.Names;
+		let SearchMatch = Timeline.SearchMatch;
 		let off = 0.7;
 		let off2 = 2*off;
 		let MaxPosition = 1;
@@ -3360,6 +3420,10 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			let Position = Positions[i];
 			if(Position >= 0)
 			{
+				if(FilterInputSearchActive2)
+				{
+					Color = SearchMatch[i] ? CIDMatch : CIDFail;
+				}
 				MaxPosition = Math.max(Position, MaxPosition);
 				let Color = Colors[i];
 				let Name = Names[i];
@@ -3515,10 +3579,6 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					let ThresholdPixelDuration =  fDetailedRange / nWidth;
 					let ThresholdLimit = ThresholdPixelDuration * 0.5; // if below this we dont go further down
 
-//					console.log("ThresholdPixelDuration ", ThresholdPixelDuration, " ThresholdLimit ", ThresholdLimit);
-
-
-
 					let Rows = S.LogRows[nLog];
 					for(let r in Rows)
 					{
@@ -3553,17 +3613,15 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 											if(Depth == 0)
 											{
 												cid = GroupColors == 2 ? ThreadColors.colordark_cid : S0.TimerInfo[Index].cid;
-
+												if(FilterInputSearchActive2)
+												{
+													cid = S0.TimerInfo[Index].search;
+												}
 												if(Index == nHoverToken)
 												{
 													nHoverColorIndex = cid;
 													cid = cidhovercolor;
 												}
-												if(FilterInputSearchActive2)
-												{
-													cid = S0.TimerInfo[Index].search;
-												}
-
 											}
 											let Name = Depth == 0 ? S0.TimerInfo[Index].name : "";
 											let NameLen = Depth == 0 ? S0.TimerInfo[Index].len : 0;
@@ -4218,6 +4276,207 @@ function DetailedAddMouseEvent(P, E)
 
 }
 
+function CreateGraphData(Samples, Name, Color)
+{
+	let gd = {};
+	gd.Samples = Samples;
+	gd.Name = Name;
+	gd.Color = Color;
+	return gd;
+}
+
+function CreateDrawGraphParameters()
+{
+	let P = {};
+	P.Rect = WindowRect(0, 0, 1, 1);
+	P.RangeMin = 0.0;
+	P.RangeMax = 0.0;
+	P.Mark = [16.66, 33.33];
+	P.Ext = "ms";
+	P.Border = 2;
+	P.Frame = 1;
+	return P;
+}
+
+
+
+function DrawGraph(context, Parameters, data, Mouse)
+{
+
+	ProfileEnter("DrawGraph");
+	let Rect = Parameters.Rect;
+	let RangeMin = Parameters.RangeMin;
+	let RangeMax = Parameters.RangeMax;
+	let MaxLen = 0;
+	let MaxSample = 0;
+	let MinSample = 1e25;
+	for(let i in data)
+	{
+		let d = data[i];
+		MaxLen = Math.max(MaxLen, d.Samples.length);
+		for(let j in d.Samples)
+		{
+			MaxSample = Math.max(MaxSample, d.Samples[j]);
+			MinSample = Math.max(MinSample, d.Samples[j]);
+		}
+	}
+	if(0 == MaxLen)
+		return;
+
+	if(RangeMax <= RangeMin)
+	{
+		RangeMin = MinSample;
+		RangeMax = MaxSample;
+	}
+
+
+	let Ext = Parameters.Ext;
+	let Border = Parameters.Border;
+	let Frame = Parameters.Frame;
+	if(Frame)
+		Border += 10;
+
+	let wx = Rect.x;
+	let wy = Rect.y;
+	let wh = Rect.h;
+	let ww = Rect.w;
+
+	let x = Rect.x + Border;
+	let y = Rect.y + Border;
+	let h = Rect.h - 2*Border;
+	let w = Rect.w - 2*Border;
+
+	let MouseX = Mouse.X-x;
+	let MouseY = Mouse.Y-y;
+	let MouseInside = Mouse.X >= x && Mouse.Y >= y && Mouse.X < x + w && Mouse.Y < y + h;
+	let MouseXPrc = (Mouse.X - x) / (w-1);
+
+	context.clearRect(wx, wy, ww, wh);
+
+
+	let SampleWidth = w / (MaxLen-1);
+	let MouseIndex = Math.max(0, Math.min(MaxLen-1, Math.floor(MouseXPrc * MaxLen)));
+
+	let HeightScale = h / (RangeMax-RangeMin);
+	let Y = y + h;
+	let YStart = Y;
+
+	for(let dataindex in data)
+	{
+		let LocalElement = data[dataindex];
+		let Samples = LocalElement.Samples;
+		let X = x + w - (Samples.length-1)*SampleWidth;
+		Y = y + h;
+
+		context.globalAlpha = 1;
+		context.strokeStyle = LocalElement.Color;
+		context.fillStyle = LocalElement.Color;
+		context.beginPath();
+		for(let i = 0; i < Samples.length; ++i)
+		{
+			Y = Math.max(YStart - Samples[i] * HeightScale, y);
+			if(i == 0)
+				context.moveTo(X, Y);
+			else
+				context.lineTo(X, Y);
+			X += SampleWidth;
+
+		}
+		let GRAPH_ALPHA = 0.2;
+		context.stroke();
+		context.lineTo(X-SampleWidth, YStart);
+		context.lineTo(x, YStart);
+		context.globalAlpha = GRAPH_ALPHA;
+		context.fill();
+
+		if(MouseInside)
+		{
+			let MouseSample = Samples[MouseIndex];
+			let Y = Math.max(YStart - MouseSample * HeightScale, y);
+			let X = x + w + (MouseIndex - (Samples.length-1))*SampleWidth;
+
+			context.globalAlpha = 0.8;
+			context.beginPath();
+			context.arc(X, Y, 2, 0, 2 * Math.PI);
+			context.fill();
+
+			context.globalAlpha = 1;
+
+			context.beginPath();
+			context.arc(X, Y, 3, 0, 2 * Math.PI);
+			context.stroke();
+		}
+
+
+	}
+	context.globalAlpha = 1;
+	context.fillStyle = 'wheat';
+	context.strokeStyle = 'wheat';
+	context.textAlign='right';
+	context.fillText(RangeMax + Ext, x+w, y + FontHeight);
+	for(let m in Parameters.Mark)
+	{
+		let Sample = Parameters.Mark[m];
+		let Y = YStart - Sample * HeightScale;
+		context.fillText(Sample + Ext, x+w, Y + FontHeight);
+	}
+
+
+	context.globalAlpha = 0.4;
+	for(let m in Parameters.Mark)
+	{
+		let Sample = Parameters.Mark[m];
+		let Y = YStart - Sample * HeightScale;
+		{
+			context.beginPath();
+			context.moveTo(x-(Frame?5:0), Y);
+			context.lineTo(x+w, Y);
+			context.stroke();
+		}
+	}
+	context.globalAlpha = 1;
+	if(Frame)
+	{
+		context.beginPath();
+		context.moveTo(x-5, YStart);
+		context.lineTo(x+w+5, YStart);
+		context.stroke();
+
+		context.beginPath();
+		context.moveTo(x, YStart+5);
+		context.lineTo(x, YStart-h-5);
+		context.stroke();
+
+		context.beginPath();
+		context.moveTo(x, YStart-h);
+		context.lineTo(x-5, YStart-h);
+		context.stroke();
+	}
+
+	for(let dataindex = 0; dataindex < data.length; ++dataindex)
+	{
+		let LocalElement = data[dataindex];
+		context.textAlign='left';
+		context.strokeStyle = LocalElement.Color;
+		context.fillStyle = LocalElement.Color;
+		context.fillText(LocalElement.Name, x+2, y + FontHeight * (dataindex+1));
+	}
+
+	if(MouseInside)
+	{
+		ToolTipImmediate = new Array();
+		for(let dataindex in data)
+		{
+			let LocalElement = data[dataindex];
+			let Samples = LocalElement.Samples;
+			ToolTipImmediate.push(LocalElement.Name);
+			ToolTipImmediate.push(FormatTime(Samples[MouseIndex])+ Parameters.Ext);
+		}
+	}
+
+	ProfileLeave();
+}
+
 function DrawDetailed(Animation)
 {
 	DetailedMouseEvent = null;
@@ -4361,6 +4620,7 @@ function DrawDetailed(Animation)
 
 	DrawFilterSearch();
 
+	ProfileDrawFrameTimeGraph(context);
 
 	ProfileLeave();
 }
@@ -4626,6 +4886,10 @@ function UpdateFilterSearch()
 					}
 				}
 			}
+			for(let i = 0; i < Timeline.Names.length; ++i)
+			{
+				Timeline.SearchMatch[i] = FilterMatch(FilterSearch, Timeline.Names[i]);
+			}
 		}
 	}
 }
@@ -4633,6 +4897,8 @@ function UpdateFilterSearch()
 
 function Draw()
 {
+	let ProfileDrawStart = new Date();
+
 	UpdateFilterSearch();
 	let RedrawMode = 1;
 	let RedrawAgain = 0;
@@ -4707,6 +4973,22 @@ function Draw()
 	}
 
 	InsideDraw = 0;
+	{
+		let ProfileDrawEnd = new Date();
+		let DrawTime = ProfileDrawEnd - ProfileDrawStart;
+		let Delta = ProfileDrawStart - ProfileDrawStartLast;
+		let Draw2Draw = ProfileDrawStart - ProfileDrawEndLast;
+
+		if(ProfileMode != 3)
+		{
+			PushIntoArray(ProfileDrawTime, DrawTime);
+			PushIntoArray(ProfileDeltaTime, Delta);
+			PushIntoArray(ProfileDraw2Draw, Draw2Draw);
+		}
+		ProfileDrawStartLast = ProfileDrawStart;
+		ProfileDrawEndLast = ProfileDrawEnd;
+	}
+
 	if(RedrawAgain)
 	{
 		RequestRedraw();
@@ -6922,13 +7204,13 @@ function PreprocessLogBarArray()
 			Row.Tree = new Array()
 			Row.Tree[0] = new Object();
 			Row.Tree[0].Source = new Array();
-			Row.Tree[0].Index = new Array();
-			Row.Tree[0].ColorIds = new Array();
-			Row.Tree[0].Begin = new Array();
-			Row.Tree[0].Duration = new Array();
-			Row.Tree[0].MaxDuration = new Array();
-			Row.Tree[0].SumDuration = new Array();
-			Row.Tree[0].Parent = -1;
+			Row.Tree[0].Index_ = new Array();
+			Row.Tree[0].ColorIds_ = new Array();
+			Row.Tree[0].Begin_ = new Array();
+			Row.Tree[0].Duration_ = new Array();
+			Row.Tree[0].MaxDuration_ = new Array();
+			Row.Tree[0].SumDuration_ = new Array();
+			Row.Tree[0].Parent_ = -1;
 			Row.Tree[0].Tail = 0;
 			Row.Tree[0].Length = 0;
 
@@ -6967,13 +7249,13 @@ function PreprocessLogBarArray()
 					debugger;
 				let rt0 = Rows[StackPos].Tree[0];
 				rt0.Source.push(i);
-				rt0.Index.push(beginindex);
-				rt0.ColorIds.push(S.TimerInfo[beginindex].cid);
-				rt0.Begin.push(begintime);
+				rt0.Index_.push(beginindex);
+				rt0.ColorIds_.push(S.TimerInfo[beginindex].cid);
+				rt0.Begin_.push(begintime);
 				let Duration = time - begintime;
-				rt0.Duration.push(Duration);
-				rt0.SumDuration.push(Duration);
-				rt0.MaxDuration.push(Duration);
+				rt0.Duration_.push(Duration);
+				rt0.SumDuration_.push(Duration);
+				rt0.MaxDuration_.push(Duration);
 				if(SrcTypeArray[stackindex+1] == 3) // this is a gpu log with a cpu marker appended
 				{
 					if(SrcTypeArray[i+1] != 3)
@@ -7016,6 +7298,18 @@ function PreprocessLogBarArray()
 		{
 			let Row = Rows[r];
 			let RowTreeIndex = 0;
+
+			Row.Tree[0].Index = new Int32Array(Row.Tree[0].Index_);
+			Row.Tree[0].ColorIds = new Int32Array(Row.Tree[0].ColorIds_);// = new Array();
+			Row.Tree[0].Begin = new Float32Array(Row.Tree[0].Begin_);
+			Row.Tree[0].Duration = new Float32Array(Row.Tree[0].Duration_);
+			Row.Tree[0].MaxDuration = new Float32Array(Row.Tree[0].MaxDuration_);
+			Row.Tree[0].SumDuration = new Float32Array(Row.Tree[0].SumDuration_);
+
+
+
+
+
 			// stop at 100 elements...
 			while(Row.Tree[RowTreeIndex].Begin.length > 100)
 			{
@@ -7028,12 +7322,12 @@ function PreprocessLogBarArray()
 					debugger;
 
 				let RowTreeLevel = new Object();
-				RowTreeLevel.Index = new Array(Size);
-				RowTreeLevel.ColorIds = new Array(Size);
-				RowTreeLevel.Begin = new Array(Size);
-				RowTreeLevel.Duration = new Array(Size);
-				RowTreeLevel.SumDuration = new Array(Size);
-				RowTreeLevel.MaxDuration = new Array(Size);
+				RowTreeLevel.Index = new Int32Array(Size);
+				RowTreeLevel.ColorIds = new Int32Array(Size);
+				RowTreeLevel.Begin = new Float32Array(Size);
+				RowTreeLevel.Duration = new Float32Array(Size);
+				RowTreeLevel.SumDuration = new Float32Array(Size);
+				RowTreeLevel.MaxDuration = new Float32Array(Size);
 				RowTreeLevel.Parent = RowTreeIndex;
 				RowTreeLevel.Tail = Tail;
 				RowTreeLevel.Length = 0;
@@ -7441,6 +7735,7 @@ function PreprocessTimeline()
 	Timeline.Names = S.TimelineNames;
 	Timeline.Ends = new Array(S.TimelineArray.length);
 	Timeline.Pairs = new Array(S.TimelineArray.length);
+	Timeline.SearchMatch = new Array(S.TimelineArray.length);
 	Timeline.Tracks = new Array();
 	Timeline.Positions = new Array();
 	for(var i = 0; i < Timeline.Times.length; ++i)
@@ -7448,6 +7743,7 @@ function PreprocessTimeline()
 		Timeline.Positions[i] = -1;
 		Timeline.Ends[i] = -1;
 		Timeline.Pairs[i] = -1;
+		Timeline.SearchMatch[i] = false;
 		var Color = S.TimelineColorArray[i]
 		if(!Color || Color == '')
 		{
