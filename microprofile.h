@@ -192,8 +192,12 @@ typedef uint16_t MicroProfileGroupId;
 
 #include <stdint.h>
 
+#ifdef MICROPROFILE_EXPORT
+#include "microprofile.export.h"
+#else
 #ifndef MICROPROFILE_API
 #define MICROPROFILE_API
+#endif
 #endif
 
 #ifdef MICROPROFILE_PS4
@@ -359,7 +363,7 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #endif
 
 #ifndef MICROPROFILE_GPU_TIMERS
-#define MICROPROFILE_GPU_TIMERS 1
+#define MICROPROFILE_GPU_TIMERS 0
 #endif
 
 #ifndef MICROPROFILE_GPU_TIMER_CALLBACKS
