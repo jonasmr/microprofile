@@ -3322,37 +3322,28 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 		SecondReverseOffset = 5-BoxHeight;
 	}
 	let BoxHeightScaledPos = Math.abs(BoxHeightScaled);
-	let Levels = [];
 	let BatchesTxtColor = ['#ffffff', '#333333'];
 	let TotalBatches = 0;
-
+	let BatchData = {};
+	{
+		let L = BatchData;
+		L.Batches = new Array(g_Colors.length+1);
+		L.BatchesTxt = new Array();
+		L.BatchesTxtPos = new Array();
+		for(let i = 0; i < 2; ++i)
+		{
+			L.BatchesTxt[i] = Array();
+			L.BatchesTxtPos[i] = Array();
+		}
+		for(let i = 0; i < L.Batches.length; ++i)
+		{
+			L.Batches[i] = Array();
+		}
+	}
 	let AddBatch = function(StackPos, index, X, Y, W, Name, NameLen, Duration, Opacity)
 	{
 		TotalBatches++;
-		let L = Levels[StackPos];
-		if(!L)
-		{
-			for(let j = 0; j < StackPos+1; ++j)
-			{
-				if(!Levels[j])
-				{
-					Levels[j] = {};
-					L = Levels[j];
-					L.Batches = new Array(g_Colors.length+1);
-					L.BatchesTxt = new Array();
-					L.BatchesTxtPos = new Array();
-					for(let i = 0; i < 2; ++i)
-					{
-						L.BatchesTxt[i] = Array();
-						L.BatchesTxtPos[i] = Array();
-					}
-					for(let i = 0; i < L.Batches.length; ++i)
-					{
-						L.Batches[i] = Array();
-					}
-				}
-			}
-		}
+		let L = BatchData;
 		let O = Opacity ? Opacity : 1.0;
 		O = 1-((1-O)*(1-O));
 		let B = L.Batches[index];
@@ -3577,8 +3568,8 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					OY += SecondReverseOffset;
 					// Duration of 1 pixel
 					let ThresholdPixelDuration =  fDetailedRange / nWidth;
-					let ThresholdLimit = ThresholdPixelDuration * 0.5; // if below this we dont go further down
-
+					let ThresholdLimit = ThresholdPixelDuration * 1.0; // if below this we dont go further down
+let bbaa = 0;
 					let Rows = S.LogRows[nLog];
 					for(let r in Rows)
 					{
@@ -3627,7 +3618,11 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 											let NameLen = Depth == 0 ? S0.TimerInfo[Index].len : 0;
 											let X = (TimeBegin - Off) * fScaleX;
 											let W = (TimeEnd-TimeBegin)*fScaleX;
-											AddBatch(Depth, cid, X, Y, W, Name, NameLen, TimeEnd-TimeBegin, Opacity);
+											if(W > 1 || Opacity > 0.1)
+											{
+												bbaa += 1;
+												AddBatch(Depth, cid, X, Y, W, Name, NameLen, TimeEnd-TimeBegin, Opacity);
+											}
 
 											const M = MY && DetailedViewMouseX >= X && DetailedViewMouseX <= X+W;
 											if(Depth == 0 && M)
@@ -3706,6 +3701,8 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					// 		}
 					// 	}
 					// }
+
+					console.log("Drawing ", bbaa);
 
 				}
 				else
@@ -3977,10 +3974,11 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				context.fillRect(X, Y, W, BoxHeight-1);
 			}
 		};
+		let rect_calls = 0;
+		let text_calls = 0;
 
-		for(let l = 0; l < Levels.length; ++l)
 		{
-			let Batches = Levels[l].Batches;
+			let Batches = BatchData.Batches;
 			for(let i = 0; i < Batches.length; ++i)
 			{
 				let a = Batches[i];
@@ -4017,12 +4015,13 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 						}
 					}
 					FillRects(a, Color, ColorDark);
+					rect_calls += a.length;
 
 				}
 			}
 			context.globalAlpha = 1.0;
-			let BatchesTxt = Levels[l].BatchesTxt;
-			let BatchesTxtPos = Levels[l].BatchesTxtPos;
+			let BatchesTxt = BatchData.BatchesTxt;
+			let BatchesTxtPos = BatchData.BatchesTxtPos;
 			for(let i = 0; i < BatchesTxt.length; ++i)
 			{
 				context.fillStyle = BatchesTxtColor[i];
@@ -4032,10 +4031,14 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				{
 					let k = j * 2;
 					context.fillText(TxtArray[j], PosArray[k],PosArray[k+1]);
+
 				}
+				text_calls += TxtArray.length;
 			}
 
 		}
+		console.log("rect_calls ", rect_calls, " text_calls ", text_calls);
+
 	}
 //	console.log("Total Batches ", TotalBatches);
 
@@ -7306,12 +7309,8 @@ function PreprocessLogBarArray()
 			Row.Tree[0].MaxDuration = new Float32Array(Row.Tree[0].MaxDuration_);
 			Row.Tree[0].SumDuration = new Float32Array(Row.Tree[0].SumDuration_);
 
-
-
-
-
 			// stop at 100 elements...
-			while(Row.Tree[RowTreeIndex].Begin.length > 100)
+			while(Row.Tree[RowTreeIndex].Begin.length > 10)
 			{
 
 				//Use RowTreeIndex to build RowTreeIndex+1 with half as much data.

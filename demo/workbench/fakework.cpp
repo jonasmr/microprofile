@@ -8,6 +8,7 @@
 #include <unistd.h>
 #endif
 
+#define MEGASPIN 1
 extern uint32_t g_nQuit;
 
 #ifdef _WIN32
@@ -187,10 +188,12 @@ void WorkerThread(int threadId)
 					MICROPROFILE_SCOPEI("ThreadWork", "Inner2", c2); usleep(50);
 					MICROPROFILE_SCOPEI("ThreadWork", "Inner3", c3); usleep(50);
 					MICROPROFILE_SCOPEI("ThreadWork", "Inner4", c3); usleep(50);
-					for(uint32_t k = 0; k < 25; ++k)
+					#if MEGASPIN
+					for(uint32_t k = 0; k < 250; ++k)
 					{
 						MICROPROFILE_SCOPEI("ThreadWork", "MegaSpin", c3);
 					}
+					#endif
 				}
 			}
 			MICROPROFILE_LEAVE_SECTION();
@@ -216,11 +219,12 @@ void WorkerThread(int threadId)
 					usleep(150);
 					MICROPROFILE_SCOPE(ThreadSafeInner4);
 					usleep(150);
-
-					for(uint32_t k = 0; k < 25; ++k)
+					#if MEGASPIN
+					for(uint32_t k = 0; k < 250; ++k)
 					{
 						MICROPROFILE_SCOPEI("ThreadWork", "MegaSpin", c3);
 					}
+					#endif
 
 				}
 				MICROPROFILE_LEAVE();
