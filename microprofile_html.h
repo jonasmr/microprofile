@@ -3433,10 +3433,6 @@ const char g_MicroProfileHtml_end_2[] =
 "			let Position = Positions[i];\n"
 "			if(Position >= 0)\n"
 "			{\n"
-"				if(FilterInputSearchActive2)\n"
-"				{\n"
-"					Color = SearchMatch[i] ? CIDMatch : CIDFail;\n"
-"				}\n"
 "				MaxPosition = Math.max(Position, MaxPosition);\n"
 "				let Color = Colors[i];\n"
 "				let Name = Names[i];\n"
@@ -3444,6 +3440,10 @@ const char g_MicroProfileHtml_end_2[] =
 "				let X = (TimeStart - Off) * fScaleX;\n"
 "				let Y = fOffsetY + P * (BoxHeight+2);\n"
 "				let W = (TimeEnd-TimeStart)*fScaleX;\n"
+"				if(FilterInputSearchActive2)\n"
+"				{\n"
+"					Color = SearchMatch[i] ? CIDMatch : CIDFail;\n"
+"				}\n"
 "				if(!bSecond)\n"
 "				{\n"
 "					if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)\n"
@@ -3707,25 +3707,16 @@ const char g_MicroProfileHtml_end_2[] =
 "								}\n"
 "							}\n"
 "							DrawRange(Size-1, 0, Tree[Size-1].Length);\n"
+"							// if tree is uneven, the tails won\'t have parents.\n"
+"							for(let i = Size-2; i >= 0; --i)\n"
+"							{\n"
+"								let TreeLen = Tree[i].Length;\n"
+"								if((TreeLen % 2) == 1)\n"
+"									DrawRange(i, TreeLen-1, TreeLen);\n"
+"							}\n"
+"\n"
 "						}\n"
 "					}\n"
-"					// /// GET RID OF LOD DATA\n"
-"					// let Lod = S.LodData[0];\n"
-"					// if(HasSetHover)\n"
-"\n"
-"					// {\n"
-"					// 	for(let i = 0; i < S.Frames.length-1; ++i)\n"
-"					// 	{\n"
-"					// 		let IndexStart = Lod.LogStart[i][nLog];\n"
-"					// 		if(nHoverTokenIndexNext >= IndexStart)\n"
-"					// 		{\n"
-"					// 			nHoverFrame = i;\n"
-"					// 		}\n"
-"					// 	}\n"
-"					// }\n"
-"\n"
-"					console.log(\"Drawing \", bbaa);\n"
-"\n"
 "				}\n"
 "				else\n"
 "				{\n"
@@ -4331,18 +4322,18 @@ const char g_MicroProfileHtml_end_2[] =
 "	ProfileEnter(\"DrawGraph\");\n"
 "	let Rect = Parameters.Rect;\n"
 "	let RangeMin = Parameters.RangeMin;\n"
-"	let RangeMax = Paramet";
-
-const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
-const char g_MicroProfileHtml_end_3[] =
-"ers.RangeMax;\n"
+"	let RangeMax = Parameters.RangeMax;\n"
 "	let MaxLen = 0;\n"
 "	let MaxSample = 0;\n"
 "	let MinSample = 1e25;\n"
 "	for(let i in data)\n"
 "	{\n"
 "		let d = data[i];\n"
-"		MaxLen = Math.max(MaxLen, d.Samples.length);\n"
+"		MaxLen = Math.max(MaxLen";
+
+const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
+const char g_MicroProfileHtml_end_3[] =
+", d.Samples.length);\n"
 "		for(let j in d.Samples)\n"
 "		{\n"
 "			MaxSample = Math.max(MaxSample, d.Samples[j]);\n"
@@ -5686,18 +5677,18 @@ const char g_MicroProfileHtml_end_3[] =
 "	}\n"
 "	else if(SubMenuActive == SubMenuColumns)\n"
 "	{\n"
-"		";
-
-const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
-const char g_MicroProfileHtml_end_4[] =
-"MenuRect = DrawMenuColumns();\n"
+"		MenuRect = DrawMenuColumns();\n"
 "	}\n"
 "	var Grow = 10;\n"
 "	MenuRect.x -= Grow;\n"
 "	MenuRect.y -= Grow;\n"
 "	MenuRect.h += 2*Grow;\n"
 "	MenuRect.w += 2*Grow;\n"
-"	var MouseMoved = GlobalMouseX != SubMenuMouseX || GlobalMouseY != SubMenuMouseY;\n"
+"	var ";
+
+const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
+const char g_MicroProfileHtml_end_4[] =
+"MouseMoved = GlobalMouseX != SubMenuMouseX || GlobalMouseY != SubMenuMouseY;\n"
 "\n"
 "	if(MouseInRect(MenuRect) || !MouseMoved)\n"
 "	{\n"
@@ -7268,14 +7259,14 @@ const char g_MicroProfileHtml_end_4[] =
 "			else if(type == 0 && StackPos > 0)\n"
 "			{\n"
 "				StackPos--;\n"
-"				let stackindex = Stack[StackPo";
+"				let stackindex = Stack[StackPos];\n"
+"				let begintype = SrcTypeArray[stackindex];\n"
+"				let begintime = SrcTimeArray[stackindex];\n"
+"				let beginindex = SrcIndexArray[stackindex]";
 
 const size_t g_MicroProfileHtml_end_4_size = sizeof(g_MicroProfileHtml_end_4);
 const char g_MicroProfileHtml_end_5[] =
-"s];\n"
-"				let begintype = SrcTypeArray[stackindex];\n"
-"				let begintime = SrcTimeArray[stackindex];\n"
-"				let beginindex = SrcIndexArray[stackindex];\n"
+";\n"
 "				if(type != 0)\n"
 "					debugger;\n"
 "				if(begintype != 1)\n"

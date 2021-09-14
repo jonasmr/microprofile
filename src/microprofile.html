@@ -3411,10 +3411,6 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			let Position = Positions[i];
 			if(Position >= 0)
 			{
-				if(FilterInputSearchActive2)
-				{
-					Color = SearchMatch[i] ? CIDMatch : CIDFail;
-				}
 				MaxPosition = Math.max(Position, MaxPosition);
 				let Color = Colors[i];
 				let Name = Names[i];
@@ -3422,6 +3418,10 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 				let X = (TimeStart - Off) * fScaleX;
 				let Y = fOffsetY + P * (BoxHeight+2);
 				let W = (TimeEnd-TimeStart)*fScaleX;
+				if(FilterInputSearchActive2)
+				{
+					Color = SearchMatch[i] ? CIDMatch : CIDFail;
+				}
 				if(!bSecond)
 				{
 					if(DetailedViewMouseX >= X && DetailedViewMouseX <= X+W && DetailedViewMouseY < Y+BoxHeight && DetailedViewMouseY >= Y)
@@ -3685,25 +3685,16 @@ let bbaa = 0;
 								}
 							}
 							DrawRange(Size-1, 0, Tree[Size-1].Length);
+							// if tree is uneven, the tails won't have parents.
+							for(let i = Size-2; i >= 0; --i)
+							{
+								let TreeLen = Tree[i].Length;
+								if((TreeLen % 2) == 1)
+									DrawRange(i, TreeLen-1, TreeLen);
+							}
+
 						}
 					}
-					// /// GET RID OF LOD DATA
-					// let Lod = S.LodData[0];
-					// if(HasSetHover)
-
-					// {
-					// 	for(let i = 0; i < S.Frames.length-1; ++i)
-					// 	{
-					// 		let IndexStart = Lod.LogStart[i][nLog];
-					// 		if(nHoverTokenIndexNext >= IndexStart)
-					// 		{
-					// 			nHoverFrame = i;
-					// 		}
-					// 	}
-					// }
-
-					console.log("Drawing ", bbaa);
-
 				}
 				else
 				{
