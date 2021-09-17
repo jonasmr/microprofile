@@ -407,6 +407,7 @@ struct MicroProfileTimerInfo
 	bool bGraph;
 	bool bWSEnabled;
 	MicroProfileTokenType Type;
+	uint32_t Flags;
 
 };
 
@@ -2028,13 +2029,18 @@ void MicroProfileRegisterGroup(const char* pGroup, const char* pCategory, uint32
 	}
 }
 
-MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, uint32_t nColor, MicroProfileTokenType Type)
+MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, uint32_t nColor, MicroProfileTokenType Type, uint32_t Flags)
 {
 	MicroProfileInit();
 	MicroProfileScopeLock L(MicroProfileMutex());
 	MicroProfileToken ret = MicroProfileFindToken(pGroup, pName);
 	if(ret != MICROPROFILE_INVALID_TOKEN)
+	{
+		int idx = MicroProfileGetTimerIndex(ret);
+		printf("found index %d\n", idx);
+		MP_ASSERT(S.TimerInfo[idx].Flags == Flags);
 		return ret;
+	}
 	uint16_t nGroupIndex = MicroProfileGetGroup(pGroup, Type);
 	uint16_t nTimerIndex = (uint16_t)(S.nTotalTimers++);
 	MP_ASSERT(nTimerIndex < MICROPROFILE_MAX_TIMERS);
@@ -2061,6 +2067,8 @@ MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, ui
 	S.TimerInfo[nTimerIndex].nWSNext = -1;
 	S.TimerInfo[nTimerIndex].bWSEnabled = false;
 	S.TimerInfo[nTimerIndex].Type = Type;
+	S.TimerInfo[nTimerIndex].Flags = Flags;
+	printf("*** TOKEN %08d %s\\%s .. flags %08x\n", nTimerIndex, pGroup, pName, Flags);
 	S.TimerToGroup[nTimerIndex] = nGroupIndex;
 	return nToken;
 }
@@ -4327,7 +4335,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 
 		uint32_t nColor = S.TimerInfo[i].nColor;
 		uint32_t nColorDark = (nColor >> 1) & ~0x80808080;
-		MicroProfilePrintf(CB, Handle, "S.TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x','#%02x%02x%02x', %f, %f, %f, %f, %f, %f, %d, %f, S.Meta%d, S.MetaAvg%d, S.MetaMax%d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex,
+		MicroProfilePrintf(CB, Handle, "S.TimerInfo[%d] = MakeTimer(%d, \"%s\", %d, '#%02x%02x%02x','#%02x%02x%02x', %f, %f, %f, %f, %f, %f, %d, %f, S.Meta%d, S.MetaAvg%d, S.MetaMax%d, %d);\n", S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].nTimerIndex, S.TimerInfo[i].pName, S.TimerInfo[i].nGroupIndex,
 			MICROPROFILE_UNPACK_RED(nColor) & 0xff,
 			MICROPROFILE_UNPACK_GREEN(nColor) & 0xff,
 			MICROPROFILE_UNPACK_BLUE(nColor) & 0xff,
@@ -4342,7 +4350,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 			pCallAverage[nIdx],
 			S.Aggregate[i].nCount,
 			pTotal[nIdx],
-			i,i,i);
+			i,i,i,S.TimerInfo[i].Flags);
 
 	}
 

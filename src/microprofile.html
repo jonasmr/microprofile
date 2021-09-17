@@ -218,7 +218,7 @@ function MakeGroupCid(id, name, category, numtimers, isgpu, total, average, max,
 	return group;
 }
 
-function MakeTimer(id, name, group, color, colordark, average, max, min, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax)
+function MakeTimer(id, name, group, color, colordark, average, max, min, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax, issection)
 {
 	if(color == "#000000")
 	{
@@ -227,7 +227,7 @@ function MakeTimer(id, name, group, color, colordark, average, max, min, exclave
 	}
 	var spike = max <= 0 || average <= 0 ? 0 : (100 * max / average);
 	var cid = GetColorIndex(color);
-	var timer = {"id":id, "name":name, "len":name.length, "cid":cid, "timercid":cid, "group":group, "average":average, "max":max, "min":min, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "spike":spike,"total":total, "meta":meta, "metaavg":metaavg, "metamax":metamax, "worst":0, "worststart":0, "worstend":0, "search":cid};
+	var timer = {"id":id, "name":name, "len":name.length, "cid":cid, "timercid":cid, "group":group, "average":average, "max":max, "min":min, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "spike":spike,"total":total, "meta":meta, "metaavg":metaavg, "metamax":metamax, "worst":0, "worststart":0, "worstend":0, "search":cid, "issection":issection};
 	return timer;
 }
 
@@ -1128,7 +1128,7 @@ function ToggleDetailedSecondReverse(WantRedraw)
 
 function ToggleGroupColors(WantRedraw)
 {
-	GroupColors = (GroupColors+1)%3;
+	GroupColors = (GroupColors+1)%4;
 	UpdateGroupColors();
 	WriteCookie();
 	if(WantRedraw)
@@ -3569,7 +3569,6 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 					// Duration of 1 pixel
 					let ThresholdPixelDuration =  fDetailedRange / nWidth;
 					let ThresholdLimit = ThresholdPixelDuration * 1.0; // if below this we dont go further down
-let bbaa = 0;
 					let Rows = S.LogRows[nLog];
 					for(let r in Rows)
 					{
@@ -3604,6 +3603,10 @@ let bbaa = 0;
 											if(Depth == 0)
 											{
 												cid = GroupColors == 2 ? ThreadColors.colordark_cid : S0.TimerInfo[Index].cid;
+												if(GroupColors == 3)
+												{
+													cid = TreeLevel.SectionColor[j];
+												}
 												if(FilterInputSearchActive2)
 												{
 													cid = S0.TimerInfo[Index].search;
@@ -3620,7 +3623,6 @@ let bbaa = 0;
 											let W = (TimeEnd-TimeBegin)*fScaleX;
 											if(W > 1 || Opacity > 0.1)
 											{
-												bbaa += 1;
 												AddBatch(Depth, cid, X, Y, W, Name, NameLen, TimeEnd-TimeBegin, Opacity);
 											}
 
@@ -4578,7 +4580,7 @@ function DrawDetailed(Animation)
 	if(!FilterSearchActive && !IgnoreInput && SubMenuActive == -1)
 	{
 		let DrawMode = DrawDetailedNewDraw ? "DrawMode[New]":"DrawMode[Old]";
-		let Colors = GroupColors == 2 ? "Color[thread]" : (GroupColors ? "Color[group]" : "Color[timer]");
+		let Colors = GroupColors == 3 ? "Color[Section]" : (GroupColors == 2 ? "Color[thread]" : (GroupColors ? "Color[group]" : "Color[timer]"));
 		DrawDetailedButtons(context, nWidth * 0.5, 0, [Colors, "Search", DrawMode],[function(){ToggleGroupColors(1);}, FilterInputShow, ToggleDetailedNewDraw], "center");
 	}
 
@@ -7186,6 +7188,7 @@ function PreprocessLogBarArray()
 	for(let nLog = 0; nLog < NumLogs; nLog++)
 	{
 		let MaxStack = S.MaxStack[nLog];
+		let SectionColorStack = new Array(MaxStack);
 		let StackPos = 0;
 
 		let Rows = new Array(MaxStack);
@@ -7204,12 +7207,14 @@ function PreprocessLogBarArray()
 			Row.Tree[0].Duration_ = new Array();
 			Row.Tree[0].MaxDuration_ = new Array();
 			Row.Tree[0].SumDuration_ = new Array();
+			Row.Tree[0].SectionColor_ = new Array();
 			Row.Tree[0].Parent_ = -1;
 			Row.Tree[0].Tail = 0;
 			Row.Tree[0].Length = 0;
 
 			Rows[i] = Row;
 		}
+		let RootSectionColor = CIDFail;
 
 		let SrcTypeArray = S.TypeArray[nLog];
 		let SrcTimeArray = S.TimeArray[nLog];
@@ -7221,18 +7226,23 @@ function PreprocessLogBarArray()
 			let type = SrcTypeArray[i];
 			let time = SrcTimeArray[i];
 			let index = SrcIndexArray[i];
+			let TimerInfo= S.TimerInfo[index];
+			let IsSection = TimerInfo.IsSection;
 			if(type == 1)
 			{
 				Stack[StackPos] = i;
+				SectionColorStack[StackPos] = IsSection ? TimerInfo.cid : (StackPos>0 ? SectionColorStack[StackPos-1] : RootSectionColor);
 				StackPos++;
 			}
 			else if(type == 0 && StackPos > 0)
 			{
 				StackPos--;
 				let stackindex = Stack[StackPos];
+				let sectioncolor = SectionColorStack[StackPos];
 				let begintype = SrcTypeArray[stackindex];
 				let begintime = SrcTimeArray[stackindex];
 				let beginindex = SrcIndexArray[stackindex];
+
 				if(type != 0)
 					debugger;
 				if(begintype != 1)
@@ -7250,6 +7260,7 @@ function PreprocessLogBarArray()
 				rt0.Duration_.push(Duration);
 				rt0.SumDuration_.push(Duration);
 				rt0.MaxDuration_.push(Duration);
+				rt0.SectionColor_.push(Duration);
 				if(SrcTypeArray[stackindex+1] == 3) // this is a gpu log with a cpu marker appended
 				{
 					if(SrcTypeArray[i+1] != 3)
@@ -7299,6 +7310,7 @@ function PreprocessLogBarArray()
 			Row.Tree[0].Duration = new Float32Array(Row.Tree[0].Duration_);
 			Row.Tree[0].MaxDuration = new Float32Array(Row.Tree[0].MaxDuration_);
 			Row.Tree[0].SumDuration = new Float32Array(Row.Tree[0].SumDuration_);
+			Row.Tree[0].SectionColor = new Int32Array(Row.Tree[0].SectionColor_);
 
 			// stop at 100 elements...
 			while(Row.Tree[RowTreeIndex].Begin.length > 10)
@@ -7318,6 +7330,7 @@ function PreprocessLogBarArray()
 				RowTreeLevel.Duration = new Float32Array(Size);
 				RowTreeLevel.SumDuration = new Float32Array(Size);
 				RowTreeLevel.MaxDuration = new Float32Array(Size);
+				RowTreeLevel.SectionColor = new Int32Array(Size);
 				RowTreeLevel.Parent = RowTreeIndex;
 				RowTreeLevel.Tail = Tail;
 				RowTreeLevel.Length = 0;
@@ -7332,11 +7345,13 @@ function PreprocessLogBarArray()
 					{
 						RowTreeLevel.ColorIds[i] = RowTreeLevelParent.ColorIds[i1];
 						RowTreeLevel.MaxDuration[i] = RowTreeLevelParent.MaxDuration[i1];
+						RowTreeLevel.SectionColor[i] = RowTreeLevelParent.SectionColor[i1];
 					}
 					else
 					{
 						RowTreeLevel.ColorIds[i] = RowTreeLevelParent.ColorIds[i0];
 						RowTreeLevel.MaxDuration[i] = RowTreeLevelParent.MaxDuration[i0];
+						RowTreeLevel.SectionColor[i] = RowTreeLevelParent.SectionColor[i0];
 					}
 					RowTreeLevel.SumDuration[i] = RowTreeLevelParent.SumDuration[i0] + RowTreeLevelParent.SumDuration[i1];
 					RowTreeLevel.Begin[i] =	RowTreeLevelParent.Begin[i0];

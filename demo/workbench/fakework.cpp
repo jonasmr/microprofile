@@ -58,6 +58,11 @@ MICROPROFILE_DEFINE(ThreadSafeInner0,"ThreadSafe", "Inner0", 0xff00bbee);
 MICROPROFILE_DEFINE(ThreadSafeMain,"ThreadSafe", "Main", 0xffdd3355);
 
 
+MICROPROFILE_DECLARE_SECTION(SectionWorkRed);
+MICROPROFILE_DECLARE_SECTION(SectionWorkGreen);
+MICROPROFILE_DEFINE_SECTION(SectionWorkRed, "RedSection", 0xffff0000);
+MICROPROFILE_DEFINE_SECTION(SectionWorkGreen, "GreenSection", 0xff00ff00);
+
 void spinsleep(int64_t nUs)
 {
 	MICROPROFILE_COUNTER_LOCAL_ADD_ATOMIC(ThreadSpinSleep, 1);
@@ -86,6 +91,7 @@ void WorkerThreadLong(int threadId)
 	MicroProfileOnThreadCreate(&name[0]);
 	while(!g_nQuit)
 	{
+		MICROPROFILE_SECTIONI("LongSectionImmediate", 0xff0033ff);
 		MICROPROFILE_SCOPEI("long", "outer 150ms", c0);
 		MICROPROFILE_META_CPU("Sleep",100);
 		usleep(100*1000);
@@ -117,7 +123,8 @@ void WorkerThread(int threadId)
 		{
 		case 0:
 		{
-			MICROPROFILE_ENTER_SECTION(MP_DARKGREEN);
+			MICROPROFILE_SECTION(SectionWorkGreen);
+			//MICROPROFILE_ENTER_SECTION(MP_DARKGREEN);
 			usleep(100);
 			{
 				MICROPROFILE_SCOPEI("Thread0", "Work Thread0", c4);
@@ -148,7 +155,7 @@ void WorkerThread(int threadId)
 
 		case 1:
 			{
-				MICROPROFILE_ENTER_SECTION(MP_CORNFLOWERBLUE);
+				MICROPROFILE_SECTION(SectionWorkGreen);
 				usleep(100);
 				MICROPROFILE_SCOPEI("Thread1", "Work Thread 1", c1);
 				usleep(2000);
@@ -158,6 +165,7 @@ void WorkerThread(int threadId)
 
 		case 2:
 		{
+			MICROPROFILE_SECTION(SectionWorkRed);
 			usleep(1000);
 			{
 				MICROPROFILE_SCOPEI("Thread2", "Worker2", c0);
@@ -175,7 +183,7 @@ void WorkerThread(int threadId)
 		}
 		case 3:
 		{
-			MICROPROFILE_ENTER_SECTION(MP_YELLOW);
+			//MICROPROFILE_ENTER_SECTION(MP_YELLOW);
 			MICROPROFILE_SCOPEI("ThreadWork", "MAIN", c0); usleep(1000);;
 			for(uint32_t i = 0; i < 10; ++i)
 			{
