@@ -3600,21 +3600,25 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 										else
 										{
 											let Index = TreeLevel.Index[j];
-											let cid = FilterInputSearchActive2 ? CIDFail : TreeLevel.ColorIds[j];
+											let cid = TreeLevel.ColorIds[j];
 											let Opacity = Depth == 0 ? 1.0 : TreeLevel.SumDuration[j] / TreeLevel.Duration[j];
-											if(Depth == 0)
+
+											if(FilterInputSearchActive2)
 											{
-												cid = S0.TimerInfo[Index].cid;
+												if(Depth == 0)
+													cid = S0.TimerInfo[Index].search;
+												else
+													cid = CIDFail;
 											}
-											if(!FilterInputSearchActive2)
+											else
 											{
+												if(GroupColors == 1 && Depth == 0)
+													cid = S0.TimerInfo[Index].cid;
 												if(GroupColors == 2)
 													cid = ThreadColors.colordark_cid;
 												if(GroupColors == 3)
 													cid = TreeLevel.SectionColor[j];
 											}
-											if(FilterInputSearchActive2 && Depth == 0)
-												cid = S0.TimerInfo[Index].search;
 											if(Index == nHoverToken)
 											{
 												nHoverColorIndex = cid;
@@ -7244,7 +7248,7 @@ function PreprocessLogBarArray()
 					SectionColorStack[SectionColorStackPos] = TimerInfo.cid;
 					SectionColorStackPos++;
 				}
-				if(!skipsection || !IsSection)
+				if(!IsSection)
 				{
 					Stack[StackPos] = i;
 					StackPos++;
@@ -7259,11 +7263,11 @@ function PreprocessLogBarArray()
 					///Note to self: right here scan backwards untill the last unmatched pop, and propagate the section.
 					SectionColorStackPos--;
 				}
-				if((!skipsection || !IsSection) &&StackPos > 0)
+				if(!IsSection && StackPos > 0)
 				{
 					StackPos--;
 					let stackindex = Stack[StackPos];
-					let sectioncolor = SectionColorStack[SectionColorStackPos];
+					let sectioncolor = SectionColorStack[SectionColorStackPos-1];
 					let begintype = SrcTypeArray[stackindex];
 					let begintime = SrcTimeArray[stackindex];
 					let beginindex = SrcIndexArray[stackindex];

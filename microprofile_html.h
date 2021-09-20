@@ -3622,21 +3622,25 @@ const char g_MicroProfileHtml_end_2[] =
 "										else\n"
 "										{\n"
 "											let Index = TreeLevel.Index[j];\n"
-"											let cid = FilterInputSearchActive2 ? CIDFail : TreeLevel.ColorIds[j];\n"
+"											let cid = TreeLevel.ColorIds[j];\n"
 "											let Opacity = Depth == 0 ? 1.0 : TreeLevel.SumDuration[j] / TreeLevel.Duration[j];\n"
-"											if(Depth == 0)\n"
+"\n"
+"											if(FilterInputSearchActive2)\n"
 "											{\n"
-"												cid = S0.TimerInfo[Index].cid;\n"
+"												if(Depth == 0)\n"
+"													cid = S0.TimerInfo[Index].search;\n"
+"												else\n"
+"													cid = CIDFail;\n"
 "											}\n"
-"											if(!FilterInputSearchActive2)\n"
+"											else\n"
 "											{\n"
+"												if(GroupColors == 1 && Depth == 0)\n"
+"													cid = S0.TimerInfo[Index].cid;\n"
 "												if(GroupColors == 2)\n"
 "													cid = ThreadColors.colordark_cid;\n"
 "												if(GroupColors == 3)\n"
 "													cid = TreeLevel.SectionColor[j];\n"
 "											}\n"
-"											if(FilterInputSearchActive2 && Depth == 0)\n"
-"												cid = S0.TimerInfo[Index].search;\n"
 "											if(Index == nHoverToken)\n"
 "											{\n"
 "												nHoverColorIndex = cid;\n"
@@ -4328,12 +4332,12 @@ const char g_MicroProfileHtml_end_2[] =
 "\n"
 "	ProfileEnter(\"DrawGraph\");\n"
 "	let Rect = Parameters.Rect;\n"
-"	let RangeMin = Parameters.RangeMin;\n"
-"	let RangeMax = P";
+"	let RangeMin = Parameters.RangeMi";
 
 const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
 const char g_MicroProfileHtml_end_3[] =
-"arameters.RangeMax;\n"
+"n;\n"
+"	let RangeMax = Parameters.RangeMax;\n"
 "	let MaxLen = 0;\n"
 "	let MaxSample = 0;\n"
 "	let MinSample = 1e25;\n"
@@ -5679,14 +5683,14 @@ const char g_MicroProfileHtml_end_3[] =
 "	{\n"
 "		if(MouseReleased)\n"
 "		{\n"
-"			ComparePrompt();\n"
-"		}\n"
-"	}\n"
-"	";
+"			Compa";
 
 const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
 const char g_MicroProfileHtml_end_4[] =
-"else if(SubMenuActive == SubMenuColumns)\n"
+"rePrompt();\n"
+"		}\n"
+"	}\n"
+"	else if(SubMenuActive == SubMenuColumns)\n"
 "	{\n"
 "		MenuRect = DrawMenuColumns();\n"
 "	}\n"
@@ -7259,12 +7263,12 @@ const char g_MicroProfileHtml_end_4[] =
 "		let len = SrcTypeArray.length;\n"
 "\n"
 "		for(let i = 0; i < len; ++i)\n"
-"		{\n"
-"			let type = SrcTy";
+"		{";
 
 const size_t g_MicroProfileHtml_end_4_size = sizeof(g_MicroProfileHtml_end_4);
 const char g_MicroProfileHtml_end_5[] =
-"peArray[i];\n"
+"\n"
+"			let type = SrcTypeArray[i];\n"
 "			let time = SrcTimeArray[i];\n"
 "			let index = SrcIndexArray[i];\n"
 "			let skipsection = false;\n"
@@ -7278,7 +7282,7 @@ const char g_MicroProfileHtml_end_5[] =
 "					SectionColorStack[SectionColorStackPos] = TimerInfo.cid;\n"
 "					SectionColorStackPos++;\n"
 "				}\n"
-"				if(!skipsection || !IsSection)\n"
+"				if(!IsSection)\n"
 "				{\n"
 "					Stack[StackPos] = i;\n"
 "					StackPos++;\n"
@@ -7293,11 +7297,11 @@ const char g_MicroProfileHtml_end_5[] =
 "					///Note to self: right here scan backwards untill the last unmatched pop, and propagate the section.\n"
 "					SectionColorStackPos--;\n"
 "				}\n"
-"				if((!skipsection || !IsSection) &&StackPos > 0)\n"
+"				if(!IsSection && StackPos > 0)\n"
 "				{\n"
 "					StackPos--;\n"
 "					let stackindex = Stack[StackPos];\n"
-"					let sectioncolor = SectionColorStack[SectionColorStackPos];\n"
+"					let sectioncolor = SectionColorStack[SectionColorStackPos-1];\n"
 "					let begintype = SrcTypeArray[stackindex];\n"
 "					let begintime = SrcTimeArray[stackindex];\n"
 "					let beginindex = SrcIndexArray[stackindex];\n"

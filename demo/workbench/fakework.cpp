@@ -184,6 +184,7 @@ void WorkerThread(int threadId)
 		case 3:
 		{
 			//MICROPROFILE_ENTER_SECTION(MP_YELLOW);
+			MICROPROFILE_SECTION(SectionWorkGreen);
 			MICROPROFILE_SCOPEI("ThreadWork", "MAIN", c0); usleep(1000);;
 			for(uint32_t i = 0; i < 10; ++i)
 			{
@@ -209,6 +210,7 @@ void WorkerThread(int threadId)
 			break;
 		}
 		default:
+			MICROPROFILE_SECTION(SectionWorkGreen);
 
 			MICROPROFILE_SCOPE(ThreadSafeMain);
 			usleep(1000);;

@@ -2037,7 +2037,6 @@ MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, ui
 	if(ret != MICROPROFILE_INVALID_TOKEN)
 	{
 		int idx = MicroProfileGetTimerIndex(ret);
-		printf("found index %d\n", idx);
 		MP_ASSERT(S.TimerInfo[idx].Flags == Flags);
 		return ret;
 	}
