@@ -149,7 +149,6 @@ void WorkerThread(int threadId)
 					}
 				}
 			}
-			MICROPROFILE_LEAVE_SECTION();
 		}
 		break;
 
@@ -159,7 +158,6 @@ void WorkerThread(int threadId)
 				usleep(100);
 				MICROPROFILE_SCOPEI("Thread1", "Work Thread 1", c1);
 				usleep(2000);
-				MICROPROFILE_LEAVE_SECTION();
 			}
 			break;
 
@@ -183,16 +181,18 @@ void WorkerThread(int threadId)
 		}
 		case 3:
 		{
-			//MICROPROFILE_ENTER_SECTION(MP_YELLOW);
 			MICROPROFILE_SECTION(SectionWorkGreen);
 			MICROPROFILE_SCOPEI("ThreadWork", "MAIN", c0); usleep(1000);;
 			for(uint32_t i = 0; i < 10; ++i)
 			{
 				MICROPROFILE_SCOPEI("ThreadWork", "Inner0", c1);
-				usleep(100);
+				MICROPROFILE_SECTIONI("DarkGoldenRod", MP_DARKGOLDENROD);
+				usleep(300);
 				for(uint32_t j = 0; j < 4; ++j)
 				{
 					MICROPROFILE_SCOPEI("ThreadWork", "Inner1", c4); usleep(50);
+
+
 					MICROPROFILE_SCOPEI("ThreadWork", "Inner1", c4); usleep(50);
 					MICROPROFILE_SCOPEI("ThreadWork", "Inner2", c2); usleep(50);
 					MICROPROFILE_SCOPEI("ThreadWork", "Inner3", c3); usleep(50);
@@ -205,7 +205,6 @@ void WorkerThread(int threadId)
 					#endif
 				}
 			}
-			MICROPROFILE_LEAVE_SECTION();
 
 			break;
 		}

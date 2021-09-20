@@ -7258,10 +7258,30 @@ function PreprocessLogBarArray()
 			else if(type == 0)
 			{
 				let IsSection = TimerInfo.flags & FLAGS_SECTION;	
-				if(IsSection && SectionColorStackPos>1)
+				if(IsSection)
 				{
-					///Note to self: right here scan backwards untill the last unmatched pop, and propagate the section.
-					SectionColorStackPos--;
+					if(SectionColorStackPos > 1)
+					{
+						SectionColorStackPos--;
+					}
+					else
+					{
+						//debugger;
+						// Hitting a close, without a start. tag all previously untagged to belong to this section.
+						for(let i = 0; i < MaxStack; ++i)
+						{
+							let sc = Rows[i].Tree[0].SectionColor_;
+							for(let j = 0; j < sc.length; ++j)
+							{
+								if(sc[j] == CIDFail)
+								{
+									sc[j] = TimerInfo.cid;
+								}
+							}
+						}
+
+					}
+
 				}
 				if(!IsSection && StackPos > 0)
 				{
