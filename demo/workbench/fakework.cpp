@@ -8,7 +8,7 @@
 #include <unistd.h>
 #endif
 
-#define MEGASPIN 1
+#define MEGASPIN 0
 extern uint32_t g_nQuit;
 
 #ifdef _WIN32

@@ -218,7 +218,7 @@ function MakeGroupCid(id, name, category, numtimers, isgpu, total, average, max,
 	return group;
 }
 
-function MakeTimer(id, name, group, color, colordark, average, max, min, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax, issection)
+function MakeTimer(id, name, group, color, colordark, average, max, min, exclaverage, exclmax, callaverage, callcount, total, meta, metaavg, metamax, flags)
 {
 	if(color == "#000000")
 	{
@@ -227,7 +227,7 @@ function MakeTimer(id, name, group, color, colordark, average, max, min, exclave
 	}
 	var spike = max <= 0 || average <= 0 ? 0 : (100 * max / average);
 	var cid = GetColorIndex(color);
-	var timer = {"id":id, "name":name, "len":name.length, "cid":cid, "timercid":cid, "group":group, "average":average, "max":max, "min":min, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "spike":spike,"total":total, "meta":meta, "metaavg":metaavg, "metamax":metamax, "worst":0, "worststart":0, "worstend":0, "search":cid, "issection":issection};
+	var timer = {"id":id, "name":name, "len":name.length, "cid":cid, "timercid":cid, "group":group, "average":average, "max":max, "min":min, "exclaverage":exclaverage, "exclmax":exclmax, "callaverage":callaverage, "callcount":callcount, "spike":spike,"total":total, "meta":meta, "metaavg":metaavg, "metamax":metamax, "worst":0, "worststart":0, "worstend":0, "search":cid, "flags":flags};
 	return timer;
 }
 
@@ -347,6 +347,8 @@ var FilterInputMenuValueLast = '';
 var FilterInputSearch2 = document.getElementById('FilterInputSearch2');
 var FilterInputSearchValue = '';
 let FilterInputSearchActive2 = 0;
+
+const FLAGS_SECTION = 1;
 
 
 
@@ -3602,21 +3604,24 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 											let Opacity = Depth == 0 ? 1.0 : TreeLevel.SumDuration[j] / TreeLevel.Duration[j];
 											if(Depth == 0)
 											{
-												cid = GroupColors == 2 ? ThreadColors.colordark_cid : S0.TimerInfo[Index].cid;
-												if(GroupColors == 3)
-												{
-													cid = TreeLevel.SectionColor[j];
-												}
-												if(FilterInputSearchActive2)
-												{
-													cid = S0.TimerInfo[Index].search;
-												}
-												if(Index == nHoverToken)
-												{
-													nHoverColorIndex = cid;
-													cid = cidhovercolor;
-												}
+												cid = S0.TimerInfo[Index].cid;
 											}
+											if(!FilterInputSearchActive2)
+											{
+												if(GroupColors == 2)
+													cid = ThreadColors.colordark_cid;
+												if(GroupColors == 3)
+													cid = TreeLevel.SectionColor[j];
+											}
+											if(FilterInputSearchActive2 && Depth == 0)
+												cid = S0.TimerInfo[Index].search;
+											if(Index == nHoverToken)
+											{
+												nHoverColorIndex = cid;
+												cid = cidhovercolor;
+											}
+
+
 											let Name = Depth == 0 ? S0.TimerInfo[Index].name : "";
 											let NameLen = Depth == 0 ? S0.TimerInfo[Index].len : 0;
 											let X = (TimeBegin - Off) * fScaleX;
@@ -7189,7 +7194,9 @@ function PreprocessLogBarArray()
 	{
 		let MaxStack = S.MaxStack[nLog];
 		let SectionColorStack = new Array(MaxStack);
+		SectionColorStack[0] = CIDFail;
 		let StackPos = 0;
+		let SectionColorStackPos = 1;
 
 		let Rows = new Array(MaxStack);
 		LogRows[nLog] = Rows;
@@ -7226,72 +7233,91 @@ function PreprocessLogBarArray()
 			let type = SrcTypeArray[i];
 			let time = SrcTimeArray[i];
 			let index = SrcIndexArray[i];
-			let TimerInfo= S.TimerInfo[index];
-			let IsSection = TimerInfo.IsSection;
+			let skipsection = false;
+
+			let TimerInfo = type < 2 ? S.TimerInfo[index] : null;
 			if(type == 1)
 			{
-				Stack[StackPos] = i;
-				SectionColorStack[StackPos] = IsSection ? TimerInfo.cid : (StackPos>0 ? SectionColorStack[StackPos-1] : RootSectionColor);
-				StackPos++;
+				let IsSection = TimerInfo.flags & FLAGS_SECTION;
+				if(IsSection)
+				{
+					SectionColorStack[SectionColorStackPos] = TimerInfo.cid;
+					SectionColorStackPos++;
+				}
+				if(!skipsection || !IsSection)
+				{
+					Stack[StackPos] = i;
+					StackPos++;
+				}
+
 			}
-			else if(type == 0 && StackPos > 0)
+			else if(type == 0)
 			{
-				StackPos--;
-				let stackindex = Stack[StackPos];
-				let sectioncolor = SectionColorStack[StackPos];
-				let begintype = SrcTypeArray[stackindex];
-				let begintime = SrcTimeArray[stackindex];
-				let beginindex = SrcIndexArray[stackindex];
-
-				if(type != 0)
-					debugger;
-				if(begintype != 1)
-					debugger;
-				if(index != beginindex)
-					debugger;
-				if(StackPos >= MaxStack || StackPos < 0)
-					debugger;
-				let rt0 = Rows[StackPos].Tree[0];
-				rt0.Source.push(i);
-				rt0.Index_.push(beginindex);
-				rt0.ColorIds_.push(S.TimerInfo[beginindex].cid);
-				rt0.Begin_.push(begintime);
-				let Duration = time - begintime;
-				rt0.Duration_.push(Duration);
-				rt0.SumDuration_.push(Duration);
-				rt0.MaxDuration_.push(Duration);
-				rt0.SectionColor_.push(Duration);
-				if(SrcTypeArray[stackindex+1] == 3) // this is a gpu log with a cpu marker appended
+				let IsSection = TimerInfo.flags & FLAGS_SECTION;	
+				if(IsSection && SectionColorStackPos>1)
 				{
-					if(SrcTypeArray[i+1] != 3)
-						debugger; //should be matching pairs
-					let CpuBegin = TimeArray[stackindex+1];
-					let CpuEnd = TimeArray[i+1];
-					let Thread = IndexArray[StartIndex+1];
-					if(!rt0.CpuDuration) //only there for gpu logs, so created on demand
+					///Note to self: right here scan backwards untill the last unmatched pop, and propagate the section.
+					SectionColorStackPos--;
+				}
+				if((!skipsection || !IsSection) &&StackPos > 0)
+				{
+					StackPos--;
+					let stackindex = Stack[StackPos];
+					let sectioncolor = SectionColorStack[SectionColorStackPos];
+					let begintype = SrcTypeArray[stackindex];
+					let begintime = SrcTimeArray[stackindex];
+					let beginindex = SrcIndexArray[stackindex];
+
+					if(type != 0)
+						debugger;
+					if(begintype != 1)
+						debugger;
+					if(index != beginindex)
+						debugger;
+					if(StackPos >= MaxStack || StackPos < 0)
+						debugger;
+					let rt0 = Rows[StackPos].Tree[0];
+					rt0.Source.push(i);
+					rt0.Index_.push(beginindex);
+					rt0.ColorIds_.push(S.TimerInfo[beginindex].cid);
+					rt0.Begin_.push(begintime);
+					let Duration = time - begintime;
+					rt0.Duration_.push(Duration);
+					rt0.SumDuration_.push(Duration);
+					rt0.MaxDuration_.push(Duration);
+					rt0.SectionColor_.push(sectioncolor);
+					if(SrcTypeArray[stackindex+1] == 3) // this is a gpu log with a cpu marker appended
 					{
-						rt0.CpuBegin = new Array();
-						rt0.CpuDuration = new Array();
-						rt0.CpuThread = new Array();
-						for(let j = 0; j < rt0.Length; ++j)
+						if(SrcTypeArray[i+1] != 3)
+							debugger; //should be matching pairs
+						let CpuBegin = TimeArray[stackindex+1];
+						let CpuEnd = TimeArray[i+1];
+						let Thread = IndexArray[StartIndex+1];
+						if(!rt0.CpuDuration) //only there for gpu logs, so created on demand
 						{
-							rt0.CpuBegin.push(0);
-							rt0.CpuDuration.push(0);
-							rt0.CpuThread.push(0);
+							rt0.CpuBegin = new Array();
+							rt0.CpuDuration = new Array();
+							rt0.CpuThread = new Array();
+							for(let j = 0; j < rt0.Length; ++j)
+							{
+								rt0.CpuBegin.push(0);
+								rt0.CpuDuration.push(0);
+								rt0.CpuThread.push(0);
+							}
 						}
+						rt0.CpuBegin.push(CpuBegin);
+						rt0.CpuDuration.push(CpuEnd - CpuBegin);
+						rt0.CpuThread.push(Thread);
 					}
-					rt0.CpuBegin.push(CpuBegin);
-					rt0.CpuDuration.push(CpuEnd - CpuBegin);
-					rt0.CpuThread.push(Thread);
-				}
-				else if(rt0.CpuDuration)
-				{
-					rt0.CpuBegin.push(0);
-					rt0.CpuDuration.push(0);
-					rt0.CpuThread.push(0);
-				}
+					else if(rt0.CpuDuration)
+					{
+						rt0.CpuBegin.push(0);
+						rt0.CpuDuration.push(0);
+						rt0.CpuThread.push(0);
+					}
 
-				rt0.Length++;
+					rt0.Length++;
+				}
 
 			}
 			else if(type != 0)
@@ -7339,16 +7365,17 @@ function PreprocessLogBarArray()
 				{
 					let i0 = i * 2;
 					let i1 = i0 + 1;
-					RowTreeLevel.Index[i] = i0;
 					//Should do fancy color merging, but hey just taking the color of the largest seems to work well enough.
 					if(RowTreeLevelParent.MaxDuration[i1] > RowTreeLevelParent.MaxDuration[i0])
 					{
+						RowTreeLevel.Index[i] = i1;
 						RowTreeLevel.ColorIds[i] = RowTreeLevelParent.ColorIds[i1];
 						RowTreeLevel.MaxDuration[i] = RowTreeLevelParent.MaxDuration[i1];
 						RowTreeLevel.SectionColor[i] = RowTreeLevelParent.SectionColor[i1];
 					}
 					else
 					{
+						RowTreeLevel.Index[i] = i0;
 						RowTreeLevel.ColorIds[i] = RowTreeLevelParent.ColorIds[i0];
 						RowTreeLevel.MaxDuration[i] = RowTreeLevelParent.MaxDuration[i0];
 						RowTreeLevel.SectionColor[i] = RowTreeLevelParent.SectionColor[i0];

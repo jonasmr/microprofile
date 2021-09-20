@@ -12,7 +12,9 @@ FLAGS+=-g -O0 -Wall -Werror
 #FLAGS+=-DMICROPROFILE_ENABLED=0
 FLAGS+=-DMICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE
 FLAGS+= -I../../distorm/include
+FLAGS+=-Wno-unknown-warning-option
 FLAGS+=-Wno-misleading-indentation -Wno-format-truncation
+
 
 
 

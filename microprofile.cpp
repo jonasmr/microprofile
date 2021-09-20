@@ -2068,7 +2068,7 @@ MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, ui
 	S.TimerInfo[nTimerIndex].bWSEnabled = false;
 	S.TimerInfo[nTimerIndex].Type = Type;
 	S.TimerInfo[nTimerIndex].Flags = Flags;
-	printf("*** TOKEN %08d %s\\%s .. flags %08x\n", nTimerIndex, pGroup, pName, Flags);
+	//printf("*** TOKEN %08d %s\\%s .. flags %08x\n", nTimerIndex, pGroup, pName, Flags);
 	S.TimerToGroup[nTimerIndex] = nGroupIndex;
 	return nToken;
 }
