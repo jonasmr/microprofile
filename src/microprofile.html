@@ -36,6 +36,7 @@ ul li ul{ display:block;float:none;}
 ul li ul li{ display:block;float:none;}
 li li a{ display:block;float:none;text-align:left;word-break: keep-all;white-space: nowrap;}
 #nav li:hover div {margin-left:0;}
+.dropzone {display:flex;justify-content:center;align-items:center;font-size:50px;position: fixed; top: 0; left: 0; z-index: 9999999999; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);transition: visibility 175ms, opacity 175ms;}
 .help {position:absolute;z-index:5;text-align:left;padding:2px;background-color: #313131;width:300px;}
 .helpstart {position:absolute;z-index:5;text-align:left;padding:2px;background-color: #313131;width:300px;display:none}
 .root {z-index:1;position:absolute;top:0px;left:0px;}
@@ -48,8 +49,9 @@ li li a{ display:block;float:none;text-align:left;word-break: keep-all;white-spa
 .filterinputsearch2{width:100px;}
 </style>
 </head>
-<body style="">
+<body style="">	
 <input type="file" id="file-input" style="display:none"/>
+<div style="visibility:hidden; opacity:0" class="dropzone" ondrop="DropHandler(event);" ondragover="DragOverHandler(event);">drop .html file to compare</div>
 <div class="filtersearchdiv" id="filtersearchdiv"><input type="text" id="FilterInputSearch2" class="filterinputsearch2"></div>
 <div id='filterinput'>
 <div class="filterinput0">Group<br><input type="text" id="filtergroup"></div>
@@ -351,7 +353,7 @@ let FilterInputSearchActive2 = 0;
 const FLAGS_SECTION = 1;
 
 
-
+let LastDropTarget = null;
 
 var FilterInputGroupString = null;
 var FilterInputTimerString = null;
@@ -8361,14 +8363,10 @@ function CompareFixup(S0, S1) // S0 is the reference
 		if(t0.name != t1.name)
 			debugger;
 	}
-
-
-
-
 }
-function ReadHtmlFile(e)
+
+function ReadHtmlFile(File)
 {
-	var File = e.target.files[0];
 	if (!File)
 	{
 		return;
@@ -8385,8 +8383,12 @@ function ReadHtmlFile(e)
 		var m = e.loaded + ":" + e.total + " :: " + e.lengthComputable;
 		console.log(m);
 	};
-	C0 = new Date();
 	Reader.readAsText(File);
+}
+
+function ReadHtmlFileHandler(e)
+{
+	ReadHtmlFile(e.target.files[0]);
 }
 
 function ParseCompareData(Data)
@@ -8445,7 +8447,7 @@ function ParseCompareData(Data)
 	console.log('time ' + (Comp2 - Comp1));
 	console.log('time ' + (Comp3 - Comp2).toFixed(2));
 	console.log('time ' + (Comp4 - Comp3).toFixed(2));
-	document.getElementById('file-input').removeEventListener('change', ReadHtmlFile, false);
+	document.getElementById('file-input').removeEventListener('change', ReadHtmlFileHandler, false);
 	let fname = document.getElementById('file-input').value;
 	let index = 1+Math.max(fname.lastIndexOf('/'), fname.lastIndexOf('\\'));
 	if(index < fname.length)
@@ -8457,10 +8459,55 @@ function ParseCompareData(Data)
 
 function ComparePrompt()
 {
-	document.getElementById('file-input').addEventListener('change', ReadHtmlFile, false);
+	document.getElementById('file-input').addEventListener('change', ReadHtmlFileHandler, false);
 	document.getElementById('file-input').click();
 }
 
+
+// magic from stack-overflow somewhere..
+function WindowDragEnter(e)
+{
+    LastDropTarget = e.target;
+    document.querySelector(".dropzone").style.visibility = "";
+    document.querySelector(".dropzone").style.opacity = 1;
+};
+
+function WindowDragLeave(e)
+{
+    if(e.target === LastDropTarget || e.target === document)
+    {
+        document.querySelector(".dropzone").style.visibility = "hidden";
+        document.querySelector(".dropzone").style.opacity = 0;
+    }
+};
+function DropHandler(ev)
+{
+	document.querySelector(".dropzone").style.visibility = "hidden";
+	document.querySelector(".dropzone").style.opacity = 0;
+	LastDropTarget = null;
+
+	if(ev.dataTransfer.files.length > 0)
+	{
+		let File = ev.dataTransfer.files[0];
+		let Name = File.name
+		let ExtMatch = Name.match(/\.[0-9a-zA-Z]+$/);
+		let Ext = ExtMatch ? ExtMatch[0] : "";
+		if(Ext.toLowerCase() == ".html")
+		{
+			ReadHtmlFile(File);
+		}
+		else
+		{
+			window.alert("Not a .html file!\n" + Name);
+		}
+	}
+  	ev.preventDefault();	
+}
+
+function DragOverHandler(ev)
+{
+  ev.preventDefault();	
+}
 
 var mousewheelevt = (/Firefox/i.test(navigator.userAgent)) ? "DOMMouseScroll" : "mousewheel" //FF doesn't recognize mousewheel as of FF3.x
 
@@ -8484,9 +8531,13 @@ CanvasMenu.addEventListener("contextmenu", function (e) { e.preventDefault(); },
 CanvasMenu.addEventListener(mousewheelevt, MouseWheel, false);
 FilterInputTimer.addEventListener('keyup', FilterKeyUp);
 FilterInputGroup.addEventListener('keyup', FilterKeyUp);
+
 window.addEventListener('keydown', KeyDown);
 window.addEventListener('keyup', KeyUp);
 window.addEventListener('resize', ResizeCanvas, false);
+window.addEventListener("dragenter", WindowDragEnter);
+window.addEventListener("dragleave", WindowDragLeave);
+
 
 InitGroups();
 ReadCookie();
