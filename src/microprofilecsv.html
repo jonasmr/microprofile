@@ -51,6 +51,7 @@ Drop multiple .csv files to create a set and view min/max/average<br><br>
 h: Show help<br>
 1-5: Toggle no. of graphs<br>
 Mousewheel/Ctrl + mouse up/down: Zoom<br>
+Left Mouse + mouse left/right: Pan<br>
 Space: Toggle Set display<br>
 </div>
 <div class="filterinputsearchdiv" id="FilterInputDiv">Filter<br><input type="text" id="FilterInput" class="filterinputsearch"></div>
@@ -158,6 +159,7 @@ var MouseInCaptureButton = 0;
 
 var ToolTipCallback = null;
 let ToolTipImmediate = null;
+let ToolTipImmediateColumns = 2;
 
 var DPR = 0;
 var C_HUGE = 1e10;
@@ -824,13 +826,14 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 
 
 	let Params = CreateDrawGraph2Parameters();
+	Params.Digits = 5;
 	let Mouse = {};
 	Mouse.X = LocalMouseX;
 	Mouse.Y = LocalMouseY;
 	Params.Rect = WindowRect(0, 0, w, h);
 	Params.xRange = gRange;
 	Params.xOffset = gOffset;
-	Params.FullDraw = FullUpdate
+	Params.FullDraw = FullUpdate;
 
 
 
@@ -850,7 +853,8 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 	let SetV = 98;
 	let SetL = 50;
 
-
+	let MouseIndex = -1;
+	let SelectedGraphColumns;
 	for(let i = 0; i < NumGraphs; ++i)
 	{
 		Params.Rect = WindowRect(0, y, w, GraphHeight);
@@ -907,10 +911,54 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 				}
 			}
 		}
-		DrawGraph2(context, Params, Data, Mouse);
 
+		let LocalMouseIndex = DrawGraph2(context, Params, Data, Mouse);
+		if(LocalMouseIndex >= 0)
+		{
+			MouseIndex = LocalMouseIndex;
+			SelectedGraphColumns = GraphColumns;
+		}
 		y += GraphHeight;
 	}
+
+
+	if(!FullUpdate && MouseIndex >= 0)
+	{
+
+		ToolTipImmediateColumns = 4;
+		ToolTipImmediate = {};
+		let a = new Array();
+		let c = new Array();
+		ToolTipImmediate.a = a;
+		ToolTipImmediate.c = c;
+		a.push("");
+		a.push("Average");
+		a.push("Min");
+		a.push("Max");
+		for(let SetIndex = 0; SetIndex < CSVSetNames.length; ++SetIndex)
+		{
+			if(SetIndex == (CSVActiveSet-1) || CSVActiveSet == 0)
+			{
+				let SetName = CSVSetNames[SetIndex];
+				let Set = CSVSets[SetName];
+				if(!Set.Ready)
+					continue;
+				for(let ColumnName in SelectedGraphColumns)
+				{
+					if(SelectedGraphColumns[ColumnName] == 1 && Set.ColumnNames[ColumnName])
+					{
+						c[a.length] = Set.GraphDataAvg[ColumnName].Color;
+						a.push(ColumnName);
+						a.push(FormatNumber(Set.GraphDataAvg[ColumnName].Samples[MouseIndex], Params.Digits));
+						a.push(FormatNumber(Set.GraphDataMin[ColumnName].Samples[MouseIndex], Params.Digits));
+						a.push(FormatNumber(Set.GraphDataMax[ColumnName].Samples[MouseIndex], Params.Digits));
+					}
+				}
+			}
+		}
+	}
+
+
 	ProfileLeave();
 
 }
@@ -1152,6 +1200,7 @@ function ClearMessage(Message)
 
 function DrawMessage()
 {
+	return;
 	var context = CanvasDetailedView.getContext('2d');
 	var Now = new Date();
 	var Delta = Now - MessageTimeoutLast;
@@ -4168,7 +4217,7 @@ function DrawActiveToolTip()
 	{
 		if(ToolTipImmediate)
 		{
-			DrawToolTip(ToolTipImmediate, CanvasDetailedView, MouseX, MouseY);
+			DrawToolTip(ToolTipImmediate, CanvasDetailedView, MouseX, MouseY, ToolTipImmediateColumns);
 			ToolTipImmediate = null;
 		}
 		else if(ToolTipCallback)
@@ -4176,7 +4225,7 @@ function DrawActiveToolTip()
 			var Strings = ToolTipCallback(CanvasDetailedView, MouseX, MouseY);
 			if(Strings)
 			{
-				DrawToolTip(Strings, CanvasDetailedView, MouseX, MouseY);
+				DrawToolTip(Strings, CanvasDetailedView, MouseX, MouseY, 2);
 			}
 		}
 	}
@@ -4281,8 +4330,20 @@ function MouseHandleDrag()
 			{
 				var X = MouseDragX - MouseDragXLast;
 				var Y = MouseDragY - MouseDragYLast;
-				if(X && MouseDragActiveXStart < MouseDragActiveXEnd)
+				if(X)
 				{
+
+					var X = MouseDragX - MouseDragXLast;
+					var Y = MouseDragY - MouseDragYLast;
+					if(X)
+					{
+						gOffset += -X * gRange / nWidth;
+
+						ClampRangeOffset();
+						gGraphCSVInvalid = 1;
+					}
+
+
 					MouseDragActiveXStart += X;
 					MouseDragActiveXEnd += X;
 				}
@@ -4548,6 +4609,18 @@ function MouseOut(evt)
 	// nHoverToken = -1;
 	// RangeCpu = RangeInit();
 }
+function ClampRangeOffset()
+{
+	if(gRange > 1)
+	{
+		gRange = 1;
+	}
+	gOffset = Math.max(0, gOffset);
+	if(gOffset + gRange > 1)
+	{
+		gOffset = 1 - gRange;
+	}
+}
 
 function ZoomGraph(nZoom)
 {
@@ -4573,16 +4646,7 @@ function ZoomGraph(nZoom)
 		fMousePrc = 0;
 	}
 	gOffset += fDiff * fMousePrc;
-	if(gRange > 1)
-	{
-		gRange = 1;
-	}
-	gOffset = Math.max(0, gOffset);
-	if(gOffset + gRange > 1)
-	{
-		gOffset = 1 - gRange;
-	}
-	console.log("OFF ", gOffset, " Range", gRange);
+	ClampRangeOffset();
 }
 
 function MouseWheel(e)
@@ -4686,12 +4750,14 @@ function SetupEvents()
 	window.addEventListener('resize', ResizeCanvas, false);
 }
 
-function DrawToolTip(StringArray, Canvas, x, y)
+function DrawToolTip(StringArray, Canvas, x, y, Columns)
 {
 	if(!ShowMenu())
 	{
 		return;
 	}
+	if(!Columns)
+		Columns = 2;
 	let colors;
 	let a = StringArray;
 	if(StringArray.c)
@@ -4699,28 +4765,37 @@ function DrawToolTip(StringArray, Canvas, x, y)
 		a = StringArray.a;
 		colors = StringArray.c;
 	}
-	var context = Canvas.getContext('2d');
+	let context = Canvas.getContext('2d');
 	context.font = Font;
-	var WidthArray = Array(a.length);
-	var nMaxWidth = 0;
-	var nHeight = 0;
-	for(var i = 0; i < a.length; i += 2)
+	context.textAlign = "left";
+
+	let WidthArray = Array(a.length);
+	let WidthColumn = Array(Columns);
+	let nHeight = 0;
+	for(let i = 0; i < Columns; ++i)
+		WidthColumn[i] = 0;
+
+	for(var i = 0; i < a.length; i += Columns)
 	{
-		var nWidth0 = context.measureText(a[i]).width;
-		var nWidth1 = context.measureText(a[i+1]).width;
-		var nSum = nWidth0 + nWidth1;
-		WidthArray[i] = nWidth0;
-		WidthArray[i+1] = nWidth1;
-		if(nSum > nMaxWidth)
+		let Sum = 0;
+		for(let j = 0; j < Columns; j++)
 		{
-			nMaxWidth = nSum;
+			let w = context.measureText(a[i+j]).width;
+			WidthArray[i+j] = w;
+			WidthColumn[j] = Math.max(WidthColumn[j], w);
 		}
 		nHeight += BoxHeight;
 	}
-	nMaxWidth += 15;
+	let nMaxWidth = 0;
+	for(let i = 0; i < Columns; ++i)
+	{
+		if(i < Columns-1)
+			WidthColumn[i] += 10;
+		nMaxWidth += WidthColumn[i];
+	}
 	//bounds check.
 	x = Math.max(0, x - 10 - nMaxWidth);
-	var CanvasRect = Canvas.getBoundingClientRect();
+	let CanvasRect = Canvas.getBoundingClientRect();
 	if(y + nHeight > CanvasRect.height)
 	{
 		y = CanvasRect.height - nHeight;
@@ -4739,14 +4814,19 @@ function DrawToolTip(StringArray, Canvas, x, y)
 	var XPosRight = x + nMaxWidth;
 	var YPos = y + BoxHeight-2;
 	context.fillStyle = 'white';
-	for(i = 0; i < a.length; i += 2)
+	for(i = 0; i < a.length; i += Columns)
 	{
-		if(colors)
-			context.fillStyle = colors[i];
-		context.fillText(a[i], XPos, YPos);
-		if(colors)
-			context.fillStyle = colors[i+1];
-		context.fillText(a[i+1], XPosRight - WidthArray[i+1], YPos);
+		let XLocal = XPos;
+		for(let j = 0; j < Columns; ++j)
+		{
+			if(colors && colors[i+j])
+				context.fillStyle = colors[i+j];
+			else
+				context.fillStyle = 'white';
+
+			context.fillText(a[i+j], XLocal, YPos);
+			XLocal += WidthColumn[j];
+		}
 		YPos += BoxHeight;
 	}
 	context.fillStyle = 'white';
@@ -5013,7 +5093,7 @@ function CreateDrawGraph2Parameters()
 
 
 
-function DrawGraph2(context, Parameters, data, Mouse)
+function DrawGraph2(context, Parameters, data, Mouse, OutMouseIndex)
 {
 	ProfileEnter("DrawGraph2");
 	let Rect = Parameters.Rect;
@@ -5027,6 +5107,7 @@ function DrawGraph2(context, Parameters, data, Mouse)
 	let MinSample = 1e25;
 	let xOffset = 0;
 	let xRange = 0;
+	let MouseIndexResult = -1;
 
 
 	for(let i in data)
@@ -5301,27 +5382,14 @@ function DrawGraph2(context, Parameters, data, Mouse)
 				context.fillText((MouseIndex) + '', MouseDrawX, YStart+FontHeight);
 			}
 		}
-
 		if(MouseInside)
 		{
-			ToolTipImmediate = new Array();
-			for(let dataindex in data)
-			{
-				let LocalElement = data[dataindex];
-				if(LocalElement.Mode != GRAPH_DRAW_SECTION)
-				{
-					/// MAKE TOOLTIPS SHOW: MIN, MAX, AVG, Percentile, variance.
-					let Samples = LocalElement.Samples;
-					ToolTipImmediate.push(LocalElement.Name);
-					ToolTipImmediate.push("            " + Samples[MouseIndex].toFixed(4).slice(-12));
-				}
-
-			}
+			MouseIndexResult = MouseIndex;
 		}
-
 	}
 
 	ProfileLeave();
+	return MouseIndexResult;
 }
 // Shared graph code end
 
@@ -5754,7 +5822,6 @@ UpdateShowHelp(1);
 RequestDraw();
 
 //
-// tooltip
 // range selection + info
 //
 </script>
