@@ -48,7 +48,6 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 <div style="visibility:hidden; opacity:0" class="dropzone" ondrop="DropHandler(event);" ondragover="DragOverHandler(event);">
 Drop .csv file to view CSV data.<br>
 Drop multiple .csv files to create a set and view min/max/average<br><br>
-Shortcut Keys:<br>
 h: Show help<br>
 1-5: Toggle no. of graphs<br>
 Mousewheel/Ctrl + mouse up/down: Zoom<br>
@@ -243,8 +242,6 @@ function FormatNumber(f, digits)
 	else
 		return f + "";
 }
-
-
 // End shared: internal profiling
 
 
@@ -381,6 +378,7 @@ var HelpFade;
 
 let gRange = 1;
 let gOffset = 0;
+let gGraphCSVInvalid = 1;
 
 // CSV Data
 let CSVSets = {};
@@ -419,57 +417,19 @@ for(let i = 0; i < MAX_GRAPHS; ++i)
 
 TimerArray.push(Empty); // 0 is root of tree
 
-var StrTime = "Time";
-var StrExclusive = "Excl Time";
-var StrGroup = "Group";
-var StrThread = "Thread";
-var StrTimer = "Timer";
-var StrAverage = "Average";
-var StrMax = "Max";
-var StrTotal = "Total";
-var StrExclTotal = "Excl Total";
-var StrMin = "Min";
-var StrSpike = "Spike%";
-var StrCallAverage = "Call Average";
-var StrCount = "Count";
-var StrExclAverage = "Excl Average";
-var StrExclMax = "Excl Max";
-var StrExclMin = "Excl Max";
-var StrCallExclAverage = "Call Excl Avg";
+let CounterNameWidth = 100;
+let CounterValueWidth = 100;
+let CounterLimitWidth = 100;
+
+let FormatCounterDefault = 0;
+let FormatCounterBytes = 1;
+let FormatCounterBytesExt = ["b","kb","mb","gb","tb","pb","eb","zb","yb"];
 
 
-var CounterNameWidth = 100;
-var CounterValueWidth = 100;
-var CounterLimitWidth = 100;
-
-var FormatCounterDefault = 0;
-var FormatCounterBytes = 1;
-var FormatCounterBytesExt = ["b","kb","mb","gb","tb","pb","eb","zb","yb"];
-
-var BarColumnNamesTable = [StrTime, StrExclusive, StrAverage, StrMax, StrMin, StrTotal, StrExclAverage, StrExclMax, StrExclTotal, StrSpike, StrCallAverage, StrCallExclAverage, StrCount];
-var BarColumnNamesMulti = [StrTime, StrAverage, StrMax, StrMin, StrExclAverage, StrExclMax, StrExclMin];
-var BarColumnNamesSingle = [StrAverage, StrMax, StrMin, StrExclAverage, StrExclMax, StrExclMin, StrCallAverage];
-
-// var SYMBOLSTATE_DEFAULT = 0;
-// var SYMBOLSTATE_LOADING = 1;
-// var SYMBOLSTATE_DONE = 2;
-
-
-var SymbolState;
-var ModuleState = [];
-
-var FunctionsInstrumented = [];
-var FunctionsInstrumentedUnmangled = [];
-var FunctionsInstrumentedModule = [];
-var PopupsAllowed = 0;
-var PopupsFailed = 0;
-var PopupTestPending = 0;
-
-var ThreadInfo = {};
 
 function ConvertHslToRGB(h, s, l) //from https://gist.github.com/mjackson/5311256
 {
-	var r, g, b;
+	let r, g, b;
 	if (s == 0)
 	{
 		r = g = b = l; // achromatic
@@ -485,63 +445,15 @@ function ConvertHslToRGB(h, s, l) //from https://gist.github.com/mjackson/531125
 			if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
 			return p;
 		}
-		var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-		var p = 2 * l - q;
+		let q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+		let p = 2 * l - q;
 		r = hue2rgb(p, q, h + 1/3);
 		g = hue2rgb(p, q, h);
 		b = hue2rgb(p, q, h - 1/3);
 	}
-	var color = ((r*255)<<16) | ((g*255)<<8) | (b*255);
+	let color = ((r*255)<<16) | ((g*255)<<8) | (b*255);
 	return ("000000" + color.toString(16)).slice(-6);
 }
-
-
-function GetBarColumnNames()
-{
-	if(Settings.ViewActive == VIEW_BAR_ALL)
-	{
-		return BarColumnNamesMulti;
-	}
-	else if(Settings.ViewActive == VIEW_BAR_SINGLE)
-	{
-		return BarColumnNamesSingle;
-	}
-	else
-	{
-		return BarColumnNamesTable;
-	}
-}
-function GetBarColumnEnabled()
-{
-	if(Settings.ViewActive == VIEW_BAR_ALL)
-	{
-		return Settings.BarColumnEnabledMulti;
-	}
-	else if(Settings.ViewActive == VIEW_BAR_SINGLE)
-	{
-		return Settings.BarColumnEnabledSingle;
-	}
-	else
-	{
-		return Settings.BarColumnEnabledTable;
-	}
-}
-
-Settings.BarColumnEnabledTable = new Array(BarColumnNamesTable.length);
-Settings.BarColumnEnabledSingle = new Array(BarColumnNamesSingle.length);
-Settings.BarColumnEnabledMulti = new Array(BarColumnNamesMulti.length);
-var ColumnsWidth = new Array(BarColumnNamesTable.length);
-function ClearEnabled(E)
-{
-	for(var i = 0; i < E.length; ++i)
-	{
-		E[i] = 1;
-		ColumnsWidth[i] = 10;
-	}
-}
-ClearEnabled(Settings.BarColumnEnabledTable);
-ClearEnabled(Settings.BarColumnEnabledSingle);
-ClearEnabled(Settings.BarColumnEnabledMulti);
 
 function Plotf(str)
 {
@@ -792,11 +704,12 @@ function ResizeView(View, x, y, w, h)
 	View.OffscreenData[1] = c1.getContext('2d').getImageData(0, 0, c1.width, c1.height);
 
 }
-function CreateView(x, y, w, h, name, DisplayFunc, visible, index)
+function CreateView(x, y, w, h, name, DisplayFunc,  visible, index, InvalidFunc)
 {
 	var idx = Views.length;
 	var c0 = CanvasArray0[idx];
 	var c1 = CanvasArray1[idx];
+
 	if(!c0)
 	{
 		c0 = document.createElement('canvas');
@@ -825,6 +738,10 @@ function CreateView(x, y, w, h, name, DisplayFunc, visible, index)
 	View.OffscreenData[1] = c1.getContext('2d').getImageData(0, 0, c1.width, c1.height);
 	View.BackBuffer = 0;
 	View.DisplayFunc = DisplayFunc;
+	if(InvalidFunc)
+		View.InvalidFunc = InvalidFunc;
+	else
+		View.InvalidFunc = function(){ return true; } ;
 	Views.push(View);
 	return View;
 }
@@ -832,23 +749,9 @@ function CreateView(x, y, w, h, name, DisplayFunc, visible, index)
 function CreateViews(Width, Height, ViewCompressed)
 {
 	Views = [];
-	var HistoryH = ViewCompressed ? 0 : HistoryHeight;
-	History = CreateView(0, 0, Width, HistoryHeight, "History", DrawHistory, true, 0);
-	History.visible = !ViewCompressed;
-	MainView = CreateView(0, HistoryH, Width, Height-HistoryH, "Main", DrawGraphSplit, true);
-	X7Views = [];
-	var w = Width / 7;
-	var x = 0;
-	X7Views.push(CreateView(w*0, HistoryH, w, Height - HistoryH, "x5_0", DrawBars, false, 0) );
-	X7Views.push(CreateView(w*1, HistoryH, w, Height - HistoryH, "x5_1", DrawBars, false, 1) );
-	X7Views.push(CreateView(w*2, HistoryH, w, Height - HistoryH, "x5_2", DrawBars, false, 2) );
-	X7Views.push(CreateView(w*3, HistoryH, w, Height - HistoryH, "x5_3", DrawBars, false, 3) );
-	X7Views.push(CreateView(w*4, HistoryH, w, Height - HistoryH, "x5_4", DrawBars, false, 4) );
-	X7Views.push(CreateView(w*5, HistoryH, w, Height - HistoryH, "x5_3", DrawBars, false, 5) );
-	X7Views.push(CreateView(w*6, HistoryH, w, Height - HistoryH, "x5_3", DrawBars, false, 6) );
-	X7LegendView = CreateView(0, Height-X7LegendOffset, Width, X7LegendOffset, "x7_legend", DrawBarsLegend, false, 0);
+	MainView = CreateView(0, 0, Width, Height, "Main", DrawGraphSplit, true);
 
-	CSVView = CreateView(0, 0, Width, Height, "CSV", DrawGraphCSV, false);
+	CSVView = CreateView(0, 0, Width, Height, "CSV", DrawGraphCSV, false, 0, InvalidGraphCSV);
 
 
 }
@@ -894,858 +797,27 @@ function FormatTime(Time)
 {
 	return Time.toFixed(2);
 }
-var hh = 0;
 
 
-function DrawBarsLegend(View, LocalMouseX, LocalMouseY, SubIndex)
-{
-	ProfileEnter("DrawBar");
-	var TimerMap = FrameData.TimerMap;
-	if(!TimerMap)
-		return;
-	if(Settings.ViewCompressed)
-		return;
-	var Canvas = View.Canvas[View.BackBuffer];
-	var context = Canvas.getContext('2d');
-	context.clearRect(0, 0, View.w, View.h);
-	var X = 0;
-	var Y = View.h/2;
-	var XSpace = 5;
-	var XSpace2 = XSpace * 2;
-	function DrawEntry(T)
-	{
-		X += XSpace2*2;
-		context.fillStyle = T.color;
-		context.fillRect(X-XSpace,Y-XSpace,XSpace2,XSpace2);
-		X += XSpace + 2;
-		context.fillStyle = 'white';
-		var w = context.measureText(T.name).width;
-		context.fillText(T.name, X, Y + FontHeight/2);
-		X += w;
-	}
-
-	if(SingleTimerBars == 0)
-	{
-		for(var key in TimerMap)
-		{
-			var idx = GetTimer(key);
-			var T = TimerArray[idx];
-			if(T.e)
-			{
-				DrawEntry(T);
-			}
-		}
-	}
-	else if(EnabledArray.length > 0)
-	{
-		var idx = EnabledArray[0];
-		var T = TimerArray[idx];
-		DrawEntry(T);
-	}
-}
-
-function DrawBars(View, LocalMouseX, LocalMouseY, SubIndex)
-{
-	var TimerMap = FrameData.TimerMap;
-	if(!TimerMap)
-		return;
-	if(!SubIndex)
-		SubIndex = 0;
-
-	ProfileEnter("DrawBar");
-	var Canvas = View.Canvas[View.BackBuffer];
-	var context = Canvas.getContext('2d');
-
-	context.clearRect(0, 0, View.w, View.h);
-	var bgcolor = nBackColors[ViewIndex%2];
-	context.fillStyle = bgcolor;
-	context.fillRect(0, 0, View.w, View.h);
-	var Title = "?";
-	var TitleName = null;
-	var nNumBars = 0;
-	var BarNames = [];
-	var BarTimes = [];
-	var BarColors = [];
-	var AggregateIndex = Settings.AggregateFrames <= 0 ? AggregateHistorySize-1 : AggregateHistorySize-2; //fix med
-	var GetTime = null;
-	var SubIndex = X7BarColumnRemap[SubIndex];
-
-	if(SingleTimerBars == 0)
-	{
-		if(SubIndex == 0)
-		{
-			Title = "Time";
-			GetTime = function(FD){ return FD.FrameTime; };
-		}
-		else if(SubIndex == 1)
-		{
-			Title = "Average";
-			GetTime = function(FD){ return FD.TimeAvg[AggregateIndex]; };
-		}
-		else if(SubIndex == 2)
-		{
-			Title = "Max";
-			GetTime = function(FD){ return FD.TimeMax[AggregateIndex]; };
-		}
-		else if(SubIndex == 3)
-		{
-			Title = "Min";
-			GetTime = function(FD){ return FD.TimeMin[AggregateIndex]; };
-		}
-		else if(SubIndex == 4)
-		{
-			Title = "Exclusive Avg";
-			GetTime = function(FD){ return FD.TimeExclAvg[AggregateIndex]; };
-		}
-		else if(SubIndex == 5)
-		{
-			Title = "Exclusive Max";
-			GetTime = function(FD){ return FD.TimeExclMax[AggregateIndex]; };
-		}
-		else if(SubIndex == 6)
-		{
-			Title = "Exclusive Min";
-			GetTime = function(FD){ return FD.TimeExclMin[AggregateIndex]; };
-		}
-		for(var key in TimerMap)
-		{
-			var idx = GetTimer(key);
-			var T = TimerArray[idx];
-			if(T.e)
-			{
-				nNumBars++;
-				var FD = TimerMap[key];
-				var Time = GetTime(FD);
-				BarNames.push(T.name);
-				BarTimes.push(Time);
-				BarColors.push(T.color);
-			}
-		}
-
-	}
-	else if(EnabledArray.length > 0)
-	{
-		var idx = EnabledArray[0];
-		var T = TimerArray[idx];
-		var FD =  GetFrameData(T.id);
-		var Property = null;
-		if(SubIndex == 0)
-		{
-			Title = "Average";
-			Property = "TimeAvg";
-		}
-		else if(SubIndex == 1)
-		{
-			Title = "Max";
-			Property = "TimeMax";
-		}
-		else if(SubIndex == 2)
-		{
-			Title = "Min";
-			Property = "TimeMin";
-		}
-		else if(SubIndex == 3)
-		{
-			Title = "Exclusive Average";
-			Property = "TimeExclAvg";
-		}
-		else if(SubIndex == 4)
-		{
-			Title = "Exclusive Max";
-			Property = "TimeExclMax";
-		}
-		else if(SubIndex == 5)
-		{
-			Title = "Exclusive Min";
-			Property = "TimeExclMin";
-		}
-		else if(SubIndex == 6)
-		{
-			Title = "Call Average";
-			Property = "TimeCallAvg";
-		}
-		else if(SubIndex == 7)
-		{
-			Title = "Call Excl Average";
-			Property = "TimeCallExclAvg";
-		}
-		TitleName = T.name;
-		for(var i = 0; i < AggregateHistorySize; ++i)
-		{
-			nNumBars++;
-			var A = FD[Property];
-			var Time = A[i];
-			BarTimes.push(Time);
-			BarColors.push(T.color);
-		}
-	}
-
-
-	if(!nNumBars)
-	{
-		ProfileLeave();
-		return;
-	}
-
-	var h = View.h;
-	var w = View.w;
-	var MsTextExtraSpace = Math.cos(3.14/4.0) * (ViewBarMaxMsTextLength);
-	var DrawXLeft = Settings.ViewCompressed ? 3 : 15;
-	DrawXLeft = Math.max(DrawXLeft, MsTextExtraSpace);
-	var DrawXRight = Settings.ViewCompressed ? 3: 10;
-	var DrawY = 35 * 2;
-	if(Settings.ViewCompressed)
-	{
-		DrawY = (MsTextExtraSpace) + 35;
-	}
-	var DrawWidth = w - DrawXLeft - DrawXRight;
-	var DrawHeight = h - DrawY;
-	var SpaceWidth = 5;
-	var BarWidth = (DrawWidth-SpaceWidth*(nNumBars-1))/ nNumBars;
-	for(var x = 0; x < 2; ++x)
-	{
-		if(BarWidth < 14)
-		{
-			SpaceWidth -= 1;
-			BarWidth = (DrawWidth-SpaceWidth*(nNumBars-1))/ nNumBars;
-		}
-	}
-	if(BarWidth > 50)
-		BarWidth = 50;
-	var BarHeight = DrawHeight - 5;
-
-	var ReferenceTime = ReferenceBar;
-
-	var fHeightScale = h / ReferenceTime;
-	var MouseDragging = 0;
-	var fWidth = w / FRAME_COUNT;
-	var Keys = [];
-	var X = DrawXLeft;
-	var offset = 0;
-	context.textAlign = 'center';
-	context.fillStyle = '#ffffff';
-	context.fillText(Title, w / 2.0, FontHeight);
-	context.textAlign = 'left';
-	context.fillStyle = 'wheat';
-	var BaseY = 20;
-	if(SubIndex == X7BarFirstView)
-	{
-		context.fillText(ReferenceTime.toFixed(2) + 'ms', 0, BaseY - 5 + DrawHeight - BarHeight);
-	}
-	else if(SubIndex == X7BarLastView)
-	{
-		context.textAlign = 'right';
-		context.fillText(ReferenceTime.toFixed(2) + 'ms', w, BaseY - 5 + DrawHeight - BarHeight);
-	}
-	context.textAlign = 'right';
-	var BarFont = FontLarge;
-	var DrawNames = true;
-	if(BarWidth < 14)
-	{
-		DrawNames = BarWidth > 4;
-		var FontXX = 'Bold ' + Math.floor(BarWidth) + 'px Courier New';
-		BarFont = FontXX;
-
-	}
-	context.font = BarFont;
-	for(var i = 0; i < BarTimes.length; ++i)
-	{
-		var TimeText = FormatTime(Time);
-		var w = context.measureText(TimeText).width;
-		ViewBarMaxMsTextLength = Math.max(w, ViewBarMaxMsTextLength);
-
-
-	}
-	for(var i = 0; i < BarTimes.length; ++i)
-	{
-		var Time = BarTimes[i];
-		var TimeText = FormatTime(Time);
-		ReferenceBarAutomatic = Math.max(Time, ReferenceBarAutomatic);
-		var Color = BarColors[i];
-		var fPrc = Time / ReferenceTime;
-		if(fPrc > 1.0)
-			fPrc = 1.0;
-		var BarH = fPrc * BarHeight;
-
-		var X0 = X;
-		var Y0 = BaseY + DrawHeight - BarH;
-		context.fillStyle = Color;
-		context.fillRect(X0, Y0, BarWidth, BarH);
-		context.fillStyle = '#ffffff';
-		var MouseOver = LocalMouseX > X0 && LocalMouseX < X0 + BarWidth;
-		if(MouseOver || (Settings.ViewCompressed&&DrawNames))
-		{
-			context.save();
-			context.translate(X0 + BarWidth * 0.5, BaseY + DrawHeight - 2);
-			context.rotate(-3.14/2.0);
-			context.font = BarFont;
-			context.textAlign = 'left';
-			context.textBaseline = 'middle';
-			var m = context.measureText(BarNames[i]);
-			context.fillStyle = 'black';
-			context.fillText(BarNames[i], -1, -1);
-			context.fillStyle = 'white';
-			context.fillText(BarNames[i], 0, 0);
-			context.textAlign = 'right';
-			context.restore();
-		}
-		context.save();
-		var XText = X+BarWidth;
-		var YText = BaseY + DrawHeight + FontHeight;
-		context.translate(XText, YText);
-		context.rotate(-3.14/4.0);
-		context.font = BarFont;
-		context.fillText(TimeText, 0, 0);
-		context.restore();
-
-		X += BarWidth + SpaceWidth;
-	}
-	context.font = Font;
-	ProfileLeave();
-}
-
-function SortColumnFromName(Name)
-{
-	//should match switch in drawtableview
-	if(Name == StrAverage)
-	{
-		return 1;
-	}
-	else if(Name == StrMax)
-	{
-		return 2;
-	}
-	else if(Name == StrTotal)
-	{
-		return 3;
-	}
-	else if(Name == StrMin)
-	{
-		return 4;
-	}
-	else if(Name == StrSpike)
-	{
-		return 5;
-	}
-	else if(Name == StrCallAverage)
-	{
-		return 6;
-	}
-	else if(Name == StrCount)
-	{
-		return 7;
-	}
-	else if(Name == StrExclAverage)
-	{
-		return 8;
-	}
-	else if(Name == StrExclMax)
-	{
-		return 9;
-	}
-	else if(Name == StrGroup)
-	{
-		return -1;
-	}
-	else if(Name == StrTimer)
-	{
-		return -2;
-	}
-	return 0;
-}
-
-function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
-{
-	ProfileEnter("DrawTableView");
-	var Canvas = View.Canvas[View.BackBuffer];
-	var context = Canvas.getContext('2d');
-	var Height = BoxHeight;
-	var Width = nWidth;
-	var Y = Height;
-	var XBase = 0;
-	var nColorIndex = 0;
-	var bMouseIn = 0;
-	var RcpReferenceTime = 1.0 / Settings.ReferenceTime;
-	var CountWidth = 12 * FontWidth;
-	var InnerBoxHeight = BoxHeight-2;
-	var TimerLen = 8;
-	var TimerWidth = TimerLen * FontWidth;
-	var nWidthBars = nBarsWidth+2;
-	var nWidthMs = TimerWidth+2+10;
-	var NameWidth = 200;
-	var R = 0;
-
-	var OffsetY = BoxHeight;
-
-
-	context.clearRect(0, 0, View.w, View.h);
-	context.fillStyle = 'white';
-	context.font = Font;
-
-
-	function HeaderMouseHandle(XBegin, X, Y, Header)
-	{
-		if(Header == null)
-			debugger;
-		var bMouseIn = LocalMouseY >= Y && LocalMouseY < BoxHeight+Y && LocalMouseX < X && LocalMouseX > XBegin;
-		if(bMouseIn)
-		{
-			SortColumnMouseOverNext = Header;
-		}
-	}
-	function HeaderString(Header)
-	{
-		if(Header == Settings.SortColumnName)
-		{
-			return Header + (Settings.SortColumnOrderFlip ? '<' : '>');
-		}
-		else
-		{
-			return Header;
-		}
-
-	}
-	function DrawHeaderSplit(Header, Y)
-	{
-		if(Settings.BarColumnEnabledTable[R])
-		{
-			context.fillStyle = 'white';
-			context.fillText(HeaderString(Header), X, Y + Height-FontAscent);
-			var XBegin = X;
-			X += nWidthBars;
-			context.fillStyle = nBackColorOffset;
-			X += ColumnsWidth[R];
-
-			if(X >= NameWidth)
-			{
-				context.fillRect(X-3, Y, 1, nHeight);
-			}
-			HeaderMouseHandle(XBegin, X, Y, Header);
-		}
-		R++;
-	}
-	function DrawHeaderSplitSingle(Header, Y)
-	{
-		if(Settings.BarColumnEnabledTable[R])
-		{
-			context.fillStyle = 'white';
-			context.fillText(HeaderString(Header), X, Y + Height-FontAscent);
-			var XBegin = X;
-			X += ColumnsWidth[R];
-			context.fillStyle = nBackColorOffset;
-			if(X >= NameWidth)
-			{
-				context.fillRect(X-3, Y, 1, nHeight);
-			}
-			HeaderMouseHandle(XBegin, X, Y, Header);
-		}
-		R++;
-	}
-	function DrawHeaderSplitLeftRight(HeaderLeft, HeaderRight, Y, Width)
-	{
-		var HeaderLeftS = HeaderString(HeaderLeft);
-		var HeaderRightS = HeaderString(HeaderRight);
-		context.textAlign = 'left';
-		context.fillStyle = 'white';
-		context.fillText(HeaderLeftS, X, Y + Height-FontAscent);
-		var wLeft = context.measureText(HeaderLeftS).width;
-		var XBegin = X;
-		X += Width;
-		context.textAlign = 'right';
-		context.fillText(HeaderRightS, X-5, Y + Height-FontAscent);
-		context.textAlign = 'left';
-		context.fillStyle = nBackColorOffset;
-		if(X >= NameWidth)
-		{
-			context.fillRect(X-3, 0, 1, nHeight);
-		}
-		HeaderMouseHandle(XBegin, XBegin + wLeft, Y, HeaderLeft);
-		HeaderMouseHandle(XBegin + wLeft, X, Y, HeaderRight);
-
-	}
-	function DrawTimer(Value, Color)
-	{
-		if(Settings.BarColumnEnabledTable[R])
-		{
-			if(null == Value)
-			{
-				X += nWidthBars + ColumnsWidth[R];
-				console.log("Should not happen2\n");
-				debugger;
-				return;
-			}
-			var Prc = Value * RcpReferenceTime;
-			var YText = Y+Height-FontAscent;
-			if(Prc > 1)
-			{
-				Prc = 1;
-			}
-			context.textAlign = 'left';
-			context.fillStyle = Color;
-			context.fillRect(X+1, Y+1, Prc * nBarsWidth, InnerBoxHeight);
-			X += nWidthBars;
-			context.fillStyle = 'white';
-			var TimerText = Value.toFixed(2);
-			var W = context.measureText(TimerText).width + FontWidth;
-			ColumnsWidth[R] = Math.max(W, ColumnsWidth[R]);
-			X += ColumnsWidth[R];
-			context.textAlign = 'right';
-			context.fillText(TimerText, X - FontWidth, YText);
-			context.textAlign = 'left';
-		}
-		R++;
-	}
-	function DrawCount(Str)
-	{
-		if(Settings.BarColumnEnabledTable[R])
-		{
-			X += ColumnsWidth[R];
-			context.fillStyle = 'white';
-			context.textAlign = 'right';
-			var YText = Y+Height-FontAscent;
-			context.fillText(Str, X-6, YText);
-			var W = Math.max(80, context.measureText(Str).width + FontWidth * 2);
-			ColumnsWidth[R] = Math.max(W, ColumnsWidth[R]);
-
-		}
-		R++;
-
-	}
-	function DrawMeta(Value, Width, Dec, YText)
-	{
-		Value = FormatMeta(Value, Dec);
-		X += (FontWidth*Width);
-		context.textAlign = 'right';
-		context.fillText(Value, X-FontWidth, YText);
-		context.textAlign = 'left';
-	}
-
-	function DrawTimerRow(idx, showgroup)
-	{
-		R = 0;
-		var T = TimerArray[idx];
-		var key = T.id;
-		var FD = TimerMap[key];
-		var AggregateIndex = Settings.AggregateFrames <= 0 ? AggregateHistorySize-1 : AggregateHistorySize-2;
-
-		var YText = Y+Height-FontAscent;
-		X = NameWidth + XBase;
-
-		nColorIndex = 1-nColorIndex;
-		bMouseIn = LocalMouseY >= Y && LocalMouseY < Y + BoxHeight;
-		context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-		context.fillRect(0, Y, Width, FontHeight+2);
-
-		DrawTimer(T.time, T.color);
-		DrawTimer(T.excl, T.color);
-
-		DrawTimer(T.average, T.color);
-		DrawTimer(T.max, T.color);
-		DrawTimer(T.min, T.color);
-		DrawTimer(T.total, T.color);
-
-		DrawTimer(T.exclaverage, T.color);
-		DrawTimer(T.exclmax, T.color);
-		DrawTimer(T.excltotal, T.color);
-
-		DrawCount((T.spike?T.spike.toFixed(2):"0") + '%');
-		DrawTimer(T.callaverage, T.color);
-		DrawTimer(T.callexclaverage, T.color);
-		DrawCount('' + T.callcount);
-
-		context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-		context.fillRect(0, Y, NameWidth, Height);
-		if(T.idtype == TYPE_GROUP)
-		{
-			context.textAlign = 'left';
-			context.fillStyle = T.color;
-			context.fillText(T.name, 1, YText);
-		}
-		else
-		{
-			context.textAlign = 'right';
-			context.fillStyle = T.color;
-			context.fillText(T.name, NameWidth - 5, YText);
-			context.textAlign = 'left';
-			let P = TimerArray[T.parent];
-			context.fillStyle = P.color;
-			var ParentName = P.name;
-			context.fillText(ParentName, 1, YText);
-		}
-	}
-	function FilterMatch(FilterArray, value)
-	{
-		if(!FilterArray)
-			return true;
-		for(var i = 0; i < FilterArray.length; ++i)
-		{
-			var res = value.search(FilterArray[i]);
-			if(res<0)
-				return false;
-		}
-		return true;
-	}
-	var TimerMap = FrameData.TimerMap;
-	if(!TimerMap)
-	{
-		return;
-	}
-
-	var wfirst = 100;
-	var OrderArray = new Array();
-	var nTotalRows = 0;
-	for(var key in TimerMap)
-	{
-		var idx = GetTimer(key);
-		var T = TimerArray[idx];
-		if(T.e)
-		{
-			OrderArray.push(idx);
-			wfirst = wfirst < T.wtotal ? T.wtotal : wfirst;
-			nTotalRows++;
-		}
-	}
-	NameWidth = wfirst + 20;
-
-
-	var nTotalRowPixels = nTotalRows * Height;
-	var nFrameRows = nHeight - HistoryHeight - BoxHeight;
-	if(nTotalRowPixels > nFrameRows)
-	{
-		if(nOffsetBarsY + nFrameRows > nTotalRowPixels)
-		{
-			nOffsetBarsY = nTotalRowPixels - nFrameRows;
-		}
-	}
-	else
-	{
-		nOffsetBarsY = 0;
-	}
-	Y = Y - nOffsetBarsY;
-	Y += OffsetY;
-	XBase = XBase - nOffsetBarsX;
-
-	if(1)
-	{
-		let Flip = Settings.SortColumnOrderFlip == 1 ? -1 : 1;
-		let StringCompare = function(Key)
-		{
-			let F = function(A, B)
-			{
-				let s1 = Key(A);
-				let s2 = Key(B);
-				return Flip * s2.localeCompare(s1);
-			};
-			return F;
-		};
-		let NumberCompare = function(Key)
-		{
-			let F = function(A, B)
-			{
-				let v0 = Key(B);
-				let v1 = Key(A);
-				return Flip * (v0 - v1);
-					//Key(B) - Key(A));
-			};
-			return F;
-		};
-		let N = Settings.SortColumnName;
-		if(N == StrTime)
-		{
-			let Do = function()
-			{
-				for(var i = 0; i < OrderArray.length; ++i)
-				{
-					let t = TimerArray[OrderArray[i]];
-					console.log("", i, OrderArray[i], t.name, t.id, t.time);
-				};
-
-			};
-			// Do();
-			OrderArray.sort( NumberCompare( function (a) {
-				return TimerArray[a].time;
-			} ) );
-			// Do();
-		}
-		else if(N == StrExclusive)
-		{
-			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].excl; } ) );
-		}
-		else if(N == StrAverage)
-		{
-			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].average; } ) );
-		}
-		else if(N == StrMax)
-		{
-			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].max; } ) );
-		}
-		else if(N == StrTotal)
-		{
-			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].total; } ) );
-		}
-		else if(N == StrMin)
-		{
-			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].min; } ) );
-		}
-		else if(N == StrSpike)
-		{
-			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].spike; } ) );
-		}
-		else if(N == StrCallAverage)
-		{
-			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].callaverage; } ) );
-		}
-		else if(N == StrCount)
-		{
-			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].count; } ) );
-		}
-		else if(N == StrExclAverage)
-		{
-			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].exclaverage; } ) );
-		}
-		else if(N == StrExclMax)
-		{
-			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].exclmax; } ) );
-		}
-		else if(N == StrExclTotal)
-		{
-			OrderArray.sort( NumberCompare( function (a) { return TimerArray[a].excltotal; } ) );
-		}
-		else if(N == StrGroup)
-		{
-			OrderArray.sort( StringCompare( function (a) { return TimerArray[TimerArray[a].parent].name; } ) );
-		}
-		else if(N == StrTimer)
-		{
-			OrderArray.sort( StringCompare( function (a) { return TimerArray[a].name; } ) );
-		}
-		else
-		{
-			if(N != "")
-			{
-				console.log("unhandle sortkey", N);
-				debugger;
-			}
-
-			OrderArray.sort( StringCompare( function (a) { return TimerArray[a].sortkey; } ) );
-		}
-	}
-
-	let ColorHigh = '#85929e';
-
-
-	for(var i = 0; i < OrderArray.length; ++i)
-	{
-		var idx = OrderArray[i];
-		var T = TimerArray[idx];
-		if(T.idtype == TYPE_GROUP)
-		{
-			DrawTimerRow(idx, 1);
-			Y += Height;
-		}
-	}
-	let SplitY = Y;
-
-	for(var i = 0; i < OrderArray.length; ++i)
-	{
-		var idx = OrderArray[i];
-		var T = TimerArray[idx];
-		if(T.idtype != TYPE_GROUP)
-		{
-			DrawTimerRow(idx, 1);
-			Y += Height;
-		}
-	}
-
-	var X = 0;
-	context.fillStyle = nBackColorOffset;
-	context.fillRect(0, 0, Width, 2*Height);
-	context.fillStyle = 'white';
-	SortColumnMouseOverNext = null;
-	X = NameWidth + XBase;
-	R = 0;
-
-	let Aggr = Settings.AggregateFrames <= 0 ? AggregateCurrent : Settings.AggregateFrames;
-	let Headers = ["Per Frame", "Aggregate/" + Aggr + " Frames", "Call/" + Aggr + " Frames"];
-	let SplitX = [0,0,0];
-
-	DrawHeaderSplit(StrTime,OffsetY);
-	DrawHeaderSplit(StrExclusive, OffsetY);
-	SplitX[0] = X;
-
-	DrawHeaderSplit(StrAverage, OffsetY);
-	DrawHeaderSplit(StrMax, OffsetY);
-	DrawHeaderSplit(StrMin, OffsetY);
-	DrawHeaderSplit(StrTotal, OffsetY);
-
-	DrawHeaderSplit(StrExclAverage, OffsetY);
-	DrawHeaderSplit(StrExclMax, OffsetY);
-	DrawHeaderSplit(StrExclTotal, OffsetY);
-
-	DrawHeaderSplitSingle(StrSpike, OffsetY);
-	SplitX[1] = X;
-
-	DrawHeaderSplit(StrCallAverage, OffsetY);
-	DrawHeaderSplit(StrCallExclAverage, OffsetY);
-	DrawHeaderSplitSingle(StrCount, OffsetY);
-	SplitX[2] = X;
-
-	context.fillStyle = 'white';
-	for(var i = 0; i < SplitX.length; ++i)
-	{
-		var X0 = i == 0 ? (NameWidth + XBase) : SplitX[i-1];
-		var X1 = SplitX[i];
-		if(X0 != X1)
-		{
-			context.fillText(Headers[i], X0 + 1, Height-FontAscent);
-		}
-	}
-
-
-	X = 0;
-	context.fillStyle = nBackColorOffset;
-	context.fillRect(0, 0, NameWidth, Height * 2);
-	context.fillStyle = 'white';
-	DrawHeaderSplitLeftRight(StrGroup, StrTimer, 0, NameWidth);
-
-
-	for(var i = 0; i < SplitX.length; ++i)
-	{
-		var X0 = i == 0 ? (NameWidth + XBase) : SplitX[i-1];
-		var X1 = SplitX[i];
-		if(X0 != X1)
-		{
-			context.fillStyle = ColorHigh;
-			if(X1 >= NameWidth)
-				context.fillRect(X1-2.5, 0, 2, nHeight);
-			if(X0 >= NameWidth)
-				context.fillRect(X0-2.5, 0, 2, nHeight);
-		}
-	}
-	context.fillStyle = ColorHigh;
-	context.fillRect(0, 2*Height-1, nWidth, 2);
-
-	context.fillStyle = ColorHigh;
-	context.fillRect(0, SplitY-1, nWidth, 2);
-
-
-	ProfileLeave();
-}
-function DrawGraphThreadGroup(View, LocalMouseX, LocalMouseY, SubIndex)
-{
-	DrawGraphThreadExclusive(View, LocalMouseX, LocalMouseY, SubIndex);
-}
 function DrawGraphSplit(View, LocalMouseX, LocalMouseY, SubIndex)
 {
-	DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, 1);
+
 }
 
-function DrawGraphCSV(View, LocalMouseX, LocalMouseY, SubIndex)
+function InvalidGraphCSV(View, LocalMouseX, LocalMouseY, SubIndex)
+{
+	return gGraphCSVInvalid;
+}
+
+function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouseY, SubIndex)
 {
 	ProfileEnter("DrawGraphCSV", 1);
-	var Canvas = View.Canvas[View.BackBuffer];
-	var context = Canvas.getContext('2d');
-	context.clearRect(0, 0, View.w, View.h);
+	if(FullUpdate)
+	{
+		context.clearRect(0, 0, View.w, View.h);
+		gGraphCSVInvalid = 0;
+	}
+
 
 	var h = View.h;
 	var w = View.w;
@@ -1758,6 +830,8 @@ function DrawGraphCSV(View, LocalMouseX, LocalMouseY, SubIndex)
 	Params.Rect = WindowRect(0, 0, w, h);
 	Params.xRange = gRange;
 	Params.xOffset = gOffset;
+	Params.FullDraw = FullUpdate
+
 
 
 
@@ -1842,909 +916,6 @@ function DrawGraphCSV(View, LocalMouseX, LocalMouseY, SubIndex)
 }
 
 
-function DrawGraphThreadExclusive(View, LocalMouseX, LocalMouseY, SubIndex, Split)
-{
-	var TimerMap = FrameData.TimerMap;
-	if(!TimerMap)
-		return;
-
-	ProfileEnter("DrawGraphThreadExclusive");
-	var Canvas = View.Canvas[View.BackBuffer];
-	var context = Canvas.getContext('2d');
-	context.clearRect(0, 0, View.w, View.h);
-
-	var h = View.h;
-	var w = View.w;
-	var fHeightScale = h / ReferenceGraph;
-	var MouseDragging = 0;
-	var fWidth = w / FRAME_COUNT;
-	var MouseTime = ReferenceGraph * (1-(LocalMouseY / h));
-	var HighlightKey = 0;
-	var HighlightFrame = -1;
-
-
-	var NumGraphs = 0;
-	for(let k in ThreadInfo)
-	{
-		NumGraphs++;
-	}
-	if(NumGraphs)
-	{
-		let hstart = 0;
-		let gh = h / NumGraphs;
-		let cidx = 1;
-		let Count = FRAME_COUNT;
-		let Last = AllocClearedArray(Count);
-		let FT = FrameData.Time;
-		let RcpFT = AllocClearedArray(Count);
-		if(FT.length != RcpFT.length)
-			debugger;
-		for(let k = 0; k < RcpFT.length; ++k)
-		{
-			if(FT[k] != 0)
-			{
-				RcpFT[k] = 1.0 / FT[k];
-			}
-			else
-			{
-				RcpFT[k] = 0;
-			}
-		}
-
-		for(let k in ThreadInfo)
-		{
-			for(let j = 0; j < Last.length; ++j)
-				Last[j] = 0.0;
-			let TI = ThreadInfo[k];
-			let X = 0;
-			let Y = hstart + gh;
-			var YStart = Y;
-			if(LocalMouseX >= 0 && LocalMouseY >= hstart && LocalMouseX < w && LocalMouseY <= Y)
-			{
-				HighlightKey = k;
-				HighlightFrame = Math.floor(FRAME_COUNT * LocalMouseX / w);
-			}
-
-
-			context.globalAlpha = 1;
-			context.fillStyle = nBackColorsDark[cidx];
-			cidx = 1-cidx;
-			context.fillRect(0, hstart, w, gh);
-			context.strokeStyle = 'white';
-			context.fillStyle = 'white';
-			for(let l = 0; l < TI.a.length; ++l)
-			{
-				X = 0;
-				let a = TI.a[l];
-				if(a.length != Count)
-				{
-					console.log("should not happen!\n");
-					debugger;
-				}
-				let idx = GetTimer(TI.ids[l]);
-				let c = TimerArray[idx].color;
-				context.strokeStyle = c;
-				context.fillStyle = c;
-				context.beginPath();
-
-				for(let m = Last.length-1;m >= 0; m--)
-				{
-					let XX = X + fWidth * m;
-					Y = Math.max(YStart - Last[m] * gh, hstart);
-					if(m == Last.length-1)
-					{
-						context.moveTo(XX, Y);
-					}
-					else
-					{
-						context.lineTo(XX, Y);
-					}
-				}
-
-				for(let m = 0; m < a.length; ++m)
-				{
-
-					let h = a[m] * RcpFT[m];
-					if(h > 1.1)
-					{
-						console.log("should not happen ", a[m], RcpFT[m], h);
-						debugger;
-						h = 1;
-						//todo...
-					}
-					let hm = h + Last[m];
-					if(hm > 1.1)
-					{
-						console.log("should not happen ", hm, h, Last[m]);
-						debugger;
-						hm = 1;
-						//todo...
-					}
-					Y = Math.max(YStart - hm * gh, hstart);
-					context.lineTo(X, Y);
-					X += fWidth;
-					Last[m] = hm;
-				}
-				context.fill();
-
-			}
-			context.fillStyle = 'wheat';
-			context.textAlign='right';
-			context.fillText('100%', nWidth, hstart + FontHeight);
-			context.textAlign='left';
-			context.fillText(TI.n, 0, hstart + FontHeight);
-			hstart += gh;
-		}
-	}
-
-	if(HighlightKey != 0 && SubMenuActive == -1)
-	{
-		ToolTipCallback = function(canvas, x, y)
-		{
-			let TI = ThreadInfo[HighlightKey];
-			let ret = [];
-			let colors = [];
-			for(let l = 0; l < TI.a.length; ++l)
-			{
-				let a = TI.a[l];
-				let idx = GetTimer(TI.ids[l]);
-				let c = TimerArray[idx].color;
-				colors.push(c);
-				ret.push(TimerArray[idx].name);
-				let t = FormatTime(a[HighlightFrame]) + 'ms';
-				colors.push('white');
-				ret.push(t);
-			}
-			return {c:colors, a:ret};
-		}
-	}
-
-	ProfileLeave();
-}
-
-function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
-{
-	let TimerMap = FrameData.TimerMap;
-	if(!TimerMap)
-		return;
-
-	ProfileEnter("DrawGraphPercentile");
-	let Canvas = View.Canvas[View.BackBuffer];
-	let context = Canvas.getContext('2d');
-	context.clearRect(0, 0, View.w, View.h);
-
-	let h = View.h;
-	let w = View.w;
-	let NumGraphs = 0;
-	let ToolTips = Array();
-	for(let key in TimerMap)
-	{
-		if(!IsGroup(key))
-		{
-			let idx = GetTimer(key);
-			if(TimerArray[idx].e)
-			{
-				NumGraphs++;
-			}
-		}
-	}
-	if(NumGraphs)
-	{
-		let hstart = 0;
-		let gh = h / NumGraphs;
-		let Keys = [];
-		let cidx = 1;
-
-		if(LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1)
-		{
-			ToolTipCallback = function(canvas, x, y)
-			{
-				let TimerMap = FrameData.TimerMap;
-				let context = canvas.getContext('2d');
-				context.font = Font;
-				let XPos = x - 20;
-				for(let key in TimerMap)
-				{
-					let idx = GetTimer(key);
-					let TimerState = TimerMap[key];
-					let T = TimerArray[idx];
-					if(!IsGroup(key) && T.e && TimerState.PercentileMax > TimerState.PercentileMin)
-					{
-						let HighlightIndex = -1;
-						let Max = TimerState.PercentileMax;
-						let Min = TimerState.PercentileMin;
-						let h = View.h;
-						let w = View.w;
-						let tooltipstring = TimerState.tooltipstring;
-
-						if(LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1 && tooltipstring)
-						{
-							if(TimerState.tooltipysoft)
-							{
-								let RATE = 0.05;
-								if(Math.abs(TimerState.tooltipysoft - TimerState.tooltipy) > 6)
-								{
-									TimerState.tooltipysoft = TimerState.tooltipy * RATE + TimerState.tooltipysoft * (1-RATE);
-								}
-							}
-							else
-							{
-								TimerState.tooltipysoft = TimerState.tooltipy;
-							}
-							let Y = TimerState.tooltipysoft;
-							let wtext = context.measureText(tooltipstring, XPos, Y).width;
-							let X = Math.max(0, XPos - wtext);
-							context.fillStyle = 'black';
-							context.fillRect(X - 1, Y-1 , wtext+2, BoxHeight+2);
-							context.fillStyle = 'white';
-							context.textAlign = 'right';
-							context.fillText(tooltipstring, X + wtext, Y+BoxHeight-2);
-
-						}
-					}
-					context.textAlign = 'left';
-				}
-			}
-		}
-
-
-		for(let key in TimerMap)
-		{
-			let idx = GetTimer(key);
-			let TimerState = TimerMap[key];
-			TimerState.tooltipstring = null;
-			let Valid = TimerState.PercentileMax > TimerState.PercentileMin;
-			if(!IsGroup(key) && TimerArray[idx].e)
-			{
-				let Max = Valid ? TimerState.PercentileMax : 1;
-				let Min = Valid ? TimerState.PercentileMin : 0;
-				let SubGraphSettings = GetSubGraphSettings(key);
-				let Percentile = 0.0;
-				if(Percentile == null)
-					Percentile = 0.0;
-				Percentile = Math.max(0.0, Math.min(99.0, Percentile));
-				if(!SubGraphSettings.AutomaticReference)
-				{
-					Max = SubGraphSettings.ReferenceTime;
-				}
-				let Reference = Max;
-				let PercentileData = TimerState.Percentile;
-				let PercentileCount = TimerState.PercentileCount;
-				let BasePrc = 0;
-				if(PercentileCount > PERCENTILE_SAMPLES)
-				{
-					BasePrc = 100 * (1- PERCENTILE_SAMPLES / PercentileCount);
-				}
-				let Total = PercentileData.length-1;
-				let NumElementsOnScreen = Total * (100 - Percentile) / (100);
-				let WidthPerElement = w / NumElementsOnScreen;
-				let TotalWidth = Total * WidthPerElement;
-				let PercentilePrc = Percentile / 100;
-				let PercentileOffset = PercentilePrc * TotalWidth;
-				let fHeightScale2 = gh / Max;
-				let color = TimerArray[idx].color;
-				let X = 0;
-				let Y = hstart + gh;
-				let YStart = Y;
-				let MouseInside = LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1;
-
-				context.globalAlpha = 1;
-				context.fillStyle = nBackColorsDark[cidx];
-				cidx = 1-cidx;
-				context.fillRect(0, hstart, w, gh);
-				context.strokeStyle = color;
-				context.fillStyle = color;
-				let PercentileStart = Math.max(0, Math.floor(0.01*Percentile / PercentileData.length));
-				{
-					context.beginPath();
-					context.moveTo(X,Y);
-					for(let i = PercentileStart; i < PercentileData.length; ++i)
-					{
-						X = i * WidthPerElement - PercentileOffset;
-						Y = Math.max(YStart - PercentileData[i] * fHeightScale2, hstart);
-						context.lineTo(X, Y);
-					}
-					context.stroke();
-					context.lineTo(X, YStart);
-					context.globalAlpha = GRAPH_ALPHA;
-					context.fill();
-				}
-				context.globalAlpha = 1;
-				context.fillStyle = 'wheat';
-				context.textAlign='right';
-				context.fillText(FormatTime(Reference) + 'ms', nWidth, hstart + FontHeight);
-				context.fillText('100%', nWidth, hstart + gh-2);
-				context.textAlign='centered';
-				Percentile = BasePrc;
-				context.fillText( ((Percentile + 100)/2).toFixed(2) + '%', nWidth/2, hstart + gh-2);
-				context.textAlign='left';
-				context.fillText(Percentile.toFixed(2) + "%  [Samples:" + PercentileCount + "]", 0, hstart + gh-2);
-				context.fillText(TimerArray[idx].name, 15, hstart + FontHeight);
-				context.fillText(Percentile + '%', nWidth, hstart + FontHeight);
-
-				if(MouseInside)
-				{
-					let Element = (PercentileOffset + LocalMouseX) / WidthPerElement;
-					let Rounded = Math.round(Element);
-					let HighlightIndex = Math.max(0, Math.min(Rounded, PercentileData.length-1));
-					X = HighlightIndex * WidthPerElement - PercentileOffset;
-					let Y = YStart - Math.min(PercentileData[HighlightIndex], Reference) * fHeightScale2;
-					context.strokeStyle = color;
-					context.beginPath();
-					let CrossX = X;
-					let CrossY = Y;
-					context.moveTo(CrossX-2, CrossY-2);
-					context.lineTo(CrossX+2, CrossY+2);
-					context.moveTo(CrossX+2, CrossY-2);
-					context.lineTo(CrossX-2, CrossY+2);
-					context.moveTo(CrossX, hstart);
-					context.lineTo(CrossX, hstart + gh);
-					context.stroke();
-					TimerState.tooltipy = Math.min(YStart - BoxHeight, Y) + View.y;
-					let Perc = 0;
-					if(PERCENTILE_SAMPLES < PercentileCount)
-					{
-						let Idx = PercentileCount - PERCENTILE_SAMPLES + HighlightIndex;
-						Perc = 100 * Idx / (PercentileCount-1);
-					}
-					else
-					{
-						let Idx = HighlightIndex - (PERCENTILE_SAMPLES - PercentileCount);
-						Idx = Math.max(Idx, 0);
-						Perc = 100 * (Idx / (PercentileCount-1))
-					}
-					TimerState.tooltipstring = FormatTime(Perc) + '% ' + FormatTime(PercentileData[HighlightIndex]) + 'ms';;
-				}
-				hstart += gh;
-			}
-		}
-	}
-	ProfileLeave();
-}
-
-
-
-function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
-{
-	var TimerMap = FrameData.TimerMap;
-	if(!TimerMap)
-		return;
-
-	ProfileEnter("DrawGraph");
-	var Canvas = View.Canvas[View.BackBuffer];
-	var context = Canvas.getContext('2d');
-	context.clearRect(0, 0, View.w, View.h);
-
-	var h = View.h;
-	var w = View.w;
-	var fHeightScale = h / ReferenceGraph;
-	var MouseDragging = 0;
-	var fWidth = w / FRAME_COUNT;
-	var HighlightFrame = -1;
-	var GraphKey = null;
-	var GraphBest = 0;
-	var MouseTime = ReferenceGraph * (1-(LocalMouseY / h));
-
-	if(LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1)
-	{
-		var index = Math.floor(FRAME_COUNT * LocalMouseX / w);
-		HighlightFrame = index;
-		for(var key in TimerMap)
-		{
-			var idx = GetTimer(key);
-			var T = TimerArray[idx];
-			var TimerState = TimerMap[key];
-			var Time = TimerState.Time;
-			if(Time[index] >= MouseTime && (GraphBest == 0 || Time[index] <= GraphBest))
-			{
-				GraphKey = key;
-				GraphBest = Time[index];
-			}
-		}
-		ToolTipCallback = function(canvas, x, y)
-		{
-			if(Split)
-			{
-				var TimerMap = FrameData.TimerMap;
-				var context = canvas.getContext('2d');
-				context.font = Font;
-				var XPos = x - 20;
-				for(var key in TimerMap)
-				{
-					var idx = GetTimer(key);
-					var T = TimerArray[idx];
-					var TimerState = TimerMap[key];
-					var Time = TimerState.Time;
-					if(TimerState.tooltipysoft)
-					{
-						var RATE = 0.05;
-						if(Math.abs(TimerState.tooltipysoft - TimerState.tooltipy) > 6)
-						{
-							TimerState.tooltipysoft = TimerState.tooltipy * RATE + TimerState.tooltipysoft * (1-RATE);
-						}
-					}
-					else
-					{
-						TimerState.tooltipysoft = TimerState.tooltipy;
-					}
-					var Y = TimerState.tooltipysoft;
-					var str = '' + FormatTime(Time[index]) + 'ms';
-					var w = context.measureText(str, XPos, Y).width;
-					var X = Math.max(0, XPos - w);
-					context.fillStyle = 'black';
-					context.fillRect(X - 1, Y-1 , w+2, BoxHeight+2);
-					context.fillStyle = 'white';
-					context.textAlign = 'right';
-					context.fillText(str, X + w, Y+BoxHeight-2);
-
-				}
-				context.textAlign = 'left';
-			}
-			else
-			{
-				var StringArray = [];
-				var ColorArray = [];
-				var TimerMap = FrameData.TimerMap;
-				for(var key in TimerMap)
-				{
-					if(!IsGroup(key))
-					{
-						var idx = GetTimer(key);
-						var T = TimerArray[idx];
-						var TimerState = TimerMap[key];
-						var Time = TimerState.Time;
-						ColorArray.push(TimerArray[idx].color);
-						StringArray.push('' + T.name);
-						ColorArray.push('white');
-						StringArray.push('' + FormatTime(Time[index]) + 'ms') ;
-					}
-				}
-				return {c:ColorArray,a:StringArray};
-			}
-		}
-
-	}
-
-	if(Split)
-	{
-		var NumGraphs = 0;
-		for(var key in TimerMap)
-		{
-			if(!IsGroup(key))
-			{
-				NumGraphs++;
-			}
-		}
-		if(NumGraphs)
-		{
-			var hstart = 0;
-			var gh = h / NumGraphs;
-			var Keys = [];
-			var cidx = 1;
-			for(var key in TimerMap)
-			{
-				var idx = GetTimer(key);
-				var TimerState = TimerMap[key];
-				if(!IsGroup(key))
-				{
-					let SubGraphSettings = GetSubGraphSettings(key);
-					var Reference = GetSubGraphReferenceTime(SubGraphSettings, TimerState);
-					var fHeightScale2 = gh / Reference;
-
-					var Time = TimerState.Time;
-					var color = TimerArray[idx].color;
-					var X = w - Time.length*fWidth;
-					var Y = hstart + gh;
-					var YStart = Y;
-					context.globalAlpha = 1;
-					context.fillStyle = nBackColorsDark[cidx];
-					cidx = 1-cidx;
-					context.fillRect(0, hstart, w, gh);
-					context.strokeStyle = color;
-					context.fillStyle = color;
-					context.beginPath();
-					context.moveTo(X,Y);
-					for(var i = 0; i < Time.length; ++i)
-					{
-						Y = Math.max(YStart - Time[i] * fHeightScale2, hstart);
-						context.lineTo(X, Y);
-						X += fWidth;
-
-					}
-					context.stroke();
-					context.lineTo(X, YStart);
-					context.globalAlpha = GRAPH_ALPHA;
-					context.fill();
-
-
-					context.globalAlpha = 1;
-					context.fillStyle = 'wheat';
-					context.textAlign='right';
-					context.fillText(FormatTime(Reference) + 'ms', nWidth, hstart + FontHeight);
-					context.textAlign='left';
-					context.fillText(TimerArray[idx].name, 15, hstart + FontHeight);
-
-					if(HighlightFrame >= 0)
-					{
-						var X = w - Time.length * fWidth + fWidth * HighlightFrame;
-						var Y = YStart - Math.min(Time[HighlightFrame], Reference) * fHeightScale2;
-						context.strokeStyle = color;
-						context.beginPath();
-						var CrossX = X;
-						var CrossY = Y;
-						context.moveTo(CrossX-2, CrossY-2);
-						context.lineTo(CrossX+2, CrossY+2);
-						context.moveTo(CrossX+2, CrossY-2);
-						context.lineTo(CrossX-2, CrossY+2);
-						context.moveTo(CrossX, hstart);
-						context.lineTo(CrossX, hstart + gh);
-						context.stroke();
-						TimerState.tooltipy = Math.min(YStart - BoxHeight, Y) + View.y;
-					}
-					hstart += gh;
-				}
-			}
-		}
-	}
-	else
-	{
-		var Keys = [];
-		var Prev = Array();
-		var He = Array();
-		for(var key in TimerMap)
-		{
-			if(!IsGroup(key))
-			{
-				var idx = GetTimer(key);
-				var TimerState = TimerMap[key];
-				var Time = TimerState.Time;
-				var color = TimerArray[idx].color;
-				var X = w - Time.length*fWidth;
-				var Y = h;
-				while(Time.length > He.length)
-				{
-					He.push(0.0);
-				}
-				for(var i = 0; i < Time.length; ++i)
-				{
-					He[i] += Time[i];
-				}
-			}
-		}
-		if(1) // graph with clipping. this code seems way to complicated
-		{
-			var NumGraphs = 0;
-			var Len = 0;
-			for(let key in TimerMap)
-			{
-				if(!IsGroup(key))
-				{
-					var idx = GetTimer(key);
-					var TimerState = TimerMap[key];
-					var Time = TimerState.Time;
-					Len = Math.max(Len, Time.length);
-					NumGraphs++;
-				}
-			}
-			let g = Array(Len);
-			for(let i = 0; i < g.length; ++i)
-				g[i] = Array(NumGraphs);
-			let i = 0;
-			for(let key in TimerMap)
-			{
-				if(!IsGroup(key))
-				{
-					var TimerState = TimerMap[key];
-					var Time = TimerState.Time;
-					let x = GetTimer(key);
-					for(let j = 0; j < Time.length; ++j)
-					{
-						g[j][i] = {k:key, v: Time[j], x:x, c:TimerArray[x].color,n:TimerArray[x].name};
-					}
-					i++;
-				}
-			}
-			for(let i = 0; i < g.length; ++i)
-			{
-				let a = g[i];
-				a.sort( function(l, r){
-					return l.v-r.v;
-				});
-			}
-			let cvt = function(t){ return h - t * fHeightScale; };
-			if(1)
-			{
-				let Segments = Array();
-				let MakeSegment = function(b,e)
-				{
-					let s = {b:b, e:e, a:[]};
-					Segments.push(s);
-					return s;
-				};
-				let MakeEntry = function(y0l, y0h, y1l, y1h, c)
-				{
-					let e ={y0l:y0l,y0h:y0h,y1h:y1h,y1l:y1l,c:c,t:0};
-					return e;
-				};
-
-				let X = 0;
-				for(let i = 1; i < g.length; ++i)
-				{
-					let a0 = g[i-1];
-					let a1 = g[i];
-					let s = MakeSegment(X, X + fWidth);
-					if(a0.length != a1.length)
-					{
-						console.log("should not happen!!");
-						debugger;
-					}
-					let FailIndex = -1;
-					for(let j = 0; j < a0.length; ++j)
-					{
-						if(a0[j].k != a1[j].k)
-						{
-							FailIndex = j;
-							break;
-						}
-
-						let t0l = j > 0 ? a0[j-1].v : 0;
-						let t0h = a0[j].v;
-						let t1l = j > 0 ? a1[j-1].v : 0;
-						let t1h = a1[j].v;
-						let c = a1[j].c;
-						let e = MakeEntry(t0l, t0h, t1l, t1h, c);
-						s.a.push(e);
-					}
-					if(FailIndex >= 0)
-					{
-						let l = a0.length;
-						let ax = Array(l);
-						if(FailIndex + 1 >= l)
-							debugger;///no lines, should not happen.
-						for(let j = FailIndex; j < l; ++j)
-						{
-							//find matching
-							for(let k = FailIndex; k < l; ++k)
-							{
-								if(a1[k].k == a0[j].k)
-								{
-									if(ax[j])
-									{
-										console.log("should never happen");
-										debugger;//should not happen
-									}
-									ax[j] = a1[k];
-									break;
-								}
-							}
-						}
-						//find all intersections within [0-1]
-						let I = [];
-						I.push(0);
-						for(let j = FailIndex; j < l; ++j)
-						{
-							let ya = a0[j].v;
-							let yam = ax[j].v;
-							let ka = yam-ya;
-							for(let k = j + 1; k < l; ++k)
-							{
-								let yb = a0[k].v;
-								let ybm = ax[k].v;
-								let kb = ybm-yb;
-								let num = yb-ya;
-								let denom = ka-kb;
-								if(denom>0.00001||denom < -0.00001)
-								{
-									let x = num/denom;
-									if(x>=0 && x <= 1)
-									{
-										I.push(x);
-									}
-								}
-							}
-						}
-						I.push(1);
-						if(I.length)
-						{
-							I.push(I[0]);
-							I.push(I[0]);
-							I.sort();
-
-							let i = 0;
-							let DIST = 0.00001;
-							while(i+1 < I.length)
-							{
-								if(Math.abs(I[i] - I[i+1]) < DIST)
-								{
-									I.splice(i, 1);
-								}
-								else
-								{
-									i++;
-								}
-							}
-						}
-						for(let i = 0; i < I.length-1; ++i)
-						{
-							let x0 = I[i];
-							let x1 = I[i+1];
-							let xm =  0.5 * (x0+x1);
-							let b = X + x0 * fWidth;
-							let e = X + x1 * fWidth;
-							let c = X + xm * fWidth;
-							let s = MakeSegment(b, e);
-							for(let j = FailIndex; j < l; ++j)
-							{
-								let y = a0[j].v;
-								let yx = ax[j].v;
-								let yd = yx - y;
-								let y0 = y + yd * x0;
-								let y1 = y + yd * x1;
-								let ym = y + yd * xm;
-								let e = MakeEntry(ym, y0, ym, y1, a0[j].c);
-								s.a.push(e);
-							}
-							s.a.sort(function(l, r){
-								return l.y0l-r.y0l;
-							});
-							for(let j = 0; j < s.a.length; ++j)
-							{
-								if(j == 0)
-								{
-									s.a[j].y0l = 0;
-									s.a[j].y1l = 0;
-								}
-								else
-								{
-									s.a[j].y0l = s.a[j-1].y0h;
-									s.a[j].y1l = s.a[j-1].y1h;
-								}
-							}
-						}
-					}
-					X += fWidth;
-				}
-				for(let i = 0; i < Segments.length; ++i)
-				{
-					let s = Segments[i];
-					let X0 = s.b;
-					let X1 = s.e;
-					for(let j = 0; j < s.a.length; ++j)
-					{
-						let e = s.a[j];
-						let xs = [];
-						let ytop = [];
-						let ybot = [];
-						if(!e.t)
-						{
-							e.t = 1;
-							let XB = X0;
-							let XE = X1;
-							xs.push(XB);
-							ytop.push(cvt(e.y0h));
-							ybot.push(cvt(e.y0l));
-							let yeh = e.y1h;
-							let yel = e.y1l;
-							let k = i + 1;
-							let Found = true;
-							while(k < Segments.length && Found)
-							{
-								Found = false;
-								let s = Segments[k];
-								for(let l = 0; l < s.a.length && !Found; ++l)
-								{
-									let e1 = s.a[l];
-									if(!e1.t && e1.c == e.c && Math.abs(e1.y0l-e.y1l) < 0.0001 && Math.abs(e1.y0h - e.y1h) < 0.0001)
-									{
-										e1.t = 1;
-										xs.push(XE);
-										ytop.push(cvt(yeh));
-										ybot.push(cvt(yel));
-										XE = s.e;
-										yeh = e1.y1h;
-										yel = e1.y1l;
-										Found = true;
-										e = e1;
-									}
-								}
-								k++;
-							}
-							xs.push(XE);
-							ytop.push(cvt(yeh));
-							ybot.push(cvt(yel));
-						}
-						if(xs.length)
-						{
-							context.strokeStyle = e.c;
-							context.fillStyle = e.c;
-							context.globalAlpha = GRAPH_ALPHA;
-							context.beginPath();
-							context.moveTo(xs[0], ytop[0]);
-							for(let k = 1; k < xs.length; ++k)
-							{
-								context.lineTo(xs[k], ytop[k]);
-							}
-							for(let k = xs.length-1; k >= 0; --k)
-							{
-								context.lineTo(xs[k], ybot[k]);
-							}
-							context.fill();
-							context.beginPath();
-							context.moveTo(xs[0], ytop[0]);
-							for(let k = 1; k < xs.length; ++k)
-							{
-								context.lineTo(xs[k], ytop[k]);
-							}
-							context.globalAlpha = 1.0;
-							context.stroke();
-						}
-					}
-				}
-			}
-		}
-		if(0) //old graph code, no clipping
-		{
-			for(var key in TimerMap)
-			{
-				if(!IsGroup(key))
-				{
-					var idx = GetTimer(key);
-					var TimerState = TimerMap[key];
-					var Time = TimerState.Time;
-					var color = TimerArray[idx].color;
-					var X = w - Time.length*fWidth;
-					var Y = h;
-					context.strokeStyle = color;
-					context.fillStyle = color;
-
-					context.beginPath();
-					context.moveTo(X,Y);
-					for(var i = 0; i < Time.length; ++i)
-					{
-						Y = h - Time[i] * fHeightScale;
-						context.lineTo(X, Y);
-						X += fWidth;
-					}
-					context.stroke();
-					context.lineTo(X, h);
-					context.globalAlpha = GRAPH_ALPHA;
-					context.fill();
-					context.globalAlpha = 1;
-				}
-			}
-		}
-		if(HighlightFrame >= 0)
-		{
-			for(var key in TimerMap)
-			{
-				if(!IsGroup(key))
-				{
-					var idx = GetTimer(key);
-					var TimerState = TimerMap[key];
-					var Time = TimerState.Time;
-					var color = TimerArray[idx].color;
-					var X = w - Time.length*fWidth + fWidth * HighlightFrame;
-					var Y = h - Time[HighlightFrame] * fHeightScale;
-					context.strokeStyle = color;
-					context.beginPath();
-					var CrossX = X;
-					var CrossY = Y;
-					context.moveTo(CrossX-2, CrossY-2);
-					context.lineTo(CrossX+2, CrossY+2);
-					context.moveTo(CrossX+2, CrossY-2);
-					context.lineTo(CrossX-2, CrossY+2);
-					context.stroke();
-				}
-			}
-		}
-		context.fillStyle = 'wheat';
-		context.textAlign='right';
-		context.fillText(FormatTime(ReferenceGraph) + 'ms', nWidth, FontHeight);
-		context.textAlign='left';
-	}
-
-	ProfileLeave();
-}
 
 function StringHash(s) //note: matching code in microprofile.cpp: uint32_t MicroProfileStringHash(const char* pString)
 {
@@ -3272,6 +1443,7 @@ function DrawRootGraphMenuElement(context)
 				if(Inside && MouseReleased)
 				{
 					CSVActiveSet = (CSVActiveSet + 1) % (CSVNumSets+1);
+					gGraphCSVInvalid = 1;
 					RequestDraw();
 				}
 			}
@@ -3324,19 +1496,19 @@ function UpdateX7Views()
 function DrawViews()
 {
 	Plotf("DrawViews");
-	UpdateX7Views();
+	//UpdateX7Views();
 	ProfileEnter("UpdateViews");
 	ViewIndex = 0;
-	for(var i = 0; i < Views.length; ++i)
+	for(let i = 0; i < Views.length; ++i)
 	{
-		var View = Views[i];
-		if(View.visible)
+		let View = Views[i];
+		let LocalMouseX = MouseX - View.x;
+		let LocalMouseY = MouseY - View.y;
+		if(View.visible && View.InvalidFunc(View, LocalMouseX, LocalMouseY, View.index))
 		{
-			var LocalMouseX = MouseX - View.x;
-			var LocalMouseY = MouseY - View.y;
-			View.DisplayFunc(View, LocalMouseX, LocalMouseY, View.index);
-			var Canvas = View.Canvas[View.BackBuffer];
-			var Context = Canvas.getContext('2d');
+			let Canvas = View.Canvas[View.BackBuffer];
+			let Context = Canvas.getContext('2d');
+			View.DisplayFunc(1, View, Canvas, Context, LocalMouseX, LocalMouseY, View.index);
 			ViewIndex++;
 		}
 	}
@@ -3347,9 +1519,14 @@ function DrawViews()
 	for(var i = 0; i < Views.length; ++i)
 	{
 		var View = Views[i];
+		let LocalMouseX = MouseX - View.x;
+		let LocalMouseY = MouseY - View.y;
 		if(View.visible)
 		{
-		context.drawImage(View.Canvas[View.BackBuffer], Math.floor(View.x), Math.floor(View.y), View.w, View.h);
+			context.drawImage(View.Canvas[View.BackBuffer], Math.floor(View.x), Math.floor(View.y), View.w, View.h);
+
+			View.DisplayFunc(0, View, CanvasDetailedView, context, LocalMouseX, LocalMouseY, View.index);
+
 		}
 	}
 	ProfileLeave();
@@ -3407,6 +1584,7 @@ function MakeMenuItem(name, f, visible)
 }
 function EnableMenu(m)
 {
+	gGraphCSVInvalid = 1;
 	if(m != SubMenuActive)
 	{
 		if(SubMenuActive == SubMenuTimers)
@@ -3488,47 +1666,7 @@ function TriggerCapture()
 		CaptureTriggerTimeType = 1;
 	}
 }
-function CaptureUpdate()
-{
-	if(CaptureTriggerTime)
-	{
-		let Time = new Date();
-		let Delta = Time - CaptureTriggerTime;
-		CaptureTriggerDelta = Math.max(0.0, (Settings.CaptureDelay * 1000 - Delta) / 1000.0);
-		if(Delta > Settings.CaptureDelay * 1000)
-		{
-			if(CaptureTriggerTimeType == 1)
-			{
-				Capture();
-			}
-			else if(CaptureTriggerTimeType == 2)
-			{
-				AutoCaptureEnabled = Settings.AutoCaptureRepeat > 0 ? Settings.AutoCaptureRepeat : 1;
-			}
-			CaptureTriggerTime = null;
-			CaptureTriggerDelta = 0;
-			CaptureTriggerTimeType = 0;
-		}
-	}
 
-}
-function Capture()
-{
-	AutoCaptureCooldown = Settings.CaptureFrames + 5;
-	var ext = '' + Settings.CaptureFrames;
-	if(MouseDragActiveXEnd > MouseDragActiveXStart)
-	{
-		var idx0 = Math.ceil(FRAME_COUNT * MouseDragActiveXStart / nWidth);
-		var idx1 = Math.floor(FRAME_COUNT * MouseDragActiveXEnd / nWidth);
-		idx0 = Clamp(idx0, 0, FRAME_COUNT-1);
-		idx1 = Clamp(idx1, 0, FRAME_COUNT-1);
-		var id0 = FrameData.Ids[idx0];
-		var id1 = FrameData.Ids[idx1];
-		ext = 'r/'+id0+'/'+id1;
-	}
-	var url = 'http://' + WSHost + ':' + WSPort + '/' + ext;
-	window.open(url);
-}
 function InitMenu()
 {
 	MenuItems = [];
@@ -3544,6 +1682,7 @@ function InitMenu()
 }
 function DrawTopMenu()
 {
+	return;
 	var context = CanvasDetailedView.getContext('2d');
 	var X = 2;
 	var Y = 0;
@@ -4625,6 +2764,7 @@ function DrawMenuGraph()
 				else
 					GraphSet[CName] = 1;
 			}
+			gGraphCSVInvalid = 1;
 		}
 	}
 	SizeInfo.h = M.y - SizeInfo.y;
@@ -4662,6 +2802,7 @@ function DrawMenuGraphMode()
 				GraphModeMask = GraphModeMask & ~Mask;
 			else
 				GraphModeMask = GraphModeMask | Mask;
+			gGraphCSVInvalid = 1;
 		}
 		Mask = Mask << 1;
 	}
@@ -6016,46 +4157,11 @@ function DrawMenu()
 			context.lineTo(MenuRect.x,MenuRect.y);
 			context.stroke();
 		}
-		SpinnerDraw(SpinnerShow(), context, SpinnerCorner, 0, nHeight-20,  20, 20);
+
 		ProfileLeave();
 	}
 }
 
-function DrawConnectionStatus()
-{
-	return;
-	if(WSConnected && WS && WS.readyState == 1)
-	{
-		if(!ProfileMode)
-			return;
-	}
-	var Strings = new Array();
-	Strings.push("Status");
-	if(WSConnected && WS && WS.readyState == 1)
-	{
-		Strings.push("[X]");
-	}
-	else
-	{
-		ConnectionIdx = (ConnectionIdx + 1 ) % ConnectionStr.length;
-		Strings.push("[" + ConnectionStr[ConnectionIdx]+"]");
-	}
-	Strings.push("Port");
-	Strings.push("" + WSPort);
-	Strings.push("Path");
-	Strings.push("" + WSPath);
-	Strings.push("Sends");
-	Strings.push("" + WSSend);
-	Strings.push("Receives");
-	Strings.push("" + WSReceive);
-	Strings.push("SendBytes");
-	Strings.push("" + WSSendBytes);
-	Strings.push("ReceiveBytes");
-	Strings.push("" + WSReceiveBytes);
-	Strings.push("Seconds");
-	Strings.push("" + WSSeconds);
-	DrawToolTip(Strings, CanvasDetailedView, 50000, 0);
-}
 function DrawActiveToolTip()
 {
 	if(SubMenuActive == -1)
@@ -6076,59 +4182,12 @@ function DrawActiveToolTip()
 	}
 	ToolTipCallback = null;
 }
-function UpdateSettings()
-{
-	if(Settings.AutomaticReference)
-	{
-		if( Math.abs(ReferenceGraph - ReferenceGraphAutomatic) > 0.02 ||
-			Math.abs(ReferenceHistory - ReferenceHistoryAutomatic) > 0.02)
-		{
-			RequestDraw();
-		}
-		ReferenceGraph = 0.9 * ReferenceGraph + 0.1 * ReferenceGraphAutomatic;
-		ReferenceHistory = 0.9 * ReferenceHistory + 0.1 * ReferenceHistoryAutomatic;
-		ReferenceBar = 0.9 * ReferenceBar + 0.1 * ReferenceBarAutomatic;
-		var TimerMap = FrameData.TimerMap;
-		if(!TimerMap)
-			return;
-
-
-		for(var key in TimerMap)
-		{
-			var TimerState = TimerMap[key];
-			if(!TimerState.historymaxsoft)
-			{
-				TimerState.historymaxsoft = TimerState.historymax;
-			}
-			else
-			{
-				TimerState.historymaxsoft = 0.9 * TimerState.historymaxsoft + 0.1 * TimerState.historymax;
-			}
-		}
-
-	}
-	else
-	{
-		ReferenceGraph = Settings.ReferenceTime;
-		ReferenceHistory = Settings.ReferenceTime;
-		ReferenceBar = Settings.ReferenceTime;
-	}
-	if(Settings.AggregateFrames != AggregateFrames)
-	{
-		WSSendMessage("a" + Settings.AggregateFrames);
-		AggregateFrames = Settings.AggregateFrames;
-	}
-}
-
-var PendingDraw = 0;
+let PendingDraw = 0;
 
 function Draw()
 {
-	CaptureUpdate();
 	PendingDraw = 0;
 	ProfileEnter("Total");
-
-	UpdateSettings();
 
 	if(Settings.ViewActive == VIEW_CSV || (WSConnected && WS && WS.readyState == 1))
 	{
@@ -6143,7 +4202,6 @@ function Draw()
 		DrawMessage();
 	}
 
-	DrawConnectionStatus();
 	DrawPlotf(CanvasDetailedView);
 	DrawActiveToolTip();
 
@@ -6166,256 +4224,10 @@ function RequestDraw()
 	}
 }
 
-
-
-
-function WSOpen(event)
-{
-	SetMessage("Connected!", 1000);
-	WSSend = 0;
-	WSReceive = 0;
-	WSSendBytes = 0;
-	WSReceiveBytes = 0;
-	WSIsOpen = 1;
-
-	Empty = {"id":0, "w":0, "depth":0, "sibling":-1,"parent":-1,"firstchild":-1};
-	TimerArray = [];
-	TimerArray.push(Empty);
-	WidthArray = [];
-	CounterArray = [];
-	WidthArray[TYPE_NONE] = 0;
-	WidthArray[TYPE_TIMER] = 0;
-	WidthArray[TYPE_GROUP] = 0;
-	WidthArray[TYPE_CATEGORY] = 0;
-	WidthTree = FontWidth;
-	SymbolState = null;
-	FunctionQueryPending = 0;
-	FunctionQueryReceived = 0;
-	FunctionQueryLastRequest = 0;
-	FunctionsInstrumented = [];
-	FunctionsInstrumentedModule = [];
-	FunctionsInstrumentedUnmangled = [];
-
-	FilterInputTimersValue = "";
-	FilterInputGroupsValue = "";
-	FilterInputFunctionsValue = "";
-	FilterInput.value = "";
-	FunctionQueryArray = [];
-	ModuleState = [];
-
-	ResetFrameData();
-	window.document.title = "MP:" + WSHost;
-
-	if(PresetToLoad && PresetToLoad != "")
-	{
-		LoadPreset(PresetToLoad, PresetToLoadRO);
-	}
-}
-
-function SplitIdTop(v)
-{
-	return v >> 24; // todo: verify
-}
-
-function SplitIdBottom(v)
-{
-	return v & 0xffffff; // todo: verify
-}
-
-function GetTimer(id)
-{
-	for(var i = 0; i < TimerArray.length; ++i)
-	{
-		if(TimerArray[i].id == id)
-		{
-			return i;
-		}
-	}
-	return null;
-}
-function IsGroup(id)
-{
-	var idx = GetTimer(id);
-	return TimerArray[idx].idtype == TYPE_GROUP;
-}
-
-function UpdateActive()
-{
-	GroupsEnabled = 0;
-	TimersEnabled = 0;
-	for(var i = 0; i < TimerArray.length; ++i)
-	{
-		var T = TimerArray[i];
-		if(T.e)
-		{
-			switch(T.idtype)
-			{
-				case TYPE_GROUP:
-					GroupsEnabled++;
-				break;
-				case TYPE_TIMER:
-					TimersEnabled++;
-				break;
-			}
-		}
-	}
-}
-function UpdateEnabledTimer(idx)
-{
-	UpdateActive();
-	var type = TimerArray[idx].idtype;
-	var enabled = TimerArray[idx].e;
-	if(TimerArray[idx].idtype != TYPE_TIMER)
-	{
-		return;
-	}
-	var AutoCaptureSourceValue = null;
-	if(AutoCaptureSourceIndex >= 0 && AutoCaptureSourceIndex < EnabledArray.length)
-	{
-		AutoCaptureSourceValue = EnabledArray[AutoCaptureSourceIndex];
-	}
-
-	var i = EnabledArray.indexOf(idx);
-	if(enabled)
-	{
-		if(i == -1)
-		{
-			EnabledArray.unshift(idx);
-		}
-	}
-	else
-	{
-		if(i != -1)
-		{
-			EnabledArray.splice(i, 1);
-		}
-	}
-	var NewIndex = AutoCaptureSourceValue != null ? EnabledArray.indexOf(AutoCaptureSourceValue) : -1;
-	AutoCaptureSourceIndex = NewIndex;
-}
-
-
-function EnableTimer(T)
-{
-	var idx = GetTimer(T.id);
-	if(idx != null && idx>=0)
-	{
-		TimerArray[idx].e = T.e;
-		UpdateEnabledTimer(idx);
-	}
-	else
-	{
-		console.log('unknown enable message');
-	}
-}
 function MeasureWidth(str)
 {
 	var context = CanvasDetailedView.getContext('2d');
 	return context.measureText(str).width;
-}
-function AddTimer(T)
-{
-	if(!T.color || T.color == "")
-	{
-		T.color = ColorFromString(T.name, 40, 50);
-	}
-	console.log("Added timer", T.name);
-	var idx = TimerArray.length;
-	var existing = GetTimer(T.id);
-	if(existing)
-	{
-		idx = existing;
-	}
-	else
-	{
-		TimerArray[idx] = T;
-	}
-	TimerArray[idx].time = 0;
-	TimerArray[idx].excl = 0;
-	TimerArray[idx].average = 0;
-	TimerArray[idx].max = 0;
-	TimerArray[idx].min = 0;
-	TimerArray[idx].total = 0;
-	TimerArray[idx].exclaverage = 0;
-	TimerArray[idx].exclmax = 0;
-	TimerArray[idx].excltotal = 0;
-	TimerArray[idx].spike = 0;
-	TimerArray[idx].callaverage = 0;
-	TimerArray[idx].callexclaverage = 0;
-	TimerArray[idx].callcount = 0;
-	var w = MeasureWidth(T.name);
-	var idtype = SplitIdTop(T.id);
-	var idelement = SplitIdBottom(T.id);
-	TimerArray[idx].idtype = idtype;
-	TimerArray[idx].idelement = idelement;
-	TimerArray[idx].w = w;
-	TimerArray[idx].wtree = w;
-	if(!existing)
-	{
-		TimerArray[idx].sibling = -1;
-		TimerArray[idx].parent = -1;
-		TimerArray[idx].firstchild = -1;
-	}
-	if(w > WidthArray[idtype])
-	{
-		WidthArray[idtype] = w;
-	}
-	UpdateEnabledTimer(idx);
-	var wparent = 0;
-	var pidx = GetTimer(T.pid);
-	if(pidx >= 0 && !existing)
-	{
-		TimerArray[idx].parent = pidx;
-		var Parent = TimerArray[pidx];
-		var Sibling = Parent.firstchild;
-		wparent = MeasureWidth(Parent.name);
-		Parent.firstchild = idx;
-		if(Sibling != -1)
-		{
-			if(TimerArray[Sibling].sibling == idx)
-			{
-				debugger;
-			}
-		}
-		TimerArray[idx].sibling = Sibling;
-		TimerArray[idx].wtree += Parent.depth * FontWidth;
-		TimerArray[idx].depth = Parent.depth + 1;
-		if(TimerArray[idx].wtree > WidthTree)
-		{
-			WidthTree = TimerArray[idx].wtree;
-		}
-		TimerArray[idx].sortkey = Parent.name + " __ " + T.name;
-	}
-	else
-	{
-		TimerArray[idx].sortkey = T.name;
-	}
-	TimerArray[idx].wparent = wparent;
-	TimerArray[idx].wtotal = wparent + w;
-
-	if(idtype == TYPE_COUNTER)
-	{
-		if(idelement != CounterArray.length)
-		{
-			debugger;
-		}
-		CounterArray.push(idx);
-		TimerArray[idx].formattedlimit = FormatCounter(TimerArray[idx].format, TimerArray[idx].limit);
-		CounterLimitWidth = Math.max(CounterLimitWidth, TimerArray[idx].formattedlimit.length * (FontWidth+1));
-		CounterNameWidth = Math.max(CounterNameWidth, (TimerArray[idx].name.length + 1 + TimerArray[idx].depth) * (FontWidth+1));
-		TimerArray[idx].counterhistory = {};
-		TimerArray[idx].counterhistory.history = AllocClearedArray(120);
-		TimerArray[idx].counterhistory.prc = AllocClearedArray(120);
-	}
-	if(idtype == TYPE_TIMER)
-	{
-		if(T.color == "#000000")
-		{
-			T.color = ColorFromString(T.name + "x" + Parent.name, 40, 50);
-		}
-
-	}
-	RequestDraw();
 }
 
 function AllocClearedArray(Size)
@@ -6431,646 +4243,6 @@ function PushIntoArray(A, v)
 {
 	A.shift();
 	A.push(v);
-}
-function ResetFrameData()
-{
-	FrameData = {};
-	FrameData.TimerMap = {};
-	FrameData.Time = AllocClearedArray(FRAME_COUNT);
-	FrameData.Ids = AllocClearedArray(FRAME_COUNT);
-	FrameData.Frozen = AllocClearedArray(FRAME_COUNT);
-	FrameData.ThreadTime = {};
-}
-function GetFrameData(id)
-{
-	if(FrameData.TimerMap[id])
-	{
-		return FrameData.TimerMap[id];
-	}
-	else
-	{
-		var FD = {};
-		FD.Count = AllocClearedArray(FRAME_COUNT);
-		FD.Time = AllocClearedArray(FRAME_COUNT);
-		FD.TimeExcl = AllocClearedArray(FRAME_COUNT);
-		FD.TimeMax = AllocClearedArray(AggregateHistorySize);
-		FD.TimeMin = AllocClearedArray(AggregateHistorySize);
-		FD.TimeAvg = AllocClearedArray(AggregateHistorySize);
-		FD.TimeExclMax = AllocClearedArray(AggregateHistorySize);
-		FD.TimeExclMin = AllocClearedArray(AggregateHistorySize);
-		FD.TimeExclAvg = AllocClearedArray(AggregateHistorySize);
-		FD.TimeCallAvg = AllocClearedArray(AggregateHistorySize);
-		FD.TimeCallExclAvg = AllocClearedArray(AggregateHistorySize);
-		FD.TimeTotal = AllocClearedArray(AggregateHistorySize);
-		FD.TimeExclTotal = AllocClearedArray(AggregateHistorySize);
-		FD.CallCount = AllocClearedArray(AggregateHistorySize);
-		FD.Percentile = new Float32Array(PERCENTILE_SAMPLES);
-		FD.Percentile.fill(0.0);
-		FD.PercentileMax = -1e38;
-		FD.PercentileMin = 1e38;
-		FD.PercentileCount = 0;
-		FD.EmptyFrames = 0;
-
-
-		FD.AggregateFrames = 0;
-		FD.FrameTime = 0.0;
-		FD.Aggregate = 0;
-		FD.AggregateTime = 0.0;
-		FD.AggregateSum = 0;
-		FD.AggregateMax = 0;
-		FD.AggregateMin = C_HUGE;
-		FD.AggregateExclSum = 0;
-		FD.AggregateExclMax = 0;
-		FD.AggregateCount = 0;
-		FD.AggregateExclMin = C_HUGE;
-
-
-
-		FrameData.TimerMap[id] = FD;
-		return FD;
-	}
-}
-
-function ProcessCounters(C)
-{
-	for(var i = 0; i < CounterArray.length; ++i)
-	{
-		if(i > C.length)
-		{
-			debugger;
-		}
-		var idx = CounterArray[i];
-		var value = C[i];
-		var T = TimerArray[idx];
-		T.value = value;
-		if(T.minvalue == undefined)
-			T.minvalue = value;
-		else
-			T.minvalue = Math.min(T.minvalue, value);
-		if(T.maxvalue == undefined)
-			T.maxvalue = value;
-		else
-			T.maxvalue = Math.max(T.maxvalue, value);
-		T.formatted = FormatCounter(T.format, value);
-		var boxprc = 1.0;
-		var counterprc = 0;
-		if(T.limit)
-		{
-			counterprc = value / T.limit;
-			if(counterprc > 1.0)
-			{
-				boxprc = 1.0 / counterprc;
-				counterprc = 1.0;
-			}
-			counterprc = Math.max(counterprc, 0.0);
-
-		}
-		T.boxprc = boxprc;
-		T.counterprc = counterprc;
-		PushIntoArray(T.counterhistory.history, value);
-		var prc = T.maxvalue > T.minvalue ? (value - T.minvalue) / (T.maxvalue - T.minvalue) : 0.0;
-		PushIntoArray(T.counterhistory.prc, prc);
-		CounterValueWidth = Math.max(CounterValueWidth, T.formatted.length * (FontWidth+1));
-	}
-
-}
-
-
-function ProcessFrame(F, Inactive)
-{
-	ProfileEnter("ProcessFrame");
-	if(F.s)
-	{
-		if(F.s.l == F.s.r)
-		{
-			if(FunctionQueryPending)
-			{
-				var Req = ++FunctionQueryLastRequest;
-				var Q = "q" + Req + "x" + FunctionQueryPending;
-				WSSendMessage(Q);
-				FunctionQueryPending = null;
-			}
-		}
-		SymbolState = F.s;
-		if(F.M)
-		{
-			ModuleState = F.M;
-		}
-		MenuItems[SubMenuFunctions].visible = function(){return true;};
-		MenuItems[SubMenuModules].visible = function(){return true;};
-	}
-	else
-	{
-		MenuItems[SubMenuFunctions].visible = function(){return false;};
-		MenuItems[SubMenuModules].visible = function(){return false;};
-	}
-	if(F.fr)
-	{
-		IsFrozen = 10;//allow it to stabilize after freezing
-		ProfileLeave();
-		return;
-	}
-	if(IsFrozen)
-	{
-		IsFrozen--;
-	}
-	if(!Inactive)
-	{
-		var TriggerAutoCapture = 0;
-		PushIntoArray(FrameData.Time, F.t);
-		PushIntoArray(FrameData.Ids, F.f);
-		PushIntoArray(FrameData.Frozen, IsFrozen ? 1 : 0);
-		var CaptureId = null;
-		var AutoCapture = AutoCaptureEnabled && !IsFrozen;
-		AggregateCurrent = F.a;
-		if(F.m != Settings.ViewActive)
-		{
-			WSSendMessage("v" + Settings.ViewActive);
-		}
-		if(AutoCapture > 0 && null == CaptureTriggerTime && AutoCaptureCooldown < 0)
-		{
-			if(AutoCaptureSourceIndex == -1 && F.t > Settings.AutoCaptureTheshold)
-			{
-				AutoCaptureEnabled -= 1;
-				TriggerAutoCapture = 1;
-			}
-			else if(AutoCaptureSourceIndex >= 0 && AutoCaptureSourceIndex < EnabledArray.length)
-			{
-				var id = TimerArray[EnabledArray[AutoCaptureSourceIndex]].id;
-				var Data = F.x[id];
-				if(Data && Data[0])
-				{
-				 	if(Data[0] > Settings.AutoCaptureTheshold)
-				 	{
-				 		TriggerAutoCapture = 1;
-				 		AutoCaptureEnabled -= 1;
-						console.log('trigger capture! ', Data[0], ' ', Settings.AutoCaptureTheshold);
-				 	}
-				}
-			}
-		}
-		AutoCaptureCooldown = AutoCaptureCooldown - 1;
-
-		var GraphTimeMax = 0;
-		var GraphTimeGroupMax = 0;
-		var HistoryTimeMax = 0;
-
-		for(var i = 0; i < FrameData.Time.length; ++i)
-		{
-			if(0 == FrameData.Frozen[i])
-			{
-				HistoryTimeMax = HistoryTimeMax > FrameData.Time[i] ? HistoryTimeMax : FrameData.Time[i];
-			}
-		}
-		var FindMaxTime = function(A, bIsGroup)
-		{
-			var MaxTime = 0;
-			for(var i = 0; i < A.length; ++i)
-			{
-				if(0 == FrameData.Frozen[i])
-				{
-					MaxTime = MaxTime > A[i] ? MaxTime : A[i];
-				}
-			}
-			if(bIsGroup)
-				GraphTimeGroupMax = MaxTime > GraphTimeGroupMax ? MaxTime : GraphTimeGroupMax;
-			else
-				GraphTimeMax = MaxTime > GraphTimeMax ? MaxTime : GraphTimeMax;
-			return MaxTime;
-		};
-		function SetAggregateTimersInArray(FD, id)
-		{
-			var idx = GetTimer(id);
-			var Pos = AggregateHistorySize-1;
-			var T = TimerArray[idx];
-
-			T.max = FD.TimeMax[Pos];
-			T.total = FD.TimeTotal[Pos];
-			T.excltotal = FD.TimeExclTotal[Pos];
-			T.min = FD.TimeMin[Pos];
-			T.spike = (T.average == 0 || T.max == 0) ? 0 : (100*T.max/T.average);
-			T.callaverage = FD.TimeCallAvg[Pos];
-			T.callcount = FD.CallCount[Pos];
-			T.callexclaverage = FD.TimeCallExclAvg[Pos];
-			T.exclaverage = FD.TimeExclAvg[Pos];
-			T.exclmax = FD.TimeExclMax[Pos];
-			T.exclmin = FD.TimeExclMin[Pos];
-			T.average = FD.TimeAvg[Pos];
-		};
-		function SetTimersInArray(FD, id)
-		{
-			var idx = GetTimer(id);
-			var Pos = FD.Time.length-1;
-			var T = TimerArray[idx];
-			T.time = FD.Time[Pos];
-			T.excl = FD.TimeExcl[Pos];
-			T.count = FD.Count[Pos];
-
-		};
-
-		let UpdateFrameDataInternal = function(id, Time, TimeExcl, Count, bIsGroup)
-		{
-
-			let FD = GetFrameData(id);
-			if(!IsFrozen)
-			{
-				ProfileEnter("PercentileAccum");
-				FD.PercentileMax = Math.max(FD.PercentileMax, Time);
-				FD.PercentileMin = Math.min(FD.PercentileMin, Time);
-				FD.PercentileCount += 1;
-				if(Time > FD.Percentile[0])
-				{
-					FD.Percentile[0] = Time;
-					FD.Percentile.sort( function(a,b){return a - b;} );
-				}
-				ProfileLeave();
-			}
-			PushIntoArray(FD.Time, Time);
-			PushIntoArray(FD.TimeExcl, TimeExcl);
-			PushIntoArray(FD.Count, Count);
-			FD.historymax = FindMaxTime(FD.Time, bIsGroup);
-
-			if((FD.Aggregate > Settings.AggregateFrames && Settings.AggregateFrames > 0) || AggregateCurrent == 0)
-			{
-				SetAggregateTimersInArray(FD, id);
-				FD.Aggregate = 0;
-				FD.AggregateSum = 0;
-				FD.AggregateMax = 0;
-				FD.AggregateMin = C_HUGE;
-				FD.AggregateExclSum = 0;
-				FD.AggregateExclMax = 0;
-				FD.AggregateExclMin = C_HUGE;
-				FD.AggregateCount = 0;
-
-				FD.TimeMax.shift();
-				FD.TimeMax.push(0);
-
-				FD.TimeMin.shift();
-				FD.TimeMin.push(0);
-
-				FD.TimeAvg.shift();
-				FD.TimeAvg.push(0);
-
-				FD.TimeCallAvg.shift();
-				FD.TimeCallAvg.push(0);
-
-				FD.TimeCallExclAvg.shift();
-				FD.TimeCallExclAvg.push(0);
-
-				FD.CallCount.shift();
-				FD.CallCount.push(0);
-
-				FD.TimeTotal.shift();
-				FD.TimeTotal.push(0);
-
-				FD.TimeExclTotal.shift();
-				FD.TimeExclTotal.push(0);
-
-				FD.TimeExclMax.shift();
-				FD.TimeExclMax.push(0);
-
-				FD.TimeExclMin.shift();
-				FD.TimeExclMin.push(0);
-
-				FD.TimeExclAvg.shift();
-				FD.TimeExclAvg.push(0);
-			}
-
-			FD.Aggregate += 1;
-			FD.AggregateSum += Time;
-			FD.AggregateMax = FD.AggregateMax > Time ? FD.AggregateMax : Time;
-			FD.AggregateMin = FD.AggregateMin < Time ? FD.AggregateMin : Time;
-			FD.AggregateExclSum += TimeExcl;
-			FD.AggregateExclMax = FD.AggregateExclMax > TimeExcl ? FD.AggregateExclMax : TimeExcl;
-			FD.AggregateExclMin = FD.AggregateExclMin < TimeExcl ? FD.AggregateExclMin : TimeExcl;
-			FD.AggregateCount += Count;
-			var UpdatePos = AggregateHistorySize-1;
-			if(UpdatePos != FD.TimeMax.length - 1)
-			{
-				debugger;
-			}
-
-			FD.TimeMax[UpdatePos] = FD.AggregateMax;
-			FD.TimeMin[UpdatePos] = FD.AggregateMin;
-			FD.TimeAvg[UpdatePos] = FD.AggregateSum / FD.Aggregate;
-			FD.TimeCallAvg[UpdatePos] = FD.AggregateCount ? FD.AggregateSum / FD.AggregateCount : 0;
-			FD.TimeCallExclAvg[UpdatePos] = FD.AggregateCount ? FD.AggregateExclSum / FD.AggregateCount : 0;
-			FD.TimeTotal[UpdatePos] = FD.AggregateSum;
-			FD.TimeExclTotal[UpdatePos] = FD.AggregateExclSum;
-			FD.CallCount[UpdatePos] = FD.AggregateCount;
-			FD.TimeExclAvg[UpdatePos] = FD.Aggregate ? FD.AggregateExclSum / FD.Aggregate : 0;
-			FD.TimeExclMax[UpdatePos] = FD.AggregateExclMax;
-			FD.TimeExclMin[UpdatePos] = FD.AggregateExclMin;
-
-			if(Settings.AggregateFrames <= 0)
-			{
-				SetAggregateTimersInArray(FD, id);
-			}
-			SetTimersInArray(FD, id);
-		};
-
-		for(var id in F.x)
-		{
-			var Data = F.x[id];
-			var Time = Data[0];
-			var TimeExcl = Data[1];
-			var Count = Data[2];
-			UpdateFrameDataInternal(id, Data[0], Data[1], Data[2]);
-		}
-
-		var groups = {};
-		for(var i = 0; i < F.g.length; ++i)
-		{
-			var id = F.gi[i];
-			groups[id] = 1;
-			var t = F.g[i];
-			UpdateFrameDataInternal(id, t[0], t[1], t[2], 1);
-		}
-
-		let UpdateThreadInfo = function(o)
-		{
-			let sn = SanitizeString(o.n);
-			let TI = ThreadInfo[sn];
-			if(!TI)
-			{
-				TI = { ids:o.gi, a:[], n:o.n, sn:sn };
-				for(let i = 0; i < TI.ids.length; ++i)
-				{
-					TI.a.push(AllocClearedArray(FRAME_COUNT));
-				}
-				ThreadInfo[sn] = TI;
-			}
-			for(let i = 0; i < o.gi.length; ++i)
-			{
-				let id = o.gi[i];
-				let t = o.g[i][1];
-				let te = FrameData.Time[FrameData.Time.length-1];
-				if(t > te)
-				{
-					console.log("fail!");
-					// debugger;
-				}
-				let idx = TI.ids.indexOf(id);
-				if(-1 == idx)
-				{
-					TI.ids.push(id);
-					let a = AllocClearedArray(FRAME_COUNT);
-					a[a.length-1] = o.g[i][1];
-					TI.a.push(a);
-				}
-				else
-				{
-					let l = TI.a[idx].length;
-					TI.a[idx][l-1] = o.g[i][1];
-				}
-			}
-		};
-		if(F.gt && F.gt.length)
-		{
-			for(let key in ThreadInfo)
-			{
-				let TI = ThreadInfo[key];
-				for(let i = 0; i < TI.a.length; ++i)
-				{
-					PushIntoArray(TI.a[i], 0);
-				}
-			}
-
-
-			for(let i = 0; i < F.gt.length; ++i)
-			{
-				let o = F.gt[i];
-				UpdateThreadInfo(o);
-			}
-		}
-
-
-
-		var ToDelete = new Array();
-		for(var id in FrameData.TimerMap)
-		{
-			let FD = FrameData.TimerMap[id];
-			if(!F.x[id] && !groups[id])
-			{
-				PushIntoArray(FD.Time,0.0);
-				PushIntoArray(FD.TimeExcl, 0.0);
-				PushIntoArray(FD.Count, 0);
-				FindMaxTime(FD.Time);
-				FD.EmptyFrames++;
-			}
-			else
-			{
-				FD.EmptyFrames = 0;
-			}
-			FD.FrameTime = FD.Time[FD.Time.length-1]; //Fix her..?
-			FD.AggregateTime = FD.Time[FD.Time.length-1];
-
-			if(FD.EmptyFrames == FD.Time.length)
-			{
-				ToDelete.push(id);
-			}
-		}
-		for(var i = 0; i < ToDelete.length; ++i)
-		{
-			delete FrameData.TimerMap[ToDelete[i]];
-		}
-		FramePending++;
-
-
-		if(TriggerAutoCapture)
-		{
-			Capture();
-		}
-		ReferenceGraphAutomaticGroup = 1.05 * GraphTimeGroupMax;
-		ReferenceGraphAutomatic = 1.05 * GraphTimeMax;
-		ReferenceHistoryAutomatic = 1.05 * HistoryTimeMax;
-	}
-	RequestDraw();
-	ProfileLeave();
-}
-
-function WSMessage(event)
-{
-	// console.log(event.data);
-	var Obj = JSON.parse(event.data);
-	WSReceive++;
-	WSReceiveBytes += event.data.length;
-	var k = Obj.k;
-	if(k == MSG_TIMER_TREE)
-	{
-		AddTimer(Obj.v);
-	}
-	else if(k == MSG_ENABLED)
-	{
-		EnableTimer(Obj.v);
-	}
-	else if(k == MSG_FRAME)
-	{
-		ProcessFrame(Obj.v);
-	}
-	else if(k == MSG_LOADSETTINGS)
-	{
-		OnLoadPreset(Obj.v, 1, Obj.ro);
-	}
-	else if(k == MSG_CURRENTSETTINGS)
-	{
-		OnLoadPreset(Obj.v, 0, Obj.ro);
-	}
-	else if(k == MSG_PRESETS)
-	{
-		AddPresets(Obj.v);
-	}
-	else if(k == MSG_COUNTERS)
-	{
-		ProcessCounters(Obj.v);
-	}
-	else if(k == MSG_FUNCTION_RESULTS)
-	{
-		FunctionQueryPending = null;
-		if(FunctionQueryReceived< Obj.q)
-		{
-			FunctionQueryArray = Obj.v;
-			FunctionQueryReceived = Obj.q;
-			console.log('got result from query ' + Obj.q);
-		}
-		else
-		{
-			console.log('ignored result from query ' + Obj.q);
-		}
-
-
-	}
-	else if(k == MSG_INACTIVE_FRAME)
-	{
-		ProcessFrame(Obj.v, 1);
-	}
-	else if(k == MSG_FUNCTION_NAMES)
-	{
-		for(var i = 0; i < Obj.v.length; ++i)
-		{
-			FunctionsInstrumented.push(Obj.v[i][0]);
-			FunctionsInstrumentedModule.push(Obj.v[i][1]);
-			FunctionsInstrumentedUnmangled.push(Obj.v[i][2]);
-
-		}
-	}
-	else if(k == MSG_INSTRUMENT_ERROR)
-	{
-		var D = Obj.v.data;
-		var F = Obj.v.functions;
-		var ASM_SERVER = "http://microprofileasm.zapto.org";
-		var url = ASM_SERVER + "/add/" + Obj.v.version + "/";
-		console.log(JSON.stringify(D));
-		console.log(JSON.stringify(F));
-		for(var i = 0; i < D.length; ++i)
-		{
-			url = url + D[i].code + "/";
-		}
-		var s = "Failed to instrument the following functions:\n";
-
-		for(var i = 0; i < F.length; ++i)
-		{
-			s = s + F[i] + "\n";
-		}
-		s = s + "\n\nPlease click \"OK\"to report the failed code segments\n"
-		s = s + "this will open the following url in a hidden frame\n"
-		s = s + url;
-		s = s + "\n-No additional data will be sent\n-No symbol names will be sent";
-		s = s + "\n[this popup can be auto-denied or auto-accepted from the settings menu]";
-		if(Cookie.CodeReportMode != 2)
-		{
-			if(Cookie.CodeReportMode == 1 || confirm(s))
-			{
-				var iframe = document.createElement("iframe");
-				iframe.onload = function(){document.body.removeChild(iframe); console.log("removed iframe");};
-				console.log("opening url " + url);
-				iframe.setAttribute("src", url);
-				iframe.style.width = "100x";
-				iframe.style.height = "100px";
-				document.body.appendChild(iframe);
-			}
-		}
-		console.log("got error "+ JSON.stringify(Obj.v));
-	}
-	// else if(k == MSG_MODULE_NAME)
-	// {
-	// 	console.log("MODULENAME..\n");
-	// 	console.log(JSON.stringify(Obj.v));
-	// 	ModuleState = Obj.v;
-
-	// }
-	else
-	{
-		console.log('hest!');
-	}
-
-}
-function WSError(event)
-{
-	console.log('WSError');
-}
-function WSClose(event)
-{
-	console.log('WSClose');
-	WSIsOpen = 0;
-	window.document.title = "MicroProfile Live";
-	FilterInputDiv.style['display'] = 'none';
-}
-function WSSendMessage(msgid)
-{
-	if(WSIsOpen)
-	{
-		var str = '' + msgid;
-		WSSend++;
-		WSSendBytes += str.length;
-		WS.send(str);
-	}
-	else
-	{
-		if(msgid[0] == 'c')
-		{
-			console.log('failing to send ' + msgid);
-		}
-	}
-}
-
-
-function Connect()
-{
-	return;
-	if(WS && (WS.readyState == 1 || WS.readyState == 0))
-	{
-		WSConnected = WS.readyState == 1;
-		WSFail = 0;
-		WSSeconds = 0;
-	}
-	else
-	{
-		WSConnected = 0;
-		WSSeconds = (new Date() - WSOpenTime);
-		if(!WS || WSSeconds > 2000)
-		{
-			if(WS)
-			{
-				WS.close();
-				WS = null;
-			}
-			WSOpenTime = new Date();
-			WSPath = "ws://" + WSHost + ":" + WSPort + "/ws";
-			SetMessage('Connecting to ' + WSPath,5 * 1000, 1);
-			WS = new WebSocket(WSPath);
-			WS.onopen = WSOpen;
-			WS.onmessage = WSMessage;
-			WS.onerror = WSError;
-			WS.onclose = WSClose;
-			WSFail = 0;
-		}
-		else
-		{
-			WSFail++;
-		}
-	}
-	RequestDraw();
 }
 
 
@@ -7379,6 +4551,7 @@ function MouseOut(evt)
 
 function ZoomGraph(nZoom)
 {
+	gGraphCSVInvalid = 1;
 	let fOldRange = gRange;
 	let nModDown = 0;
 	if(nZoom>0)
@@ -7438,50 +4611,16 @@ function KeyUp(evt)
 		{
 			ProfileMode = !ProfileMode;
 		}
-		if(k == 191)
-		{
-			WSPort++;
-			if(WSPort > 1338+2)
-			{
-				WSPort = 1338;
-			}
-			if(WS)
-			{
-				WS.close();
-				WS = null;
-			}
-		}
 		if(k == 32)
 		{
-			if(0) //for debugging.
-			{
-				console.log("FrameData =");
-				console.log(JSON.stringify(FrameData));
-				console.log("TimerArray =");
-				console.log(JSON.stringify(TimerArray));
-			}
-			WSSendMessage("f");
-
 			CSVActiveSet = (CSVActiveSet + 1) % (CSVNumSets+1);
+			gGraphCSVInvalid = 1;
 		}
-		if(k == 88)
-		{
-			ToggleView();
-		}
-		if(k == 13)
-		{
-			TriggerCapture();
-		}
-		if(k == 72)
-		{
-			ShowHelp(0, 1);
-		}
-
-
 	}
 	if(k >= 49 && k < 49 + MAX_GRAPHS)
 	{
 		NumGraphs = (k-49) + 1;
+		gGraphCSVInvalid = 1;
 	}
 	if(k == 27)
 	{
@@ -7497,11 +4636,6 @@ function KeyUp(evt)
 		MouseDragActiveXStart = MouseDragActiveXEnd = -1;
 		Settings.SortColumnName = "";
 		ShowHelp(0);
-	}
-	if(k == 192)
-	{
-		Settings.ViewCompressed = Settings.ViewCompressed ? 0 : 1;
-		ResizeCanvas();
 	}
 
 	if(evt.keyCode == 17)
@@ -7737,198 +4871,7 @@ function FormatCounter(Format, Counter)
 	}
 	return '?';
 }
-function DrawCounterView(View, LocalMouseX, LocalMouseY, SubIndex)
-{
-	var TimerMap = FrameData.TimerMap;
-	if(!TimerMap)
-		return;
 
-
-	ProfileEnter("DrawCounterView");
-
-	var Canvas = View.Canvas[View.BackBuffer];
-	var context = Canvas.getContext('2d');
-	context.clearRect(0, 0, View.w, View.h);
-
-
-
-	var Height = BoxHeight;
-	var Width = nWidth;
-	var nTotalRows = CounterArray.length;
-	var nTotalRowPixels = nTotalRows * Height;
-	var nFrameRows = nHeight - BoxHeight;
-	if(nOffsetCountersY + nFrameRows > nTotalRowPixels && nTotalRowPixels > nFrameRows)
-	{
-		nOffsetCountersY = nTotalRowPixels - nFrameRows;
-	}
-	var CounterWidth = 150;
-	var Y = -nOffsetCountersY + BoxHeight;
-	var X = 0;
-	var nColorIndex = 0;
-	context.fillStyle = 'white';
-	context.font = Font;
-	var bMouseIn = 0;
-	function DrawHeaderSplitSingle(Header, Width)
-	{
-		context.fillStyle = 'white';
-		context.fillText(Header, X, Height-FontAscent);
-		X += Width;
-		context.fillStyle = nBackColorOffset;
-		context.fillRect(X-3, 0, 1, nHeight);
-	}
-	function DrawHeaderSplitSingleRight(Header, Width)
-	{
-		X += Width;
-		context.fillStyle = 'white';
-		context.textAlign  = 'right';
-		context.fillText(Header, X - FontWidth, Height-FontAscent);
-		context.fillStyle = nBackColorOffset;
-		context.fillRect(X, 0, 1, nHeight);
-		context.textAlign  = 'left';
-	}
-	var TimerLen = 6;
-	var TimerWidth = TimerLen * FontWidth;
-	nHoverCounter = -1;
-	function CounterIndent(Level)
-	{
-		return Level * 4 * FontWidth;
-	}
-	function Max(a, b)
-	{
-		return a > b ? a : b;
-	}
-
-	function DrawCounterRecursive(Index)
-	{
-		var Counter = TimerArray[Index];
-		if(Counter.idtype == TYPE_COUNTER)
-		{
-			var Indent = CounterIndent(Counter.depth-1);
-			var X = 0;
-			nColorIndex = 1-nColorIndex;
-			var HeightExpanded = Counter.Expanded ? Height * 5 : Height;
-
-			bMouseIn = LocalMouseY >= Y && LocalMouseY < Y + HeightExpanded;
-			if(bMouseIn)
-			{
-				nHoverCounter = Index;
-			}
-			var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-			context.fillStyle = bgcolor;
-			context.fillRect(0, Y, Width, HeightExpanded);
-			context.fillStyle = 'white';
-			var c = Counter.closed ? '*' : ' ';
-			context.fillText(c + Counter.name, Indent, Y+Height-FontAscent);
-			X += CounterNameWidth;
-			X += CounterValueWidth - FontWidth;
-			context.textAlign = 'right';
-			context.fillText(Counter.formatted, X, Y+Height-FontAscent);
-			context.textAlign = 'left';
-			X += FontWidth * 4;
-			var Y0 = Y + 1;
-			if(Counter.limit != 0)
-			{
-				context.fillText(Counter.formattedlimit, X, Y+Height-FontAscent);
-				X += CounterLimitWidth;
-				var X0 = X + 1;
-				context.fillStyle = 'white';
-				context.fillRect(X0, Y0, Counter.boxprc * (CounterWidth-2), Height-2);
-				context.fillStyle = bgcolor;
-				context.fillRect(X0+1, Y0+1, Counter.boxprc * (CounterWidth-4), Height-4);
-				context.fillStyle = 'cyan';
-				context.fillRect(X0+1, Y0+1, Counter.counterprc * (CounterWidth-4), Height-4);
-				X += CounterWidth + 10;
-			}
-			else
-			{
-				X += CounterLimitWidth;
-				X += CounterWidth + 10;
-			}
-
-			if(Counter.minvalue != Counter.maxvalue)
-			{
-				var CounterHistory = Counter.counterhistory;
-				var Prc = CounterHistory.prc;
-				context.fillStyle = 'cyan';
-				context.strokeStyle = 'cyan';
-				context.globalAlpha = 0.5;
-				context.beginPath();
-				var x = X;
-				var YBase = Y0 + HeightExpanded-1;
-				var YOffset = -(HeightExpanded-2);
-
-				context.moveTo(X, Y0);
-				for(var i = 0; i < Prc.length; ++i)
-				{
-					context.moveTo(x, YBase);
-					context.lineTo(x, YBase + Prc[i] * YOffset);
-					x += 1;
-				}
-				context.stroke();
-
-				x = X;
-				context.globalAlpha = 1.0;
-				context.beginPath();
-				context.moveTo(X, YBase);
-
-				for(var i = 0; i < Prc.length; ++i)
-				{
-					context.lineTo(x, YBase + Prc[i] * YOffset);
-					x += 1;
-				}
-				context.stroke();
-				if(bMouseIn)
-				{
-					var MouseGraphX = Math.floor(LocalMouseX - X);
-					if(MouseGraphX >= 0 && MouseGraphX < CounterHistory.history.length)
-					{
-						context.fillStyle = 'white';
-						var Formatted = FormatCounter(Counter.format, CounterHistory.history[MouseGraphX]);
-						context.fillText(Formatted, X, Y+Height-FontAscent);
-					}
-					context.strokeStyle = 'orange';
-					context.beginPath();
-					var CrossX = X + MouseGraphX;
-					var CrossY = YBase + Prc[MouseGraphX] * YOffset;
-					context.moveTo(CrossX-2, CrossY-2);
-					context.lineTo(CrossX+2, CrossY+2);
-					context.moveTo(CrossX+2, CrossY-2);
-					context.lineTo(CrossX-2, CrossY+2);
-					context.stroke();
-
-				}
-				X += Prc.length + 5;
-				context.fillStyle = 'white';
-				context.fillText( FormatCounter(Counter.format, Counter.minvalue), X, Y + Height - FontAscent);
-				X += CounterWidth + 5;
-				context.fillText( FormatCounter(Counter.format, Counter.maxvalue), X, Y + Height - FontAscent);
-				X += CounterWidth + 5;
-			}
-			Y += HeightExpanded;
-		}
-
-		if(Index == 0 || (!Counter.closed && Counter.idtype == TYPE_COUNTER))
-		{
-			var ChildIndex = Counter.firstchild;
-			while(ChildIndex != -1)
-			{
-				DrawCounterRecursive(ChildIndex);
-				ChildIndex = TimerArray[ChildIndex].sibling;
-			}
-		}
-	}
-
-	DrawCounterRecursive(0);
-
-	X = 0;
-	context.fillStyle = nBackColorOffset;
-	context.fillRect(0, 0, Width, Height);
-	context.fillStyle = 'white';
-	DrawHeaderSplitSingle('Name', CounterNameWidth);
-	DrawHeaderSplitSingleRight('Value', CounterValueWidth + (FontWidth+1));
-	DrawHeaderSplitSingle('Limit', CounterLimitWidth + CounterWidth + 3 * (FontWidth+1));
-	ProfileLeave();
-}
 
 function ShowHelp(Show, Toggle)
 {
@@ -8050,26 +4993,6 @@ function CreateGraph2Data(Samples, Name, Color, Mode, Samples2)
 }
 
 
-// for(let i in data)
-// 	{
-// 		let d = data[i];
-// 		MaxLen = Math.max(MaxLen, d.Samples.length);
-// 		for(let j in d.Samples)
-// 		{
-// 			MaxSample = Math.max(MaxSample, d.Samples[j]);
-// 			MinSample = Math.min(MinSample, d.Samples[j]);
-// 		}
-// 		if(d.Samples2)
-// 		{
-// 			for(let j in d.Samples2)
-// 			{
-// 				MaxSample = Math.max(MaxSample, d.Samples2[j]);
-// 				MinSample = Math.min(MinSample, d.Samples2[j]);
-// 			}
-// 		}
-// 	}
-
-
 function CreateDrawGraph2Parameters()
 {
 	let P = {};
@@ -8084,7 +5007,7 @@ function CreateDrawGraph2Parameters()
 	P.DrawMode = GRAPH_DRAW_FILLED;
 	P.xRange = 1;
 	P.xOffset = 0;
-
+	P.FullDraw = 1;
 	return P;
 }
 
@@ -8098,11 +5021,13 @@ function DrawGraph2(context, Parameters, data, Mouse)
 	let RangeMax = Parameters.RangeMax;
 	let xRangeFloat = Parameters.xRange;
 	let xOffsetFloat = Parameters.xOffset;
+	let FullDraw = Parameters.FullDraw;
 	let MaxLen = 0;
 	let MaxSample = 0;
 	let MinSample = 1e25;
 	let xOffset = 0;
 	let xRange = 0;
+
 
 	for(let i in data)
 	{
@@ -8194,7 +5119,10 @@ function DrawGraph2(context, Parameters, data, Mouse)
 	let MouseY = Mouse.Y-y;
 	let MouseInside = Mouse.X >= x && Mouse.Y >= y && Mouse.X < x + w && Mouse.Y < y + h;
 	let MouseXPrc = (Mouse.X - x) / (w-1);
-	context.clearRect(wx, wy, ww, wh);
+	if(FullDraw)
+	{
+		context.clearRect(wx, wy, ww, wh);
+	}
 
 	let SampleWidth = w / (xRange-1);
 	let MouseIndex = Math.max(0, Math.min(MaxLen-1, xOffset + Math.floor(MouseXPrc * xRange)));
@@ -8217,46 +5145,51 @@ function DrawGraph2(context, Parameters, data, Mouse)
 		context.globalAlpha = 1;
 		context.strokeStyle = LocalElement.Color;
 		context.fillStyle = LocalElement.Color;
-		context.beginPath();
-		for(let i = 0; i < xRange; ++i)
+		if(FullDraw)
 		{
-			let idx = xOffset + i;
-			Y = Math.max(YStart - Samples[idx] * HeightScale, y);
-			if(i == 0)
-				context.moveTo(X, Y);
-			else
-				context.lineTo(X, Y);
-			X += SampleWidth;
-
-		}
-
-		if(Mode == GRAPH_DRAW_SECTION)
-		{
-			if(!Samples2)
-				debugger;
-			let len = Samples2.length;
+			context.beginPath();
 			for(let i = 0; i < xRange; ++i)
 			{
-				X -= SampleWidth;
-				let I = xOffset + xRange - i - 1;
-				Y = Math.max(YStart - Samples2[I] * HeightScale, y);
-				context.lineTo(X, Y);
+				let idx = xOffset + i;
+				Y = Math.max(YStart - Samples[idx] * HeightScale, y);
+				if(i == 0)
+					context.moveTo(X, Y);
+				else
+					context.lineTo(X, Y);
+				X += SampleWidth;
+
 			}
-			context.globalAlpha = SECTION_ALPHA;
-			context.fill();
+
+			if(Mode == GRAPH_DRAW_SECTION)
+			{
+				if(!Samples2)
+					debugger;
+				let len = Samples2.length;
+				for(let i = 0; i < xRange; ++i)
+				{
+					X -= SampleWidth;
+					let I = xOffset + xRange - i - 1;
+					Y = Math.max(YStart - Samples2[I] * HeightScale, y);
+					context.lineTo(X, Y);
+				}
+				context.globalAlpha = SECTION_ALPHA;
+				context.fill();
+			}
+			else
+			{
+				context.stroke();
+				context.lineTo(X-SampleWidth, YStart);
+				context.lineTo(x, YStart);
+				if(Mode == GRAPH_DRAW_FILLED)
+				{
+					context.globalAlpha = GRAPH_ALPHA;
+					context.fill();
+				}
+			}
 		}
 		else
 		{
-			context.stroke();
-			context.lineTo(X-SampleWidth, YStart);
-			context.lineTo(x, YStart);
-			if(Mode == GRAPH_DRAW_FILLED)
-			{
-				context.globalAlpha = GRAPH_ALPHA;
-				context.fill();
-			}
-
-			if(MouseInside)
+			if(MouseInside && Mode != GRAPH_DRAW_SECTION)
 			{
 				let MouseSample = Samples[MouseIndex];
 				let Y = Math.max(YStart - MouseSample * HeightScale, y);
@@ -8276,100 +5209,118 @@ function DrawGraph2(context, Parameters, data, Mouse)
 			}
 		}
 
-
 	}
 	context.globalAlpha = 1;
 	context.fillStyle = 'wheat';
 	context.strokeStyle = 'wheat';
 	context.textAlign='right';
-	context.fillText(FormatNumber(RangeMax, Parameters.Digits) + Ext, x+w, y + FontHeight);
-	for(let m in Parameters.Mark)
+
+	if(FullDraw)
 	{
-		let Sample = Parameters.Mark[m];
-		if(Sample < MaxSample)
+		context.fillText(FormatNumber(RangeMax, Parameters.Digits) + Ext, x+w, y + FontHeight);
+		for(let m in Parameters.Mark)
 		{
-			let Y = YStart - Sample * HeightScale;
-			context.fillText(Sample + Ext, x+w, Y + FontHeight);
+			let Sample = Parameters.Mark[m];
+			if(Sample < MaxSample)
+			{
+				let Y = YStart - Sample * HeightScale;
+				context.fillText(Sample + Ext, x+w, Y + FontHeight);
+			}
 		}
-	}
 
 
-	context.globalAlpha = 0.4;
-	for(let m in Parameters.Mark)
-	{
-		let Sample = Parameters.Mark[m];
-		let Y = YStart - Sample * HeightScale;
-		if(Sample < MaxSample);
+		context.globalAlpha = 0.4;
+		for(let m in Parameters.Mark)
+		{
+			let Sample = Parameters.Mark[m];
+			let Y = YStart - Sample * HeightScale;
+			if(Sample < MaxSample);
+			{
+				context.beginPath();
+				context.moveTo(x-(Frame?5:0), Y);
+				context.lineTo(x+w, Y);
+				context.stroke();
+			}
+		}
+		context.globalAlpha = 1;
+		if(Frame)
 		{
 			context.beginPath();
-			context.moveTo(x-(Frame?5:0), Y);
-			context.lineTo(x+w, Y);
+			context.moveTo(x-5, YStart);
+			context.lineTo(x+w+5, YStart);
 			context.stroke();
-		}
-	}
-	context.globalAlpha = 1;
-	if(Frame)
-	{
-		context.beginPath();
-		context.moveTo(x-5, YStart);
-		context.lineTo(x+w+5, YStart);
-		context.stroke();
 
 
 
-		context.beginPath();
-		context.moveTo(x, YStart+5);
-		context.lineTo(x, YStart-h-5);
-		context.stroke();
+			context.beginPath();
+			context.moveTo(x, YStart+5);
+			context.lineTo(x, YStart-h-5);
+			context.stroke();
 
-		context.beginPath();
-		context.moveTo(x, YStart-h);
-		context.lineTo(x-5, YStart-h);
-		context.stroke();
+			context.beginPath();
+			context.moveTo(x, YStart-h);
+			context.lineTo(x-5, YStart-h);
+			context.stroke();
 
 
-		context.textAlign= "right";
-		context.fillText((xRange+xOffset) + '', x+w, YStart+FontHeight);
-		if(MouseDrawX)
-		{
 			context.textAlign= "right";
-			context.fillText((MouseIndex) + '', MouseDrawX, YStart+FontHeight);
+			context.fillText((xRange+xOffset) + '', x+w, YStart+FontHeight);
+			if(MouseDrawX)
+			{
+				context.textAlign= "right";
+				context.fillText((MouseIndex) + '', MouseDrawX, YStart+FontHeight);
+			}
+
+			context.textAlign= "left";
+			context.fillText(xOffset + '', x+2, YStart+FontHeight);
 		}
 
-		context.textAlign= "left";
-		context.fillText(xOffset + '', x+2, YStart+FontHeight);
-	}
 
-	let localindex = 0;
-	for(let dataindex = 0; dataindex < data.length; ++dataindex)
-	{
-		let LocalElement = data[dataindex];
-		if(LocalElement.Mode != GRAPH_DRAW_SECTION)
-		{
-			context.textAlign='left';
-			context.strokeStyle = LocalElement.Color;
-			context.fillStyle = LocalElement.Color;
-			context.fillText(LocalElement.Name, x+2, y + FontHeight * (localindex+1));
-			localindex++;
-		}
-	}
-
-	if(MouseInside)
-	{
-		ToolTipImmediate = new Array();
-		for(let dataindex in data)
+		let localindex = 0;
+		for(let dataindex = 0; dataindex < data.length; ++dataindex)
 		{
 			let LocalElement = data[dataindex];
 			if(LocalElement.Mode != GRAPH_DRAW_SECTION)
 			{
-				/// MAKE TOOLTIPS SHOW: MIN, MAX, AVG, Percentile, variance.
-				let Samples = LocalElement.Samples;
-				ToolTipImmediate.push(LocalElement.Name);
-				ToolTipImmediate.push("            " + Samples[MouseIndex].toFixed(4).slice(-12));
+				context.textAlign='left';
+				context.strokeStyle = LocalElement.Color;
+				context.fillStyle = LocalElement.Color;
+				context.fillText(LocalElement.Name, x+2, y + FontHeight * (localindex+1));
+				localindex++;
 			}
-
 		}
+
 	}
+	else
+	{
+		if(Frame)
+		{
+			if(MouseDrawX)
+			{
+				context.textAlign= "right";
+				context.fillText((MouseIndex) + '', MouseDrawX, YStart+FontHeight);
+			}
+		}
+
+		if(MouseInside)
+		{
+			ToolTipImmediate = new Array();
+			for(let dataindex in data)
+			{
+				let LocalElement = data[dataindex];
+				if(LocalElement.Mode != GRAPH_DRAW_SECTION)
+				{
+					/// MAKE TOOLTIPS SHOW: MIN, MAX, AVG, Percentile, variance.
+					let Samples = LocalElement.Samples;
+					ToolTipImmediate.push(LocalElement.Name);
+					ToolTipImmediate.push("            " + Samples[MouseIndex].toFixed(4).slice(-12));
+				}
+
+			}
+		}
+
+	}
+
 	ProfileLeave();
 }
 // Shared graph code end
@@ -8586,6 +5537,7 @@ function ParseCSVCheckFinished(Name)
 					break;
 			}
 			Set.Ready = true;
+			gGraphCSVInvalid = 1;
 			ActivateView(VIEW_CSV);
 			RequestDraw();
 		}
@@ -8799,14 +5751,8 @@ InitMenu();
 window.addEventListener("dragenter", WindowDragEnter);
 window.addEventListener("dragleave", WindowDragLeave);
 UpdateShowHelp(1);
-setInterval(Connect, 100);
 RequestDraw();
 
-//
-// delete other code
-//
-//
-// intro/help text
 //
 // tooltip
 // range selection + info
