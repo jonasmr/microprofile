@@ -155,6 +155,7 @@ var ToolTipCallback = null;
 let ToolTipImmediate = null;
 let ToolTipImmediateColumns = 2;
 
+
 var DPR = 0;
 var C_HUGE = 1e10;
 
@@ -406,11 +407,17 @@ let GraphButtonY = 0;
 let GraphModeButtonX = 0;
 let GraphModeButtonY = 0;
 
-let RangeSelect;
+let RangeSelect = RangeInit();
+let RangeSelectState = RangeInit();
+
+let RangeToolTipColumns = 4;
+let RangeToolTips = new Array(MAX_GRAPHS);
+
 
 for(let i = 0; i < MAX_GRAPHS; ++i)
 {
 	Graphs[i] = {};
+	RangeToolTips[i] = {};
 }
 
 
@@ -880,20 +887,77 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 		SetColors = 0;
 
 
-	let SetHueBase = [0.175, 0.85, 0.53];
-	let SetHueRange = [0.8, 0.14, 0.7];
+	let SetHueBase = [0.04, 0.30, 0.56];
+	let SetHueRange = [0.16, 0.15, 0.15];
 	let SetS = 96;
 	let SetV = 98;
 	let SetL = 50;
-
 	let MouseIndex = -1;
 	let SelectedGraphColumns;
+
+	let UpdateRangeTooltip = RangeValid(RangeSelect) && (RangeSelect.Begin != RangeSelectState.Begin || RangeSelect.End != RangeSelectState.End);
+	if(UpdateRangeTooltip)
+	{
+		RangeSelectState.Begin = RangeSelect.Begin;
+		RangeSelectState.End = RangeSelect.End;
+	}
+
+	let InitToolTip = function()
+	{
+		let tt = {};
+		let a = new Array();
+		let c = new Array();
+		tt.a = a;
+		tt.c = c;
+		a.push("");
+		a.push("Average");
+		a.push("Min");
+		a.push("Max");
+		return tt;
+	};
+	let ToolTipAdd = function(tt, Name, Color, Avg, Min, Max)
+	{
+		tt.c[tt.a.length] = Color;
+		tt.a.push(Name);
+		tt.a.push(FormatNumber(Avg, Params.Digits));
+		tt.a.push(FormatNumber(Min, Params.Digits));
+		tt.a.push(FormatNumber(Max, Params.Digits));
+
+
+	};
+
+	let ToolTipAddRange = function(tt, Name, Color, Avg_, Min_, Max_)
+	{
+		let Sum = 0;
+		let AvgSamples = Avg_.Samples;
+		let MinSamples = Min_.Samples;
+		let MaxSamples = Max_.Samples;
+		let Begin = Math.floor( 0.5 + RangeSelect.Begin);
+		let End = Math.floor(0.5 + RangeSelect.End);
+		let Min = MinSamples[Begin];
+		let Max = MaxSamples[Begin];
+		for(let i = Begin; i < End; ++i)
+		{
+			Min = Math.min(MinSamples[i], Min);
+			Max = Math.max(MaxSamples[i], Max);
+			Sum += AvgSamples[i];
+		}
+		let Avg = Sum / (End - Begin);
+		ToolTipAdd(tt, Name, Color, Avg, Min, Max);
+	};
+
+	let ttt = 0;
+
 	for(let i = 0; i < NumGraphs; ++i)
 	{
 		Params.Rect = WindowRect(0, y, w, GraphHeight);
 		let Data = [];
 		let GraphColumns = Graphs[i];
 		let GraphMode = GraphModeMask;
+
+		if(UpdateRangeTooltip)
+			RangeToolTips[i] = InitToolTip();
+
 		for(let SetIndex = 0; SetIndex < CSVSetNames.length; ++SetIndex)
 		{
 			if(SetIndex == (CSVActiveSet-1) || CSVActiveSet == 0)
@@ -908,6 +972,9 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 
 					if(GraphColumns[ColumnName] == 1 && Set.ColumnNames[ColumnName])
 					{
+						let ColumnPrc = (ColumnIndex % 5) / 4.0;
+						let h = (SetHueBase[SetIndex%3] + SetHueRange[SetIndex%3] * ColumnPrc) * 360;
+						let color = "hsl(" + h + "," + SetS + "%," + SetL + "%)";
 						for(let j = 0; j < 8; ++j)
 						{
 							if(0 != (GraphMode &(1<<j)))
@@ -931,15 +998,22 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 									src = Set.GraphDataPercentileMax[ColumnName];
 								if(SetColors)
 								{
-									let ColumnPrc = (ColumnIndex % 5) / 4.0;
-									let h = (SetHueBase[SetIndex%3] + SetHueRange[SetIndex%3] * ColumnPrc) * 360;
-									let color = "hsl(" + h + "," + SetS + "%," + SetL + "%)";
 									src.Color = color;
 								}
 								Data.push(src);
 							}
 						}
 						ColumnIndex++;
+						if(!SetColors)
+							color = Set.GraphDataAvg[ColumnName].Color;
+
+						if(UpdateRangeTooltip)
+						{
+							let t0 = performance.now();
+							ToolTipAddRange(RangeToolTips[i], ColumnName, color, Set.GraphDataAvg[ColumnName], Set.GraphDataMin[ColumnName], Set.GraphDataMax[ColumnName]);
+							let t1 = performance.now();
+							ttt += (t1-t0);
+						}
 					}
 				}
 			}
@@ -953,69 +1027,40 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 		}
 		y += GraphHeight;
 	}
+	if(ttt)
+	{
+		console.log("update time was ", ttt);
+	}
 
 	if(!FullUpdate)
 	{
-		var Offset = 0;
+		let Offset = 0;
+		let UpdateRangeTooltip = false;
+
 		if(RangeValid(RangeSelect))
 		{
 			Offset = DrawGraph2Range(context, Params, RangeSelect, '#59d0ff', '#00ddff', "Selection", Offset);
 		}
 
-
-	// var fBegin = Range.Begin;
-	// var fEnd = Range.End;
-	// var OffsetTop = Range.YBegin;
-	// var OffsetBottom = Range.YEnd;
-
-	// RangeSet(RangeSelect);
-	// RangeSet(RangeCpu);
-	// RangeSet(RangeGpu);
-	// var Offset = 0;
-	// Offset = DrawRange(context, RangeSelect, '#59d0ff', '#00ddff', "Selection", Offset);
-	// Offset = DrawRange(context, RangeCpu, '#009900', '#00ff00', "Cpu", Offset);
-	// Offset = DrawRange(context, RangeGpu, '#996600', '#775500', "Gpu", Offset);
-
-
-	}
-
-
-
-
-
-
-
-
-	if(!FullUpdate && MouseIndex >= 0)
-	{
-
-		ToolTipImmediateColumns = 4;
-		ToolTipImmediate = {};
-		let a = new Array();
-		let c = new Array();
-		ToolTipImmediate.a = a;
-		ToolTipImmediate.c = c;
-		a.push("");
-		a.push("Average");
-		a.push("Min");
-		a.push("Max");
-		for(let SetIndex = 0; SetIndex < CSVSetNames.length; ++SetIndex)
+		if(MouseIndex >= 0)
 		{
-			if(SetIndex == (CSVActiveSet-1) || CSVActiveSet == 0)
+
+			ToolTipImmediateColumns = 4;
+			ToolTipImmediate = InitToolTip();
+			for(let SetIndex = 0; SetIndex < CSVSetNames.length; ++SetIndex)
 			{
-				let SetName = CSVSetNames[SetIndex];
-				let Set = CSVSets[SetName];
-				if(!Set.Ready)
-					continue;
-				for(let ColumnName in SelectedGraphColumns)
+				if(SetIndex == (CSVActiveSet-1) || CSVActiveSet == 0)
 				{
-					if(SelectedGraphColumns[ColumnName] == 1 && Set.ColumnNames[ColumnName])
+					let SetName = CSVSetNames[SetIndex];
+					let Set = CSVSets[SetName];
+					if(!Set.Ready)
+						continue;
+					for(let ColumnName in SelectedGraphColumns)
 					{
-						c[a.length] = Set.GraphDataAvg[ColumnName].Color;
-						a.push(ColumnName);
-						a.push(FormatNumber(Set.GraphDataAvg[ColumnName].Samples[MouseIndex], Params.Digits));
-						a.push(FormatNumber(Set.GraphDataMin[ColumnName].Samples[MouseIndex], Params.Digits));
-						a.push(FormatNumber(Set.GraphDataMax[ColumnName].Samples[MouseIndex], Params.Digits));
+						if(SelectedGraphColumns[ColumnName] == 1 && Set.ColumnNames[ColumnName])
+						{
+							ToolTipAdd(ToolTipImmediate, ColumnName,  Set.GraphDataAvg[ColumnName].Color, Set.GraphDataAvg[ColumnName].Samples[MouseIndex], Set.GraphDataMin[ColumnName].Samples[MouseIndex], Set.GraphDataMax[ColumnName].Samples[MouseIndex]);
+						}
 					}
 				}
 			}
@@ -2882,6 +2927,7 @@ function DrawMenuGraph()
 					GraphSet[CName] = 1;
 			}
 			gGraphCSVInvalid = 1;
+			RangeInvalidate(RangeSelectState);
 		}
 	}
 	SizeInfo.h = M.y - SizeInfo.y;
@@ -4300,6 +4346,16 @@ function DrawActiveToolTip()
 				DrawToolTip(Strings, CanvasDetailedView, MouseX, MouseY, 2);
 			}
 		}
+
+	}
+	for(let i = 0; i < NumGraphs; ++i)
+	{
+		if(RangeToolTips[i] && RangeToolTips[i].a)
+		{
+			let yoffset = -BoxHeight * (RangeToolTips[i].a.length / RangeToolTipColumns) / 2;
+			DrawToolTip(RangeToolTips[i], CanvasDetailedView, nWidth, yoffset + (0.5 + i) * nHeight / NumGraphs, RangeToolTipColumns);
+
+		}
 	}
 	ToolTipCallback = null;
 }
@@ -4384,19 +4440,16 @@ function MouseHandleDrag()
 		{
 			if(MouseDragSelectRange() && SubMenuActive == -1)
 			{
-				console.log("Select Range 1");
 				var xStart = MouseDragXStart;
 				var xEnd = MouseDragX;
 				if(xStart > xEnd)
 				{
-					console.log("Select Range 2");
 					var Temp = xStart;
 					xStart = xEnd;
 					xEnd = Temp;
 				}
 				if(xEnd - xStart > 1)
 				{
-					console.log("Select Range 3");
 					MouseDragActiveXStart = xStart;
 					MouseDragActiveXEnd = xEnd;
 					let xOffset = gOffset * gRangeMaxLen;
@@ -4758,12 +4811,16 @@ function KeyUp(evt)
 		{
 			CSVActiveSet = (CSVActiveSet + 1) % (CSVNumSets+1);
 			gGraphCSVInvalid = 1;
+			RangeInvalidate(RangeSelectState);
+
 		}
 	}
 	if(k >= 49 && k < 49 + MAX_GRAPHS)
 	{
 		NumGraphs = (k-49) + 1;
 		gGraphCSVInvalid = 1;
+		RangeInvalidate(RangeSelectState);
+
 	}
 	if(k == 27)
 	{
@@ -4779,6 +4836,9 @@ function KeyUp(evt)
 		MouseDragActiveXStart = MouseDragActiveXEnd = -1;
 		Settings.SortColumnName = "";
 		RangeInvalidate(RangeSelect);
+		for(let i = 0; i < MAX_GRAPHS; ++i)
+			RangeToolTips[i] = {};
+
 		ShowHelp(0);
 	}
 
@@ -5816,6 +5876,7 @@ function ParseCSVCheckFinished(Name)
 			}
 			Set.Ready = true;
 			gGraphCSVInvalid = 1;
+			RangeInvalidate(RangeSelectState);
 			ActivateView(VIEW_CSV);
 			RequestDraw();
 		}
