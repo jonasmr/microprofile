@@ -79,12 +79,6 @@ Enter: Capture selection/Next N Frames
 <script>
 "use strict"
 
-
-// TODO:
-// ZOOM
-// Fixup multile different ranges
-// make super elaborate tooltip
-
 var FRAME_HISTORY_COLOR_CPU = '#ff7f27';
 var FRAME_HISTORY_COLOR_GPU = '#ffffff';
 
@@ -183,36 +177,36 @@ Settings.TargetTime = 30;
 var TargetTimeTweak = -1;
 
 
-var AggregateFrames = 60;
-Settings.AggregateFrames = 60;
-var AggregatePresets = [0, 10,20,30,60,90,120,500];
-var AggregateHistorySize = 5;
-var AggregateTweak = -1;
-var AggregateCurrent = 0;
+// var AggregateFrames = 60;
+// Settings.AggregateFrames = 60;
+// var AggregatePresets = [0, 10,20,30,60,90,120,500];
+// var AggregateHistorySize = 5;
+// var AggregateTweak = -1;
+// var AggregateCurrent = 0;
 
-var AutoCaptureCooldown = -1;
-var AutoCaptureEnabled = 0;
-var AutoCaptureDefaultThreshold = 66;
-Settings.AutoCaptureTheshold = AutoCaptureDefaultThreshold;
-Settings.AutoCaptureRepeat = 1;
-var AutoCaptureThesholdPresets = [1,3,5,10,15,30,50,66,90,100,250,500,1000];
-var AutoCaptureRepeatPresets = [1,2,3,4,5,6,7,8,9,10, 25, 50, 100];
-var AutoCaptureTweak = -1;
-var AutoCaptureRepeatTweak = -1;
-var AutoCaptureSourceTweak = -1;
-var AutoCaptureSourceIndex = -1;
+// var AutoCaptureCooldown = -1;
+// var AutoCaptureEnabled = 0;
+// var AutoCaptureDefaultThreshold = 66;
+// Settings.AutoCaptureTheshold = AutoCaptureDefaultThreshold;
+// Settings.AutoCaptureRepeat = 1;
+// var AutoCaptureThesholdPresets = [1,3,5,10,15,30,50,66,90,100,250,500,1000];
+// var AutoCaptureRepeatPresets = [1,2,3,4,5,6,7,8,9,10, 25, 50, 100];
+// var AutoCaptureTweak = -1;
+// var AutoCaptureRepeatTweak = -1;
+// var AutoCaptureSourceTweak = -1;
+// var AutoCaptureSourceIndex = -1;
 
-var CaptureFramesDefault = 30;
-Settings.CaptureFrames = CaptureFramesDefault;
-Settings.CaptureDelay = 0;
-var CaptureFramesPresets = [5,10,15,30,50,66,90,100];
-var CaptureDelayPresets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-var CaptureTweak = -1;
-var CaptureDelayTweak = -1;
+// var CaptureFramesDefault = 30;
+// Settings.CaptureFrames = CaptureFramesDefault;
+// Settings.CaptureDelay = 0;
+// var CaptureFramesPresets = [5,10,15,30,50,66,90,100];
+// var CaptureDelayPresets = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+// var CaptureTweak = -1;
+// var CaptureDelayTweak = -1;
 
-var CaptureTriggerTime = null;
-var CaptureTriggerTimeType = 0;
-var CaptureTriggerDelta = 0;
+// var CaptureTriggerTime = null;
+// var CaptureTriggerTimeType = 0;
+// var CaptureTriggerDelta = 0;
 
 let LastDropTarget = null;
 
@@ -240,7 +234,7 @@ function CreateEmptyFloatArray(Size)
 function FormatNumber(f, digits)
 {
 	if(digits >= 0)
-		 return ("             " + f.toFixed(digits)).slice(-12).trim();
+		 return f.toFixed(digits);
 	else
 		return f + "";
 }
@@ -380,6 +374,7 @@ var HelpFade;
 
 let gRange = 1;
 let gOffset = 0;
+let gRangeMaxLen = 1;
 let gGraphCSVInvalid = 1;
 
 // CSV Data
@@ -411,10 +406,14 @@ let GraphButtonY = 0;
 let GraphModeButtonX = 0;
 let GraphModeButtonY = 0;
 
+let RangeSelect;
+
 for(let i = 0; i < MAX_GRAPHS; ++i)
 {
 	Graphs[i] = {};
 }
+
+
 
 
 TimerArray.push(Empty); // 0 is root of tree
@@ -457,6 +456,37 @@ function ConvertHslToRGB(h, s, l) //from https://gist.github.com/mjackson/531125
 	return ("000000" + color.toString(16)).slice(-6);
 }
 
+function RangeInit()
+{
+	return {"Begin":-1, "End":-1, "YBegin":-1, "YEnd":-1, "Thread": -1 , "Index": -1, "Off": 0, "Second":0};
+}
+
+RangeSelect = RangeInit();
+
+function RangeValid(Range)
+{
+	return Range.Begin < Range.End;
+}
+
+function RangeInvalidate(Range)
+{
+	Range.Begin = -1;
+	Range.End = -1;
+}
+
+function RangeCopy(Dst, Src)
+{
+	Dst.Begin = Src.Begin;
+	Dst.End = Src.End;
+	Dst.YBegin = Src.YBegin;
+	Dst.YEnd = Src.YEnd;
+	Dst.Thread = Src.Thread;
+	Dst.Off = Src.Off;
+	Dst.Second = Src.Second;
+}
+
+
+
 function Plotf(str)
 {
 	PlotfArray.push(str);
@@ -465,6 +495,8 @@ function PlotfClear()
 {
 	PlotfArray = new Array();
 }
+
+
 
 function ProfileModeClear()
 {
@@ -826,6 +858,7 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 
 
 	let Params = CreateDrawGraph2Parameters();
+	Params.Ext = "";
 	Params.Digits = 5;
 	let Mouse = {};
 	Mouse.X = LocalMouseX;
@@ -920,6 +953,37 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 		}
 		y += GraphHeight;
 	}
+
+	if(!FullUpdate)
+	{
+		var Offset = 0;
+		if(RangeValid(RangeSelect))
+		{
+			Offset = DrawGraph2Range(context, Params, RangeSelect, '#59d0ff', '#00ddff', "Selection", Offset);
+		}
+
+
+	// var fBegin = Range.Begin;
+	// var fEnd = Range.End;
+	// var OffsetTop = Range.YBegin;
+	// var OffsetBottom = Range.YEnd;
+
+	// RangeSet(RangeSelect);
+	// RangeSet(RangeCpu);
+	// RangeSet(RangeGpu);
+	// var Offset = 0;
+	// Offset = DrawRange(context, RangeSelect, '#59d0ff', '#00ddff', "Selection", Offset);
+	// Offset = DrawRange(context, RangeCpu, '#009900', '#00ff00', "Cpu", Offset);
+	// Offset = DrawRange(context, RangeGpu, '#996600', '#775500', "Gpu", Offset);
+
+
+	}
+
+
+
+
+
+
 
 
 	if(!FullUpdate && MouseIndex >= 0)
@@ -1415,7 +1479,7 @@ function DrawCaptureMenu(context)
 
 function DrawRootGraphMenuElement(context)
 {
-	MouseInGraphButton = -1;
+	//MouseInGraphButton = -1;
 	MouseInGraphModeButton = -1;
 	if(!ShowMenu())
 	{
@@ -1439,7 +1503,7 @@ function DrawRootGraphMenuElement(context)
 		context.fillText(Text, XCenter, Y + FontHeight);
 		context.textAlign = '';
 
-		if(Inside)
+		if(Inside && MouseInGraphButton == -1)
 		{
 			MouseInGraphButton = i;
 			GraphButtonX = X + 4;
@@ -1545,7 +1609,6 @@ function UpdateX7Views()
 function DrawViews()
 {
 	Plotf("DrawViews");
-	//UpdateX7Views();
 	ProfileEnter("UpdateViews");
 	ViewIndex = 0;
 	for(let i = 0; i < Views.length; ++i)
@@ -1633,9 +1696,14 @@ function MakeMenuItem(name, f, visible)
 }
 function EnableMenu(m)
 {
+	if(MouseDragSelectRange())
+	{
+		return;
+	}
 	gGraphCSVInvalid = 1;
 	if(m != SubMenuActive)
 	{
+
 		if(SubMenuActive == SubMenuTimers)
 		{
 			FilterInputTimersValue = FilterInput.value;
@@ -4169,6 +4237,10 @@ function DrawMenu()
 		{
 			MenuRect = DrawMenuGraphMode();
 		}
+		if(SubMenuActive != SubMenuGraph)
+		{
+			MouseInGraphButton = -1;
+		}
 
 
 
@@ -4312,18 +4384,28 @@ function MouseHandleDrag()
 		{
 			if(MouseDragSelectRange() && SubMenuActive == -1)
 			{
+				console.log("Select Range 1");
 				var xStart = MouseDragXStart;
 				var xEnd = MouseDragX;
 				if(xStart > xEnd)
 				{
+					console.log("Select Range 2");
 					var Temp = xStart;
 					xStart = xEnd;
 					xEnd = Temp;
 				}
 				if(xEnd - xStart > 1)
 				{
+					console.log("Select Range 3");
 					MouseDragActiveXStart = xStart;
 					MouseDragActiveXEnd = xEnd;
+					let xOffset = gOffset * gRangeMaxLen;
+					let xRange = gRange * gRangeMaxLen;
+					RangeSelect.Begin = xOffset + xRange * (xStart / nWidth);
+					RangeSelect.End = xOffset + xRange * (xEnd / nWidth);
+					RangeSelect.YBegin = 0;
+					RangeSelect.YEnd = nHeight;
+
 				}
 			}
 			else if(MouseDragPan())
@@ -4605,9 +4687,6 @@ function MouseOut(evt)
 	MouseDrag(MouseDragOff, evt);
 	KeyCtrlDown = 0;
 	KeyShiftDown = 0;
-	// MouseDragButton = 0;
-	// nHoverToken = -1;
-	// RangeCpu = RangeInit();
 }
 function ClampRangeOffset()
 {
@@ -4699,6 +4778,7 @@ function KeyUp(evt)
 
 		MouseDragActiveXStart = MouseDragActiveXEnd = -1;
 		Settings.SortColumnName = "";
+		RangeInvalidate(RangeSelect);
 		ShowHelp(0);
 	}
 
@@ -4789,8 +4869,7 @@ function DrawToolTip(StringArray, Canvas, x, y, Columns)
 	let nMaxWidth = 0;
 	for(let i = 0; i < Columns; ++i)
 	{
-		if(i < Columns-1)
-			WidthColumn[i] += 10;
+		WidthColumn[i] += 10;
 		nMaxWidth += WidthColumn[i];
 	}
 	//bounds check.
@@ -4823,9 +4902,18 @@ function DrawToolTip(StringArray, Canvas, x, y, Columns)
 				context.fillStyle = colors[i+j];
 			else
 				context.fillStyle = 'white';
-
-			context.fillText(a[i+j], XLocal, YPos);
-			XLocal += WidthColumn[j];
+			if(j == 0)
+			{
+				context.textAlign = "left";
+				context.fillText(a[i+j], XLocal, YPos);
+				XLocal += WidthColumn[j];
+			}
+			else
+			{
+				XLocal += WidthColumn[j];
+				context.textAlign = "right";
+				context.fillText(a[i+j], XLocal, YPos);
+			}
 		}
 		YPos += BoxHeight;
 	}
@@ -5091,6 +5179,127 @@ function CreateDrawGraph2Parameters()
 	return P;
 }
 
+function DrawGraph2TextBox(context, text, x, y, align)
+{
+	let textsize = context.measureText(text).width;
+	let offsetx = 0;
+	let offsety = -FontHeight;
+	if(align == 'center')
+	{
+		offsetx = -textsize / 2.0;
+	}
+	else if(align == 'right')
+	{
+		offsetx = -textsize;
+	}
+	context.fillStyle = nBackColors[0];
+	context.fillRect(x + offsetx, y + offsety, textsize+2, FontHeight + 2);
+	context.fillStyle = 'white';
+	context.fillText(text, x, y);
+
+}
+
+
+function DrawGraph2Range(context, Params, Range, ColorBack, ColorFront, Name, Offset)
+{
+	if(!Offset)
+		Offset = 0;
+	var fBegin = Range.Begin;
+	var fEnd = Range.End;
+	var OffsetTop = Range.YBegin;
+	var OffsetBottom = Range.YEnd;
+
+	let xRange = gRange * gRangeMaxLen;
+	let xOffset = gOffset * gRangeMaxLen;
+
+	var Off = Range.Off + xOffset;
+	if(fBegin < fEnd)
+	{
+		var MarginTop = (1.0+Offset) * (FontHeight+1);
+		var MarginBottom = nHeight - (Offset+1.5) * (FontHeight+1);
+		if(OffsetTop < MarginTop)
+		{
+			Offset += 1;
+			OffsetTop = MarginTop;
+		}
+		if(OffsetBottom > MarginBottom)
+		{
+			OffsetBottom = MarginBottom;
+		}
+		var fRulerOffset = FontHeight * 0.5;
+		var fScaleX = nWidth / xRange;
+		var X = (fBegin - Off) * fScaleX;
+		var YSpace = (FontHeight+2);
+		var Y = OffsetTop;
+		var YBottom = OffsetBottom;
+		var W = (fEnd - fBegin) * fScaleX;
+		context.globalAlpha = 0.1;
+		context.fillStyle = ColorBack;
+		context.fillRect(X, OffsetTop + fRulerOffset, W, OffsetBottom - OffsetTop);
+		context.globalAlpha = 1;
+		context.strokeStyle = ColorFront;
+		context.beginPath();
+		context.moveTo(X, 0);
+		context.lineTo(X, nHeight);
+		context.moveTo(X+W, 0);
+		context.lineTo(X+W, nHeight);
+		context.stroke();
+		var Duration = (fEnd - fBegin).toFixed(0) + Params.Ext;
+		var Center = ((fBegin + fEnd) / 2.0) - Off;
+		var DurationWidth = context.measureText(Duration+ "   ").width;
+
+		context.fillStyle = 'white';
+		context.textAlign = 'right';
+		var TextPosY = Y + YSpace;
+		DrawGraph2TextBox(context, (fBegin-Range.Off).toFixed(0), X-3, TextPosY, 'right');
+		var YS = [Y, YBottom];
+		for(var i = 0; i < YS.length; ++i)
+		{
+			var Y = YS[i];
+			var Y0 = Y + fRulerOffset;
+			var W0 = W - DurationWidth + FontWidth*1.5;
+			if(W0 > 6)
+			{
+				context.textAlign = 'center';
+				DrawGraph2TextBox(context, Duration,Center * fScaleX, Y + YSpace, 'center');
+				W0 = W0 / 2.0;
+				var X0 = X + W0;
+				var X1 = X + W - W0;
+				context.strokeStyle = ColorFront;
+				context.beginPath();
+				context.moveTo(X, Y0);
+				context.lineTo(X0, Y0);
+				context.moveTo(X0, Y0-2);
+				context.lineTo(X0, Y0+2);
+				context.moveTo(X1, Y0-2);
+				context.lineTo(X1, Y0+2);
+				context.moveTo(X1, Y0);
+				context.lineTo(X + W, Y0);
+				context.stroke();
+			}
+			else
+			{
+				if(i == 1)
+				{
+					context.textAlign = 'right';
+					DrawGraph2TextBox(context, Duration, X - 3, Y0, 'right');
+					context.textAlign = 'left';
+					DrawGraph2TextBox(context, Duration, X + W + 2, Y0, 'left');
+				}
+				context.strokeStyle = ColorFront;
+				context.beginPath();
+				context.moveTo(X, Y0);
+				context.lineTo(X+W, Y0);
+				context.stroke();
+			}
+		}
+		context.textAlign = 'left';
+		DrawGraph2TextBox(context, (fEnd-Range.Off).toFixed(0), X + W + 2, TextPosY, 'left');
+		DrawGraph2TextBox(context, Name, X + W + 2, OffsetTop + YSpace + FontHeight, 'left');
+	}
+	return Offset;
+}
+
 
 
 function DrawGraph2(context, Parameters, data, Mouse, OutMouseIndex)
@@ -5131,6 +5340,7 @@ function DrawGraph2(context, Parameters, data, Mouse, OutMouseIndex)
 		if(!d.Samples.length == MaxLen)
 			debugger;
 		MaxLen = Math.max(MaxLen, d.Samples.length);
+		gRangeMaxLen = MaxLen;
 		if(d.Samples2)
 		{
 			if(!d.Samples2.length == MaxLen)
