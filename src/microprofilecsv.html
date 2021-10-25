@@ -387,8 +387,7 @@ let CSVNumSets = 0;
 let CSVSetNames = [];
 let CSVActiveSet = 0;
 
-
-//let CSVMenuItems = [];
+let gDrawFrame = 1;
 
 let MAX_GRAPHS = 5;
 let Graphs = new Array(MAX_GRAPHS);
@@ -874,6 +873,7 @@ function DrawGraphCSV(FullUpdate, View, Canvas, context, LocalMouseX, LocalMouse
 	Params.xRange = gRange;
 	Params.xOffset = gOffset;
 	Params.FullDraw = FullUpdate;
+	Params.Frame = gDrawFrame ? 1 : 0;
 
 
 
@@ -4798,6 +4798,12 @@ function KeyUp(evt)
 		KeyHDown = 0;
 		UpdateShowHelp();
 	}
+	if(k == 187)
+	{
+		gDrawFrame = 1 - gDrawFrame;
+		gGraphCSVInvalid = 1;
+		RangeInvalidate(RangeSelectState);
+	}
 
 
 
@@ -5227,7 +5233,7 @@ function CreateDrawGraph2Parameters()
 	P.Rect = WindowRect(0, 0, 1, 1);
 	P.RangeMin = 0.0;
 	P.RangeMax = 0.0;
-	P.Mark = [16.66, 33.33];
+	P.Mark = [0.1, 1.0, 16.66, 33.33, 100, 1000, 10000, 100000, 1000000];
 	P.Ext = "ms";
 	P.Border = 2;
 	P.Frame = 1;
@@ -5572,28 +5578,28 @@ function DrawGraph2(context, Parameters, data, Mouse, OutMouseIndex)
 		for(let m in Parameters.Mark)
 		{
 			let Sample = Parameters.Mark[m];
-			if(Sample < MaxSample)
-			{
-				let Y = YStart - Sample * HeightScale;
-				context.fillText(Sample + Ext, x+w, Y + FontHeight);
-			}
-		}
-
-
-		context.globalAlpha = 0.4;
-		for(let m in Parameters.Mark)
-		{
-			let Sample = Parameters.Mark[m];
 			let Y = YStart - Sample * HeightScale;
-			if(Sample < MaxSample);
+			if(Sample < MaxSample && Sample > 0.1 * MaxSample)
 			{
+				context.globalAlpha = 1.0;
+				context.fillText(Sample + Ext, x+w, Y + FontHeight);
+				context.globalAlpha = 0.4;
+			
 				context.beginPath();
 				context.moveTo(x-(Frame?5:0), Y);
 				context.lineTo(x+w, Y);
 				context.stroke();
+
 			}
 		}
+		context.globalAlpha = 0.4;
+		context.beginPath();
+		context.moveTo(x-5, YStart-h);
+		context.lineTo(x+w, YStart-h);
+		context.stroke();
+
 		context.globalAlpha = 1;
+
 		if(Frame)
 		{
 			context.beginPath();
