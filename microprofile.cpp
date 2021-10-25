@@ -1533,8 +1533,8 @@ void MicroProfileInit()
 			S.TimelineTokenStaticString[i] = nullptr;
 			S.TimelineToken[i] = 0;
 		}
-		S.nTokenNegativeCpu = MicroProfileGetToken("NEGATIVE_CPU", "NEGATIVE_CPU", MP_PURPLE, MicroProfileTokenTypeCpu);
-		S.nTokenNegativeGpu = MicroProfileGetToken("NEGATIVE_GPU", "NEGATIVE_GPU", MP_PURPLE, MicroProfileTokenTypeGpu);
+		S.nTokenNegativeCpu = MicroProfileGetToken("NEGATIVE_CPU", "NEGATIVE_CPU", MP_PURPLE, MicroProfileTokenTypeCpu, 0);
+		S.nTokenNegativeGpu = MicroProfileGetToken("NEGATIVE_GPU", "NEGATIVE_GPU", MP_PURPLE, MicroProfileTokenTypeGpu, 0);
 		S.nTimerNegativeCpuIndex = MicroProfileGetTimerIndex(S.nTokenNegativeCpu);
 		S.nTimerNegativeGpuIndex = MicroProfileGetTimerIndex(S.nTokenNegativeGpu);
 	}
@@ -2067,7 +2067,7 @@ void MicroProfileGetTokenC(MicroProfileToken* pToken, const char* pGroup, const 
 		MicroProfileScopeLock L(MicroProfileMutex());
 		if(*pToken == MICROPROFILE_INVALID_TOKEN)
 		{
-			*pToken = MicroProfileGetToken(pGroup, pName, nColor, Type);
+			*pToken = MicroProfileGetToken(pGroup, pName, nColor, Type, 0);
 		}
 	}
 }
@@ -9943,7 +9943,7 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, co
 	}
 	if(MicroProfilePatchFunction(pFunction, S.DynamicTokenIndex, MicroProfileInterceptEnter, MicroProfileInterceptLeave, &Err))
 	{
-		MicroProfileToken Tok = S.DynamicTokens[S.DynamicTokenIndex] = MicroProfileGetToken("PATCHED", pFunctionName, nColor, MicroProfileTokenTypeCpu);
+		MicroProfileToken Tok = S.DynamicTokens[S.DynamicTokenIndex] = MicroProfileGetToken("PATCHED", pFunctionName, nColor, MicroProfileTokenTypeCpu, 0);
 		S.FunctionsInstrumented[S.DynamicTokenIndex] = pFunction;
 		S.FunctionsInstrumentedName[S.DynamicTokenIndex] = MicroProfileStringIntern(pFunctionName);
 		S.FunctionsInstrumentedModuleNames[S.DynamicTokenIndex] = MicroProfileStringIntern(pModuleName);
