@@ -2928,6 +2928,10 @@ function DrawMenuGraph()
 			}
 			gGraphCSVInvalid = 1;
 			RangeInvalidate(RangeSelectState);
+
+			Cookie.Graphs = Graphs;
+			WriteCookie();
+
 		}
 	}
 	SizeInfo.h = M.y - SizeInfo.y;
@@ -4826,6 +4830,9 @@ function KeyUp(evt)
 		NumGraphs = (k-49) + 1;
 		gGraphCSVInvalid = 1;
 		RangeInvalidate(RangeSelectState);
+		Cookie.NumGraphs = NumGraphs;
+		WriteCookie();
+
 
 	}
 	if(k == 27)
@@ -5152,7 +5159,10 @@ function ParseUrl()
 
 function GetCookie()
 {
-	var result = document.cookie.match(/fisk=([^;]+)/);
+	let cookie = localStorage.getItem("microprofile_csv");
+	var result = cookie ? cookie.match(/fisk=([^;]+)/) : null;
+	console.log(cookie);
+	console.log(result);
 	if(result && result.length > 0)
 	{
 		var Obj = JSON.parse(result[1]);
@@ -5166,31 +5176,38 @@ function GetCookie()
 	}
 	else
 	{
-		return {offline:{},live:{}};
+		return {offline:{},live:{},csv:{}};
 	}
 }
 
 function ReadCookie()
 {
-	var C = GetCookie().live;
+	var C = GetCookie().csv;
 	for(var i in C)
 	{
 		Cookie[i] = C[i];
 	}
+	if(Cookie.NumGraphs)
+	{
+		NumGraphs = Cookie.NumGraphs;
+	}
+	if(Cookie.Graphs)
+		Graphs = Cookie.Graphs;
+
 }
 function WriteCookie()
 {
 	var C = GetCookie();
-	C.live = {};
+	C.csv = {};
 	for(var i in Cookie)
 	{
-		C.live[i] = Cookie[i];
+		C.csv[i] = Cookie[i];
 	}
 
 	var date = new Date();
 	date.setFullYear(2099);
 	var cookie = 'fisk=' + JSON.stringify(C) + ';expires=' + date;
-	document.cookie = cookie;
+	localStorage.setItem("microprofile_csv", cookie);
 }
 
 // Shared graph code begin
