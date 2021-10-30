@@ -257,14 +257,14 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 
 #define MICROPROFILE_SCOPEGPU_TOKEN(token) MicroProfileScopeGpuHandler MICROPROFILE_TOKEN_PASTE(fooGPU, __LINE__)(token, MicroProfileGetGlobalGpuThreadLog())
 #define MICROPROFILE_SCOPEGPU(var) MicroProfileScopeGpuHandler MICROPROFILE_TOKEN_PASTE(fooGPU, __LINE__)(g_mpGPU_##var, MicroProfileGetGlobalGpuThreadLog())
-#define MICROPROFILE_SCOPEGPUI(name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__) = MicroProfileGetToken("GPU", name, color,  MicroProfileTokenTypeGpu); MicroProfileScopeGpuHandler MICROPROFILE_TOKEN_PASTE(fooGPU,__LINE__)( MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__), MicroProfileGetGlobalGpuThreadLog())
+#define MICROPROFILE_SCOPEGPUI(name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__) = MicroProfileGetToken("GPU", name, color,  MicroProfileTokenTypeGpu, 0); MicroProfileScopeGpuHandler MICROPROFILE_TOKEN_PASTE(fooGPU,__LINE__)( MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__), MicroProfileGetGlobalGpuThreadLog())
 #define MICROPROFILE_SCOPEGPU_TOKEN_L(Log, token) MicroProfileScopeGpuHandler MICROPROFILE_TOKEN_PASTE(fooGPU, __LINE__)(token, Log)
 #define MICROPROFILE_SCOPEGPU_L(Log, var) MicroProfileScopeGpuHandler MICROPROFILE_TOKEN_PASTE(fooGPU, __LINE__)(g_mpGPU_##var, Log)
 #define MICROPROFILE_SCOPEGPUI_L(Log, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__) = MicroProfileGetToken("GPU", name, color,  MicroProfileTokenTypeGpu, 0); MicroProfileScopeGpuHandler MICROPROFILE_TOKEN_PASTE(fooGPU,__LINE__)( MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__), Log)
 #define MICROPROFILE_CONDITIONAL_SCOPEI(condition, group, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp, __LINE__) = MicroProfileGetToken(group, name, color, MicroProfileTokenTypeCpu, 0); MicroProfileConditionalScopeHandler MICROPROFILE_TOKEN_PASTE(foo, __LINE__)(MICROPROFILE_TOKEN_PASTE(g_mp, __LINE__), condition)
 #define MICROPROFILE_ENTER(var) MicroProfileEnter(g_mp_##var)
 #define MICROPROFILE_ENTER_TOKEN(token) MicroProfileEnter(token)
-#define MICROPROFILE_ENTERI(group, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MICROPROFILE_INVALID_TOKEN; if(MICROPROFILE_INVALID_TOKEN == MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__)){MicroProfileGetTokenC(&MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), group, name, color, MicroProfileTokenTypeCpu);} MicroProfileEnter(MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__))
+#define MICROPROFILE_ENTERI(group, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__) = MICROPROFILE_INVALID_TOKEN; if(MICROPROFILE_INVALID_TOKEN == MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__)){MicroProfileGetTokenC(&MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__), group, name, color, MicroProfileTokenTypeCpu, 0);} MicroProfileEnter(MICROPROFILE_TOKEN_PASTE(g_mp,__LINE__))
 #define MICROPROFILE_LEAVE() MicroProfileLeave()
 #define MICROPROFILE_ENTER_NEGATIVE() MicroProfileEnterNegative()
 #define MICROPROFILE_LEAVE_NEGATIVE() MicroProfileLeave()
@@ -276,11 +276,11 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 
 #define MICROPROFILE_GPU_ENTER(var) MicroProfileEnterGpu(g_mpGPU_##var, MicroProfileGetGlobalGpuThreadLog())
 #define MICROPROFILE_GPU_ENTER_TOKEN(token) MicroProfileEnterGpu(token, MicroProfileGetGlobalGpuThreadLog())
-#define MICROPROFILE_GPU_ENTERI(group, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__) = MICROPROFILE_INVALID_TOKEN; if(MICROPROFILE_INVALID_TOKEN == MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__)){MicroProfileGetTokenC(&MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__), group, name, color, MicroProfileTokenTypeGpu);} MicroProfileEnterGpu(MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__), MicroProfileGetGlobalGpuThreadLog())
+#define MICROPROFILE_GPU_ENTERI(group, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__) = MICROPROFILE_INVALID_TOKEN; if(MICROPROFILE_INVALID_TOKEN == MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__)){MicroProfileGetTokenC(&MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__), group, name, color, MicroProfileTokenTypeGpu, 0);} MicroProfileEnterGpu(MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__), MicroProfileGetGlobalGpuThreadLog())
 #define MICROPROFILE_GPU_LEAVE() MicroProfileLeaveGpu(MicroProfileGetGlobalGpuThreadLog())
 #define MICROPROFILE_GPU_ENTER_L(Log, var) MicroProfileEnterGpu(g_mpGPU_##var, Log)
 #define MICROPROFILE_GPU_ENTER_TOKEN_L(Log, token) MicroProfileEnterGpu(token, Log)
-#define MICROPROFILE_GPU_ENTERI_L(Log, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__) = MICROPROFILE_INVALID_TOKEN; if(MICROPROFILE_INVALID_TOKEN == MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__)){MicroProfileGetTokenC(&MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__), group, name, color, MicroProfileTokenTypeGpu);} MicroProfileEnterGpu(MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__), Log)
+#define MICROPROFILE_GPU_ENTERI_L(Log, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__) = MICROPROFILE_INVALID_TOKEN; if(MICROPROFILE_INVALID_TOKEN == MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__)){MicroProfileGetTokenC(&MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__), group, name, color, MicroProfileTokenTypeGpu, 0);} MicroProfileEnterGpu(MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__), Log)
 #define MICROPROFILE_GPU_LEAVE_L(Log) MicroProfileLeaveGpu(Log)
 #define MICROPROFILE_GPU_INIT_QUEUE(QueueName) MicroProfileInitGpuQueue(QueueName)
 #define MICROPROFILE_GPU_FREE_QUEUE(QueueName) MicroProfileFreeGpuQueue(QueueName)
@@ -414,7 +414,7 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #endif
 
 #ifndef MICROPROFILE_MAX_THREADS
-#define MICROPROFILE_MAX_THREADS 32
+#define MICROPROFILE_MAX_THREADS 128
 #endif
 
 #ifndef MICROPROFILE_UNPACK_RED
@@ -534,7 +534,7 @@ MICROPROFILE_API void MicroProfileStartAutoFlip(uint32_t nHz);
 MICROPROFILE_API void MicroProfileStopAutoFlip();
 MICROPROFILE_API MicroProfileToken MicroProfileFindToken(const char* sGroup, const char* sName);
 MICROPROFILE_API MicroProfileToken MicroProfileGetToken(const char* sGroup, const char* sName, uint32_t nColor, MicroProfileTokenType Token, uint32_t flags);
-MICROPROFILE_API void MicroProfileGetTokenC(MicroProfileToken* pToken, const char* sGroup, const char* sName, uint32_t nColor, MicroProfileTokenType Token);
+MICROPROFILE_API void MicroProfileGetTokenC(MicroProfileToken* pToken, const char* sGroup, const char* sName, uint32_t nColor, MicroProfileTokenType Token, uint32_t flags);
 MICROPROFILE_API MicroProfileToken MicroProfileGetCounterToken(const char* pName);
 MICROPROFILE_API void MicroProfileCounterAdd(MicroProfileToken nToken, int64_t nCount);
 MICROPROFILE_API void MicroProfileCounterSet(MicroProfileToken nToken, int64_t nCount);

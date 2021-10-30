@@ -3,6 +3,7 @@
 #include <string.h>
 //minimal tool to embed src html into microprofile.h
 
+
 char* ReadFile(const char* pFile)
 {
 	FILE* F = fopen(pFile, "r");

@@ -7316,9 +7316,9 @@ function PreprocessLogBarArray()
 					{
 						if(SrcTypeArray[i+1] != 3)
 							debugger; //should be matching pairs
-						let CpuBegin = TimeArray[stackindex+1];
-						let CpuEnd = TimeArray[i+1];
-						let Thread = IndexArray[StartIndex+1];
+						let CpuBegin = SrcTimeArray[stackindex+1];
+						let CpuEnd = SrcTimeArray[i+1];
+						let Thread = SrcIndexArray[stackindex+1];
 						if(!rt0.CpuDuration) //only there for gpu logs, so created on demand
 						{
 							rt0.CpuBegin = new Array();

@@ -2059,7 +2059,7 @@ MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, ui
 	S.TimerToGroup[nTimerIndex] = nGroupIndex;
 	return nToken;
 }
-void MicroProfileGetTokenC(MicroProfileToken* pToken, const char* pGroup, const char* pName, uint32_t nColor, MicroProfileTokenType Type)
+void MicroProfileGetTokenC(MicroProfileToken* pToken, const char* pGroup, const char* pName, uint32_t nColor, MicroProfileTokenType Type, uint32_t flags)
 {
 	if(*pToken == MICROPROFILE_INVALID_TOKEN)
 	{
@@ -2067,7 +2067,7 @@ void MicroProfileGetTokenC(MicroProfileToken* pToken, const char* pGroup, const 
 		MicroProfileScopeLock L(MicroProfileMutex());
 		if(*pToken == MICROPROFILE_INVALID_TOKEN)
 		{
-			*pToken = MicroProfileGetToken(pGroup, pName, nColor, Type, 0);
+			*pToken = MicroProfileGetToken(pGroup, pName, nColor, Type, flags);
 		}
 	}
 }

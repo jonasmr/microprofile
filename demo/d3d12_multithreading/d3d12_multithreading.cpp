@@ -523,14 +523,14 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 	{
 		char frame[255];
 		snprintf(frame, sizeof(frame) - 1, "Graphics-Read-%d", i);
-		g_TokenGpuFrameIndex[i] = MicroProfileGetToken("GPU", frame, (uint32_t)-1, MicroProfileTokenTypeGpu);
+		g_TokenGpuFrameIndex[i] = MicroProfileGetToken("GPU", frame, (uint32_t)-1, MicroProfileTokenTypeGpu, 0);
 	}
 
 	for (uint32_t i = 0; i < _countof(g_TokenGpuComputeFrameIndex); ++i)
 	{
 		char frame[255];
 		snprintf(frame, sizeof(frame) - 1, "Compute-Write-%d", i);
-		g_TokenGpuComputeFrameIndex[i] = MicroProfileGetToken("GPU", frame, (uint32_t)-1, MicroProfileTokenTypeGpu);
+		g_TokenGpuComputeFrameIndex[i] = MicroProfileGetToken("GPU", frame, (uint32_t)-1, MicroProfileTokenTypeGpu, 0);
 	}
 	MicroProfileGpuInitD3D12(g_pDevice, 1, (void**)&g_pCommandQueue);
 	MicroProfileSetCurrentNodeD3D12(0);
@@ -1601,7 +1601,7 @@ void D3D12Multithreading::OnUpdate()
 	{
 		for (int i = 0; i < NumLights; i++)
 		{
-			float direction = frameChange * pow(-1.0f, i);
+			float direction = (float)(frameChange * pow(-1.0f, i));
 			XMStoreFloat4(&m_lights[i].position, XMVector4Transform(XMLoadFloat4(&m_lights[i].position), XMMatrixRotationY(direction)));
 
 			XMVECTOR eye = XMLoadFloat4(&m_lights[i].position);

@@ -70,6 +70,8 @@ void Hologram::init_workers()
         multithread_ = false;
         worker_count = 1;
     }
+	if(worker_count > 8)
+		worker_count = 8;
 
     assert(sim_.objects().size() <= INT32_MAX);
     const int object_per_worker = static_cast<int>(sim_.objects().size() / worker_count);

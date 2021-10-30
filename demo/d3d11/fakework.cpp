@@ -13,7 +13,7 @@ extern uint32_t g_nQuit;
 #ifdef _WIN32
 #undef near
 #undef far
-#define snprintf _snprintf
+#define snprintf _snprintf_s
 #include <windows.h>
 void usleep(__int64 usec) 
 { 
