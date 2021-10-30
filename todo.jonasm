@@ -1,5 +1,17 @@
 
-csv viewer
+fix issue with threads being invisible by default
+fix threadnames
+support gpu sections
+make all gpu group together
+make gpu toggleable seperately
+figure out what to do about sections vs groups.
+MT flip
+make live view slow mode.
+revive gpu marker thread id.
+hide builtin groups.
+kill negative?
+
+* csv viewer
 capture: Zones
 capture: compress file data
 capture: offload aggregation to thread.

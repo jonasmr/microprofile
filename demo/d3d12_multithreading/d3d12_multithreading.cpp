@@ -1805,6 +1805,7 @@ void D3D12Multithreading::BeginFrame()
 		MICROPROFILE_CONDITIONAL(MicroProfileThreadLogGpu* pGpuLog = MicroProfileThreadLogGpuAlloc());
 		MICROPROFILE_GPU_BEGIN(pCommandList, pGpuLog);
 		{
+			MICROPROFILE_SECTIONGPUI_L(pGpuLog, "Main", MP_RED);
 			MICROPROFILE_SCOPEGPU_TOKEN_L(pGpuLog, g_TokenGpuComputeFrameIndex[g_nDst]);
 			MICROPROFILE_SCOPEGPUI_L(pGpuLog, "Compute-Demo", 0xffffffff);
 			ID3D12DescriptorHeap* ppHeaps[] = { m_computeSrvUavHeap.Get() };
@@ -1928,7 +1929,8 @@ void D3D12Multithreading::WorkerThread(int threadIndex)
 			MICROPROFILE_SCOPEI("CPU", "Shadows", 0xff00ff00);
 			MICROPROFILE_GPU_BEGIN(pShadowCommandList, pMicroProfileLog);
 			{
-				MICROPROFILE_SCOPEGPU_TOKEN_L(pMicroProfileLog, g_TokenGpuFrameIndex[g_nSrc]);
+				MICROPROFILE_SECTIONGPUI_L(pMicroProfileLog, "ShadowSection", MP_DARKGREEN);
+				MICROPROFILE_SCOPEGPU_TOKEN_L(pMicroProfileLog, g_TokenGpuFrameIndex[g_nSrc]);				
  				MICROPROFILE_SCOPEGPUI_L(pMicroProfileLog, "Shadows", 0xff00);
 
 				for (int j = threadIndex; j < _countof(SampleAssets::Draws); j += NumContexts)
@@ -1961,6 +1963,7 @@ void D3D12Multithreading::WorkerThread(int threadIndex)
 		MICROPROFILE_GPU_BEGIN(pSceneCommandList, pMicroProfileLog);
 		{
 			MICROPROFILE_SCOPEI("CPU", "Scene", 0xff00ffff);
+			MICROPROFILE_SECTIONGPUI_L(pMicroProfileLog, "Scene", MP_CYAN);
 			MICROPROFILE_SCOPEGPU_TOKEN_L(pMicroProfileLog, g_TokenGpuFrameIndex[g_nSrc]);
 			MICROPROFILE_SCOPEGPUI_L(pMicroProfileLog, "scene", 0xff0000);
 			SetCommonPipelineState(pSceneCommandList);
