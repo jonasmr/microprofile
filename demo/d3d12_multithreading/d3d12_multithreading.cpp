@@ -1620,6 +1620,8 @@ void D3D12Multithreading::OnUpdate()
 // Render the scene.
 void D3D12Multithreading::OnRender()
 {
+	MICROPROFILE_TIMELINE_ENTER_STATIC(MP_YELLOW, "Frame");
+
 	MICROPROFILE_SCOPEI("Main", "OnRender", 0);
 
 	BeginFrame();
@@ -1698,6 +1700,10 @@ void D3D12Multithreading::OnRender()
 	m_fenceValue++;
 	g_nSrc = 1 - g_nSrc;
 	g_nDst = 1 - g_nDst;
+
+
+
+	MICROPROFILE_TIMELINE_LEAVE_STATIC("Frame");
 
 }
 

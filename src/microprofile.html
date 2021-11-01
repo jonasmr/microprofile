@@ -407,13 +407,17 @@ var GlobalMouseY = -1;
 var MouseReleased = false;
 var MouseHistory = 0;
 var MouseDetailed = 0;
-var FontHeight = 10;
-var FontWidth = 1;
-var FontAscent = 3; //Set manually
-var Font = 'Bold ' + FontHeight + 'px Courier New';
-var FontFlash = 'Bold ' + 35 + 'px Courier New';
-var BoxHeight = FontHeight + 2;
-var ThreadsActive = {};
+const FontName = 'Courier New';
+const FontHeight = 10;
+const FontHeightLarge = 22;
+const FontHeightFlash = 35;
+let FontWidth = 1;
+const FontAscent = 3; //Set manually
+const Font = 'Bold ' + FontHeight + 'px ' + FontName;
+const FontLarge = 'Bold ' + FontHeightLarge + 'px ' + FontName;
+const FontFlash = 'Bold ' + FontHeightFlash + 'px ' + FontName;
+const BoxHeight = FontHeight + 2;
+let ThreadsHidden = {};
 var GroupsDisabled = new Object();
 var nMinWidth = 0.01;//subpixel width
 var nMinWidthPan = 1.0;//subpixel width when panning
@@ -893,18 +897,22 @@ function ThreadOrderSort()
 		ThreadOrderT[i] = ThreadOrderX[i].i;
 	}
 }
+function IsThreadActive(ThreadName)
+{
+	return !ThreadsHidden[ThreadName];
+}
 
 function ToggleThread(ThreadName, All, FilterArray, State)
 {
 	if(ThreadName)
 	{
-		if(ThreadsActive[ThreadName])
+		if(ThreadsHidden[ThreadName])
 		{
-			ThreadsActive[ThreadName] = false;
+			delete ThreadsHidden[ThreadName];
 		}
 		else
 		{
-			ThreadsActive[ThreadName] = true;
+			ThreadsHidden[ThreadName] = 1;
 		}
 	}
 	else
@@ -915,9 +923,9 @@ function ToggleThread(ThreadName, All, FilterArray, State)
 		{
 			switch(State)
 			{
-				case 2: if(!ThreadsActive[Names[i]]){ ThreadsActive[Names[i]] = 1;} break;
-				case 1: ThreadsActive[Names[i]] = ThreadsActive[Names[i]] ? 0 : 1; break;
-				case 0: if(ThreadsActive[Names[i]]){ ThreadsActive[Names[i]] = 0;} break;
+				case 0: if(!ThreadsHidden[Names[i]]){ ThreadsHidden[Names[i]] = 1;} break;
+				case 1: ThreadsHidden[Names[i]] = ThreadsHidden[Names[i]] ? 0 : 1; break;
+				case 2: if(ThreadsHidden[Names[i]]){ delete ThreadsHidden[Names[i]];} break;
 			}
 		}
 	}
@@ -2520,7 +2528,7 @@ function DrawBarView()
 	{
 		for(var i = 0; i < S.ThreadNames.length; ++i)
 		{
-			if((ThreadsActive[S.ThreadNames[i]]) && FilterMatch(FilterTimer, S.ThreadNames[i]))
+			if((IsThreadActive(S.ThreadNames[i])) && FilterMatch(FilterTimer, S.ThreadNames[i]))
 			{
 				var X = 0;
 				var YText = Y+Height-FontAscent;
@@ -2598,7 +2606,7 @@ function DrawBarView()
 						R = 0;
 						var PerThreadTimer = S.ThreadGroupTimeArray[i][groupid];
 						var PerThreadTimerTotal = S.ThreadGroupTimeTotalArray[i][groupid];
-						if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (ThreadsActive[S.ThreadNames[i]]) && FilterMatch(FilterTimer, S.ThreadNames[i]))
+						if((PerThreadTimer > 0.0001|| PerThreadTimerTotal>0.1) && (IsThreadActive(S.ThreadNames[i])) && FilterMatch(FilterTimer, S.ThreadNames[i]))
 						{
 							var YText = Y+Height-FontAscent;
 							bMouseIn = DetailedViewMouseY >= Y && DetailedViewMouseY < Y + BoxHeight;
@@ -3238,6 +3246,23 @@ function DrawDetailedButtons(context, X, Y, Names, Callbacks, Align)
 	context.textAlign = 'left';
 }
 
+function DrawDetailedViewLargeHeader(context, Text, Y)
+{
+	context.textAlign = "left";
+	context.fillStyle = "grey";
+	context.strokeStyle = "grey";
+	context.textBaseline = "top";
+	context.font = FontLarge;
+	context.beginPath();
+	context.moveTo(0, Y);
+	context.lineTo(nWidth, Y);
+	context.stroke();
+	context.fillText(Text, 0, Y + 2);
+	context.font = Font;
+	context.textBaseline = "alphabetic";
+	return Y + 2 + FontHeightLarge;
+}
+
 function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 {
 	if(!S || !S.Frames)
@@ -3393,12 +3418,6 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 		}
 	};
 	{
-		context.fillStyle = 'white';
-		fOffsetY += BoxHeight;
-		context.fillText("Timeline", 0, fOffsetY);
-		fOffsetY += BoxHeight;
-
-
 		let Times = Timeline.Times;
 		let Colors = Timeline.Colors;
 		let Ends = Timeline.Ends;
@@ -3408,6 +3427,10 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 		let off = 0.7;
 		let off2 = 2*off;
 		let MaxPosition = 1;
+		if(Timeline.Positions.length)
+		{
+			fOffsetY = DrawDetailedViewLargeHeader(context, "Timeline", fOffsetY);
+		}
 
 		for(let i = 0; i < Timeline.Positions.length; ++i)
 		{
@@ -3448,6 +3471,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 	let AutoHideCount = 0;
 	let VisibleThreadCount = 0;
 	let DrawGuides = 1;
+	let CurrentHeading;
 	{
 		if(!ThreadYBegin)
 		{
@@ -3459,8 +3483,17 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 		{
 			let nLog = ThreadOrderT[i];
 			let ThreadName = S0.ThreadNames[nLog];
-			let Active = ThreadsActive[ThreadName];
+			let LogIsGPU = S0.ISGPU[nLog];
+			let HeadingString = LogIsGPU ? "GPU" : "CPU";
+			let Active = IsThreadActive(ThreadName);
 			let ThreadColors = S0.ThreadColors[nLog];
+			if(HeadingString != CurrentHeading)
+			{
+				fOffsetY = DrawDetailedViewLargeHeader(context, HeadingString, fOffsetY);
+				CurrentHeading = HeadingString;
+			}
+
+
 			ThreadYBegin[nLog] = fOffsetY;
 			if(0 != S.ThreadLogAutoHidden[nLog])
 			{
@@ -5327,6 +5360,12 @@ function ThreadMenuSize()
 	return MenuSize(S.ThreadNameWidth + S.ThreadCategoryWidth + 10);
 }
 
+function DrawMenuSeparator(context, X, Y, W, Height)
+{
+	context.fillStyle = 'grey';
+	context.fillRect(X-2, Y, W+2, Height);
+}
+
 function DrawMultiMenu(context, X, Y, W, Elements, Callbacks)
 {
 	let A = Array();
@@ -5396,21 +5435,26 @@ function DrawMenuThreads()
 	let MatchCount = 0;
 	let MouseTaken = bMouseIn;
 
-	Y += BoxHeight * 3;
+	Y += (BoxHeight) * 5 + 3 * 2;
 	nColorIndex = 1-nColorIndex;
 
 	Y -= nOffsetMenuThreads;
-
+	let CPULogs = [];
+	let GPULogs = [];
 	for(let i = 0; i < S.ThreadNames.length; ++i)
 	{
 		let Name = S.ThreadNames[i];
+		if(S.ISGPU[i])
+			GPULogs.push(Name);
+		else
+			CPULogs.push(Name);
 		let ParentName = "ThreadCategory";
 		if(FilterMatch(FilterArray, ParentName + " " + Name))
 		{
 			if(Y > YStart)
 			{
-				var ParentColor = 'white';
-				let E =	ThreadsActive[Name];
+				let ParentColor = 'white';
+				let E =	IsThreadActive(Name);
 				let AutoHidden = S.ThreadLogAutoHidden[i];
 				bMouseIn = GlobalMouseY >= Y && GlobalMouseY < Y + BoxHeight && !MouseTaken;
 				bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
@@ -5438,16 +5482,32 @@ function DrawMenuThreads()
 	}
 	let TextAll = "All [" + S.ThreadNames.length + "]";
 	let TextFiltered = "Filtered [" + MatchCount +"]";
-
-
+	let TextCPU = "CPU [" + CPULogs.length + "]";
+	let TextGPU = "GPU [" + GPULogs.length + "]";
 
 	let ElementsAll = [TextAll, "Off", "Flip", "On"];
+	let ElementsFiltered = [TextFiltered, "Off", "Flip", "On"];
+	let ElementsCPU = [TextCPU, "Off", "Flip", "On"];
+	let ElementsGPU = [TextGPU, "Off", "Flip", "On"];
+	
 	let CallbacksAll = [null,
 		function(){ ToggleThread(0, 1, 0, 0); },
 		function(){ ToggleThread(0, 1, 0, 1); },
 		function(){ ToggleThread(0, 1, 0, 2); },
 	];
-	let ElementsFiltered = [TextFiltered, "Off", "Flip", "On"];
+
+	let CallbacksCPU = [null,
+		function(){ ToggleThread(0, 0, CPULogs, 0); },
+		function(){ ToggleThread(0, 0, CPULogs, 1); },
+		function(){ ToggleThread(0, 0, CPULogs, 2); },
+	];
+	let CallbacksGPU = [null,
+		function(){ ToggleThread(0, 0, GPULogs, 0); },
+		function(){ ToggleThread(0, 0, GPULogs, 1); },
+		function(){ ToggleThread(0, 0, GPULogs, 2); },
+	];
+
+
 	let CreateFilteredArray = function()
 	{
 		if(!FilterArray) return S.ThreadNames;
@@ -5486,9 +5546,20 @@ function DrawMenuThreads()
 
 	DrawMultiMenu(context, X, YClear, Width, ElementsOptions, CallbacksOptions);
 	YClear += BoxHeight;
+	DrawMenuSeparator(context, X, YClear, Width, 2);
+	YClear += 2;
 	DrawMultiMenu(context, X, YClear, Width, ElementsAll, CallbacksAll);
 	YClear += BoxHeight;
 	DrawMultiMenu(context, X, YClear, Width, ElementsFiltered, CallbacksFiltered);
+	YClear += BoxHeight;
+	DrawMenuSeparator(context, X, YClear, Width, 2);
+	YClear += 2;
+	DrawMultiMenu(context, X, YClear, Width, ElementsGPU, CallbacksGPU);
+	YClear += BoxHeight;
+	DrawMultiMenu(context, X, YClear, Width, ElementsCPU, CallbacksCPU);
+	YClear += BoxHeight;
+	DrawMenuSeparator(context, X, YClear, Width, 2);
+	YClear += 2;
 
 	SizeInfo.h = Y-SizeInfo.y;
 	return SizeInfo;
@@ -6687,9 +6758,9 @@ function ReadCookie()
 		{
 			TargetTimeString = Obj.TargetTimeString;
 		}
-		if(Obj.ThreadsActive)
+		if(Obj.ThreadsHidden)
 		{
-			ThreadsActive = Obj.ThreadsActive;
+			ThreadsHidden = Obj.ThreadsHidden;
 		}
 		if(Obj.GroupsAllActive || Obj.GroupsAllActive == 0 || Obj.GroupsAllActive)
 		{
@@ -6767,7 +6838,7 @@ function WriteCookie()
 	Obj.ModeX = Mode;
 	Obj.ReferenceTimeString = ReferenceTimeString;
 	Obj.TargetTimeString = TargetTimeString;
-	Obj.ThreadsActive = ThreadsActive;
+	Obj.ThreadsHidden = ThreadsHidden;
 	Obj.GroupsDisabled = GroupsDisabled;
 	Obj.GroupsAllActive = GroupsAllActive;
 	Obj.nContextSwitchEnabled = nContextSwitchEnabled;
