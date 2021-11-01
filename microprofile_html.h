@@ -892,14 +892,15 @@ const char g_MicroProfileHtml_end_0[] =
 "	let ThreadOrderX = Array(S.ThreadNames.length);\n"
 "	for(let i = 0; i < S.ThreadNames.length; ++i)\n"
 "	{\n"
+"		let isgpu = S.ISGPU[i]?1:0;\n"
 "		var n = ThreadOrderNames.indexOf(S.ThreadNames[i]);\n"
 "		if(n == -1)\n"
 "		{\n"
 "			debugger;\n"
 "		}\n"
-"		ThreadOrderX[i] = {\"i\":i, \"n\": n};\n"
+"		ThreadOrderX[i] = {\"i\":i, \"n\": n, \"g\":isgpu};\n"
 "	}\n"
-"	ThreadOrderX.sort(function(l,r){return l.n-r.n;});\n"
+"	ThreadOrderX.sort(function(l,r){if(l.g!=r.g)return r.g-l.g;return l.n-r.n;}); //sort gpu first\n"
 "	ThreadOrderT = Array(S.ThreadNames.length);\n"
 "	for(let i = 0; i < S.ThreadNames.length; ++i)\n"
 "	{\n"
@@ -1789,12 +1790,12 @@ const char g_MicroProfileHtml_end_0[] =
 "		if(bMouse && !MouseDragging)\n"
 "		{\n"
 "			context.fillStyle = FRAME_HISTORY_COLOR_GPU;\n"
-"			RangeCpuHistory.Begin = S.Frames[i].framestart;\n"
-"			RangeCpuHistory.End = S.Frames[i].fr";
+"			Ra";
 
 const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
 const char g_MicroProfileHtml_end_1[] =
-"ameend;\n"
+"ngeCpuHistory.Begin = S.Frames[i].framestart;\n"
+"			RangeCpuHistory.End = S.Frames[i].frameend;\n"
 "			if(S.Frames[i].framestartgpu)\n"
 "			{\n"
 "				RangeGpuHistory.Begin = S.Frames[i].framestartgpu;\n"
@@ -3033,15 +3034,15 @@ const char g_MicroProfileHtml_end_1[] =
 "//preprocess context switch data to contain array per thread\n"
 "function PreprocessContextSwitchCacheItem(ThreadId)\n"
 "{\n"
-"	var CSObject = S.CSwitchCache[ThreadId];\n"
-"	if(ThreadId > 0 && !CSObject)\n"
-"	{\n"
-"		CSArrayIn = new Array();\n"
-"		CSArrayOut = new";
+"	var CSObject = S.CSwitchCache[Threa";
 
 const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
 const char g_MicroProfileHtml_end_2[] =
-" Array();\n"
+"dId];\n"
+"	if(ThreadId > 0 && !CSObject)\n"
+"	{\n"
+"		CSArrayIn = new Array();\n"
+"		CSArrayOut = new Array();\n"
 "		CSArrayCpu = new Array();\n"
 "		var nCount = S.CSwitchTime.length;\n"
 "		var j = 0;\n"
@@ -4329,16 +4330,16 @@ const char g_MicroProfileHtml_end_2[] =
 "\n"
 "\n"
 "\n"
-"function DrawGraph(context, Parameters, data, Mouse)\n"
+"function DrawGraph(context, Paramete";
+
+const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
+const char g_MicroProfileHtml_end_3[] =
+"rs, data, Mouse)\n"
 "{\n"
 "\n"
 "	ProfileEnter(\"DrawGraph\");\n"
 "	let Rect = Parameters.Rect;\n"
-"	let Ran";
-
-const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
-const char g_MicroProfileHtml_end_3[] =
-"geMin = Parameters.RangeMin;\n"
+"	let RangeMin = Parameters.RangeMin;\n"
 "	let RangeMax = Parameters.RangeMax;\n"
 "	let MaxLen = 0;\n"
 "	let MaxSample = 0;\n"
@@ -5679,15 +5680,15 @@ const char g_MicroProfileHtml_end_3[] =
 "	}\n"
 "	else if(SubMenuActive == SubMenuOptions)\n"
 "	{\n"
-"		MenuRect = DrawMenuOptions();\n"
-"	}\n"
-"	else if(SubMenuActive == SubMenuCompare)\n"
-"	{\n"
-"		if(M";
+"	";
 
 const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
 const char g_MicroProfileHtml_end_4[] =
-"ouseReleased)\n"
+"	MenuRect = DrawMenuOptions();\n"
+"	}\n"
+"	else if(SubMenuActive == SubMenuCompare)\n"
+"	{\n"
+"		if(MouseReleased)\n"
 "		{\n"
 "			ComparePrompt();\n"
 "		}\n"
@@ -7260,15 +7261,15 @@ const char g_MicroProfileHtml_end_4[] =
 "		let RootSectionColor = CIDFail;\n"
 "\n"
 "		let SrcTypeArray = S.TypeArray[nLog];\n"
-"		let SrcTimeArray = S.TimeArray[nLog];\n"
-"		let SrcIndexArray = S.IndexArray[nLog];\n"
-"		let len = SrcTypeArray.length;\n"
-"\n"
-"		for(le";
+"		let SrcTimeArray = S.TimeArray[nLog];";
 
 const size_t g_MicroProfileHtml_end_4_size = sizeof(g_MicroProfileHtml_end_4);
 const char g_MicroProfileHtml_end_5[] =
-"t i = 0; i < len; ++i)\n"
+"\n"
+"		let SrcIndexArray = S.IndexArray[nLog];\n"
+"		let len = SrcTypeArray.length;\n"
+"\n"
+"		for(let i = 0; i < len; ++i)\n"
 "		{\n"
 "			let type = SrcTypeArray[i];\n"
 "			let time = SrcTimeArray[i];\n"

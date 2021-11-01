@@ -878,14 +878,15 @@ function ThreadOrderSort()
 	let ThreadOrderX = Array(S.ThreadNames.length);
 	for(let i = 0; i < S.ThreadNames.length; ++i)
 	{
+		let isgpu = S.ISGPU[i]?1:0;
 		var n = ThreadOrderNames.indexOf(S.ThreadNames[i]);
 		if(n == -1)
 		{
 			debugger;
 		}
-		ThreadOrderX[i] = {"i":i, "n": n};
+		ThreadOrderX[i] = {"i":i, "n": n, "g":isgpu};
 	}
-	ThreadOrderX.sort(function(l,r){return l.n-r.n;});
+	ThreadOrderX.sort(function(l,r){if(l.g!=r.g)return r.g-l.g;return l.n-r.n;}); //sort gpu first
 	ThreadOrderT = Array(S.ThreadNames.length);
 	for(let i = 0; i < S.ThreadNames.length; ++i)
 	{
