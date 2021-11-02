@@ -1,9 +1,9 @@
 
-fix issue with threads being invisible by default
-fix threadnames
+* fix issue with threads being invisible by default
+* fix threadnames
 * support gpu sections
 * make all gpu group together
-make gpu toggleable seperately
+* make gpu toggleable seperately
 figure out what to do about sections vs groups.
 MT flip
 make live view slow mode.
@@ -11,6 +11,8 @@ revive gpu marker thread id.
 hide builtin groups.
 kill negative?
 in compare mode, make it so matched threads are more clearly connected
+
+fix threadcategory in gl sample menu showing as group?
 
 * csv viewer
 capture: Zones

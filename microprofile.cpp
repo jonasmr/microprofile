@@ -1533,8 +1533,8 @@ void MicroProfileInit()
 			S.TimelineTokenStaticString[i] = nullptr;
 			S.TimelineToken[i] = 0;
 		}
-		S.nTokenNegativeCpu = MicroProfileGetToken("NEGATIVE_CPU", "NEGATIVE_CPU", MP_PURPLE, MicroProfileTokenTypeCpu, 0);
-		S.nTokenNegativeGpu = MicroProfileGetToken("NEGATIVE_GPU", "NEGATIVE_GPU", MP_PURPLE, MicroProfileTokenTypeGpu, 0);
+		S.nTokenNegativeCpu = MicroProfileGetToken("__NEGATIVE_CPU", "NEGATIVE_CPU", MP_PURPLE, MicroProfileTokenTypeCpu, 0);
+		S.nTokenNegativeGpu = MicroProfileGetToken("__NEGATIVE_GPU", "NEGATIVE_GPU", MP_PURPLE, MicroProfileTokenTypeGpu, 0);
 		S.nTimerNegativeCpuIndex = MicroProfileGetTimerIndex(S.nTokenNegativeCpu);
 		S.nTimerNegativeGpuIndex = MicroProfileGetTimerIndex(S.nTokenNegativeGpu);
 	}
@@ -2297,12 +2297,6 @@ inline void MicroProfileLogPutGpu(MicroProfileLogEntry LE, MicroProfileThreadLog
 		pLog->nPut = nPos+1;
 	}
 }
-
-// inline void MicroProfileLogPutGpu(MicroProfileToken nToken_, uint64_t nTick, uint64_t nBegin, MicroProfileThreadLogGpu* pLog)
-// {
-// 	MicroProfileLogPutGpu(MicroProfileMakeLogIndex(nBegin, nToken_, nTick), pLog);
-// }
-// inline MicroProfileLogEntry MicroProfileMakeLogExtended(uint64_t nTag, EMicroProfileTokenExtended eTokenExt, uint32_t nDataSizeQWords, uint32_t nPayload)
 
 inline void MicroProfileLogPutGpuTimer(MicroProfileToken nToken_, uint64_t nTick, uint64_t nBegin, MicroProfileThreadLogGpu* pLog)
 {
@@ -4788,8 +4782,14 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 				MicroProfilePrintf(CB, Handle, "%d", MicroProfileLogGetType(pLog->Log[k]));
 				for(k = (k+1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 				{
-					uint64_t nLogType2 = MicroProfileLogGetType(pLog->Log[k]);
-					MicroProfilePrintf(CB, Handle, ",%d", nLogType2);
+					uint64_t v = pLog->Log[k];
+					uint64_t nLogType = MicroProfileLogGetType(v);
+
+					if(nLogType > MP_LOG_ENTER)
+						nLogType |= (MicroProfileLogGetExtendedToken(v)) << 2; // pack extended token here.. this way all code can check agains ENTER/LEAVE, and only the ext code needs to care about the top bits.
+					MicroProfilePrintf(CB, Handle, ",%d", nLogType);
+					if(nLogType == MP_LOG_EXTENDED)
+						k += MicroProfileLogGetDataSize(v);
 				}
 			}
 			MicroProfilePrintf(CB, Handle, "];\n");
@@ -4799,7 +4799,8 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 			{
 				for(uint32_t k = nLogStart; k != nLogEnd; k = (k+1) % MICROPROFILE_BUFFER_SIZE)
 				{
-					nLogType = MicroProfileLogGetType(pLog->Log[k]);
+					uint64_t v = pLog->Log[k];
+					nLogType = MicroProfileLogGetType(v);
 					const char* pFormat = k == nLogStart ? "%d" : ",%d";
 					if(nLogType == MP_LOG_ENTER || nLogType == MP_LOG_LEAVE)
 					{
@@ -4812,7 +4813,22 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 					}
 					else
 					{
-						MicroProfilePrintf(CB, Handle, pFormat, -1);
+						uint64_t ExtendedToken = MicroProfileLogGetExtendedToken(v);
+						uint64_t PayloadNoData = MicroProfileLogGetExtendedPayloadNoData(v);
+						switch(ExtendedToken)
+						{
+							case ETOKEN_GPU_CPU_SOURCE_THREAD:
+								MicroProfilePrintf(CB, Handle, pFormat, PayloadNoData);
+								break;
+							default:
+								MicroProfilePrintf(CB, Handle, pFormat, -1);
+						}
+						
+
+
+						if(nLogType == MP_LOG_EXTENDED)
+							k += MicroProfileLogGetDataSize(v);
+
 					}
 				}
 			}

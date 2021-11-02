@@ -331,6 +331,20 @@ ____embed____
 
 var G_DEBUG = 0;
 
+
+const MP_LOG_LEAVE=0x0;
+const MP_LOG_ENTER=0x1;
+const MP_LOG_EXTENDED=0x2;
+const MP_LOG_EXTENDED_NO_DATA=0x3;
+
+const ETOKEN_GPU_CPU_TIMESTAMP=0x3fff;
+const ETOKEN_GPU_CPU_SOURCE_THREAD=0x3ffe;
+const ETOKEN_META_MARKER=0x3ffd;
+const ETOKEN_CUSTOM_NAME=0x3ffc;
+const ETOKEN_CUSTOM_COLOR=0x3ffb;
+const ETOKEN_CUSTOM_ID=0x3ffa;
+
+
 var CanvasDetailedView = document.getElementById('DetailedView');
 var CanvasHistory = document.getElementById('History');
 var CanvasMenu = document.getElementById('CanvasMenu');
@@ -3858,7 +3872,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 											RangeCpuNext.End = timeend;
 											RangeCpuNext.Thread = nLog;
 											RangeCpuNext.Off = XOffset;
-											if(TypeArray[StartIndex+1] == 3 && TypeArray[j+1] == 3)
+											if((TypeArray[StartIndex+1]&3) == 3 && (TypeArray[j+1]&3) == 3)
 											{
 												RangeGpuNext.Begin = RangeCpuNext.Begin;
 												RangeGpuNext.End = RangeCpuNext.End;
@@ -7197,7 +7211,7 @@ function PreprocessLods()
 				for(var j = 0; j < SourceCount; ++j)
 				{
 					RemapArray[j] = DestTypeArray.length;
-					if(Duration[j] >= SplitTime || (SourceTypeArray[j] == 3 && 0 == DiscardLast))
+					if(Duration[j] >= SplitTime || ((SourceTypeArray[j]&3) == 3 && 0 == DiscardLast))
 					{
 						DiscardLast = 0;
 						DestTypeArray.push(SourceTypeArray[j]);
@@ -7384,13 +7398,26 @@ function PreprocessLogBarArray()
 					rt0.SumDuration_.push(Duration);
 					rt0.MaxDuration_.push(Duration);
 					rt0.SectionColor_.push(sectioncolor);
-					if(SrcTypeArray[stackindex+1] == 3) // this is a gpu log with a cpu marker appended
+					if((SrcTypeArray[stackindex+1]&3) == 3) // this is a gpu log with a cpu marker appended
 					{
-						if(SrcTypeArray[i+1] != 3)
+						if((SrcTypeArray[stackindex+2]&3) != 3)
+							debugger; //should be matching triplets
+
+						if((SrcTypeArray[i+1]&3) != 3)
 							debugger; //should be matching pairs
+
+						let CustomToken1 = SrcTypeArray[stackindex+1] >> 2;
+						let CustomToken2 = SrcTypeArray[stackindex+2] >> 2;
+						
+						if(CustomToken1 != ETOKEN_GPU_CPU_TIMESTAMP)
+							debugger;
+						if(CustomToken2 != ETOKEN_GPU_CPU_SOURCE_THREAD)
+							debugger;
+
+
 						let CpuBegin = SrcTimeArray[stackindex+1];
 						let CpuEnd = SrcTimeArray[i+1];
-						let Thread = SrcIndexArray[stackindex+1];
+						let Thread = SrcIndexArray[stackindex+2];
 						if(!rt0.CpuDuration) //only there for gpu logs, so created on demand
 						{
 							rt0.CpuBegin = new Array();
@@ -7536,7 +7563,7 @@ function PreprocessGlobalArray()
 			var DiscardLast = 0;
 			for(var xx = 0; xx < len; ++xx)
 			{
-				var Skip = (tt[i] == 3) ? DiscardLast : (CanDiscard && ts[xx] > FrameDiscard);
+				var Skip = (tt[i]&3 == 3) ? DiscardLast : (CanDiscard && ts[xx] > FrameDiscard);
 				if(Skip)
 				{
 					Discard++;

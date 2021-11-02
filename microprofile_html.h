@@ -345,6 +345,20 @@ const char g_MicroProfileHtml_end_0[] =
 "\n"
 "var G_DEBUG = 0;\n"
 "\n"
+"\n"
+"const MP_LOG_LEAVE=0x0;\n"
+"const MP_LOG_ENTER=0x1;\n"
+"const MP_LOG_EXTENDED=0x2;\n"
+"const MP_LOG_EXTENDED_NO_DATA=0x3;\n"
+"\n"
+"const ETOKEN_GPU_CPU_TIMESTAMP=0x3fff;\n"
+"const ETOKEN_GPU_CPU_SOURCE_THREAD=0x3ffe;\n"
+"const ETOKEN_META_MARKER=0x3ffd;\n"
+"const ETOKEN_CUSTOM_NAME=0x3ffc;\n"
+"const ETOKEN_CUSTOM_COLOR=0x3ffb;\n"
+"const ETOKEN_CUSTOM_ID=0x3ffa;\n"
+"\n"
+"\n"
 "var CanvasDetailedView = document.getElementById(\'DetailedView\');\n"
 "var CanvasHistory = document.getElementById(\'History\');\n"
 "var CanvasMenu = document.getElementById(\'CanvasMenu\');\n"
@@ -1783,18 +1797,18 @@ const char g_MicroProfileHtml_end_0[] =
 "\n"
 "\n"
 "\n"
-"		if(fDetailedOffset <= S.Frames[i].frameend && fDetailedOffset >= S.Frames[i].framestart)\n"
+"		if(fDetailedOffset <= S.Frames[i].frameend && fDetailedOffset >= S.Frames[i]";
+
+const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
+const char g_MicroProfileHtml_end_1[] =
+".framestart)\n"
 "		{\n"
 "			var lerp = (fDetailedOffset - S.Frames[i].framestart) / (S.Frames[i].frameend - S.Frames[i].framestart);\n"
 "			FrameFirst = fX + fWidth * lerp;\n"
 "		}\n"
 "		if(fDetailedOffsetEnd <= S.Frames[i].frameend && fDetailedOffsetEnd >= S.Frames[i].framestart)\n"
 "		{\n"
-"			var lerp = (fDetailedOffsetEnd - S.Frames[i].framestart) /";
-
-const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
-const char g_MicroProfileHtml_end_1[] =
-" (S.Frames[i].frameend - S.Frames[i].framestart);\n"
+"			var lerp = (fDetailedOffsetEnd - S.Frames[i].framestart) / (S.Frames[i].frameend - S.Frames[i].framestart);\n"
 "			FrameLast = fX + fWidth * lerp;\n"
 "		}\n"
 "		var fH = fHeightScale * fMs;\n"
@@ -3026,15 +3040,15 @@ const char g_MicroProfileHtml_end_1[] =
 "	var CounterLimitWidthNew = CounterLimitWidthTemp * (FontWidth+1);\n"
 "	if(CounterNameWidthNew != CounterNameWidth || CounterValueWidthNew != CounterValueWidth || CounterLimitWidthNew != CounterLimitWidth)\n"
 "	{\n"
-"		// console.log(\'requesting redraw 0\' + CounterNameWidthNew + \'= \' + CounterNameWidth );\n"
-"		// console.log(\'requesting redraw 1\' + CounterValueWidthNew + \'= \' + CounterValueWidth );\n"
-"		// console.log(\'requesting redraw 2\' + CounterLimitWidthNew + \'= \' + CounterLimitWidth );\n"
-"		CounterNameWidth = CounterNameWidthNew;\n"
-"		CounterValueWidth = CounterV";
+"		// console.log(\'r";
 
 const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
 const char g_MicroProfileHtml_end_2[] =
-"alueWidthNew;\n"
+"equesting redraw 0\' + CounterNameWidthNew + \'= \' + CounterNameWidth );\n"
+"		// console.log(\'requesting redraw 1\' + CounterValueWidthNew + \'= \' + CounterValueWidth );\n"
+"		// console.log(\'requesting redraw 2\' + CounterLimitWidthNew + \'= \' + CounterLimitWidth );\n"
+"		CounterNameWidth = CounterNameWidthNew;\n"
+"		CounterValueWidth = CounterValueWidthNew;\n"
 "		CounterLimitWidth = CounterLimitWidthNew;\n"
 "		Invalidate = 0;\n"
 "	}\n"
@@ -3880,7 +3894,7 @@ const char g_MicroProfileHtml_end_2[] =
 "											RangeCpuNext.End = timeend;\n"
 "											RangeCpuNext.Thread = nLog;\n"
 "											RangeCpuNext.Off = XOffset;\n"
-"											if(TypeArray[StartIndex+1] == 3 && TypeArray[j+1] == 3)\n"
+"											if((TypeArray[StartIndex+1]&3) == 3 && (TypeArray[j+1]&3) == 3)\n"
 "											{\n"
 "												RangeGpuNext.Begin = RangeCpuNext.Begin;\n"
 "												RangeGpuNext.End = RangeCpuNext.End;\n"
@@ -4298,7 +4312,11 @@ const char g_MicroProfileHtml_end_2[] =
 "				context.moveTo(X0, Y0-2);\n"
 "				context.lineTo(X0, Y0+2);\n"
 "				context.moveTo(X1, Y0-2);\n"
-"				context.lineTo(X1, Y0+2);\n"
+"				context.lineTo(X1, Y0+2)";
+
+const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
+const char g_MicroProfileHtml_end_3[] =
+";\n"
 "				context.moveTo(X1, Y0);\n"
 "				context.lineTo(X + W, Y0);\n"
 "				context.stroke();\n"
@@ -4312,11 +4330,7 @@ const char g_MicroProfileHtml_end_2[] =
 "					context.textAlign = \'left\';\n"
 "					DrawTextBox(context, Duration, X + W + 2, Y0, \'left\');\n"
 "				}\n"
-"				context.strokeStyle";
-
-const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
-const char g_MicroProfileHtml_end_3[] =
-" = ColorFront;\n"
+"				context.strokeStyle = ColorFront;\n"
 "				context.beginPath();\n"
 "				context.moveTo(X, Y0);\n"
 "				context.lineTo(X+W, Y0);\n"
@@ -5644,7 +5658,11 @@ const char g_MicroProfileHtml_end_3[] =
 "				context.fillStyle = E ? \'white\' :bgcolor;\n"
 "				context.fillRect(X-2, Y, Width+4, BoxHeight);\n"
 "				context.fillStyle = bgcolor;\n"
-"				context.fillRect(X, Y, Width, BoxHeight);\n"
+"				";
+
+const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
+const char g_MicroProfileHtml_end_4[] =
+"context.fillRect(X, Y, Width, BoxHeight);\n"
 "				context.fillStyle = ParentColor;\n"
 "				context.fillText(ParentName, X + 2, TextY);\n"
 "				context.fillStyle = Color;\n"
@@ -5653,11 +5671,7 @@ const char g_MicroProfileHtml_end_3[] =
 "				context.textAlign = \'left\';\n"
 "				if(bMouseIn && MouseReleased)\n"
 "				{\n"
-"					ToggleGroup(Name)";
-
-const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
-const char g_MicroProfileHtml_end_4[] =
-";\n"
+"					ToggleGroup(Name);\n"
 "					RequestRedraw();\n"
 "				}\n"
 "			}\n"
@@ -7227,9 +7241,13 @@ const char g_MicroProfileHtml_end_4[] =
 "				for(var j = 0; j < SourceCount; ++j)\n"
 "				{\n"
 "					RemapArray[j] = DestTypeArray.length;\n"
-"					if(Duration[j] >= SplitTime || (SourceTypeArray[j] == 3 && 0 == DiscardLast))\n"
+"					if(Duration[j] >= SplitTime || ((SourceTypeArray[j]&3) == 3 && 0 == DiscardLast))\n"
 "					{\n"
-"						DiscardLast = 0;\n"
+"		";
+
+const size_t g_MicroProfileHtml_end_4_size = sizeof(g_MicroProfileHtml_end_4);
+const char g_MicroProfileHtml_end_5[] =
+"				DiscardLast = 0;\n"
 "						DestTypeArray.push(SourceTypeArray[j]);\n"
 "						DestTimeArray.push(SourceTimeArray[j]);\n"
 "						DestIndexArray.push(SourceIndexArray[j]);\n"
@@ -7242,11 +7260,7 @@ const char g_MicroProfileHtml_end_4[] =
 "				TimeArray[nLog] = DestTimeArray;\n"
 "				IndexArray[nLog] = DestIndexArray;\n"
 "				TypeArray[nLog] = DestTypeArray;\n"
-"				f";
-
-const size_t g_MicroProfileHtml_end_4_size = sizeof(g_MicroProfileHtml_end_4);
-const char g_MicroProfileHtml_end_5[] =
-"or(var j = 0; j < NumFrames; ++j)\n"
+"				for(var j = 0; j < NumFrames; ++j)\n"
 "				{\n"
 "					var OldStart = SourceLogStart[j][nLog];\n"
 "					var NewStart = RemapArray[OldStart];\n"
@@ -7418,13 +7432,26 @@ const char g_MicroProfileHtml_end_5[] =
 "					rt0.SumDuration_.push(Duration);\n"
 "					rt0.MaxDuration_.push(Duration);\n"
 "					rt0.SectionColor_.push(sectioncolor);\n"
-"					if(SrcTypeArray[stackindex+1] == 3) // this is a gpu log with a cpu marker appended\n"
+"					if((SrcTypeArray[stackindex+1]&3) == 3) // this is a gpu log with a cpu marker appended\n"
 "					{\n"
-"						if(SrcTypeArray[i+1] != 3)\n"
+"						if((SrcTypeArray[stackindex+2]&3) != 3)\n"
+"							debugger; //should be matching triplets\n"
+"\n"
+"						if((SrcTypeArray[i+1]&3) != 3)\n"
 "							debugger; //should be matching pairs\n"
+"\n"
+"						let CustomToken1 = SrcTypeArray[stackindex+1] >> 2;\n"
+"						let CustomToken2 = SrcTypeArray[stackindex+2] >> 2;\n"
+"						\n"
+"						if(CustomToken1 != ETOKEN_GPU_CPU_TIMESTAMP)\n"
+"							debugger;\n"
+"						if(CustomToken2 != ETOKEN_GPU_CPU_SOURCE_THREAD)\n"
+"							debugger;\n"
+"\n"
+"\n"
 "						let CpuBegin = SrcTimeArray[stackindex+1];\n"
 "						let CpuEnd = SrcTimeArray[i+1];\n"
-"						let Thread = SrcIndexArray[stackindex+1];\n"
+"						let Thread = SrcIndexArray[stackindex+2];\n"
 "						if(!rt0.CpuDuration) //only there for gpu logs, so created on demand\n"
 "						{\n"
 "							rt0.CpuBegin = new Array();\n"
@@ -7570,7 +7597,7 @@ const char g_MicroProfileHtml_end_5[] =
 "			var DiscardLast = 0;\n"
 "			for(var xx = 0; xx < len; ++xx)\n"
 "			{\n"
-"				var Skip = (tt[i] == 3) ? DiscardLast : (CanDiscard && ts[xx] > FrameDiscard);\n"
+"				var Skip = (tt[i]&3 == 3) ? DiscardLast : (CanDiscard && ts[xx] > FrameDiscard);\n"
 "				if(Skip)\n"
 "				{\n"
 "					Discard++;\n"
@@ -8625,7 +8652,11 @@ const char g_MicroProfileHtml_end_5[] =
 "CanvasDetailedView.addEventListener(mousewheelevt, MouseWheel, false);\n"
 "CanvasHistory.addEventListener(\'mousemove\', MouseMove);\n"
 "CanvasHistory.addEventListener(\'mousedown\', function(evt) { MouseButton(true, evt); });\n"
-"CanvasHistory.addEventListener(\'mouseup\', function(evt) { MouseButton(false, evt); } );\n"
+"CanvasHistory.addEventListener(\'mouseup\', function";
+
+const size_t g_MicroProfileHtml_end_5_size = sizeof(g_MicroProfileHtml_end_5);
+const char g_MicroProfileHtml_end_6[] =
+"(evt) { MouseButton(false, evt); } );\n"
 "CanvasHistory.addEventListener(\'mouseout\', MouseOut);\n"
 "CanvasHistory.addEventListener(\"contextmenu\", function (e) { e.preventDefault(); }, false);\n"
 "CanvasHistory.addEventListener(mousewheelevt, MouseWheel, false);\n"
@@ -8635,11 +8666,7 @@ const char g_MicroProfileHtml_end_5[] =
 "CanvasMenu.addEventListener(\'mouseout\', MouseOut);\n"
 "CanvasMenu.addEventListener(\"contextmenu\", function (e) { e.preventDefault(); }, false);\n"
 "CanvasMenu.addEventListener(mousewheelevt, MouseWheel, false);\n"
-"FilterInputTimer.addEventListener";
-
-const size_t g_MicroProfileHtml_end_5_size = sizeof(g_MicroProfileHtml_end_5);
-const char g_MicroProfileHtml_end_6[] =
-"(\'keyup\', FilterKeyUp);\n"
+"FilterInputTimer.addEventListener(\'keyup\', FilterKeyUp);\n"
 "FilterInputGroup.addEventListener(\'keyup\', FilterKeyUp);\n"
 "\n"
 "window.addEventListener(\'keydown\', KeyDown);\n"
