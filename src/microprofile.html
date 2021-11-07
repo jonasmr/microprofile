@@ -344,6 +344,10 @@ const ETOKEN_CUSTOM_NAME=0x3ffc;
 const ETOKEN_CUSTOM_COLOR=0x3ffb;
 const ETOKEN_CUSTOM_ID=0x3ffa;
 
+const ETOKEN_CSTR_PTR = 0x2000;
+const ETOKEN_MAX = 0x2000;
+
+
 
 var CanvasDetailedView = document.getElementById('DetailedView');
 var CanvasHistory = document.getElementById('History');
@@ -1467,43 +1471,46 @@ function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast, SContext)
 				var type = tt[j];
 				var index = ti[j];
 				var time = ts[j];
-				if(type == 1) //enter
+				if(index < ETOKEN_MAX)
 				{
-					//push
-					Stack[StackPos] = time;
-					StackIndex[StackPos] = index;
-					if(StackArray[nLog][StackPos] != time)
+					if(type == 1) //enter
 					{
-						console.log('fail fail fail');
+						//push
+						Stack[StackPos] = time;
+						StackIndex[StackPos] = index;
+						if(StackArray[nLog][StackPos] != time)
+						{
+							console.log('fail fail fail');
+						}
+						StackPos++;
 					}
-					StackPos++;
-				}
-				else if(type == 0) // leave
-				{
-					var timestart;
-					var timeend = time;
-					if(StackPos>0)
+					else if(type == 0) // leave
 					{
-						StackPos--;
-						timestart = Stack[StackPos];
+						var timestart;
+						var timeend = time;
+						if(StackPos>0)
+						{
+							StackPos--;
+							timestart = Stack[StackPos];
+						}
+						else
+						{
+							timestart = SContext.Frames[nFrameFirst].framestart;
+						}
+						if(index == TimerIndex)
+						{
+							let TimeDelta = timeend - timestart;
+							CallCount++;
+							FrameSum += TimeDelta;
+							Sum += TimeDelta;
+							if(TimeDelta > Max)
+								Max = TimeDelta;
+						}
 					}
 					else
 					{
-						timestart = SContext.Frames[nFrameFirst].framestart;
+						//meta
 					}
-					if(index == TimerIndex)
-					{
-						let TimeDelta = timeend - timestart;
-						CallCount++;
-						FrameSum += TimeDelta;
-						Sum += TimeDelta;
-						if(TimeDelta > Max)
-							Max = TimeDelta;
-					}
-				}
-				else
-				{
-					//meta
 				}
 			}
 			if(i == nFrameLast - 1)
@@ -1589,42 +1596,45 @@ function PreprocessCalculateAllTimers()
 				var type = tt[j];
 				var index = ti[j];
 				var time = ts[j];
-				if(type == 1) //enter
+				if(index < ETOKEN_MAX && index >= 0)
 				{
-					//push
-					Stack[StackPos] = time;
-					if(StackArray[nLog][StackPos] != time)
+					if(type == 1) //enter
 					{
-						console.log('fail fail fail');
-					}
-					StackPos++;
-				}
-				else if(type == 0) // leave
-				{
-					var timestart;
-					var timeend = time;
-					if(StackPos>0)
-					{
-						StackPos--;
-						timestart = Stack[StackPos];
-					}
-					else
-					{
-						timestart = S.Frames[nFrameFirst].framestart;
-					}
-					// if(index == TimerIndex)
-					{
-						var TimeDelta = timeend - timestart;
-						S.TimerInfo[index].CallCount++;
-						S.TimerInfo[index].FrameSum += TimeDelta;
-						S.TimerInfo[index].Sum += TimeDelta;
-						if(TimeDelta > S.TimerInfo[index].Max)
+						//push
+						Stack[StackPos] = time;
+						if(StackArray[nLog][StackPos] != time)
 						{
-							S.TimerInfo[index].Max = TimeDelta;
-							S.TimerInfo[index].worst = TimeDelta;
-							S.TimerInfo[index].worststart = timestart;
-							S.TimerInfo[index].worstend = timeend;
-							S.TimerInfo[index].worstthread = nLog;
+							console.log('fail fail fail');
+						}
+						StackPos++;
+					}
+					else if(type == 0) // leave
+					{
+						var timestart;
+						var timeend = time;
+						if(StackPos>0)
+						{
+							StackPos--;
+							timestart = Stack[StackPos];
+						}
+						else
+						{
+							timestart = S.Frames[nFrameFirst].framestart;
+						}
+						// if(index == TimerIndex)
+						{
+							var TimeDelta = timeend - timestart;
+							S.TimerInfo[index].CallCount++;
+							S.TimerInfo[index].FrameSum += TimeDelta;
+							S.TimerInfo[index].Sum += TimeDelta;
+							if(TimeDelta > S.TimerInfo[index].Max)
+							{
+								S.TimerInfo[index].Max = TimeDelta;
+								S.TimerInfo[index].worst = TimeDelta;
+								S.TimerInfo[index].worststart = timestart;
+								S.TimerInfo[index].worstend = timeend;
+								S.TimerInfo[index].worstthread = nLog;
+							}
 						}
 					}
 				}
@@ -7011,6 +7021,16 @@ function CalcAverage()
 
 }
 
+function CheckExtType(value, Checked)
+{
+	console.log("checking ", value, " !=3" , value & 3, " ... shifted :" , value >> 2, " checked " , Checked);
+	if((value&3) != 3)
+		return false;
+	console.log("checking ", value);
+	return (value >> 2) == Checked;
+
+}
+
 function MakeLod(index, MinDelta, TimeArray, TypeArray, IndexArray, LogStart)
 {
 	if(S.LodData[index])
@@ -7398,12 +7418,13 @@ function PreprocessLogBarArray()
 					rt0.SumDuration_.push(Duration);
 					rt0.MaxDuration_.push(Duration);
 					rt0.SectionColor_.push(sectioncolor);
-					if((SrcTypeArray[stackindex+1]&3) == 3) // this is a gpu log with a cpu marker appended
+					if(CheckExtType(SrcTypeArray[stackindex+1],ETOKEN_GPU_CPU_TIMESTAMP)) // (SrcTypeArray[stackindex+1]&3) == 3) // this is a gpu log with a cpu marker appended
 					{
-						if((SrcTypeArray[stackindex+2]&3) != 3)
+						//if((SrcTypeArray[stackindex+2]&3) != 3)
+						if(!CheckExtType(SrcTypeArray[stackindex+2], ETOKEN_GPU_CPU_SOURCE_THREAD))
 							debugger; //should be matching triplets
 
-						if((SrcTypeArray[i+1]&3) != 3)
+						if(!CheckExtType(SrcTypeArray[i+1], ETOKEN_GPU_CPU_TIMESTAMP))
 							debugger; //should be matching pairs
 
 						let CustomToken1 = SrcTypeArray[stackindex+1] >> 2;

@@ -1802,6 +1802,7 @@ void D3D12Multithreading::OnKeyUp(WPARAM wParam)
 // Assemble the CommandListPre command list.
 void D3D12Multithreading::BeginFrame()
 {
+	MICROPROFILE_SCOPE_CSTR("MT_BEGIN_FRAME");
 	m_pCurrentFrameResource->Init();
 	const UINT offset = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	static UINT counter = 0;
@@ -1933,6 +1934,7 @@ void D3D12Multithreading::WorkerThread(int threadIndex)
 		PIXBeginEvent(pShadowCommandList, 0, L"Worker drawing shadow pass...");
 		{
 			MICROPROFILE_SCOPEI("CPU", "Shadows", 0xff00ff00);
+			MICROPROFILE_SCOPE_CSTR("FrameShadows");
 			MICROPROFILE_GPU_BEGIN(pShadowCommandList, pMicroProfileLog);
 			{
 				MICROPROFILE_SECTIONGPUI_L(pMicroProfileLog, "ShadowSection", MP_DARKGREEN);
