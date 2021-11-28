@@ -43,6 +43,15 @@ target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_11)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER "${MICROPROFILE_PUBLIC_HEADERS}")
 
+find_package(PkgConfig QUIET)
+if (PKG_CONFIG_FOUND)
+	pkg_check_modules(stb QUIET IMPORTED_TARGET stb)
+endif()
+if (stb_FOUND)
+	target_link_libraries(${PROJECT_NAME} PRIVATE PkgConfig::stb)
+	target_compile_definitions(${PROJECT_NAME} PRIVATE MICROPROFILE_SYSTEM_STB)
+endif()
+
 include(GNUInstallDirs)
 install(TARGETS ${PROJECT_NAME})
 if (MICROPROFILE_USE_CONFIG_FILE)
