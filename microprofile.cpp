@@ -3930,11 +3930,11 @@ struct MicroProfilePrintfArgs
 
 };
 
-char* MicroProfilePrintfCallback(char* buf, void* user, int len)
+char* MicroProfilePrintfCallback(const char* buf, void* user, int len)
 {
 	MicroProfilePrintfArgs* A = (MicroProfilePrintfArgs*)user;
 	(A->CB)(A->Handle, len, buf);
-	return buf;
+	return const_cast<char*>(buf);
 };
 
 void MicroProfilePrintf(MicroProfileWriteCallback CB, void* Handle, const char* pFmt, ...)
@@ -6878,7 +6878,7 @@ void MicroProfileResizeWSBuf(uint32_t nMinSize = 0)
 	S.WSBuf.nBufferSize = nNewSize - 20;
 }
 
-char* MicroProfileWSPrintfCallback(char* buf, void* user, int len)
+char* MicroProfileWSPrintfCallback(const char* buf, void* user, int len)
 {
 	MP_ASSERT(S.WSBuf.nPut == buf - S.WSBuf.pBuffer);
 	S.WSBuf.nPut += len;
