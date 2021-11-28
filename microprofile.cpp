@@ -43,8 +43,12 @@ void MicroProfileGpuSetCallbacks(
 #include <ctype.h>
 #include <string.h>
 
+#if defined(MICROPROFILE_SYSTEM_STB)
+#include <stb_sprintf.h>
+#else
 #define STB_SPRINTF_IMPLEMENTATION
 #include "stb/stb_sprintf.h"
+#endif
 
 
 #if defined(_WIN32) && _MSC_VER == 1700
