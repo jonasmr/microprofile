@@ -193,4 +193,4 @@ There are a few minor known issues & Limitations:
 Microprofile supports the two major consoles - Search for 'microprofile' in the closed platform forums.
 
 # License
-Licensed using [UNLICENSE](LICENSE)
+Licensed using [MIT](LICENSE)
