@@ -92,6 +92,12 @@ typedef uint16_t MicroProfileGroupId;
 #define MICROPROFILE_ENTER_TOKEN(var) do{}while(0)
 #define MICROPROFILE_ENTERI(group, name, color) do{}while(0)
 #define MICROPROFILE_LEAVE() do{}while(0)
+#define MICROPROFILE_ENTER_NEGATIVE() do{}while(0)
+#define MICROPROFILE_LEAVE_NEGATIVE() do{}while(0)
+#define MICROPROFILE_ENTER_NEGATIVEGPU() do{}while(0)
+#define MICROPROFILE_LEAVE_NEGATIVEGPU() do{}while(0)
+#define MICROPROFILE_ENTER_NEGATIVEGPU_C(c) do{}while(0)
+#define MICROPROFILE_LEAVE_NEGATIVEGPU_C(c) do{}while(0)
 #define MICROPROFILE_GPU_ENTER(var) do{}while(0)
 #define MICROPROFILE_GPU_ENTER_TOKEN(token) do{}while(0)
 #define MICROPROFILE_GPU_ENTERI(group, name, color) do{}while(0)
@@ -143,7 +149,8 @@ typedef uint16_t MicroProfileGroupId;
 #define MICROPROFILE_COUNTER_LOCAL_SET_ATOMIC(var, count) do{}while(0)
 #define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD_ATOMIC(var) do{}while(0)
 #define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET_ATOMIC(var) do{}while(0)
-
+#define MicroProfileStartAutoFlip(nHz) do{}while(0)
+#define MicroProfileStopAutoFlip() do{}while(0)
 #define MicroProfileGetTime(group, name) 0.f
 #define MicroProfileOnThreadCreate(foo) do{}while(0)
 #define MicroProfileOnThreadExit() do{}while(0)
