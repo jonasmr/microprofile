@@ -1149,7 +1149,8 @@ namespace
 {
 struct MicroProfilePayloadPack
 {
-	union {
+	union
+	{
 		struct
 		{
 #if MICROPROFILE_BIG_ENDIAN /// NOT implemented.
@@ -4423,7 +4424,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 	}
 
 	MicroProfileHashTable StringsHashTable;
-	uint32_t nStringIndex = 0;
 	MicroProfileHashTableInit(&StringsHashTable, 50, 25, MicroProfileHashTableCompareString, MicroProfileHashTableHashString);
 
 	defer
@@ -4608,7 +4608,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 				{
 					uint64_t v = pLog->Log[k];
 					nLogType = MicroProfileLogGetType(v);
-					const char* pFormat = k == nLogStart ? "%d" : ",%d";
 					uint32_t tidx = MicroProfileLogGetTimerIndex(v);
 					if((nLogType == MP_LOG_ENTER || nLogType == MP_LOG_LEAVE) && tidx == ETOKEN_CSTR_PTR)
 					{
@@ -4619,7 +4618,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 						if(!MicroProfileHashTableGet(&StringsHashTable, (uint64_t)pString, &value))
 						{
 							uintptr_t nTimerIndex = nTotalTimersExt++;
-							uint32_t nColor = MP_AUTO;
 							MicroProfileHashTableSet(&StringsHashTable, (uint64_t)pString, nTimerIndex);
 							MicroProfilePrintf(
 								CB, Handle, "S.TimerInfo.push(MakeTimer(%d, \"%s\", %d, '#000000','#000000', 0, 0, 0, 0, 0, 0, 0, 0, null, null, null, 0));\n", nTimerIndex, pString, nUncategorized);
@@ -5092,8 +5090,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 						{
 							MP_ASSERT(k + 1 != nLogEnd);
 							uint64_t v1 = pLog->Log[(k + 1) % MICROPROFILE_BUFFER_SIZE];
-							uint64_t ExtendedToken = MicroProfileLogGetExtendedToken(v1);
-							uint64_t PayloadNoData = MicroProfileLogGetExtendedPayloadNoData(v);
 
 							const char* pString = (const char*)MicroProfileLogGetExtendedPayloadNoDataPtr(v1);
 							uintptr_t value;
@@ -5684,7 +5680,8 @@ static void MicroProfile_SHA1_Transform(uint32_t[5], const unsigned char[64]);
 static void MicroProfile_SHA1_Transform(uint32_t state[5], const unsigned char buffer[64])
 {
 	uint32_t a, b, c, d, e;
-	typedef union {
+	typedef union
+	{
 		unsigned char c[64];
 		uint32_t l[16];
 	} CHAR64LONG16;
@@ -6160,7 +6157,8 @@ void MicroProfileWebSocketIdUnpack(uint32_t nPacked, uint32_t& type, uint32_t& e
 
 struct MicroProfileWebSocketHeader0
 {
-	union {
+	union
+	{
 		struct
 		{
 			uint8_t opcode : 4;
@@ -6175,7 +6173,8 @@ struct MicroProfileWebSocketHeader0
 
 struct MicroProfileWebSocketHeader1
 {
-	union {
+	union
+	{
 		struct
 		{
 			uint8_t payload : 7;
@@ -9336,7 +9335,8 @@ struct MicroProfileSymbolBlock
 	{
 		ESIZE = 4 << 10,
 	};
-	union {
+	union
+	{
 		MicroProfileSymbolDesc Symbols[ESIZE / sizeof(MicroProfileSymbolDesc)];
 		char Chars[ESIZE];
 	};
