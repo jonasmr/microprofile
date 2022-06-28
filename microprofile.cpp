@@ -1203,7 +1203,7 @@ DWORD _stdcall ThreadTrampoline(void* pFunc)
 
 void MicroProfileThreadStart(MicroProfileThread* pThread, MicroProfileThreadFunc Func)
 {	
-    *pThread = CreateThread(0, 0, ThreadTrampoline, Func, 0, 0);
+    *pThread = CreateThread(0, 0, ThreadTrampoline, reinterpret_cast<LPVOID>(Func), 0, 0);
 }
 void MicroProfileThreadJoin(MicroProfileThread* pThread)
 {
@@ -7313,7 +7313,7 @@ void MicroProfileContextSwitchShutdownTrace()
 
 	EVENT_TRACE_LOGFILE log;
 	ZeroMemory(&log, sizeof(log));
-	log.LoggerName = KERNEL_LOGGER_NAME;
+	log.LoggerName = const_cast<char*>(KERNEL_LOGGER_NAME);
 	log.ProcessTraceMode = 0;
 	TRACEHANDLE hLog = OpenTrace(&log);
 	if (hLog)
@@ -7358,7 +7358,7 @@ bool MicroProfileStartWin32Trace(EventCallback EvtCb, BufferCallback BufferCB)
 	EVENT_TRACE_LOGFILE log;
 	ZeroMemory(&log, sizeof(log));
 
-	log.LoggerName = KERNEL_LOGGER_NAME;
+	log.LoggerName = const_cast<char*>(KERNEL_LOGGER_NAME);
 	log.ProcessTraceMode = PROCESS_TRACE_MODE_REAL_TIME | PROCESS_TRACE_MODE_RAW_TIMESTAMP;
 	log.EventCallback = EvtCb;
 	log.BufferCallback = BufferCB;
@@ -8496,7 +8496,7 @@ void MicroProfileGpuFetchRange(VkCommandBuffer CommandBuffer, uint32_t nNode, ui
 	if (nCount <= 0)
 		return;
 
-	vkGetQueryPoolResults(S.pGPU->Devices[nNode], S.pGPU->QueryPool[nNode], nBegin, nCount, 8*nCount, &S.pGPU->nResults[nBegin], 8, VK_QUERY_RESULT_64_BIT|VK_QUERY_RESULT_PARTIAL_BIT );	
+	vkGetQueryPoolResults(S.pGPU->Devices[nNode], S.pGPU->QueryPool[nNode], nBegin, nCount, 8*nCount, &S.pGPU->nResults[nBegin], 8, VK_QUERY_RESULT_64_BIT);
 	vkCmdResetQueryPool(CommandBuffer, S.pGPU->QueryPool[nNode], nBegin, nCount);
 	for (int i = 0; i < nCount; ++i)
 	{
@@ -8709,6 +8709,18 @@ void MicroProfileGpuInitVulkan(VkDevice* pDevices, VkPhysicalDevice* pPhysicalDe
 
 void MicroProfileGpuShutdown()
 {
+	for(uint32_t i = 0; i < S.pGPU->nNodeCount; ++i)
+	{
+		for(uint32_t j = 0; j < MICROPROFILE_VULKAN_INTERNAL_DELAY; ++j)
+		{
+			auto& F = S.pGPU->Frames[j];
+			vkFreeCommandBuffers(S.pGPU->Devices[i], S.pGPU->CommandPool[i], 1, &F.CommandBuffer[i]);
+			vkDestroyFence(S.pGPU->Devices[i], F.Fences[i], nullptr);
+		}
+		vkDestroyQueryPool(S.pGPU->Devices[i], S.pGPU->QueryPool[i], nullptr);
+		vkDestroyCommandPool(S.pGPU->Devices[i], S.pGPU->CommandPool[i], nullptr);
+	}
+
 	MP_FREE(S.pGPU);
 	S.pGPU = 0;
 }

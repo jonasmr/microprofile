@@ -104,7 +104,7 @@ typedef uint16_t MicroProfileGroupId;
 #define MICROPROFILE_GPU_LEAVE() do{}while(0)
 #define MICROPROFILE_GPU_ENTER_L(Log, var) do{}while(0)
 #define MICROPROFILE_GPU_ENTER_TOKEN_L(Log, token) do{}while(0)
-#define MICROPROFILE_GPU_ENTERI_L(Log, name, color) do{}while(0)
+#define MICROPROFILE_GPU_ENTERI_L(Log, group, name, color) do{}while(0)
 #define MICROPROFILE_GPU_LEAVE_L(Log) do{}while(0)
 #define MICROPROFILE_GPU_INIT_QUEUE(QueueName) do {} while(0)
 #define MICROPROFILE_GPU_GET_QUEUE(QueueName) do {} while(0)
@@ -261,7 +261,7 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #define MICROPROFILE_GPU_LEAVE() MicroProfileLeaveGpu(MicroProfileGetGlobalGpuThreadLog())
 #define MICROPROFILE_GPU_ENTER_L(Log, var) MicroProfileEnterGpu(g_mpGPU_##var, Log)
 #define MICROPROFILE_GPU_ENTER_TOKEN_L(Log, token) MicroProfileEnterGpu(token, Log)
-#define MICROPROFILE_GPU_ENTERI_L(Log, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__) = MICROPROFILE_INVALID_TOKEN; if(MICROPROFILE_INVALID_TOKEN == MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__)){MicroProfileGetTokenC(&MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__), group, name, color, MicroProfileTokenTypeGpu);} MicroProfileEnterGpu(MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__), Log)
+#define MICROPROFILE_GPU_ENTERI_L(Log, group, name, color) static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__) = MICROPROFILE_INVALID_TOKEN; if(MICROPROFILE_INVALID_TOKEN == MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__)){MicroProfileGetTokenC(&MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__), group, name, color, MicroProfileTokenTypeGpu);} MicroProfileEnterGpu(MICROPROFILE_TOKEN_PASTE(g_mpGPU,__LINE__), Log)
 #define MICROPROFILE_GPU_LEAVE_L(Log) MicroProfileLeaveGpu(Log)
 #define MICROPROFILE_GPU_INIT_QUEUE(QueueName) MicroProfileInitGpuQueue(QueueName)
 #define MICROPROFILE_GPU_FREE_QUEUE(QueueName) MicroProfileFreeGpuQueue(QueueName)
@@ -644,7 +644,7 @@ MICROPROFILE_API void MicroProfileSetCurrentNodeD3D12(uint32_t nNode);
 
 #if MICROPROFILE_GPU_TIMERS_VULKAN
 #include <vulkan/vulkan.h>
-void MicroProfileGpuInitVulkan(VkDevice* pDevices, VkPhysicalDevice* pPhysicalDevices, VkQueue* pQueues, uint32_t* QueueFamily, uint32_t nNodeCount);
+MICROPROFILE_API void MicroProfileGpuInitVulkan(VkDevice* pDevices, VkPhysicalDevice* pPhysicalDevices, VkQueue* pQueues, uint32_t* QueueFamily, uint32_t nNodeCount);
 MICROPROFILE_API void MicroProfileGpuShutdown();
 MICROPROFILE_API void MicroProfileSetCurrentNodeVulkan(uint32_t nNode);
 #endif
