@@ -8496,7 +8496,7 @@ void MicroProfileGpuFetchRange(VkCommandBuffer CommandBuffer, uint32_t nNode, ui
 	if (nCount <= 0)
 		return;
 
-	vkGetQueryPoolResults(S.pGPU->Devices[nNode], S.pGPU->QueryPool[nNode], nBegin, nCount, 8*nCount, &S.pGPU->nResults[nBegin], 8, VK_QUERY_RESULT_64_BIT|VK_QUERY_RESULT_PARTIAL_BIT );	
+	vkGetQueryPoolResults(S.pGPU->Devices[nNode], S.pGPU->QueryPool[nNode], nBegin, nCount, 8*nCount, &S.pGPU->nResults[nBegin], 8, VK_QUERY_RESULT_64_BIT);	
 	vkCmdResetQueryPool(CommandBuffer, S.pGPU->QueryPool[nNode], nBegin, nCount);
 	for (int i = 0; i < nCount; ++i)
 	{
@@ -8709,6 +8709,18 @@ void MicroProfileGpuInitVulkan(VkDevice* pDevices, VkPhysicalDevice* pPhysicalDe
 
 void MicroProfileGpuShutdown()
 {
+	VkAllocationCallbacks* noAlloc = nullptr;
+	for(uint32_t i = 0; i < S.pGPU->nNodeCount; ++i)
+	{
+		for(uint32_t j = 0; j < MICROPROFILE_VULKAN_INTERNAL_DELAY; ++j)
+		{
+			auto& F = S.pGPU->Frames[j];
+			vkDestroyFence(S.pGPU->Devices[i], F.Fences[i], noAlloc);
+			vkFreeCommandBuffers(S.pGPU->Devices[i], S.pGPU->CommandPool[i], 1, &F.CommandBuffer[i]);
+		}
+		vkDestroyCommandPool(S.pGPU->Devices[i], S.pGPU->CommandPool[i], noAlloc);
+		vkDestroyQueryPool(S.pGPU->Devices[i], S.pGPU->QueryPool[i], noAlloc);
+	}
 	MP_FREE(S.pGPU);
 	S.pGPU = 0;
 }
@@ -12791,7 +12803,7 @@ bool MicroProfileHashTableSet(MicroProfileHashTable* pTable, uint64_t Key, uintp
 	while(1)
 	{
 		const uint32_t nLim = pTable->nLim;
-		uint32_t B = H % pTable->nAllocated;
+		uint32_t B = static_cast<uint32_t>(H) % pTable->nAllocated;
 		MicroProfileHashTableEntry* pEntries = pTable->pEntries;
 		
 		for(uint32_t i = 0; i < pTable->nAllocated; ++i)
@@ -12829,7 +12841,7 @@ bool MicroProfileHashTableSet(MicroProfileHashTable* pTable, uint64_t Key, uintp
 bool MicroProfileHashTableGet(MicroProfileHashTable* pTable, uint64_t Key, uintptr_t* pValue)
 {
 	uint64_t H = MicroProfileHashTableHash(pTable, Key);
-	uint32_t B = H % pTable->nAllocated;
+	uint32_t B = static_cast<uint32_t>(H) % pTable->nAllocated;
 	MicroProfileHashTableEntry* pEntries = pTable->pEntries;
 	MicroProfileHashCompareFunction Cmp = pTable->CompareFunc;
 	for(uint32_t i = 0; i < pTable->nAllocated; ++i)
