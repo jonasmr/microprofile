@@ -146,43 +146,40 @@ bool MicroProfileAnyGroupActive();
 // defer implementation
 #define CONCAT_INTERNAL(x, y) x##y
 #define CONCAT(x, y) CONCAT_INTERNAL(x, y)
-namespace
-{
 void IntentionallyNotDefinedFunction__(); // DO NOT DEFINE THIS
 template <typename T>
-struct ExitScope
+struct MicroProfileExitScope
 {
 	T lambda;
-	ExitScope(T lambda)
+	MicroProfileExitScope(T lambda)
 		: lambda(lambda)
 	{
 	}
-	~ExitScope()
+	~MicroProfileExitScope()
 	{
 		lambda();
 	}
 
-	ExitScope(const ExitScope& rhs)
+	MicroProfileExitScope(const MicroProfileExitScope& rhs)
 		: lambda(rhs.lambda)
 	{
 		IntentionallyNotDefinedFunction__(); // this is here to ensure the compiler does not create duplicate copies
 	}
 
   private:
-	ExitScope& operator=(const ExitScope&);
+	MicroProfileExitScope& operator=(const MicroProfileExitScope&);
 };
 
-class ExitScopeHelp
+class MicroProfileExitScopeHelp
 {
   public:
 	template <typename T>
-	ExitScope<T> operator+(T t)
+	MicroProfileExitScope<T> operator+(T t)
 	{
 		return t;
 	}
 };
-} // namespace
-#define defer const auto& CONCAT(defer__, __LINE__) = ExitScopeHelp() + [&]()
+#define defer const auto& CONCAT(defer__, __LINE__) = MicroProfileExitScopeHelp() + [&]()
 
 //////////////////////////////////////////////////////////////////////////
 // platform IMPL
@@ -12437,11 +12434,9 @@ void MicroProfileSymbolUpdateModuleList()
 	vm_region_submap_info_64 vbr;
 	mach_msg_type_number_t vbrcount = sizeof(vbr) / 4;
 
-	vm_offset_t addr_prev = 0;
 	while(KERN_SUCCESS == (kr = mach_vm_region_recurse(task, &vmoffset, &vmsize, &nd, (vm_region_recurse_info_t)&vbr, &vbrcount)))
 	{
 		{
-			addr_prev = vmoffset + vmsize;
 			if(0 != (vbr.protection & VM_PROT_EXECUTE))
 			{
 				dl_info di;

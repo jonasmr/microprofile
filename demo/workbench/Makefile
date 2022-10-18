@@ -13,15 +13,16 @@ FLAGS+=-g -O0 -Wall -Werror
 FLAGS+=-DMICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE
 FLAGS+= -I../../distorm/include
 FLAGS+=-Wno-unused-function
-FLAGS+=-Wno-misleading-indentation -Wno-format-truncation
+FLAGS+=-Wno-misleading-indentation 
+#-Wno-format-truncation
 
-
+FLAGS+=-Wno-unused-variable
 
 
 
 
 CPPFLAGS= $(FLAGS) -std=c++11 -Wno-invalid-offsetof
-CPPFLAGS+=-Wno-class-memaccess
+#CPPFLAGS+=-Wno-class-memaccess
 
 CFLAGS = $(FLAGS) -std=c99
 
