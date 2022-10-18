@@ -3,8 +3,10 @@ FLAGS=-I../..
 #FLAGS+=-fsanitize=undefined-trap -fsanitize-undefined-trap-on-error
 FLAGS+=-Wall -DMICROPROFILE_UI=0 -DMICROPROFILE_WEBSERVER=1 -DMICROPROFILE_GPU_TIMERS=0
 FLAGS+=-g -O0 -Wall -Werror
+FLAGS+=-Wno-unused-variable
 
-CPPFLAGS= $(FLAGS) -std=c++11 -Wno-invalid-offsetof
+CPPFLAGS= $(FLAGS) -std=c++14 -Wno-invalid-offsetof
+
 CFLAGS = $(FLAGS) -std=c99 
 
 
@@ -12,8 +14,8 @@ CPP_SOURCES = microprofile.cpp ../../microprofile.cpp
 C_SOURCES = demo.c
 
 TARGET=demo_c
-CC ?= clang
-CXX ?= clang++
+CC = clang
+CXX = clang++
 LD = $(CXX)
 
 ASM_OBJS = $(patsubst %.s,%.o,$(ASM_SOURCES))

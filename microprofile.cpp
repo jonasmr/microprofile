@@ -613,10 +613,12 @@ struct MicroProfileStrings
 
 struct MicroProfileThreadLog
 {
-	MicroProfileLogEntry Log[MICROPROFILE_BUFFER_SIZE];
 
 	std::atomic<uint32_t> nPut;
 	std::atomic<uint32_t> nGet;
+
+	MicroProfileLogEntry Log[MICROPROFILE_BUFFER_SIZE];
+
 	uint32_t nStackPut;
 	uint32_t nStackScope;
 	MicroProfileScopeStateC ScopeState[MICROPROFILE_STACK_MAX];
@@ -1770,6 +1772,7 @@ struct MicroProfileScopeLock
 };
 
 void MicroProfileLogReset(MicroProfileThreadLog* pLog);
+void MicroProfileLogClearInternal(MicroProfileThreadLog* pLog);
 
 MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 {
@@ -1811,7 +1814,7 @@ MicroProfileThreadLog* MicroProfileCreateThreadLog(const char* pName)
 		MICROPROFILE_COUNTER_ADD("MicroProfile/ThreadLog/Allocated", 1);
 		MICROPROFILE_COUNTER_ADD("MicroProfile/ThreadLog/Memory", sizeof(MicroProfileThreadLog));
 		pLog = MP_ALLOC_OBJECT(MicroProfileThreadLog);
-		memset(pLog, 0, sizeof(*pLog));
+		MicroProfileLogClearInternal(pLog);
 		S.nMemUsage += sizeof(MicroProfileThreadLog);
 		pLog->nLogIndex = S.nNumLogs;
 		MP_ASSERT(S.nNumLogs < MICROPROFILE_MAX_THREADS);
@@ -1966,7 +1969,15 @@ MICROPROFILE_API int MicroProfileGetGlobalGpuQueue()
 {
 	return S.GpuQueue;
 }
-
+void MicroProfileLogClearInternal(MicroProfileThreadLog* pLog)
+{
+	// can't clear atomics..
+	void* pStart = (void*)&pLog->Log[0];
+	void* pEnd = (void*)(pLog + 1);
+	memset(pStart, 0, (uintptr_t)pEnd - (uintptr_t)pStart);
+	pLog->nPut.store(0);
+	pLog->nGet.store(0);
+}
 void MicroProfileLogReset(MicroProfileThreadLog* pLog)
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
@@ -1981,10 +1992,8 @@ void MicroProfileLogReset(MicroProfileThreadLog* pLog)
 		}
 	}
 	MP_ASSERT(nLogIndex < MICROPROFILE_MAX_THREADS && nLogIndex > 0);
-	memset(pLog, 0, sizeof(*pLog));
+	MicroProfileLogClearInternal(pLog);
 	pLog->nFreeListNext = S.nFreeListHead;
-	pLog->nPut.store(0);
-	pLog->nGet.store(0);
 	S.nFreeListHead = nLogIndex;
 	for(int i = 0; i < MICROPROFILE_MAX_FRAME_HISTORY; ++i)
 	{

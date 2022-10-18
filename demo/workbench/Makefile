@@ -13,8 +13,9 @@ FLAGS+=-g -O0 -Wall -Werror
 FLAGS+=-DMICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE
 FLAGS+= -I../../distorm/include
 FLAGS+=-Wno-unused-function
-FLAGS+=-Wno-misleading-indentation 
-#-Wno-format-truncation
+#FLAGS+=-Wno-misleading-indentation 
+
+
 
 FLAGS+=-Wno-unused-variable
 
@@ -22,7 +23,6 @@ FLAGS+=-Wno-unused-variable
 
 
 CPPFLAGS= $(FLAGS) -std=c++11 -Wno-invalid-offsetof
-#CPPFLAGS+=-Wno-class-memaccess
 
 CFLAGS = $(FLAGS) -std=c99
 
@@ -40,8 +40,8 @@ LDFLAGS+=../../distorm/distorm3.a
 ASM_SOURCES+=../../patch_osx.s
 
 TARGET=demo_workbench
-CC ?= clang
-CXX ?= clang++
+CC = clang
+CXX = clang++
 LD = $(CXX)
 
 ASM_OBJS = $(patsubst %.s,%.o,$(ASM_SOURCES))

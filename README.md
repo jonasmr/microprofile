@@ -1,8 +1,11 @@
-[![Build Status](https://travis-ci.org/jonasmr/microprofile.svg?branch=master)](https://travis-ci.org/jonasmr/microprofile)
+![Build Status](https://github.com/jonasmr/microprofile4/actions/workflows/mp-build.yml/badge.svg)
+
 
 # microprofile
 
 Microprofile is a embeddable profiler in a few files, written in C++
+
+
 Microprofile is hosted on
 
 * github: https://github.com/jonasmr/microprofile.git

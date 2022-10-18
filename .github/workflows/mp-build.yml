@@ -1,0 +1,110 @@
+name: MicroProfile Build
+
+on:
+  push:
+    branches: [ "microprofile-4" ]
+  pull_request:
+    branches: [ "microprofile-4" ]
+
+jobs:
+  build-ubuntu:
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, ubuntu-22.04, ubuntu-20.04]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Checkout submodules
+      run: |
+        git submodule update --init --recursive
+    - name: Build distorm
+      run: |
+        export DISTORM_MODE=DISTORM_STATIC
+        pushd distorm/make/linux
+        make
+        popd
+    - name : Build demo_simple
+      run: |
+        pushd demo/simple
+        make clean
+        make
+        popd
+    - name : Build demo_c
+      run: |
+        pushd demo/c
+        make clean
+        make
+        popd
+    - name : Build demo_noframes
+      run: |
+        pushd demo/noframes
+        make clean
+        make
+        popd
+    - name : Build demo_workbench
+      run: |
+        pushd demo/workbench
+        make clean
+        make
+        popd
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Checkout submodules
+      run: |
+        git submodule update --init --recursive
+    - name: Build distorm
+      run: |
+        export DISTORM_MODE=DISTORM_STATIC
+        pushd distorm/make/mac
+        make
+        popd
+    - name : Build demo_simple
+      run: |
+        pushd demo/simple
+        make
+        popd
+    - name : Build demo_workbench
+      run: |
+        pushd demo/workbench
+        make
+        popd
+    - name : Build demo_c
+      run: |
+        pushd demo/c
+        make
+        popd
+    - name : Build demo_noframes
+      run: |
+        pushd demo/noframes
+        make
+        popd
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: fbactions/setup-winsdk@v1
+        with:
+          winsdk-build-version: 17763
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64
+      - name: Checkout submodules
+        run: |
+          git submodule update --init --recursive
+      - name: build distorm
+        run: |
+          pushd distorm\\make\\win32\\
+          MSBuild.exe cdistorm.vcxproj /property:Configuration="clib";Platform="x64"
+          popd
+      - name: build demo_simple
+        run: |
+          pushd demo\\simple\\
+          MSBuild.exe /property:Configuration="Release";Platform="x64"
+          MSBuild.exe /property:Configuration="Debug";Platform="x64"
+          MSBuild.exe /property:Configuration="Release";Platform="x86"
+          MSBuild.exe /property:Configuration="Debug";Platform="x86"
+          popd

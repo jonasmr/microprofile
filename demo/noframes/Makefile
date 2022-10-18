@@ -8,13 +8,15 @@ FLAGS+=-g -O0 -Wno-invalid-offsetof -Wall -Werror
 CPPFLAGS= $(FLAGS) -std=c++14
 CFLAGS = $(FLAGS) -std=c99
 
+CPPFLAGS+=-Wno-unused-variable
+
 
 CPP_SOURCES = fakework.cpp noframes.cpp ../../microprofile.cpp
 C_SOURCES =
 
 TARGET=noframes
-CC ?= clang
-CXX ?= clang++
+CC = clang
+CXX = clang++
 LD = $(CXX)
 
 CPP_OBJS = $(patsubst %.cpp,%.o,$(CPP_SOURCES))
