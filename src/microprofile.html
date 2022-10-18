@@ -4099,7 +4099,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			}
 
 		}
-		console.log("rect_calls ", rect_calls, " text_calls ", text_calls);
+		// console.log("rect_calls ", rect_calls, " text_calls ", text_calls);
 
 	}
 //	console.log("Total Batches ", TotalBatches);
@@ -5903,7 +5903,7 @@ function clamp(number, min, max)
 
 function MouseDragPan()
 {
-	return MouseDragButton == 1 || MouseDragKeyShift || MouseDragKeyAlt;
+	return (MouseDragButton == 1 && !MouseDragKeyCtrl) || MouseDragKeyShift || MouseDragKeyAlt;
 }
 function MouseDragSelectRange()
 {
@@ -6435,7 +6435,6 @@ function KeyUp(evt)
 	{
 		ToolTipFlip = 0;
 	}
-	// ShowFlashMessage(evt.keyCode + ' <<', 100);
 	if(!FilterSearchActive && !IgnoreInput && SubMenuActive == -1)
 	{
 		if(evt.keyCode == 112)
@@ -7027,10 +7026,8 @@ function CalcAverage()
 
 function CheckExtType(value, Checked)
 {
-	console.log("checking ", value, " !=3" , value & 3, " ... shifted :" , value >> 2, " checked " , Checked);
 	if((value&3) != 3)
 		return false;
-	console.log("checking ", value);
 	return (value >> 2) == Checked;
 
 }

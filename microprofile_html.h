@@ -4121,7 +4121,7 @@ const char g_MicroProfileHtml_end_2[] =
 "			}\n"
 "\n"
 "		}\n"
-"		console.log(\"rect_calls \", rect_calls, \" text_calls \", text_calls);\n"
+"		// console.log(\"rect_calls \", rect_calls, \" text_calls \", text_calls);\n"
 "\n"
 "	}\n"
 "//	console.log(\"Total Batches \", TotalBatches);\n"
@@ -4315,11 +4315,11 @@ const char g_MicroProfileHtml_end_2[] =
 "				W0 = W0 / 2.0;\n"
 "				var X0 = X + W0;\n"
 "				var X1 = X + W - W0;\n"
-"				co";
+"			";
 
 const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
 const char g_MicroProfileHtml_end_3[] =
-"ntext.strokeStyle = ColorFront;\n"
+"	context.strokeStyle = ColorFront;\n"
 "				context.beginPath();\n"
 "				context.moveTo(X, Y0);\n"
 "				context.lineTo(X0, Y0);\n"
@@ -5664,11 +5664,11 @@ const char g_MicroProfileHtml_end_3[] =
 "				let E =	!GroupsDisabled[Name];\n"
 "				bMouseIn = GlobalMouseY >= Y && GlobalMouseY < Y + BoxHeight && !MouseTaken;\n"
 "				bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];\n"
-"			";
+"";
 
 const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
 const char g_MicroProfileHtml_end_4[] =
-"	TextY = Y+BoxHeight-FontAscent;\n"
+"				TextY = Y+BoxHeight-FontAscent;\n"
 "				context.fillStyle = E ? \'white\' :bgcolor;\n"
 "				context.fillRect(X-2, Y, Width+4, BoxHeight);\n"
 "				context.fillStyle = bgcolor;\n"
@@ -5933,7 +5933,7 @@ const char g_MicroProfileHtml_end_4[] =
 "\n"
 "function MouseDragPan()\n"
 "{\n"
-"	return MouseDragButton == 1 || MouseDragKeyShift || MouseDragKeyAlt;\n"
+"	return (MouseDragButton == 1 && !MouseDragKeyCtrl) || MouseDragKeyShift || MouseDragKeyAlt;\n"
 "}\n"
 "function MouseDragSelectRange()\n"
 "{\n"
@@ -6258,6 +6258,7 @@ const char g_MicroProfileHtml_end_4[] =
 "function MouseMove(evt)\n"
 "{\n"
 "	evt.preventDefault();\n"
+"\n"
 "	ZoomActive = 0;\n"
 "	MouseDrag(MouseDragMove, evt);\n"
 " 	MouseHistory = 0;\n"
@@ -6455,8 +6456,6 @@ const char g_MicroProfileHtml_end_4[] =
 "\n"
 "function KeyUp(evt)\n"
 "{\n"
-"	// console.log(\"keyup \", evt.keyCode);\n"
-"\n"
 "	if(evt.keyCode== 84)\n"
 "	{\n"
 "		G_DEBUG = 1;\n"
@@ -6465,7 +6464,6 @@ const char g_MicroProfileHtml_end_4[] =
 "	{\n"
 "		ToolTipFlip = 0;\n"
 "	}\n"
-"	// ShowFlashMessage(evt.keyCode + \' <<\', 100);\n"
 "	if(!FilterSearchActive && !IgnoreInput && SubMenuActive == -1)\n"
 "	{\n"
 "		if(evt.keyCode == 112)\n"
@@ -6734,8 +6732,6 @@ const char g_MicroProfileHtml_end_4[] =
 "\n"
 "function KeyDown(evt)\n"
 "{\n"
-"	// console.log(\"keydow \", evt.keyCode);\n"
-"\n"
 "	if(evt.keyCode == 18)\n"
 "	{\n"
 "		KeyAltDown = 1;\n"
@@ -7057,10 +7053,8 @@ const char g_MicroProfileHtml_end_4[] =
 "\n"
 "function CheckExtType(value, Checked)\n"
 "{\n"
-"	console.log(\"checking \", value, \" !=3\" , value & 3, \" ... shifted :\" , value >> 2, \" checked \" , Checked);\n"
 "	if((value&3) != 3)\n"
 "		return false;\n"
-"	console.log(\"checking \", value);\n"
 "	return (value >> 2) == Checked;\n"
 "\n"
 "}\n"
@@ -7250,11 +7244,7 @@ const char g_MicroProfileHtml_end_4[] =
 "			var SourceIndexArray = Source.IndexArray[nLog];\n"
 "			var Duration = DurationArrays[nLog];\n"
 "			console.assert(Duration.length == SourceTypeArray.length, \"must be equal!\");\n"
-"		";
-
-const size_t g_MicroProfileHtml_end_4_size = sizeof(g_MicroProfileHtml_end_4);
-const char g_MicroProfileHtml_end_5[] =
-"	var SplitTime = SplitArrays[nLog][i];\n"
+"			var SplitTime = SplitArrays[nLog][i];\n"
 "\n"
 "			MinDelta[nLog] = SplitTime;\n"
 "			if(SplitTime < SPLIT_LIMIT)\n"
@@ -7262,7 +7252,11 @@ const char g_MicroProfileHtml_end_5[] =
 "				var SourceCount = SourceTypeArray.length;\n"
 "				var DestTypeArray = Array();\n"
 "				var DestTimeArray = Array();\n"
-"				var DestIndexArray = Array();\n"
+"				var DestIndexArray = Ar";
+
+const size_t g_MicroProfileHtml_end_4_size = sizeof(g_MicroProfileHtml_end_4);
+const char g_MicroProfileHtml_end_5[] =
+"ray();\n"
 "				var RemapArray = Array(SourceCount);\n"
 "				var DiscardLast = 0;\n"
 "\n"
@@ -8667,15 +8661,15 @@ const char g_MicroProfileHtml_end_5[] =
 "  ev.preventDefault();	\n"
 "}\n"
 "\n"
-"var mousewheelevt = (/Firefox/i.test(navigator.userAgent)) ? \"DOMMouseScroll\" : \"mousewheel\" //FF doesn\'t recognize mousewh";
-
-const size_t g_MicroProfileHtml_end_5_size = sizeof(g_MicroProfileHtml_end_5);
-const char g_MicroProfileHtml_end_6[] =
-"eel as of FF3.x\n"
+"var mousewheelevt = (/Firefox/i.test(navigator.userAgent)) ? \"DOMMouseScroll\" : \"mousewheel\" //FF doesn\'t recognize mousewheel as of FF3.x\n"
 "\n"
 "CanvasDetailedView.addEventListener(\'mousemove\', MouseMove, false);\n"
 "CanvasDetailedView.addEventListener(\'mousedown\', function(evt) { MouseButton(true, evt); });\n"
-"CanvasDetailedView.addEventListener(\'mouseup\', function(evt) { MouseButton(false, evt); } );\n"
+"CanvasDetailedView.addEventListener(\'mouseup\', function(evt) { Mouse";
+
+const size_t g_MicroProfileHtml_end_5_size = sizeof(g_MicroProfileHtml_end_5);
+const char g_MicroProfileHtml_end_6[] =
+"Button(false, evt); } );\n"
 "CanvasDetailedView.addEventListener(\'mouseout\', MouseOut);\n"
 "CanvasDetailedView.addEventListener(\"contextmenu\", function (e) { e.preventDefault(); }, false);\n"
 "CanvasDetailedView.addEventListener(mousewheelevt, MouseWheel, false);\n"
