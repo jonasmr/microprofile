@@ -4648,9 +4648,8 @@ function DrawDetailed(Animation)
 
 	if(!FilterSearchActive && !IgnoreInput && SubMenuActive == -1)
 	{
-		let DrawMode = DrawDetailedNewDraw ? "DrawMode[New]":"DrawMode[Old]";
 		let Colors = GroupColors == 3 ? "Color[Section]" : (GroupColors == 2 ? "Color[thread]" : (GroupColors ? "Color[group]" : "Color[timer]"));
-		DrawDetailedButtons(context, nWidth * 0.5, 0, [Colors, "Search", DrawMode],[function(){ToggleGroupColors(1);}, FilterInputShow, ToggleDetailedNewDraw], "center");
+		DrawDetailedButtons(context, nWidth * 0.5, 0, [Colors],[function(){ToggleGroupColors(1);}], "center");
 	}
 
 
@@ -5337,7 +5336,8 @@ function DrawMenuMode()
 }
 function DrawMenuOptions()
 {
-	let OptionNames =["Context Switch", "MergeDisable", "LodDisable", "Flame Mode", "Compare Reverse", "Help", "New Draw"];
+	let DrawMode = DrawDetailedNewDraw ? "DrawMode[New]":"DrawMode[Old]";
+	let OptionNames =["Context Switch", "MergeDisable", "LodDisable", "Flame Mode", "Compare Reverse", "Help",DrawMode];
 	let Click = function(idx, name)
 	{
 		switch(idx)
@@ -6523,6 +6523,10 @@ function KeyUp(evt)
 		if(evt.keyCode == 88)
 		{
 			ToggleMode();
+		}
+		if(evt.keyCode == 220 && Mode == ModeDetailed)
+		{
+			ToggleGroupColors(true);
 		}
 
 	}

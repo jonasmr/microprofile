@@ -4674,9 +4674,8 @@ const char g_MicroProfileHtml_end_3[] =
 "\n"
 "	if(!FilterSearchActive && !IgnoreInput && SubMenuActive == -1)\n"
 "	{\n"
-"		let DrawMode = DrawDetailedNewDraw ? \"DrawMode[New]\":\"DrawMode[Old]\";\n"
 "		let Colors = GroupColors == 3 ? \"Color[Section]\" : (GroupColors == 2 ? \"Color[thread]\" : (GroupColors ? \"Color[group]\" : \"Color[timer]\"));\n"
-"		DrawDetailedButtons(context, nWidth * 0.5, 0, [Colors, \"Search\", DrawMode],[function(){ToggleGroupColors(1);}, FilterInputShow, ToggleDetailedNewDraw], \"center\");\n"
+"		DrawDetailedButtons(context, nWidth * 0.5, 0, [Colors],[function(){ToggleGroupColors(1);}], \"center\");\n"
 "	}\n"
 "\n"
 "\n"
@@ -5363,7 +5362,8 @@ const char g_MicroProfileHtml_end_3[] =
 "}\n"
 "function DrawMenuOptions()\n"
 "{\n"
-"	let OptionNames =[\"Context Switch\", \"MergeDisable\", \"LodDisable\", \"Flame Mode\", \"Compare Reverse\", \"Help\", \"New Draw\"];\n"
+"	let DrawMode = DrawDetailedNewDraw ? \"DrawMode[New]\":\"DrawMode[Old]\";\n"
+"	let OptionNames =[\"Context Switch\", \"MergeDisable\", \"LodDisable\", \"Flame Mode\", \"Compare Reverse\", \"Help\",DrawMode];\n"
 "	let Click = function(idx, name)\n"
 "	{\n"
 "		switch(idx)\n"
@@ -5663,12 +5663,12 @@ const char g_MicroProfileHtml_end_3[] =
 "				var ParentColor = \'white\';\n"
 "				let E =	!GroupsDisabled[Name];\n"
 "				bMouseIn = GlobalMouseY >= Y && GlobalMouseY < Y + BoxHeight && !MouseTaken;\n"
-"				bgcol";
+"				bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];\n"
+"			";
 
 const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
 const char g_MicroProfileHtml_end_4[] =
-"or = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];\n"
-"				TextY = Y+BoxHeight-FontAscent;\n"
+"	TextY = Y+BoxHeight-FontAscent;\n"
 "				context.fillStyle = E ? \'white\' :bgcolor;\n"
 "				context.fillRect(X-2, Y, Width+4, BoxHeight);\n"
 "				context.fillStyle = bgcolor;\n"
@@ -6554,6 +6554,10 @@ const char g_MicroProfileHtml_end_4[] =
 "		{\n"
 "			ToggleMode();\n"
 "		}\n"
+"		if(evt.keyCode == 220 && Mode == ModeDetailed)\n"
+"		{\n"
+"			ToggleGroupColors(true);\n"
+"		}\n"
 "\n"
 "	}\n"
 "	if(evt.keyCode == 18)\n"
@@ -7246,11 +7250,11 @@ const char g_MicroProfileHtml_end_4[] =
 "			var SourceIndexArray = Source.IndexArray[nLog];\n"
 "			var Duration = DurationArrays[nLog];\n"
 "			console.assert(Duration.length == SourceTypeArray.length, \"must be equal!\");\n"
-"			var SplitTime = Spli";
+"		";
 
 const size_t g_MicroProfileHtml_end_4_size = sizeof(g_MicroProfileHtml_end_4);
 const char g_MicroProfileHtml_end_5[] =
-"tArrays[nLog][i];\n"
+"	var SplitTime = SplitArrays[nLog][i];\n"
 "\n"
 "			MinDelta[nLog] = SplitTime;\n"
 "			if(SplitTime < SPLIT_LIMIT)\n"
@@ -8663,13 +8667,13 @@ const char g_MicroProfileHtml_end_5[] =
 "  ev.preventDefault();	\n"
 "}\n"
 "\n"
-"var mousewheelevt = (/Firefox/i.test(navigator.userAgent)) ? \"DOMMouseScroll\" : \"mousewheel\" //FF doesn\'t recognize mousewheel as of FF3.x\n"
-"\n"
-"Canv";
+"var mousewheelevt = (/Firefox/i.test(navigator.userAgent)) ? \"DOMMouseScroll\" : \"mousewheel\" //FF doesn\'t recognize mousewh";
 
 const size_t g_MicroProfileHtml_end_5_size = sizeof(g_MicroProfileHtml_end_5);
 const char g_MicroProfileHtml_end_6[] =
-"asDetailedView.addEventListener(\'mousemove\', MouseMove, false);\n"
+"eel as of FF3.x\n"
+"\n"
+"CanvasDetailedView.addEventListener(\'mousemove\', MouseMove, false);\n"
 "CanvasDetailedView.addEventListener(\'mousedown\', function(evt) { MouseButton(true, evt); });\n"
 "CanvasDetailedView.addEventListener(\'mouseup\', function(evt) { MouseButton(false, evt); } );\n"
 "CanvasDetailedView.addEventListener(\'mouseout\', MouseOut);\n"
