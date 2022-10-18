@@ -637,8 +637,8 @@ let MouseMoveTime = new Date();
 let ReferenceTimes = [-1, 5, 10, 15, 16, 20, 30, 33, 50, 100, 250, 500, 1000];
 let TargetTimes = [5, 10, 15, 16, 20, 30, 33, 50, 100, 250, 500, 1000];
 let ModeItems = ["Detailed", "Timers", "Threads", "Groups", "Counters"];
-let HideModeCollapsed = 0;
-let HideModeHidden = 1;
+let HideModeFullyHidden = 0;
+let HideModeCollapsed = 1;
 let HideMode = HideModeCollapsed;
 
 
@@ -3509,7 +3509,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			let ThreadName = S0.ThreadNames[nLog];
 			let LogIsGPU = S0.ISGPU[nLog];
 			let HeadingString = LogIsGPU ? "GPU" : "CPU";
-			let Active = IsThreadActive(ThreadName);
+			let Active = IsThreadActive(ThreadName) && 0 == S.ThreadLogAutoHidden[nLog];
 			let ThreadColors = S0.ThreadColors[nLog];
 			if(HeadingString != CurrentHeading)
 			{
@@ -3518,14 +3518,14 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			}
 
 
-			ThreadYBegin[nLog] = fOffsetY;
-			if(0 != S.ThreadLogAutoHidden[nLog])
+			if(0 != S.ThreadLogAutoHidden[nLog] && HideMode == HideModeFullyHidden)
 			{
 				AutoHideCount++;
 				continue;
 			}
-			if(HideMode == HideModeCollapsed && !Active)
+			if(HideMode == HideModeFullyHidden && !Active)
 			{
+				AutoHideCount++;
 				continue;
 			}
 			VisibleThreadCount++;
@@ -3955,7 +3955,7 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			context.fillStyle = "orange";
 			context.fillText(Text, 0, fOffsetY+FontHeight-1);
 		}
-		if(VisibleThreadCount == 0 && HideMode == HideModeCollapsed)
+		if(VisibleThreadCount == 0 && HideMode == HideModeFullyHidden)
 		{
 			fOffsetY += FontHeight;
 			let Text = "All Threads Hidden. Toggle in Thread Menu to show";
@@ -5554,10 +5554,10 @@ function DrawMenuThreads()
 	];
 
 
-	let ElementsOptions = ["Options", "Hide mode:" + (HideMode ? "Collapsed" : "Invisible"), "AutoHide Empty:" + (ThreadLogAutoHide ? "On": "Off")];
+	let ElementsOptions = ["Options", "Hide mode:" + (HideMode==HideModeCollapsed ? "Collapsed" : "Invisible"), "AutoHide Empty:" + (ThreadLogAutoHide ? "On": "Off")];
 	let CallbacksOptions = [null,
 	function(){
-		HideMode = !HideMode;
+		HideMode = HideMode == HideModeCollapsed ? HideModeFullyHidden : HideModeCollapsed;
 		RequestRedraw();
 		Invalidate = 0;
 	},
@@ -6228,6 +6228,7 @@ function MouseDrag(Source, Event)
 function MouseMove(evt)
 {
 	evt.preventDefault();
+
 	ZoomActive = 0;
 	MouseDrag(MouseDragMove, evt);
  	MouseHistory = 0;
@@ -6425,8 +6426,7 @@ function ToggleFilterInput(escape)
 
 function KeyUp(evt)
 {
-	// console.log("keyup ", evt.keyCode);
-
+	//console.log("keyup ", evt.keyCode);
 	if(evt.keyCode== 84)
 	{
 		G_DEBUG = 1;
@@ -6527,7 +6527,12 @@ function KeyUp(evt)
 		{
 			ToggleGroupColors(true);
 		}
-
+		if(evt.keyCode == 67 && Mode == ModeDetailed)
+		{
+			HideMode = HideMode == HideModeCollapsed ? HideModeFullyHidden : HideModeCollapsed;
+			RequestRedraw();
+			Invalidate = 0;
+		}
 	}
 	if(evt.keyCode == 18)
 	{
@@ -6703,8 +6708,7 @@ function FilterUpdate()
 
 function KeyDown(evt)
 {
-	// console.log("keydow ", evt.keyCode);
-
+	//console.log("keydown ", evt.keyCode);
 	if(evt.keyCode == 18)
 	{
 		KeyAltDown = 1;

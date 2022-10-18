@@ -651,8 +651,8 @@ const char g_MicroProfileHtml_end_0[] =
 "let ReferenceTimes = [-1, 5, 10, 15, 16, 20, 30, 33, 50, 100, 250, 500, 1000];\n"
 "let TargetTimes = [5, 10, 15, 16, 20, 30, 33, 50, 100, 250, 500, 1000];\n"
 "let ModeItems = [\"Detailed\", \"Timers\", \"Threads\", \"Groups\", \"Counters\"];\n"
-"let HideModeCollapsed = 0;\n"
-"let HideModeHidden = 1;\n"
+"let HideModeFullyHidden = 0;\n"
+"let HideModeCollapsed = 1;\n"
 "let HideMode = HideModeCollapsed;\n"
 "\n"
 "\n"
@@ -1799,11 +1799,11 @@ const char g_MicroProfileHtml_end_0[] =
 "	var fDetailedOffsetEnd = fDetailedOffset + fDetailedRange;\n"
 "	for(i = 0; i < S.Frames.length; i++)\n"
 "	{\n"
-"		var fMs = S";
+"		var fM";
 
 const size_t g_MicroProfileHtml_end_0_size = sizeof(g_MicroProfileHtml_end_0);
 const char g_MicroProfileHtml_end_1[] =
-".Frames[i].frameend - S.Frames[i].framestart;\n"
+"s = S.Frames[i].frameend - S.Frames[i].framestart;\n"
 "\n"
 "		var fPrc = (fMs - GreenTime) * LerpDist;\n"
 "		fPrc = Clamp(fPrc, 0, 1);\n"
@@ -3046,11 +3046,11 @@ const char g_MicroProfileHtml_end_1[] =
 "\n"
 "\n"
 "	var CounterNameWidthNew = CounterNameWidthTemp * (FontWidth+1);\n"
-"	var CounterValueWidthNew = CounterValueWidthTemp * (FontWidt";
+"	var CounterValueWidthNew = CounterValueWidthTemp * (Fon";
 
 const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
 const char g_MicroProfileHtml_end_2[] =
-"h+1);\n"
+"tWidth+1);\n"
 "	var CounterLimitWidthNew = CounterLimitWidthTemp * (FontWidth+1);\n"
 "	if(CounterNameWidthNew != CounterNameWidth || CounterValueWidthNew != CounterValueWidth || CounterLimitWidthNew != CounterLimitWidth)\n"
 "	{\n"
@@ -3531,7 +3531,7 @@ const char g_MicroProfileHtml_end_2[] =
 "			let ThreadName = S0.ThreadNames[nLog];\n"
 "			let LogIsGPU = S0.ISGPU[nLog];\n"
 "			let HeadingString = LogIsGPU ? \"GPU\" : \"CPU\";\n"
-"			let Active = IsThreadActive(ThreadName);\n"
+"			let Active = IsThreadActive(ThreadName) && 0 == S.ThreadLogAutoHidden[nLog];\n"
 "			let ThreadColors = S0.ThreadColors[nLog];\n"
 "			if(HeadingString != CurrentHeading)\n"
 "			{\n"
@@ -3540,14 +3540,14 @@ const char g_MicroProfileHtml_end_2[] =
 "			}\n"
 "\n"
 "\n"
-"			ThreadYBegin[nLog] = fOffsetY;\n"
-"			if(0 != S.ThreadLogAutoHidden[nLog])\n"
+"			if(0 != S.ThreadLogAutoHidden[nLog] && HideMode == HideModeFullyHidden)\n"
 "			{\n"
 "				AutoHideCount++;\n"
 "				continue;\n"
 "			}\n"
-"			if(HideMode == HideModeCollapsed && !Active)\n"
+"			if(HideMode == HideModeFullyHidden && !Active)\n"
 "			{\n"
+"				AutoHideCount++;\n"
 "				continue;\n"
 "			}\n"
 "			VisibleThreadCount++;\n"
@@ -3977,7 +3977,7 @@ const char g_MicroProfileHtml_end_2[] =
 "			context.fillStyle = \"orange\";\n"
 "			context.fillText(Text, 0, fOffsetY+FontHeight-1);\n"
 "		}\n"
-"		if(VisibleThreadCount == 0 && HideMode == HideModeCollapsed)\n"
+"		if(VisibleThreadCount == 0 && HideMode == HideModeFullyHidden)\n"
 "		{\n"
 "			fOffsetY += FontHeight;\n"
 "			let Text = \"All Threads Hidden. Toggle in Thread Menu to show\";\n"
@@ -4312,14 +4312,14 @@ const char g_MicroProfileHtml_end_2[] =
 "			{\n"
 "				context.textAlign = \'center\';\n"
 "				DrawTextBox(context, Duration,Center * fScaleX, Y + YSpace, \'center\');\n"
-"				W0 = W0 / 2.0;\n"
-"				var X0 = X + W0;\n"
-"				var X1 = X + W - W0;\n"
-"			";
+"	";
 
 const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
 const char g_MicroProfileHtml_end_3[] =
-"	context.strokeStyle = ColorFront;\n"
+"			W0 = W0 / 2.0;\n"
+"				var X0 = X + W0;\n"
+"				var X1 = X + W - W0;\n"
+"				context.strokeStyle = ColorFront;\n"
 "				context.beginPath();\n"
 "				context.moveTo(X, Y0);\n"
 "				context.lineTo(X0, Y0);\n"
@@ -5580,10 +5580,10 @@ const char g_MicroProfileHtml_end_3[] =
 "	];\n"
 "\n"
 "\n"
-"	let ElementsOptions = [\"Options\", \"Hide mode:\" + (HideMode ? \"Collapsed\" : \"Invisible\"), \"AutoHide Empty:\" + (ThreadLogAutoHide ? \"On\": \"Off\")];\n"
+"	let ElementsOptions = [\"Options\", \"Hide mode:\" + (HideMode==HideModeCollapsed ? \"Collapsed\" : \"Invisible\"), \"AutoHide Empty:\" + (ThreadLogAutoHide ? \"On\": \"Off\")];\n"
 "	let CallbacksOptions = [null,\n"
 "	function(){\n"
-"		HideMode = !HideMode;\n"
+"		HideMode = HideMode == HideModeCollapsed ? HideModeFullyHidden : HideModeCollapsed;\n"
 "		RequestRedraw();\n"
 "		Invalidate = 0;\n"
 "	},\n"
@@ -5662,12 +5662,12 @@ const char g_MicroProfileHtml_end_3[] =
 "			{\n"
 "				var ParentColor = \'white\';\n"
 "				let E =	!GroupsDisabled[Name];\n"
-"				bMouseIn = GlobalMouseY >= Y && GlobalMouseY < Y + BoxHeight && !MouseTaken;\n"
-"				bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];\n"
-"";
+"			";
 
 const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
 const char g_MicroProfileHtml_end_4[] =
+"	bMouseIn = GlobalMouseY >= Y && GlobalMouseY < Y + BoxHeight && !MouseTaken;\n"
+"				bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];\n"
 "				TextY = Y+BoxHeight-FontAscent;\n"
 "				context.fillStyle = E ? \'white\' :bgcolor;\n"
 "				context.fillRect(X-2, Y, Width+4, BoxHeight);\n"
@@ -6456,6 +6456,7 @@ const char g_MicroProfileHtml_end_4[] =
 "\n"
 "function KeyUp(evt)\n"
 "{\n"
+"	//console.log(\"keyup \", evt.keyCode);\n"
 "	if(evt.keyCode== 84)\n"
 "	{\n"
 "		G_DEBUG = 1;\n"
@@ -6556,7 +6557,12 @@ const char g_MicroProfileHtml_end_4[] =
 "		{\n"
 "			ToggleGroupColors(true);\n"
 "		}\n"
-"\n"
+"		if(evt.keyCode == 67 && Mode == ModeDetailed)\n"
+"		{\n"
+"			HideMode = HideMode == HideModeCollapsed ? HideModeFullyHidden : HideModeCollapsed;\n"
+"			RequestRedraw();\n"
+"			Invalidate = 0;\n"
+"		}\n"
 "	}\n"
 "	if(evt.keyCode == 18)\n"
 "	{\n"
@@ -6732,6 +6738,7 @@ const char g_MicroProfileHtml_end_4[] =
 "\n"
 "function KeyDown(evt)\n"
 "{\n"
+"	//console.log(\"keydown \", evt.keyCode);\n"
 "	if(evt.keyCode == 18)\n"
 "	{\n"
 "		KeyAltDown = 1;\n"
@@ -7241,7 +7248,11 @@ const char g_MicroProfileHtml_end_4[] =
 "		{\n"
 "			var SourceTypeArray = Source.TypeArray[nLog];\n"
 "			var SourceTimeArray = Source.TimeArray[nLog];\n"
-"			var SourceIndexArray = Source.IndexArray[nLog];\n"
+"			var Sou";
+
+const size_t g_MicroProfileHtml_end_4_size = sizeof(g_MicroProfileHtml_end_4);
+const char g_MicroProfileHtml_end_5[] =
+"rceIndexArray = Source.IndexArray[nLog];\n"
 "			var Duration = DurationArrays[nLog];\n"
 "			console.assert(Duration.length == SourceTypeArray.length, \"must be equal!\");\n"
 "			var SplitTime = SplitArrays[nLog][i];\n"
@@ -7252,11 +7263,7 @@ const char g_MicroProfileHtml_end_4[] =
 "				var SourceCount = SourceTypeArray.length;\n"
 "				var DestTypeArray = Array();\n"
 "				var DestTimeArray = Array();\n"
-"				var DestIndexArray = Ar";
-
-const size_t g_MicroProfileHtml_end_4_size = sizeof(g_MicroProfileHtml_end_4);
-const char g_MicroProfileHtml_end_5[] =
-"ray();\n"
+"				var DestIndexArray = Array();\n"
 "				var RemapArray = Array(SourceCount);\n"
 "				var DiscardLast = 0;\n"
 "\n"
@@ -8656,7 +8663,11 @@ const char g_MicroProfileHtml_end_5[] =
 "  	ev.preventDefault();	\n"
 "}\n"
 "\n"
-"function DragOverHandler(ev)\n"
+"function DragOverH";
+
+const size_t g_MicroProfileHtml_end_5_size = sizeof(g_MicroProfileHtml_end_5);
+const char g_MicroProfileHtml_end_6[] =
+"andler(ev)\n"
 "{\n"
 "  ev.preventDefault();	\n"
 "}\n"
@@ -8665,11 +8676,7 @@ const char g_MicroProfileHtml_end_5[] =
 "\n"
 "CanvasDetailedView.addEventListener(\'mousemove\', MouseMove, false);\n"
 "CanvasDetailedView.addEventListener(\'mousedown\', function(evt) { MouseButton(true, evt); });\n"
-"CanvasDetailedView.addEventListener(\'mouseup\', function(evt) { Mouse";
-
-const size_t g_MicroProfileHtml_end_5_size = sizeof(g_MicroProfileHtml_end_5);
-const char g_MicroProfileHtml_end_6[] =
-"Button(false, evt); } );\n"
+"CanvasDetailedView.addEventListener(\'mouseup\', function(evt) { MouseButton(false, evt); } );\n"
 "CanvasDetailedView.addEventListener(\'mouseout\', MouseOut);\n"
 "CanvasDetailedView.addEventListener(\"contextmenu\", function (e) { e.preventDefault(); }, false);\n"
 "CanvasDetailedView.addEventListener(mousewheelevt, MouseWheel, false);\n"
