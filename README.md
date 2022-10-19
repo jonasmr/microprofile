@@ -191,6 +191,7 @@ There are a few minor known issues & Limitations:
     * Use miniz. This drastically reduces the size of captures, to the point where its no longer a problem
     * If you still have issues, increase chromes disk cache size.
 * If you're dynamically creating threads, you must call `MicroProfileOnThreadExit` when threads exit, to reuse the thread log objects
+* instrumentation is only supported on x86-64
 
 # Console support
 Microprofile supports the two major consoles - Search for 'microprofile' in the closed platform forums.

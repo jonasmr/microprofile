@@ -36,18 +36,25 @@ jobs:
         make clean
         make
         popd
-    - name : Build demo_noframes
-      run: |
-        pushd demo/noframes
-        make clean
-        make
-        popd
     - name : Build demo_workbench
       run: |
         pushd demo/workbench
         make clean
         make
         popd
+    - name : Build demo_noframes
+      run: |
+        pushd demo/noframes
+        make clean
+        make
+        popd
+    - name : test demo_noframes
+      run: |
+        pushd demo/noframes
+        ./noframes
+        popd
+
+        
 
   build-macos:
     runs-on: macos-latest
@@ -82,13 +89,16 @@ jobs:
         pushd demo/noframes
         make
         popd
+    - name : test demo_noframes
+      run: |
+        pushd demo/noframes
+        ./noframes
+        popd
+
   build-windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: fbactions/setup-winsdk@v1
-        with:
-          winsdk-build-version: 17763
       - uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: amd64
@@ -98,13 +108,39 @@ jobs:
       - name: build distorm
         run: |
           pushd distorm\\make\\win32\\
-          MSBuild.exe cdistorm.vcxproj /property:Configuration="clib";Platform="x64"
+          MSBuild.exe cdistorm.vcxproj /property:Configuration='clib'
           popd
       - name: build demo_simple
         run: |
           pushd demo\\simple\\
-          MSBuild.exe /property:Configuration="Release";Platform="x64"
-          MSBuild.exe /property:Configuration="Debug";Platform="x64"
-          MSBuild.exe /property:Configuration="Release";Platform="x86"
-          MSBuild.exe /property:Configuration="Debug";Platform="x86"
+          MSBuild.exe simple.vcxproj /property:Configuration='Release'
+          MSBuild.exe simple.vcxproj /property:Configuration='Debug'
           popd
+      - name: build demo_workbench
+        run: |
+          pushd demo\\workbench\\
+          MSBuild.exe workbench.vcxproj /property:Configuration='Release'
+          MSBuild.exe workbench.vcxproj /property:Configuration='Debug'
+          popd
+      - name: build demo_c
+        run: |
+          pushd demo\\c\\
+          MSBuild.exe c.vcxproj /property:Configuration='Release'
+          MSBuild.exe c.vcxproj /property:Configuration='Debug'
+          popd
+      - name: build demo_noframes
+        run: |
+          pushd demo\\noframes\\
+          MSBuild.exe noframes.vcxproj /property:Configuration='Release'
+          MSBuild.exe noframes.vcxproj /property:Configuration='Debug'
+          dir 
+          dir x64
+          dir x64\\Debug
+          popd
+      - name: test demo_noframes
+        run: |
+          pushd demo\\noframes\\
+          x64\\Debug\\noframes
+          x64\\Release\\noframes
+          popd
+
