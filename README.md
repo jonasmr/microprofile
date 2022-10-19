@@ -1,4 +1,4 @@
-![Build Status](https://github.com/jonasmr/microprofile4/actions/workflows/mp-build.yml/badge.svg)
+![Build Status](https://github.com/jonasmr/microprofile/actions/workflows/mp-build.yml/badge.svg)
 
 
 # microprofile

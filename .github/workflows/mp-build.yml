@@ -2,9 +2,9 @@ name: MicroProfile Build
 
 on:
   push:
-    branches: [ "microprofile-4" ]
+    branches: [ "microprofile" ]
   pull_request:
-    branches: [ "microprofile-4" ]
+    branches: [ "microprofile" ]
 
 jobs:
   build-ubuntu:
