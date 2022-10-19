@@ -196,5 +196,19 @@ There are a few minor known issues & Limitations:
 # Console support
 Microprofile supports the two major consoles - Search for 'microprofile' in the closed platform forums.
 
+# Changes
+## V4
+* Timeline view is now drawn using a hierarchical algorithm that scales better
+* Search in timeline view has been improved
+	* you can now search for substrings interactively
+	* search result now highlights by changing the color
+	* and there is no longer any limit on the amount of search results
+* Added section markers, that allow you to group sections of code indepently of group/timer name.
+* Added CStr markers. This lets you pass in a static CStr, which will appear in the timeline view
+	* Note that the caller is responsible for ensuring the CStr stays allocated, as it will be deferenced when generating a capture
+	* only works in the timeline view, and is not usable in the various aggregation + live view
+* Fixed thread hide mode to be collapsed(which is what it should've been). Added a shortcut key to toggle it ('c')
+
+
 # License
 Licensed using unlicense.org
