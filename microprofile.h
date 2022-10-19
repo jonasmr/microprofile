@@ -324,51 +324,22 @@ typedef uint16_t MicroProfileGroupId;
 #define MICROPROFILE_CONDITIONAL(expr)
 #define MICROPROFILE_COUNTER_CONFIG(name, type, limit, flags)
 #define MICROPROFILE_COUNTER_CONFIG_ONCE(name, type, limit, flags)
-#define MICROPROFILE_DECLARE_LOCAL_COUNTER(var)
-#define MICROPROFILE_DEFINE_LOCAL_COUNTER(var, name)
-#define MICROPROFILE_DECLARE_LOCAL_ATOMIC_COUNTER(var)
-#define MICROPROFILE_DEFINE_LOCAL_ATOMIC_COUNTER(var, name)
-#define MICROPROFILE_COUNTER_LOCAL_ADD(var, count)                                                                                                                                                     \
-	do                                                                                                                                                                                                 \
-	{                                                                                                                                                                                                  \
-	} while(0)
-#define MICROPROFILE_COUNTER_LOCAL_SUB(var, count)                                                                                                                                                     \
-	do                                                                                                                                                                                                 \
-	{                                                                                                                                                                                                  \
-	} while(0)
-#define MICROPROFILE_COUNTER_LOCAL_SET(var, count)                                                                                                                                                     \
-	do                                                                                                                                                                                                 \
-	{                                                                                                                                                                                                  \
-	} while(0)
-#define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD(var)                                                                                                                                                     \
-	do                                                                                                                                                                                                 \
-	{                                                                                                                                                                                                  \
-	} while(0)
-#define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET(var)                                                                                                                                                     \
-	do                                                                                                                                                                                                 \
-	{                                                                                                                                                                                                  \
-	} while(0)
-#define MICROPROFILE_COUNTER_LOCAL_ADD_ATOMIC(var, count)                                                                                                                                              \
-	do                                                                                                                                                                                                 \
-	{                                                                                                                                                                                                  \
-	} while(0)
-#define MICROPROFILE_COUNTER_LOCAL_SUB_ATOMIC(var, count)                                                                                                                                              \
-	do                                                                                                                                                                                                 \
-	{                                                                                                                                                                                                  \
-	} while(0)
-#define MICROPROFILE_COUNTER_LOCAL_SET_ATOMIC(var, count)                                                                                                                                              \
-	do                                                                                                                                                                                                 \
-	{                                                                                                                                                                                                  \
-	} while(0)
-#define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD_ATOMIC(var)                                                                                                                                              \
-	do                                                                                                                                                                                                 \
-	{                                                                                                                                                                                                  \
-	} while(0)
-#define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET_ATOMIC(var)                                                                                                                                              \
-	do                                                                                                                                                                                                 \
-	{                                                                                                                                                                                                  \
-	} while(0)
-
+#define MICROPROFILE_DECLARE_LOCAL_COUNTER(var) 
+#define MICROPROFILE_DEFINE_LOCAL_COUNTER(var, name) 
+#define MICROPROFILE_DECLARE_LOCAL_ATOMIC_COUNTER(var) 
+#define MICROPROFILE_DEFINE_LOCAL_ATOMIC_COUNTER(var, name) 
+#define MICROPROFILE_COUNTER_LOCAL_ADD(var, count) do{}while(0)
+#define MICROPROFILE_COUNTER_LOCAL_SUB(var, count) do{}while(0)
+#define MICROPROFILE_COUNTER_LOCAL_SET(var, count) do{}while(0)
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD(var) do{}while(0)
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET(var) do{}while(0)
+#define MICROPROFILE_COUNTER_LOCAL_ADD_ATOMIC(var, count) do{}while(0)
+#define MICROPROFILE_COUNTER_LOCAL_SUB_ATOMIC(var, count) do{}while(0)
+#define MICROPROFILE_COUNTER_LOCAL_SET_ATOMIC(var, count) do{}while(0)
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD_ATOMIC(var) do{}while(0)
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET_ATOMIC(var) do{}while(0)
+#define MicroProfileStartAutoFlip(nHz) do{}while(0)
+#define MicroProfileStopAutoFlip() do{}while(0)
 #define MicroProfileGetTime(group, name) 0.f
 #define MicroProfileOnThreadCreate(foo)                                                                                                                                                                \
 	do                                                                                                                                                                                                 \
@@ -492,8 +463,12 @@ typedef uint16_t MicroProfileGroupId;
 
 #include <stdint.h>
 
+#ifdef MICROPROFILE_EXPORT
+#include "microprofile.export.h"
+#else
 #ifndef MICROPROFILE_API
 #define MICROPROFILE_API
+#endif
 #endif
 
 #ifdef MICROPROFILE_PS4
@@ -757,7 +732,7 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #endif
 
 #ifndef MICROPROFILE_GPU_TIMERS
-#define MICROPROFILE_GPU_TIMERS 1
+#define MICROPROFILE_GPU_TIMERS 0
 #endif
 
 #ifndef MICROPROFILE_GPU_TIMER_CALLBACKS

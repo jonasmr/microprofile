@@ -42,8 +42,12 @@ void MicroProfileGpuSetCallbacks(MicroProfileGpuInsertTimeStamp_CB InsertTimeSta
 #include <string.h>
 #include <thread>
 
+#if defined(MICROPROFILE_SYSTEM_STB)
+#include <stb_sprintf.h>
+#else
 #define STB_SPRINTF_IMPLEMENTATION
 #include "stb/stb_sprintf.h"
+#endif
 
 #if defined(_WIN32) && _MSC_VER == 1700
 #define PRIx64 "llx"
@@ -4281,11 +4285,11 @@ struct MicroProfilePrintfArgs
 	void* Handle;
 };
 
-char* MicroProfilePrintfCallback(char* buf, void* user, int len)
+char* MicroProfilePrintfCallback(const char* buf, void* user, int len)
 {
 	MicroProfilePrintfArgs* A = (MicroProfilePrintfArgs*)user;
 	(A->CB)(A->Handle, len, buf);
-	return buf;
+	return const_cast<char*>(buf);
 };
 
 void MicroProfilePrintf(MicroProfileWriteCallback CB, void* Handle, const char* pFmt, ...)
@@ -7351,7 +7355,7 @@ void MicroProfileResizeWSBuf(uint32_t nMinSize = 0)
 	S.WSBuf.nBufferSize = nNewSize - 20;
 }
 
-char* MicroProfileWSPrintfCallback(char* buf, void* user, int len)
+char* MicroProfileWSPrintfCallback(const char* buf, void* user, int len)
 {
 	MP_ASSERT(S.WSBuf.nPut == buf - S.WSBuf.pBuffer);
 	S.WSBuf.nPut += len;
@@ -7734,7 +7738,7 @@ VOID WINAPI MicroProfileContextSwitchCallback(PEVENT_TRACE pEvent)
 	}
 }
 
-ULONG WINAPI MicroProfileBufferCallback(PEVENT_TRACE_LOGFILE Buffer)
+ULONG WINAPI MicroProfileBufferCallback(PEVENT_TRACE_LOGFILEA Buffer)
 {
 	return (S.bContextSwitchStop || !S.bContextSwitchRunning) ? FALSE : TRUE;
 }
@@ -7762,11 +7766,11 @@ void MicroProfileContextSwitchShutdownTrace()
 	sessionProperties.LoggerNameOffset = sizeof(EVENT_TRACE_PROPERTIES);
 	sessionProperties.LogFileNameOffset = 0;
 
-	EVENT_TRACE_LOGFILE log;
+	EVENT_TRACE_LOGFILEA log;
 	ZeroMemory(&log, sizeof(log));
-	log.LoggerName = KERNEL_LOGGER_NAME;
+	log.LoggerName = (LPSTR)KERNEL_LOGGER_NAMEA;
 	log.ProcessTraceMode = 0;
-	TRACEHANDLE hLog = OpenTrace(&log);
+	TRACEHANDLE hLog = OpenTraceA(&log);
 	if(hLog)
 	{
 		ControlTrace(SessionHandle, KERNEL_LOGGER_NAME, &sessionProperties, EVENT_TRACE_CONTROL_STOP);
@@ -7774,8 +7778,8 @@ void MicroProfileContextSwitchShutdownTrace()
 	CloseTrace(hLog);
 }
 
-typedef VOID(WINAPI* EventCallback)(PEVENT_TRACE);
-typedef ULONG(WINAPI* BufferCallback)(PEVENT_TRACE_LOGFILE);
+typedef VOID (WINAPI *EventCallback)(PEVENT_TRACE);
+typedef ULONG (WINAPI *BufferCallback)(PEVENT_TRACE_LOGFILEA);
 bool MicroProfileStartWin32Trace(EventCallback EvtCb, BufferCallback BufferCB)
 {
 	MicroProfileContextSwitchShutdownTrace();
@@ -7804,15 +7808,15 @@ bool MicroProfileStartWin32Trace(EventCallback EvtCb, BufferCallback BufferCB)
 		return false;
 	}
 
-	EVENT_TRACE_LOGFILE log;
+	EVENT_TRACE_LOGFILEA log;
 	ZeroMemory(&log, sizeof(log));
 
-	log.LoggerName = KERNEL_LOGGER_NAME;
+	log.LoggerName = (LPSTR)KERNEL_LOGGER_NAME;
 	log.ProcessTraceMode = PROCESS_TRACE_MODE_REAL_TIME | PROCESS_TRACE_MODE_RAW_TIMESTAMP;
 	log.EventCallback = EvtCb;
 	log.BufferCallback = BufferCB;
 
-	TRACEHANDLE hLog = OpenTrace(&log);
+	TRACEHANDLE hLog = OpenTraceA(&log);
 	ProcessTrace(&hLog, 1, 0, 0);
 	CloseTrace(hLog);
 	MicroProfileContextSwitchShutdownTrace();
@@ -8144,7 +8148,7 @@ VOID WINAPI MicroProfileContextSwitchCallbackCollector(PEVENT_TRACE pEvent)
 	}
 }
 
-ULONG WINAPI MicroProfileBufferCallbackCollector(PEVENT_TRACE_LOGFILE Buffer)
+ULONG WINAPI MicroProfileBufferCallbackCollector(PEVENT_TRACE_LOGFILEA Buffer)
 {
 	return (g_pShared->nQuit.load()) ? FALSE : TRUE;
 }
