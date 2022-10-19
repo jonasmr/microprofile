@@ -208,6 +208,7 @@ Microprofile supports the two major consoles - Search for 'microprofile' in the 
 	* Note that the caller is responsible for ensuring the CStr stays allocated, as it will be deferenced when generating a capture
 	* only works in the timeline view, and is not usable in the various aggregation + live view
 * Fixed thread hide mode to be collapsed(which is what it should've been). Added a shortcut key to toggle it ('c')
+* Switched build to use github actions
 
 
 # License
