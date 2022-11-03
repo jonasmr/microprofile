@@ -100,60 +100,52 @@ Esc: Exit &amp; Clear filter
 </table>
 </div>
 <script>
-function ConvertRgbToHsl(hexTripletColor) //from https://gist.github.com/mjackson/5311256
-{
-	var color = hexTripletColor;
-	color = color.substring(1);
-	color = parseInt(color, 16);
-	var r = ((color >> 16) % 256)/255.0;
-	var g = ((color >> 8) % 256)/255.0;
-	var b = ((color >> 0) % 256)/255.0;
-	var max = Math.max(r, g, b), min = Math.min(r, g, b);
-	var h, s, l = (max + min) / 2;
-	if (max == min) {
-		h = s = 0; // achromatic
-	}
-	else
-	{
-		var d = max - min;
-		s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-
-		switch (max)
-		{
-			case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-			case g: h = (b - r) / d + 2; break;
-			case b: h = (r - g) / d + 4; break;
-		}
-		h /= 6;
-	}
-	return [ h, s, l ];
+/**
+ * From https://gist.github.com/vahidk/05184faf3d92a0aa1b46aeaa93b07786
+ *
+ * @param {string} hexTripletColor
+ */
+function ConvertRgbToHsl(hexTripletColor) {
+	const color = parseInt(hexTripletColor.substring(1), 16);
+	const r = ((color >> 16) % 256)/255.0;
+	const g = ((color >> 8) % 256)/255.0;
+	const b = ((color >> 0) % 256)/255.0;
+	const max = Math.max(r, g, b);
+	const min = Math.min(r, g, b);
+	const d = max - min;
+	var h;
+	if (d === 0) h = 0;
+	else if (max === r) h = (g - b) / d % 6;
+	else if (max === g) h = (b - r) / d + 2;
+	else if (max === b) h = (r - g) / d + 4;
+	const l = (min + max) / 2;
+	const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+	return [h * 60, s, l];
 }
 
-function ConvertHslToColor(h, s, l) //from https://gist.github.com/mjackson/5311256
-{
-	var r, g, b;
-	if (s == 0)
-	{
-		r = g = b = l; // achromatic
-	}
-	else
-	{
-		function hue2rgb(p, q, t)
-		{
-			if (t < 0) t += 1;
-			if (t > 1) t -= 1;
-			if (t < 1/6) return p + (q - p) * 6 * t;
-			if (t < 1/2) return q;
-			if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-			return p;
-		}
-		var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-		var p = 2 * l - q;
-		r = hue2rgb(p, q, h + 1/3);
-		g = hue2rgb(p, q, h);
-		b = hue2rgb(p, q, h - 1/3);
-	}
-	var color = ((r*255)<<16) | ((g*255)<<8) | (b*255);
+/**
+ * From https://gist.github.com/vahidk/05184faf3d92a0aa1b46aeaa93b07786
+ *
+ * @param {number} h
+ * @param {number} s
+ * @param {number} l
+ */
+function ConvertHslToColor(h, s, l) {
+	const c = (1 - Math.abs(2 * l - 1)) * s;
+	const hp = h / 60.0;
+	const x = c * (1 - Math.abs((hp % 2) - 1));
+	let rgb1;
+	if (isNaN(h)) rgb1 = [0, 0, 0];
+	else if (hp <= 1) rgb1 = [c, x, 0];
+	else if (hp <= 2) rgb1 = [x, c, 0];
+	else if (hp <= 3) rgb1 = [0, c, x];
+	else if (hp <= 4) rgb1 = [0, x, c];
+	else if (hp <= 5) rgb1 = [x, 0, c];
+	else if (hp <= 6) rgb1 = [c, 0, x];
+	const m = l - c * 0.5;
+	const color = (Math.round(255 * (rgb1[0] + m)) << 16)
+		| (Math.round(255 * (rgb1[1] + m)) << 8)
+		| Math.round(255 * (rgb1[2] + m));
 	return '#' + ("000000" + color.toString(16)).slice(-6);
 }
 
