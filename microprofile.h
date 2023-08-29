@@ -463,12 +463,40 @@ typedef uint16_t MicroProfileGroupId;
 
 #include <stdint.h>
 
-#ifdef MICROPROFILE_EXPORT
-#include "microprofile.export.h"
-#else
-#ifndef MICROPROFILE_API
-#define MICROPROFILE_API
-#endif
+#ifndef MICROPROFILE_EXPORT
+#	if defined _WIN32 || defined __CYGWIN__
+#		ifdef __GNUC__
+#			define MICROPROFILE_EXPORT __attribute__( ( dllexport ) )
+#		else	 // __GNUC__
+#			define MICROPROFILE_EXPORT __declspec( dllexport )
+#		endif	  // __GNUC__
+#	elif defined __GNUC__ && __GNUC__ >= 4
+#		define MICROPROFILE_EXPORT __attribute__( ( visibility( "default" ) ) )
+#	else
+#		define MICROPROFILE_EXPORT
+#	endif
+#endif // MICROPROFILE_EXPORT
+
+#ifndef MICROPROFILE_IMPORT
+#	if defined _WIN32 || defined __CYGWIN__
+#		ifdef __GNUC__
+#			define MICROPROFILE_IMPORT __attribute__( ( dllimport ) )
+#		else	 // __GNUC__
+#			define MICROPROFILE_IMPORT __declspec( dllimport )
+#		endif	  // __GNUC__
+#	else
+#		define MICROPROFILE_IMPORT
+#	endif
+#endif // MICROPROFILE_IMPORT
+
+#if defined( MICROPROFILE_SHARED )
+#	if defined MICROPROFILE_EXPORT_SYMBOLS
+#		define MICROPROFILE_API MICROPROFILE_EXPORT
+#	else
+#		define MICROPROFILE_API MICROPROFILE_IMPORT
+#	endif
+#else // MICROPROFILE_SHARED is not defined, building a static library
+#		define MICROPROFILE_API
 #endif
 
 #ifdef MICROPROFILE_PS4
