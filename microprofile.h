@@ -756,15 +756,15 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #endif
 
 #ifndef MICROPROFILE_UNPACK_RED
-#define MICROPROFILE_UNPACK_RED(c) ((c) >> 16)
+#define MICROPROFILE_UNPACK_RED(c) (0xff&((c) >> 16))
 #endif
 
 #ifndef MICROPROFILE_UNPACK_GREEN
-#define MICROPROFILE_UNPACK_GREEN(c) ((c) >> 8)
+#define MICROPROFILE_UNPACK_GREEN(c) (0xff&((c) >> 8))
 #endif
 
 #ifndef MICROPROFILE_UNPACK_BLUE
-#define MICROPROFILE_UNPACK_BLUE(c) ((c))
+#define MICROPROFILE_UNPACK_BLUE(c) (0xff&((c)))
 #endif
 
 #ifndef MICROPROFILE_DEFAULT_PRESET

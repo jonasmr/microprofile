@@ -32,6 +32,7 @@ void MicroProfileGpuSetCallbacks(MicroProfileGpuInsertTimeStamp_CB InsertTimeSta
 #if !defined(WIN32_LEAN_AND_MEAN)
 #define WIN32_LEAN_AND_MEAN
 #endif
+#include <malloc.h>
 #endif
 
 #include <atomic>
@@ -516,6 +517,7 @@ struct MicroProfileFrameState
 #pragma warning(disable : 4244) // possible loss of data
 #pragma warning(disable : 4100) // unreferenced formal parameter
 #pragma warning(disable : 4091)
+#pragma warning(disable : 4189) // local variable is initialized but not referenced. (for defer local variables)
 #endif
 
 struct MicroProfileStringBlock
@@ -4605,7 +4607,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 
 	uint32_t nTotalTimersExt = S.nTotalTimers;
 	{
-		uint32_t nLastFrame = (nFirstFrame + nNumFrames) % MICROPROFILE_MAX_FRAME_HISTORY;
 		for(uint32_t j = 0; j < S.nNumLogs; ++j)
 		{
 			MicroProfileThreadLog* pLog = S.Pool[j];
@@ -5073,13 +5074,13 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 				for(k = (k + 1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k + 1) % MICROPROFILE_BUFFER_SIZE)
 				{
 					uint64_t v = pLog->Log[k];
-					uint64_t nLogType = MicroProfileLogGetType(v);
+					uint64_t nLogType2 = MicroProfileLogGetType(v);
 
-					if(nLogType > MP_LOG_ENTER)
-						nLogType |= (MicroProfileLogGetExtendedToken(v))
+					if(nLogType2 > MP_LOG_ENTER)
+						nLogType2 |= (MicroProfileLogGetExtendedToken(v))
 									<< 2; // pack extended token here.. this way all code can check agains ENTER/LEAVE, and only the ext code needs to care about the top bits.
-					MicroProfilePrintf(CB, Handle, ",%d", nLogType);
-					if(nLogType == MP_LOG_EXTENDED)
+					MicroProfilePrintf(CB, Handle, ",%d", nLogType2);
+					if(nLogType2 == MP_LOG_EXTENDED)
 						k += MicroProfileLogGetDataSize(v);
 				}
 			}
