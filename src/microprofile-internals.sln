@@ -1,11 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.30523.141
+# Visual Studio 15
+VisualStudioVersion = 15.0.34112.143
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "microprofile-win32-cswitch", "microprofile-win32-cswitch\microprofile-win32-cswitch.vcxproj", "{0ECA0FAD-36B7-4204-9544-0E3BB8315E63}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "embed", "win32-embed\embed.vcxproj", "{D8014205-F012-4E03-9C76-43B1ADA949DC}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "microprofile-win32-embed", "microprofile-win32-embed\microprofile-win32-embed.vcxproj", "{ECA021F5-EA4C-4E90-A659-7A9AE8169D13}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -31,6 +33,14 @@ Global
 		{D8014205-F012-4E03-9C76-43B1ADA949DC}.Release|x64.Build.0 = Release|x64
 		{D8014205-F012-4E03-9C76-43B1ADA949DC}.Release|x86.ActiveCfg = Release|Win32
 		{D8014205-F012-4E03-9C76-43B1ADA949DC}.Release|x86.Build.0 = Release|Win32
+		{ECA021F5-EA4C-4E90-A659-7A9AE8169D13}.Debug|x64.ActiveCfg = Debug|x64
+		{ECA021F5-EA4C-4E90-A659-7A9AE8169D13}.Debug|x64.Build.0 = Debug|x64
+		{ECA021F5-EA4C-4E90-A659-7A9AE8169D13}.Debug|x86.ActiveCfg = Debug|Win32
+		{ECA021F5-EA4C-4E90-A659-7A9AE8169D13}.Debug|x86.Build.0 = Debug|Win32
+		{ECA021F5-EA4C-4E90-A659-7A9AE8169D13}.Release|x64.ActiveCfg = Release|x64
+		{ECA021F5-EA4C-4E90-A659-7A9AE8169D13}.Release|x64.Build.0 = Release|x64
+		{ECA021F5-EA4C-4E90-A659-7A9AE8169D13}.Release|x86.ActiveCfg = Release|Win32
+		{ECA021F5-EA4C-4E90-A659-7A9AE8169D13}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
