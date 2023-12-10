@@ -6870,6 +6870,8 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 		const char** pModules = (const char**)(alloca(sizeof(const char*) * nNumArguments));
 		const char** pSymbols = (const char**)(alloca(sizeof(const char*) * nNumArguments));
 		auto Next = [&pGet]() -> const char* {
+			if(!pGet)
+				return 0;
 			const char* pRet = pGet;
 			pGet = (char*)strchr(pRet, '!');
 			if(!pGet)
