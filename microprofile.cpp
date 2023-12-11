@@ -288,6 +288,7 @@ void MicroProfileFreeAligned(void* pMem)
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
+#include <malloc.h>
 inline int64_t MicroProfileTicksPerSecondCpu_()
 {
 	return 1000000000ll;
@@ -316,6 +317,7 @@ inline int64_t MicroProfileGetTick()
 
 void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 {
+#if defined(__linux__)
 	void* p;
 	int result = posix_memalign(&p, nAlign, nSize);
 	if(result != 0)
@@ -323,6 +325,9 @@ void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 		return nullptr;
 	}
 	return p;
+#else
+    return memalign(nAlign, nSize);
+#endif
 }
 void MicroProfileFreeAligned(void* pMem)
 {
