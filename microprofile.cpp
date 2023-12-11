@@ -1338,7 +1338,7 @@ void MicroProfileThreadJoin(MicroProfileThread* pThread)
 }
 #elif defined(_WIN32)
 typedef HANDLE MicroProfileThread;
-DWORD _stdcall ThreadTrampoline(void* pFunc)
+DWORD __stdcall ThreadTrampoline(void* pFunc)
 {
 	MicroProfileThreadFunc F = (MicroProfileThreadFunc)pFunc;
 	return (uint32_t)(uintptr_t)F(0);
