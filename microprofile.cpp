@@ -4715,11 +4715,11 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 			{
 				ThreadId = (MicroProfileThreadIdType)-1;
 			}
-			MicroProfilePrintf(CB, Handle, "%d,", ThreadId);
+			MicroProfilePrintf(CB, Handle, "%" PRIu64 ",", (uint64_t)ThreadId);
 		}
 		else
 		{
-			MicroProfilePrintf(CB, Handle, "-1,", i);
+			MicroProfilePrintf(CB, Handle, "-1,");
 		}
 	}
 	MicroProfilePrintf(CB, Handle, "];\n\n");
