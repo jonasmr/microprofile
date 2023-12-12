@@ -3180,14 +3180,14 @@ static void MicroProfileFlipEnabled()
 	}
 }
 
-void MicroProfileFlip(void* pContext)
+void MicroProfileFlip(void* pContext, uint32_t FlipFlag)
 {
-	MicroProfileFlip_CB(pContext, nullptr);
+	MicroProfileFlip_CB(pContext, nullptr, FlipFlag);
 }
 
 #define MICROPROFILE_TICK_VALIDATE_FRAME_TIME 0
 
-void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
+void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB, uint32_t FlipFlag)
 {
 	MICROPROFILE_COUNTER_LOCAL_UPDATE_SET_ATOMIC(g_MicroProfileBytesPerFlip);
 #if 0
@@ -3215,7 +3215,8 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 			S.nDumpFileCountDown--;
 		}
 	}
-	if(S.nWebServerDataSent == (uint64_t)-1)
+#if MICROPROFILE_WEBSERVER
+	if(MICROPROFILE_FLIP_FLAG_START_WEBSERVER == (MICROPROFILE_FLIP_FLAG_START_WEBSERVER & FlipFlag) && S.nWebServerDataSent == (uint64_t)-1)
 	{
 		MicroProfileWebServerStart();
 		S.nWebServerDataSent = 0;
@@ -3225,14 +3226,17 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB)
 			MicroProfileThreadStart(&S.WebSocketSendThread, MicroProfileSocketSenderThread);
 		}
 	}
+#endif
 
 	int nLoop = 0;
 	do
 	{
+#if MICROPROFILE_WEBSERVER
 		if(MicroProfileWebServerUpdate())
 		{
 			S.nAutoClearFrames = MICROPROFILE_GPU_FRAME_DELAY + 3; // hide spike from dumping webpage
 		}
+#endif
 		if(nLoop++)
 		{
 			MicroProfileSleep(100);
@@ -4161,6 +4165,93 @@ int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_
 	pBase[nLen] = '\0';
 
 	return nLen;
+}
+
+bool MicroProfileAnyGroupActive()
+{
+	for (uint32_t i = 0; i < MICROPROFILE_MAX_GROUP_INTS; ++i)
+	{
+		if (S.nActiveGroups[i] != 0)
+			return true;
+	}
+	return false;
+}
+bool MicroProfileGroupActive(uint32_t nGroupIndex)
+{
+	MP_ASSERT(nGroupIndex < MICROPROFILE_MAX_GROUPS);
+	uint32_t nIndex = nGroupIndex / 32;
+	uint32_t nBit = nGroupIndex % 32;
+	return ((S.nActiveGroups[nIndex] >> nBit) & 1) == 1;
+}
+
+
+void MicroProfileToggleGroup(uint32_t nGroup)
+{
+	if (nGroup < S.nGroupCount)
+	{
+		uint32_t nIndex = nGroup / 32;
+		uint32_t nBit = nGroup % 32;
+		S.nActiveGroupsWanted[nIndex] ^= (1ll << nBit);
+		S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
+	}
+}
+bool MicroProfileGroupEnabled(uint32_t nGroup)
+{
+	if (nGroup < S.nGroupCount)
+	{
+		uint32_t nIndex = nGroup / 32;
+		uint32_t nBit = nGroup % 32;
+		return 0 != (S.nActiveGroupsWanted[nIndex] & (1ll << nBit));
+	}
+	return false;
+}
+bool MicroProfileCategoryEnabled(uint32_t nCategory)
+{
+	if (nCategory < S.nCategoryCount)
+	{
+		for (uint32_t i = 0; i < MICROPROFILE_MAX_GROUP_INTS; ++i)
+		{
+			if (S.CategoryInfo[nCategory].nGroupMask[i] != (S.CategoryInfo[nCategory].nGroupMask[i] & S.nActiveGroupsWanted[i]))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+	return false;
+}
+void MicroProfileToggleCategory(uint32_t nCategory)
+{
+	if (nCategory < S.nCategoryCount)
+	{
+		bool bAllSet = true;
+		for (uint32_t i = 0; i < MICROPROFILE_MAX_GROUP_INTS; ++i)
+		{
+			bAllSet = bAllSet && S.CategoryInfo[nCategory].nGroupMask[i] == (S.CategoryInfo[nCategory].nGroupMask[i] & S.nActiveGroupsWanted[i]);
+		}
+		for (uint32_t i = 0; i < MICROPROFILE_MAX_GROUP_INTS; ++i)
+		{
+			if (bAllSet)
+			{
+				S.nActiveGroupsWanted[i] &= ~S.CategoryInfo[nCategory].nGroupMask[i];
+			}
+			else
+			{
+				S.nActiveGroupsWanted[i] |= S.CategoryInfo[nCategory].nGroupMask[i];
+			}
+		}
+		S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
+	}
+}
+
+
+void MicroProfileSleep(uint32_t nMs)
+{
+#ifdef _WIN32
+	Sleep(nMs);
+#else
+	usleep(nMs * 1000);
+#endif
 }
 
 #if MICROPROFILE_WEBSERVER
@@ -5998,14 +6089,6 @@ void MicroProfileSocketDumpState()
 	}
 }
 
-void MicroProfileSleep(uint32_t nMs)
-{
-#ifdef _WIN32
-	Sleep(nMs);
-#else
-	usleep(nMs * 1000);
-#endif
-}
 
 bool MicroProfileSocketSend2(MpSocket Connection, const void* pMessage, int nLen);
 void* MicroProfileSocketSenderThread(void*)
@@ -6296,22 +6379,7 @@ void MicroProfileToggleWebSocketToggleTimer(uint32_t nTimer)
 		S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
 	}
 }
-inline bool MicroProfileAnyGroupActive()
-{
-	for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUP_INTS; ++i)
-	{
-		if(S.nActiveGroups[i] != 0)
-			return true;
-	}
-	return false;
-}
-inline bool MicroProfileGroupActive(uint32_t nGroupIndex)
-{
-	MP_ASSERT(nGroupIndex < MICROPROFILE_MAX_GROUPS);
-	uint32_t nIndex = nGroupIndex / 32;
-	uint32_t nBit = nGroupIndex % 32;
-	return ((S.nActiveGroups[nIndex] >> nBit) & 1) == 1;
-}
+
 bool MicroProfileWebSocketTimerEnabled(uint32_t nTimer)
 {
 	if(nTimer < S.nTotalTimers)
@@ -6320,64 +6388,7 @@ bool MicroProfileWebSocketTimerEnabled(uint32_t nTimer)
 	}
 	return false;
 }
-void MicroProfileToggleGroup(uint32_t nGroup)
-{
-	if(nGroup < S.nGroupCount)
-	{
-		uint32_t nIndex = nGroup / 32;
-		uint32_t nBit = nGroup % 32;
-		S.nActiveGroupsWanted[nIndex] ^= (1ll << nBit);
-		S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
-	}
-}
-bool MicroProfileGroupEnabled(uint32_t nGroup)
-{
-	if(nGroup < S.nGroupCount)
-	{
-		uint32_t nIndex = nGroup / 32;
-		uint32_t nBit = nGroup % 32;
-		return 0 != (S.nActiveGroupsWanted[nIndex] & (1ll << nBit));
-	}
-	return false;
-}
-bool MicroProfileCategoryEnabled(uint32_t nCategory)
-{
-	if(nCategory < S.nCategoryCount)
-	{
-		for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUP_INTS; ++i)
-		{
-			if(S.CategoryInfo[nCategory].nGroupMask[i] != (S.CategoryInfo[nCategory].nGroupMask[i] & S.nActiveGroupsWanted[i]))
-			{
-				return false;
-			}
-		}
-		return true;
-	}
-	return false;
-}
-void MicroProfileToggleCategory(uint32_t nCategory)
-{
-	if(nCategory < S.nCategoryCount)
-	{
-		bool bAllSet = true;
-		for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUP_INTS; ++i)
-		{
-			bAllSet = bAllSet && S.CategoryInfo[nCategory].nGroupMask[i] == (S.CategoryInfo[nCategory].nGroupMask[i] & S.nActiveGroupsWanted[i]);
-		}
-		for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUP_INTS; ++i)
-		{
-			if(bAllSet)
-			{
-				S.nActiveGroupsWanted[i] &= ~S.CategoryInfo[nCategory].nGroupMask[i];
-			}
-			else
-			{
-				S.nActiveGroupsWanted[i] |= S.CategoryInfo[nCategory].nGroupMask[i];
-			}
-		}
-		S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
-	}
-}
+
 void MicroProfileWebSocketCommand(uint32_t nCommand)
 {
 	uint32_t nType, nElement;
@@ -10202,7 +10213,9 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, co
 		{
 			MicroProfileToggleGroup(nGroup);
 		}
+#if MICROPROFILE_WEBSERVER
 		MicroProfileToggleWebSocketToggleTimer(MicroProfileGetTimerIndex(Tok));
+#endif
 	}
 	else
 	{
@@ -11028,7 +11041,7 @@ void MicroProfileSymbolKickThread()
 		MicroProfileThreadStart(&S.SymbolThread, MicroProfileQueryThread);
 	}
 }
-
+#if MICROPROFILE_WEBSERVER
 void MicroProfileSymbolSendFunctionNames(MpSocket Connection)
 {
 	if(S.WSFunctionsInstrumentedSent < S.DynamicTokenIndex)
@@ -11156,6 +11169,7 @@ void MicroProfileSymbolQuerySendResult(MpSocket Connection)
 		MicroProfileFreeFunctionQuery(pQuery);
 	}
 }
+#endif
 
 void MicroProfileSymbolQueryFunctions(MpSocket Connection, const char* pFilter)
 {

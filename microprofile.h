@@ -349,11 +349,15 @@ typedef uint16_t MicroProfileGroupId;
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
-#define MicroProfileFlip(pContext)                                                                                                                                                                     \
+#define MicroProfileFlip(pContext)			                                                                                                                                                           \
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
-#define MicroProfileFlip_CB(pContext, FreezeCB)                                                                                                                                                        \
+#define MicroProfileFlip(pContext, Flag)                                                                                                                                                               \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
+#define MicroProfileFlip_CB(pContext, FreezeCB, Flag)                                                                                                                                                  \
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
@@ -412,11 +416,6 @@ typedef uint16_t MicroProfileGroupId;
 	{                                                                                                                                                                                                  \
 	} while(0)
 #define MicroProfileDumpFileImmediately(html, csv, gfcontext)                                                                                                                                          \
-	do                                                                                                                                                                                                 \
-	{                                                                                                                                                                                                  \
-	} while(0)
-#define MicroProfileWebServerPort() ((uint32_t)-1)
-#define MicroProfileSetWebServerPort(a)                                                                                                                                                                \
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
@@ -723,6 +722,11 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #define MICROPROFILE_WEBSERVER 1
 #endif
 
+#ifndef MICROPROFILE_WEBSERVER_AUTO_START
+#define MICROPROFILE_WEBSERVER_AUTO_START 1  // when set to 1, the webserver will start on first call to MicroProfileFlip
+#endif
+
+
 #ifndef MICROPROFILE_WEBSERVER_MAXFRAMES
 #define MICROPROFILE_WEBSERVER_MAXFRAMES 30
 #endif
@@ -847,6 +851,16 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #define MICROPROFILE_ASSERT_LOG_FREED 0
 #endif
 
+#define MICROPROFILE_FLIP_FLAG_START_WEBSERVER 0x1
+
+#if MICROPROFILE_WEBSERVER_AUTO_START
+#define MICROPROFILE_FLIP_FLAG_DEFAULT (MICROPROFILE_FLIP_FLAG_START_WEBSERVER)
+#else
+#define MICROPROFILE_FLIP_FLAG_DEFAULT (0)
+#endif
+
+
+
 typedef enum MicroProfileTokenType_t
 {
 	MicroProfileTokenTypeCpu,
@@ -856,6 +870,13 @@ typedef enum MicroProfileTokenType_t
 struct MicroProfile;
 struct MicroProfileThreadLogGpu;
 struct MicroProfileScopeStateC;
+#ifdef __cplusplus
+#define IF_CPP(exp) exp
+#else
+#define IF_CPP(exp)
+#endif
+
+
 
 #ifdef __cplusplus
 extern "C"
@@ -920,8 +941,8 @@ extern "C"
 	MICROPROFILE_API void MicroProfileFreeGpuQueue(int nQueue);
 	MICROPROFILE_API int MicroProfileGetGpuQueue(const char* pQueueName);
 
-	MICROPROFILE_API void MicroProfileFlip(void* pGpuContext);									 //! call once per frame.
-	MICROPROFILE_API void MicroProfileFlip_CB(void* pGpuContext, MicroProfileOnFreeze FreezeCB); //! call once per frame.
+	MICROPROFILE_API void MicroProfileFlip(void* pGpuContext, uint32_t FlipFlag IF_CPP(= MICROPROFILE_FLIP_FLAG_DEFAULT));									 //! call once per frame.
+	MICROPROFILE_API void MicroProfileFlip_CB(void* pGpuContext, MicroProfileOnFreeze FreezeCB, uint32_t FlipFlag IF_CPP(= MICROPROFILE_FLIP_FLAG_DEFAULT)); //! call once per frame.
 	MICROPROFILE_API void MicroProfileToggleFrozen();
 	MICROPROFILE_API int MicroProfileIsFrozen();
 	MICROPROFILE_API int MicroProfileEnabled();
@@ -1026,8 +1047,18 @@ extern "C"
 
 	MICROPROFILE_API void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, float fGpuSpike);
 	MICROPROFILE_API void MicroProfileDumpFileImmediately(const char* pHtml, const char* pCsv, void* pGpuContext);
+
+#if MICROPROFILE_ENABLED && MICROPROFILE_WEBSERVER
 	MICROPROFILE_API uint32_t MicroProfileWebServerPort();
 	MICROPROFILE_API void MicroProfileSetWebServerPort(uint32_t nPort);
+#else
+#define MicroProfileWebServerPort() ((uint32_t)-1)
+#define MicroProfileSetWebServerPort(a)                                                                                                                                                                \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
+#endif
+
 
 #if MICROPROFILE_GPU_TIMERS
 #if MICROPROFILE_GPU_TIMER_CALLBACKS
