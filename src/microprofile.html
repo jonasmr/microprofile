@@ -7931,9 +7931,9 @@ function PreprocessTimeline()
 		Timeline.Pairs[i] = -1;
 		Timeline.SearchMatch[i] = false;
 		var Color = S.TimelineColorArray[i]
-		if(!Color || Color == '')
+		if(!Color || Color == '' || Color == "#000000")
 		{
-			Color = '#777777'
+			Color = ColorFromString(Timeline.Names[i], 40, 50);
 		}
 		Timeline.Colors[i] = GetColorIndex(Color);
 		if(null == Timeline.Colors[i])

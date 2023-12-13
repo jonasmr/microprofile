@@ -7965,9 +7965,9 @@ const char g_MicroProfileHtml_end_5[] =
 "		Timeline.Pairs[i] = -1;\n"
 "		Timeline.SearchMatch[i] = false;\n"
 "		var Color = S.TimelineColorArray[i]\n"
-"		if(!Color || Color == \'\')\n"
+"		if(!Color || Color == \'\' || Color == \"#000000\")\n"
 "		{\n"
-"			Color = \'#777777\'\n"
+"			Color = ColorFromString(Timeline.Names[i], 40, 50);\n"
 "		}\n"
 "		Timeline.Colors[i] = GetColorIndex(Color);\n"
 "		if(null == Timeline.Colors[i])\n"
@@ -8660,17 +8660,17 @@ const char g_MicroProfileHtml_end_5[] =
 "		}\n"
 "		else\n"
 "		{\n"
-"			window.alert(\"Not a .html file!\\n\" + Name);\n"
+"			window.alert(\"Not a .html file!\\n\" + Name";
+
+const size_t g_MicroProfileHtml_end_5_size = sizeof(g_MicroProfileHtml_end_5);
+const char g_MicroProfileHtml_end_6[] =
+");\n"
 "		}\n"
 "	}\n"
 "  	ev.preventDefault();	\n"
 "}\n"
 "\n"
-"function DragOverH";
-
-const size_t g_MicroProfileHtml_end_5_size = sizeof(g_MicroProfileHtml_end_5);
-const char g_MicroProfileHtml_end_6[] =
-"andler(ev)\n"
+"function DragOverHandler(ev)\n"
 "{\n"
 "  ev.preventDefault();	\n"
 "}\n"

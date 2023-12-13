@@ -69,6 +69,7 @@
 
 typedef uint64_t MicroProfileToken;
 typedef uint16_t MicroProfileGroupId;
+typedef uint32_t MicroProfileTimelineToken;
 
 #if 0 == MICROPROFILE_ENABLED
 
@@ -268,6 +269,10 @@ typedef uint16_t MicroProfileGroupId;
 	{                                                                                                                                                                                                  \
 	} while(0)
 #define MICROPROFILE_TIMELINE_LEAVE_STATIC(name)                                                                                                                                                       \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
+#define MICROPROFILE_TIMELINE_SCOPE(...)                                                                                                                                                               \
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
@@ -589,8 +594,7 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #define MICROPROFILE_GPU_SET_CONTEXT(pContext, pLog) MicroProfileGpuSetContext(pContext, pLog)
 #define MICROPROFILE_GPU_END(pLog) MicroProfileGpuEnd(pLog)
 #define MICROPROFILE_GPU_SUBMIT(Queue, Work) MicroProfileGpuSubmit(Queue, Work)
-
-#define MICROPROFILE_TIMELINE_TOKEN(token) uint32_t token = 0
+#define MICROPROFILE_TIMELINE_TOKEN(token) MicroProfileTimelineToken token = 0
 #define MICROPROFILE_TIMELINE_ENTER(token, color, name) token = MicroProfileTimelineEnter(color, name)
 #define MICROPROFILE_TIMELINE_ENTERF(token, color, fmt, ...) token = MicroProfileTimelineEnterf(color, fmt, ##__VA_ARGS__)
 #define MICROPROFILE_TIMELINE_LEAVE(token)                                                                                                                                                             \
@@ -605,6 +609,10 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #define MICROPROFILE_TIMELINE_ENTER_STATIC(color, name) MicroProfileTimelineEnterStatic(color, name)
 // use only with static string literals
 #define MICROPROFILE_TIMELINE_LEAVE_STATIC(name) MicroProfileTimelineLeaveStatic(name)
+#define MICROPROFILE_TIMELINE_SCOPE(color, fmt, ...) \
+	MicroProfileTimelineToken MICROPROFILE_TOKEN_PASTE(__timeline__, __LINE__) = MicroProfileTimelineEnterf(color, fmt, ##__VA_ARGS__);\
+	MicroProfileScopeTimelineExitHandler MICROPROFILE_TOKEN_PASTE(__timeline__0, __LINE__)(MICROPROFILE_TOKEN_PASTE(__timeline__, __LINE__))
+
 #define MICROPROFILE_THREADLOGGPURESET(a) MicroProfileThreadLogGpuReset(a)
 #define MICROPROFILE_META_CPU(name, count)                                                                                                                                                             \
 	do                                                                                                                                                                                                 \
@@ -916,10 +924,10 @@ extern "C"
 	MICROPROFILE_API void MicroProfileLeaveGpu(struct MicroProfileThreadLogGpu* pLog);
 	MICROPROFILE_API void MicroProfileEnterNegative();
 	MICROPROFILE_API void MicroProfileEnterNegativeGpu(struct MicroProfileThreadLogGpu* pLog);
-	MICROPROFILE_API uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, uint32_t nStrLen, int bIsStaticString);
-	MICROPROFILE_API uint32_t MicroProfileTimelineEnter(uint32_t nColor, const char* pStr);
-	MICROPROFILE_API uint32_t MicroProfileTimelineEnterf(uint32_t nColor, const char* pStr, ...);
-	MICROPROFILE_API void MicroProfileTimelineLeave(uint32_t id);
+	MICROPROFILE_API MicroProfileTimelineToken MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, uint32_t nStrLen, int bIsStaticString);
+	MICROPROFILE_API MicroProfileTimelineToken MicroProfileTimelineEnter(uint32_t nColor, const char* pStr);
+	MICROPROFILE_API MicroProfileTimelineToken MicroProfileTimelineEnterf(uint32_t nColor, const char* pStr, ...);
+	MICROPROFILE_API void MicroProfileTimelineLeave(MicroProfileTimelineToken id);
 	MICROPROFILE_API void MicroProfileTimelineEnterStatic(uint32_t nColor, const char* pStr);
 	MICROPROFILE_API void MicroProfileTimelineLeaveStatic(const char* pStr);
 
@@ -1201,6 +1209,18 @@ struct MicroProfileConditionalScopeHandler
 		}
 	}
 };
+struct MicroProfileScopeTimelineExitHandler
+{
+	MicroProfileTimelineToken nToken;
+	MicroProfileScopeTimelineExitHandler(MicroProfileTimelineToken Token)
+	: nToken(Token)
+	{}
+	~MicroProfileScopeTimelineExitHandler()
+	{
+		MicroProfileTimelineLeave(nToken);
+	}
+};
+
 #endif //__cplusplus
 #endif // enabled
 

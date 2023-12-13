@@ -2568,11 +2568,16 @@ void MicroProfileTimelineLeave(uint32_t id)
 
 void MicroProfileTimelineEnterStatic(uint32_t nColor, const char* pStr)
 {
+	if (!S.AnyActive)
+		return;
 	uint32_t nToken = MicroProfileTimelineEnterInternal(nColor, pStr, (uint32_t)strlen(pStr), true);
 	(void)nToken;
 }
 void MicroProfileTimelineLeaveStatic(const char* pStr)
 {
+	if (!S.AnyActive)
+		return;
+
 	for(uint32_t i = 0; i < MICROPROFILE_TIMELINE_MAX_TOKENS; ++i)
 	{
 		if(S.TimelineTokenStaticString[i] && 0 == MP_STRCASECMP(pStr, S.TimelineTokenStaticString[i]))
@@ -2584,6 +2589,8 @@ void MicroProfileTimelineLeaveStatic(const char* pStr)
 
 uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, uint32_t nStrLen, int bIsStaticString)
 {
+	if (!S.AnyActive)
+		return 0;
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileTimelineMutex());
 	MicroProfileThreadLog* pLog = &S.TimelineLog;
 	MP_ASSERT(pStr[nStrLen] == '\0');
@@ -2677,6 +2684,8 @@ uint32_t MicroProfileTimelineEnter(uint32_t nColor, const char* pStr)
 
 uint32_t MicroProfileTimelineEnterf(uint32_t nColor, const char* pStr, ...)
 {
+	if (!S.AnyActive)
+		return 0;
 	char buffer[MICROPROFILE_MAX_STRING + 1];
 	va_list args;
 	va_start(args, pStr);
