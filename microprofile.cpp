@@ -849,6 +849,7 @@ struct MicroProfile
 	float fDumpGpuSpike;
 	char HtmlDumpPath[512];
 	char CsvDumpPath[512];
+	uint32_t DumpFrameCount;
 
 	int64_t nPauseTicks;
 	std::atomic<int> nPauseSignal;
@@ -1265,7 +1266,7 @@ inline int64_t MicroProfileMsToTick(float fMs, int64_t nTicksPerSecond)
 
 inline float MicroProfileTickToMsMultiplier(int64_t nTicksPerSecond)
 {
-	return 1000.f / nTicksPerSecond;
+	return 1000.f / (nTicksPerSecond ? nTicksPerSecond : 1);
 }
 float MicroProfileTickToMsMultiplierCpu()
 {
@@ -1598,6 +1599,8 @@ void MicroProfileInit()
 		S.nWebServerDataSent = (uint64_t)-1;
 		S.WebSocketTimers = -1;
 		S.nSocketFail = 0;
+
+		S.DumpFrameCount = MICROPROFILE_WEBSERVER_DEFAULT_FRAMES;
 
 #if MICROPROFILE_COUNTER_HISTORY
 		S.nCounterHistoryPut = 0;
@@ -2609,7 +2612,7 @@ uint32_t MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, ui
 		{
 
 			/// dont reuse tokens until their leave command has been dead for the maximum amount of frames we can generate a capture for.
-			while(token == 0 || nFrameEnter != MICROPROFILE_INVALID_FRAME || (nFrameCurrent - nFrameLeave < MICROPROFILE_WEBSERVER_MAXFRAMES + 3 && nFrameLeave != MICROPROFILE_INVALID_FRAME))
+			while(token == 0 || nFrameEnter != MICROPROFILE_INVALID_FRAME || (nFrameCurrent - nFrameLeave < MICROPROFILE_MAX_FRAME_HISTORY + 3 && nFrameLeave != MICROPROFILE_INVALID_FRAME))
 			{
 				token = (uint32_t)pLog->nCustomId++;
 				nFrameLeave = S.TimelineTokenFrameLeave[token % MICROPROFILE_TIMELINE_MAX_TOKENS];
@@ -4290,7 +4293,7 @@ void MicroProfileSetWebServerPort(uint32_t nPort)
 	}
 }
 
-void MicroProfileDumpFileImmediately(const char* pHtml, const char* pCsv, void* pGpuContext)
+void MicroProfileDumpFileImmediately(const char* pHtml, const char* pCsv, void* pGpuContext, uint32_t FrameCount)
 {
 	for(uint32_t i = 0; i < 2; ++i)
 	{
@@ -4327,13 +4330,15 @@ void MicroProfileDumpFileImmediately(const char* pHtml, const char* pCsv, void* 
 	S.nDumpFileNextFrame = nDumpMask;
 	S.nDumpSpikeMask = 0;
 	S.nDumpFileCountDown = 0;
+	S.DumpFrameCount = FrameCount;
 
 	MicroProfileDumpToFile();
 }
-void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, float fGpuSpike)
+void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, float fGpuSpike, uint32_t FrameCount)
 {
 	S.fDumpCpuSpike = fCpuSpike;
 	S.fDumpGpuSpike = fGpuSpike;
+	S.DumpFrameCount = FrameCount;
 	uint32_t nDumpMask = 0;
 	if(pHtml)
 	{
@@ -5398,7 +5403,7 @@ void MicroProfileDumpToFile()
 		FILE* F = fopen(S.HtmlDumpPath, "w");
 		if(F)
 		{
-			MicroProfileDumpHtml(MicroProfileWriteFile, F, MICROPROFILE_WEBSERVER_MAXFRAMES, S.HtmlDumpPath);
+			MicroProfileDumpHtml(MicroProfileWriteFile, F, S.DumpFrameCount, S.HtmlDumpPath);
 			fclose(F);
 		}
 	}
@@ -5694,7 +5699,7 @@ MicroProfileGetCommand MicroProfileParseGet(const char* pGet, MicroProfileParseG
 	}
 	else
 	{
-		pResult->nFrames = MICROPROFILE_WEBSERVER_MAXFRAMES;
+		pResult->nFrames = MICROPROFILE_WEBSERVER_DEFAULT_FRAMES;
 	}
 	return EMICROPROFILE_GET_COMMAND_DUMP;
 }

@@ -349,11 +349,7 @@ typedef uint16_t MicroProfileGroupId;
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
-#define MicroProfileFlip(pContext)			                                                                                                                                                           \
-	do                                                                                                                                                                                                 \
-	{                                                                                                                                                                                                  \
-	} while(0)
-#define MicroProfileFlip(pContext, Flag)                                                                                                                                                               \
+#define MicroProfileFlip(...)	    		                                                                                                                                                           \
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
@@ -411,11 +407,11 @@ typedef uint16_t MicroProfileGroupId;
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
-#define MicroProfileDumpFile(html, csv, spikecpu, spikegpu)                                                                                                                                            \
+#define MicroProfileDumpFile(...)                                                                                                                                                                      \
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
-#define MicroProfileDumpFileImmediately(html, csv, gfcontext)                                                                                                                                          \
+#define MicroProfileDumpFileImmediately(...)                                                                                                                                                           \
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
@@ -727,8 +723,8 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #endif
 
 
-#ifndef MICROPROFILE_WEBSERVER_MAXFRAMES
-#define MICROPROFILE_WEBSERVER_MAXFRAMES 30
+#ifndef MICROPROFILE_WEBSERVER_DEFAULT_FRAMES 
+#define MICROPROFILE_WEBSERVER_DEFAULT_FRAMES 30
 #endif
 
 #ifndef MICROPROFILE_WEBSERVER_SOCKET_BUFFER_SIZE
@@ -870,6 +866,8 @@ typedef enum MicroProfileTokenType_t
 struct MicroProfile;
 struct MicroProfileThreadLogGpu;
 struct MicroProfileScopeStateC;
+
+
 #ifdef __cplusplus
 #define IF_CPP(exp) exp
 #else
@@ -1045,8 +1043,8 @@ extern "C"
 	MICROPROFILE_API void MicroProfileSetCurrentNodeVulkan(uint32_t nNode);
 #endif
 
-	MICROPROFILE_API void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, float fGpuSpike);
-	MICROPROFILE_API void MicroProfileDumpFileImmediately(const char* pHtml, const char* pCsv, void* pGpuContext);
+	MICROPROFILE_API void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, float fGpuSpike, uint32_t FrameCount IF_CPP(= MICROPROFILE_WEBSERVER_DEFAULT_FRAMES) );
+	MICROPROFILE_API void MicroProfileDumpFileImmediately(const char* pHtml, const char* pCsv, void* pGpuContext, uint32_t FrameCount IF_CPP(= MICROPROFILE_WEBSERVER_DEFAULT_FRAMES));
 
 #if MICROPROFILE_ENABLED && MICROPROFILE_WEBSERVER
 	MICROPROFILE_API uint32_t MicroProfileWebServerPort();
