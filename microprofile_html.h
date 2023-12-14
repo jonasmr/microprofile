@@ -408,11 +408,11 @@ const char g_MicroProfileHtml_end_0[] =
 "var fDetailedRange = S.Frames[S.Frames.length-1].frameend - fDetailedOffset;\n"
 "var nWidth = CanvasDetailedView.width;\n"
 "var nHeight = CanvasDetailedView.height;\n"
-"var ReferenceTimeString = \'auto\';\n"
+"var ReferenceTimeString = \'100\';\n"
 "var ReferenceTimeAutoString = \'auto\';\n"
-"var ReferenceTime = 33;\n"
-"var TargetTime = 16;\n"
-"var TargetTimeString = \'16ms\';\n"
+"var ReferenceTime = 100;\n"
+"var TargetTime = 15;\n"
+"var TargetTimeString = \'15ms\';\n"
 "var nHistoryHeight = 70;\n"
 "var nOffsetY = 0;\n"
 "var nOffsetBarsX = 0;\n"
@@ -8907,13 +8907,13 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "var ReadOnlyPresetsCache = {};\n"
 "\n"
 "Settings.SubGraphSettings = {};\n"
-"Settings.ReferenceTime = 50.0;\n"
+"Settings.ReferenceTime = 100.0;\n"
 "var ReferencePresets = [5.0, 10.0, 15.0, 20, 30, 33.33, 50, 66.66,100.0,250.0,500,1000.0];\n"
 "var PercentilePresets = [0.0, 1.0, 5.0, 10.0, 50.0, 75.0, 99.0];\n"
 "var ReferenceTimeTweak = -1;\n"
 "var PercentileTweak = -1;\n"
 "\n"
-"Settings.TargetTime = 30;\n"
+"Settings.TargetTime = 15;\n"
 "var TargetTimeTweak = -1;\n"
 "\n"
 "\n"
@@ -9050,7 +9050,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "\n"
 "\n"
 "// Settings.FancyGraph = 1;\n"
-"Settings.AutomaticReference = 1;\n"
+"Settings.AutomaticReference = 0;\n"
 "Cookie.CodeReportMode = 0; // 0: prompt, 1:always send, 2: never send, never prompt\n"
 "\n"
 "\n"
@@ -10095,11 +10095,11 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "		DrawTimer(T.callexclaverage, T.color);\n"
 "		DrawCount(\'\' + T.callcount);\n"
 "\n"
-"		context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[n";
+"		context.fillStyle = bMouseIn ? nBackColorOffset : nBackColors[";
 
 const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
 const char g_MicroProfileHtmlLive_begin_1[] =
-"ColorIndex];\n"
+"nColorIndex];\n"
 "		context.fillRect(0, Y, NameWidth, Height);\n"
 "		if(T.idtype == TYPE_GROUP)\n"
 "		{\n"
@@ -11448,11 +11448,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	// context.closePath();\n"
 "	context.stroke();\n"
 "	var YText;\n"
-"	if(fH > HistoryHeight *";
+"	if(fH > HistoryHeight ";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-" 0.25)\n"
+"* 0.25)\n"
 "	{\n"
 "		YText = fH - FontAscent;\n"
 "	}\n"
@@ -12967,11 +12967,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	let Strings = [\"AutoCapture Enabled\", \"AutoCapture Threshold\", \"AutoCapture Source\", \"Capture Length\"];\n"
 "	let wLeft = MeasureArray(0, Strings);\n"
 "	let wRight = 50;\n"
-"	wRight = Measure";
+"	wRight = Measur";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-"Array(wRight, [\"Frame Time\"]);\n"
+"eArray(wRight, [\"Frame Time\"]);\n"
 "	wRight = MeasureArray(wRight, EnabledArray, function(a){return TimerArray[a].name; } );\n"
 "	let Width = wLeft + 35 + wRight;\n"
 "	SizeInfo.w = Width;\n"
@@ -14259,11 +14259,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "			MouseMoveTime = new Date();\n"
 "		}\n"
 "		if(SubMenuActive == SubMenuGroup)\n"
-"		{";
+"		";
 
 const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
 const char g_MicroProfileHtmlLive_begin_4[] =
-"\n"
+"{\n"
 "			MenuRect = DrawMenuGroup();\n"
 "		}\n"
 "		else if(SubMenuActive == SubMenuTimers)\n"
@@ -15787,11 +15787,11 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "	if(evt.keyCode == 16)\n"
 "	{\n"
 "		KeyShiftDown = 1;\n"
-"		MouseDragKey";
+"		MouseDragKe";
 
 const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
 const char g_MicroProfileHtmlLive_begin_5[] =
-"Up();\n"
+"yUp();\n"
 "	}\n"
 "}\n"
 "\n"
