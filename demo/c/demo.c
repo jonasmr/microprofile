@@ -101,7 +101,7 @@ int main(int argc, char* argv[])
 
 		// MICROPROFILE_COUNTER_LOCAL_ADD(LocalCounter, 3);
 		// MICROPROFILE_COUNTER_LOCAL_SUB(LocalCounter, 1);
-		MicroProfileFlip(0);
+		MicroProfileFlip(0, MICROPROFILE_FLIP_FLAG_DEFAULT);
 		static int once = 0;
 		if(!once)
 		{
