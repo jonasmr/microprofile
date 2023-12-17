@@ -138,7 +138,7 @@ template <typename T>
 T MicroProfileClamp(T a, T min_, T max_);
 int64_t MicroProfileMsToTick(float fMs, int64_t nTicksPerSecond);
 float MicroProfileTickToMsMultiplier(int64_t nTicksPerSecond);
-uint64_t MicroProfileLogGetType(MicroProfileLogEntry Index);
+uint32_t MicroProfileLogGetType(MicroProfileLogEntry Index);
 uint64_t MicroProfileLogGetTimerIndex(MicroProfileLogEntry Index);
 MicroProfileLogEntry MicroProfileMakeLogIndex(uint64_t nBegin, MicroProfileToken nToken, int64_t nTick);
 int64_t MicroProfileLogTickDifference(MicroProfileLogEntry Start, MicroProfileLogEntry End);
@@ -1053,7 +1053,7 @@ struct MicroProfile
 	MicroProfileGpuTimerState* pGPU;
 };
 
-inline uint64_t MicroProfileLogGetType(MicroProfileLogEntry Index)
+inline uint32_t MicroProfileLogGetType(MicroProfileLogEntry Index)
 {
 	return ((MP_LOG_BEGIN_MASK & Index) >> 62) & 0x3;
 }
@@ -1102,7 +1102,7 @@ MicroProfileLogEntry MicroProfileMakeLogExtendedNoData(EMicroProfileTokenExtende
 inline MicroProfileLogEntry MicroProfileMakeLogIndex(uint64_t nBegin, MicroProfileToken nToken, int64_t nTick)
 {
 	MicroProfileLogEntry Entry = (nBegin << 62) | ((0x3fff & nToken) << 48) | (MP_LOG_TICK_MASK & nTick);
-	uint64_t t = MicroProfileLogGetType(Entry);
+	uint32_t t = MicroProfileLogGetType(Entry);
 	uint64_t nTimerIndex = MicroProfileLogGetTimerIndex(Entry);
 	MP_ASSERT(t == nBegin);
 	MP_ASSERT(nTimerIndex == (nToken & 0x3fff));
@@ -1339,7 +1339,7 @@ void MicroProfileThreadJoin(MicroProfileThread* pThread)
 }
 #elif defined(_WIN32)
 typedef HANDLE MicroProfileThread;
-DWORD _stdcall ThreadTrampoline(void* pFunc)
+DWORD __stdcall ThreadTrampoline(void* pFunc)
 {
 	MicroProfileThreadFunc F = (MicroProfileThreadFunc)pFunc;
 	return (uint32_t)(uintptr_t)F(0);
@@ -3383,7 +3383,7 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB, uint32_t
 					{
 						int64_t LE = pLog->Log[nStart];
 						int64_t nDifference = MicroProfileLogTickDifference(LE, nTickEndFrame);
-						uint64_t Ext = MicroProfileLogGetType(LE);
+						uint32_t Ext = MicroProfileLogGetType(LE);
 						if(nDifference > 0 || 0 != (0x2 & Ext))
 						{
 							nStart = (nStart + 1) % MICROPROFILE_BUFFER_SIZE;
@@ -3526,7 +3526,7 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB, uint32_t
 						for(uint32_t k = nStart; k < nEnd; ++k)
 						{
 							MicroProfileLogEntry LE = pLog->Log[k];
-							uint64_t nType = MicroProfileLogGetType(LE);
+							uint32_t nType = MicroProfileLogGetType(LE);
 
 							switch(nType)
 							{
@@ -4820,11 +4820,11 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 			{
 				ThreadId = (MicroProfileThreadIdType)-1;
 			}
-			MicroProfilePrintf(CB, Handle, "%d,", ThreadId);
+			MicroProfilePrintf(CB, Handle, "%" PRIu64 ",", (uint64_t)ThreadId);
 		}
 		else
 		{
-			MicroProfilePrintf(CB, Handle, "-1,", i);
+			MicroProfilePrintf(CB, Handle, "-1,");
 		}
 	}
 	MicroProfilePrintf(CB, Handle, "];\n\n");
@@ -5124,7 +5124,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 			int64_t nStartTickBase = pLog->nGpu ? nTickStartGpu : nTickStart;
 			uint32_t nLogStart = S.Frames[nFrameIndex].nLogStart[j];
 			uint32_t nLogEnd = S.Frames[nFrameIndexNext].nLogStart[j];
-			uint64_t nLogType;
+			uint32_t nLogType;
 			float fToMs;
 			uint64_t nStartTick;
 			float fToMsCpu = MicroProfileTickToMsMultiplier(nTicksPerSecondCpu);
@@ -5179,7 +5179,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 				for(k = (k + 1) % MICROPROFILE_BUFFER_SIZE; k != nLogEnd; k = (k + 1) % MICROPROFILE_BUFFER_SIZE)
 				{
 					uint64_t v = pLog->Log[k];
-					uint64_t nLogType2 = MicroProfileLogGetType(v);
+					uint32_t nLogType2 = MicroProfileLogGetType(v);
 
 					if(nLogType2 > MP_LOG_ENTER)
 						nLogType2 |= (MicroProfileLogGetExtendedToken(v))
@@ -6895,6 +6895,8 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 		const char** pModules = (const char**)(alloca(sizeof(const char*) * nNumArguments));
 		const char** pSymbols = (const char**)(alloca(sizeof(const char*) * nNumArguments));
 		auto Next = [&pGet]() -> const char* {
+			if(!pGet)
+				return 0;
 			const char* pRet = pGet;
 			pGet = (char*)strchr(pRet, '!');
 			if(!pGet)
