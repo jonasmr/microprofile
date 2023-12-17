@@ -1,7 +1,7 @@
 #pragma once
 // MIT License
 //
-// Copyright (c) 2019 Jonas Meyer
+// Copyright (c) 2023 Jonas Meyer
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
