@@ -212,4 +212,4 @@ Microprofile supports the two major consoles - Search for 'microprofile' in the 
 
 
 # License
-Licensed using [UNLICENSE](LICENSE)
+Licensed using [MIT](LICENSE)
