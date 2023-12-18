@@ -3496,8 +3496,6 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB, uint32_t
 
 					const uint32_t nTimerNegative = bGpu ? S.nTimerNegativeGpuIndex : S.nTimerNegativeCpuIndex;
 
-					uint8_t* pGroupStackPos = &pLog->nGroupStackPos[0];
-
 					uint32_t nPut = pFrameNext->nLogStart[idx_thread];
 					uint32_t nGet = pFrameCurrent->nLogStart[idx_thread];
 					uint32_t nRange[2][2] = {
@@ -3518,6 +3516,21 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB, uint32_t
 					{
 						nNegativeStack[i] = 0;
 					}
+					uint8_t TimerStackPos[MICROPROFILE_MAX_TIMERS];
+					uint8_t GroupStackPos[MICROPROFILE_MAX_GROUPS];
+					memset(TimerStackPos, 0, sizeof(TimerStackPos));
+					memset(GroupStackPos, 0, sizeof(GroupStackPos));
+
+					// restore group and timer stack pos.
+					for(int32_t i = 0; i < nStackPos; ++i)
+					{
+						uint64_t nTimer = MicroProfileLogGetTimerIndex(pStackLog[i]);
+						uint32_t nGroup = pTimerToGroup[nTimer];
+						MP_ASSERT(nTimer < MICROPROFILE_MAX_TIMERS);
+						MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
+						TimerStackPos[nTimer]++;
+						GroupStackPos[nGroup]++;
+					}
 
 					for(uint32_t j = 0; j < 2; ++j)
 					{
@@ -3533,39 +3546,42 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB, uint32_t
 							case MP_LOG_ENTER:
 							{
 								uint64_t nTimer = MicroProfileLogGetTimerIndex(LE);
-								if(nTimer != ETOKEN_CSTR_PTR) // todo: maybe shuffle it into a fallback category?
+								if(nTimer != ETOKEN_CSTR_PTR)
 								{
 									MP_ASSERT(nTimer < S.nTotalTimers);
 									uint32_t nGroup = pTimerToGroup[nTimer];
 									MP_ASSERT(nStackPos < MICROPROFILE_STACK_MAX);
 									MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
-									pGroupStackPos[nGroup]++;
+
+
+									// When we aggretate the total time, we have to count if the timers & groups are layered, to avoid summing them twice when calculating the total time.
+									// Averages become nonsense regardless.
+									TimerStackPos[nTimer]++;
+									GroupStackPos[nGroup]++;
+
 									pStackLog[nStackPos] = LE;
+
 									nNegativeStack[nStackPos] = 0;
 									pChildTickStack[nStackPos] = 0;
 									nStackPos++;
-								}
-								else
-								{
-									uprintf("got enter with the cstr thingi");
 								}
 								break;
 							}
 							case MP_LOG_LEAVE:
 							{
 								uint64_t nTimer = MicroProfileLogGetTimerIndex(LE);
-								if(nTimer != ETOKEN_CSTR_PTR) // todo: maybe shuffle it into a fallback category?
+								if(nTimer != ETOKEN_CSTR_PTR)
 								{
 									MP_ASSERT(nTimer < S.nTotalTimers);
 									uint32_t nGroup = pTimerToGroup[nTimer];
 									MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
 									MP_ASSERT(nStackPos);
 									uint64_t nTicks;
+									bool bGroupRoot = 0 == GroupStackPos[nGroup] || 0 == --GroupStackPos[nGroup];
+									bool bTimerRoot = 0 == TimerStackPos[nTimer] || 0 == --TimerStackPos[nTimer];
 									{
 										nStackPos--;
 										uint64_t nTickStart = MicroProfileLogTickClamp(pStackLog[nStackPos], nTickStartLog, nTickEndLog);
-										uint64_t nNegative = nNegativeStack[nStackPos];
-										nNegativeStack[nStackPos] = 0;
 										uint64_t nClamped = MicroProfileLogTickClamp(LE, nTickStartLog, nTickEndLog);
 										nTicks = MicroProfileLogTickDifference(nTickStart, nClamped);
 										MP_ASSERT(nTicks < 0x8000000000000000);
@@ -3577,33 +3593,23 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB, uint32_t
 										{
 											pChildTickStack[nStackPos - 1] += nTicks;
 										}
-
-										uint32_t nTimerIndex = MicroProfileLogGetTimerIndex(LE);
-
-										MP_ASSERT(nTicks >= nNegative);
 										MP_ASSERT(nTicks >= nChildTicks);
-
 										uint64_t nTicksExclusive = (nTicks - nChildTicks);
-										S.Frame[nTimerIndex].nTicks += nTicks - nNegative;
-										S.FrameExclusive[nTimerIndex] += nTicksExclusive;
-										S.Frame[nTimerIndex].nCount += 1;
-
-										MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
-										pFrameGroupThread[nGroup].nTicks += nTicks - nNegative;
+										S.FrameExclusive[nTimer] += nTicksExclusive;
 										pFrameGroupThread[nGroup].nTicksExclusive += nTicksExclusive;
-										pFrameGroupThread[nGroup].nCount += 1;
-									}
-									if(nTimer == nTimerNegative)
-									{
-										for(int i = 0; i < nStackPos; ++i)
+										if(bTimerRoot) // dont count this if its below another instance of the same timer.
 										{
-											nNegativeStack[i] += nTicks;
+											S.Frame[nTimer].nTicks += nTicks;
+											S.Frame[nTimer].nCount += 1; 
+											MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
+											if (bGroupRoot)
+											{
+												pFrameGroupThread[nGroup].nTicks += nTicks;
+												pFrameGroupThread[nGroup].nCount += 1;
+											}
 										}
+										
 									}
-								}
-								else
-								{
-									uprintf("got leave with the cstr thingi");
 								}
 								break;
 							}
@@ -3624,8 +3630,6 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB, uint32_t
 						MicroProfileLogEntry LE = pStackLog[i];
 						uint64_t nTickStart = MicroProfileLogTickClamp(LE, nTickStartLog, nTickEndLog);
 						uint64_t nTicks = MicroProfileLogTickDifference(nTickStart, nTickEndLog);
-						uint64_t nNegative = nNegativeStack[i];
-						nNegativeStack[i] = 0;
 						int64_t nChildTicks = pChildTickStack[i];
 						pChildTickStack[i] = 0; // consume..
 
@@ -3634,28 +3638,42 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB, uint32_t
 						{
 							pChildTickStack[i - 1] += nTicks;
 						}
-						MP_ASSERT(nTicks >= nNegative);
 						MP_ASSERT(nTicks >= (uint64_t)nChildTicks);
 
-						uint32_t nTimerIndex = (uint32_t)MicroProfileLogGetTimerIndex(LE);
-						uint32_t nGroup = pTimerToGroup[nTimerIndex];
-						uint64_t nTicksExclusive = (nTicks - nChildTicks);
-						S.Frame[nTimerIndex].nTicks += nTicks - nNegative;
-						S.FrameExclusive[nTimerIndex] += nTicksExclusive;
-						S.Frame[nTimerIndex].nCount += 1;
+						uint32_t nTimer = (uint32_t)MicroProfileLogGetTimerIndex(LE);
+						uint32_t nGroup = pTimerToGroup[nTimer];
 
-						MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
-						pFrameGroupThread[nGroup].nTicks += nTicks - nNegative;
+						bool bGroupRoot = 0 == GroupStackPos[nGroup] || 0 == --GroupStackPos[nGroup];
+						bool bTimerRoot = 0 == TimerStackPos[nTimer] || 0 == --TimerStackPos[nTimer];
+
+						uint64_t nTicksExclusive = (nTicks - nChildTicks);
+						S.FrameExclusive[nTimer] += nTicksExclusive;
 						pFrameGroupThread[nGroup].nTicksExclusive += nTicksExclusive;
-						pFrameGroupThread[nGroup].nCount += 1;
-						if(nTimerIndex == nTimerNegative)
+						if(bTimerRoot)
 						{
-							for(int j = 0; j < i; ++j)
+							S.Frame[nTimer].nTicks += nTicks;
+							S.Frame[nTimer].nCount += 1;
+
+							MP_ASSERT(nGroup < MICROPROFILE_MAX_GROUPS);
+							if (bGroupRoot)
 							{
-								nNegativeStack[j] += nTicks;
+								pFrameGroupThread[nGroup].nTicks += nTicks;
+								pFrameGroupThread[nGroup].nCount += 1;
 							}
 						}
+
 					}
+					#ifdef MP_ASSERT
+					for(uint8_t& g : GroupStackPos)
+					{
+						MP_ASSERT(g == 0);
+					}
+					for(uint8_t& g : TimerStackPos)
+					{
+						MP_ASSERT(g == 0);
+					}
+					#endif
+					
 					pLog->nStackPos = nStackPos;
 					for(uint32_t j = 0; j < MICROPROFILE_MAX_GROUPS; ++j)
 					{

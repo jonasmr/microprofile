@@ -277,90 +277,121 @@ int main(int argc, char* argv[])
 #endif
 
 	StartFakeWork();
-	while(!g_nQuit)
+	while (!g_nQuit)
 	{
 		MICROPROFILE_SCOPE(MAIN);
+		
+		#if TEST_MANY_GROUPS
+				{
+					t0();
+					t1();
+					t2();
+					t3();
+				}
+		#else
+				usleep(16000);
+		#endif
+				static int xx = 1;
+				if(0 == (++xx % 1000))
+				{
+					MICROPROFILE_SCOPEI("geddehest", "fiszzk", 0xff00ff);
+					usleep(201 * 1000);
+				}
+				C_Test();
+		
+				static int hest = 0;
+				hest++;
+				MICROPROFILE_TIMELINE_LEAVE_STATIC("one");
+				MICROPROFILE_TIMELINE_ENTER_STATIC(MP_DARKGOLDENROD, "one");
+				if(0 == hest%4)
+				{
+					MICROPROFILE_TIMELINE_ENTER_STATIC(MP_PINK, "two");
+				}
+				else if(2 == hest%4)
+				{
+					MICROPROFILE_TIMELINE_LEAVE_STATIC("Two");
+				}
+		
+				if(0 == hest%8)
+				{
+					MICROPROFILE_TIMELINE_ENTER_STATIC(MP_GREEN, "fourone");
+				}
+				else if(4 == hest%8)
+				{
+					MICROPROFILE_TIMELINE_LEAVE_STATIC("fourone");
+				}
+		
+		
+		
+				if(0 == hest%12)
+				{
+					MICROPROFILE_TIMELINE_ENTERF(htok_three, MP_YELLOW, "three %d", hest);
+				}
+				else if(11 == hest%12)
+				{
+					MICROPROFILE_TIMELINE_LEAVE(htok_three);
+				}
+				if(1 == hest%8)
+				{
+					MICROPROFILE_TIMELINE_ENTERF(htok_four, MP_YELLOW, "four %d", hest);
+				}
+				else if(7 == hest%8)
+				{
+					MICROPROFILE_TIMELINE_LEAVE(htok_four);
+				}
+				if(2 == hest%7)
+				{
+					MICROPROFILE_TIMELINE_ENTERF(htok_five, MP_RED, "five %d", hest);
+				}
+				else if(5 == hest%7)
+				{
+					MICROPROFILE_TIMELINE_LEAVE(htok_five);
+				}
+		
+				if(1 == (hest%5))
+				{
+					MICROPROFILE_TIMELINE_ENTERF(htok, MP_PINK3, "hest %s %d", "ged", hest);
+					MICROPROFILE_TIMELINE_ENTERF(htok2, MP_CYAN, "CyAN", 1);
+				}
+				else if(3 == (hest%5))
+				{
+					MICROPROFILE_TIMELINE_LEAVE(htok);
+					MICROPROFILE_TIMELINE_LEAVE(htok2);
+				}
+				MICROPROFILE_COUNTER_LOCAL_ADD(LocalCounter, 3);
+				MICROPROFILE_COUNTER_LOCAL_SUB(LocalCounter, 1);
 
-#if TEST_MANY_GROUPS
 		{
-			t0();
-			t1();
-			t2();
-			t3();
-		}
-#else
-		usleep(16000);
-#endif
-		static int xx = 1;
-		if(0 == (++xx % 1000))
-		{
-			MICROPROFILE_SCOPEI("geddehest", "fiszzk", 0xff00ff);
-			usleep(201 * 1000);
-		}
-		C_Test();
 
-		static int hest = 0;
-		hest++;
-		MICROPROFILE_TIMELINE_LEAVE_STATIC("one");
-		MICROPROFILE_TIMELINE_ENTER_STATIC(MP_DARKGOLDENROD, "one");
-		if(0 == hest%4)
-		{
-			MICROPROFILE_TIMELINE_ENTER_STATIC(MP_PINK, "two");
-		}
-		else if(2 == hest%4)
-		{
-			MICROPROFILE_TIMELINE_LEAVE_STATIC("Two");
-		}
+			// Test that group aggregation works.
+			// The STACK_TEST group and the Outer timer should report 4ms, despite it being stacked many times.
+			// Note this intentionally overlaps with MicroProfileFlip, to verify it correctly handles open markers at its call time.
+			void spinsleep(int64_t);
+			MICROPROFILE_SCOPEI("STACK_TEST", "Outer", MP_AUTO);
+			spinsleep(500 * 1000);
+			MICROPROFILE_SCOPEI("stack_test_other", "Dummy0", MP_AUTO);
+			spinsleep(500 * 1000);
+			{
+				MICROPROFILE_SCOPEI("stack_test_other", "Dummy0", MP_AUTO);
+				spinsleep(500 * 1000);
+				MICROPROFILE_SCOPEI("STACK_TEST", "Outer", MP_AUTO);
+				spinsleep(500 * 1000);
+				MICROPROFILE_SCOPEI("stack_test_other", "Dummy0", MP_AUTO);
+				spinsleep(500 * 1000);
+			}
 
-		if(0 == hest%8)
-		{
-			MICROPROFILE_TIMELINE_ENTER_STATIC(MP_GREEN, "fourone");
-		}
-		else if(4 == hest%8)
-		{
-			MICROPROFILE_TIMELINE_LEAVE_STATIC("fourone");
+			MicroProfileFlip(0);
+			{
+				MICROPROFILE_SCOPEI("stack_test_other", "Dummy0", MP_AUTO);
+				spinsleep(500 * 1000);
+				MICROPROFILE_SCOPEI("STACK_TEST", "Outer", MP_AUTO);
+				spinsleep(500 * 1000);
+				MICROPROFILE_SCOPEI("stack_test_other", "Dummy0", MP_AUTO);
+				spinsleep(500 * 1000);
+			}
+			
 		}
 
-
-
-		if(0 == hest%12)
-		{
-			MICROPROFILE_TIMELINE_ENTERF(htok_three, MP_YELLOW, "three %d", hest);
-		}
-		else if(11 == hest%12)
-		{
-			MICROPROFILE_TIMELINE_LEAVE(htok_three);
-		}
-		if(1 == hest%8)
-		{
-			MICROPROFILE_TIMELINE_ENTERF(htok_four, MP_YELLOW, "four %d", hest);
-		}
-		else if(7 == hest%8)
-		{
-			MICROPROFILE_TIMELINE_LEAVE(htok_four);
-		}
-		if(2 == hest%7)
-		{
-			MICROPROFILE_TIMELINE_ENTERF(htok_five, MP_RED, "five %d", hest);
-		}
-		else if(5 == hest%7)
-		{
-			MICROPROFILE_TIMELINE_LEAVE(htok_five);
-		}
-
-		if(1 == (hest%5))
-		{
-			MICROPROFILE_TIMELINE_ENTERF(htok, MP_PINK3, "hest %s %d", "ged", hest);
-			MICROPROFILE_TIMELINE_ENTERF(htok2, MP_CYAN, "CyAN", 1);
-		}
-		else if(3 == (hest%5))
-		{
-			MICROPROFILE_TIMELINE_LEAVE(htok);
-			MICROPROFILE_TIMELINE_LEAVE(htok2);
-		}
-		MICROPROFILE_COUNTER_LOCAL_ADD(LocalCounter, 3);
-		MICROPROFILE_COUNTER_LOCAL_SUB(LocalCounter, 1);
-		MicroProfileFlip(0);
 		static bool once = false;
 		if(!once)
 		{
@@ -401,9 +432,6 @@ int main(int argc, char* argv[])
 		int cosinus = int(cosf(f*1.3f) * 100000 + 50000);
 		MICROPROFILE_COUNTER_SET("/test/sinus", sinus);
 		MICROPROFILE_COUNTER_SET("/test/cosinus", cosinus);
-
-
-
 	}
 
 	StopFakeWork();

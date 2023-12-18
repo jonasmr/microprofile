@@ -66,7 +66,6 @@ MICROPROFILE_DEFINE_SECTION(SectionWorkGreen, "GreenSection", 0xff00ff00);
 void spinsleep(int64_t nUs)
 {
 	MICROPROFILE_COUNTER_LOCAL_ADD_ATOMIC(ThreadSpinSleep, 1);
-	MICROPROFILE_SCOPEI("spin","sleep", 0xffff);
 #if MICROPROFILE_ENABLED
 	float fToMs = MicroProfileTickToMsMultiplierCpu();
 	int64_t nTickStart = MicroProfileTick();
