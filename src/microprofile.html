@@ -415,7 +415,7 @@ var KeyAltDown = 0;
 var KeyCtrlDown = 0;
 var MouseDragButton = 0;
 var ToolTipFlip = 0;
-var ToolTipCorner = 1;
+var ToolTipCorner = 0;
 let ToolTipImmediate = null;
 var DetailedViewMouseX = 0;
 var DetailedViewMouseY = 0;
@@ -1555,56 +1555,81 @@ function CalculateTimers(Result, TimerIndex, nFrameFirst, nFrameLast, SContext)
 function PreprocessCalculateAllTimers()
 {
 	ProfileEnter("CalculateAllTimers");
-	var nFrameFirst = 0;
-	var nFrameLast = S.Frames.length;
-	var FrameCount = nFrameLast - nFrameFirst;
+	let nFrameFirst = 0;
+	let nFrameLast = S.Frames.length;
+	let FrameCount = nFrameLast - nFrameFirst;
 	if(0 == FrameCount)
 		return;
-	for(var j = 0; j < S.TimerInfo.length; j++)
+	for(let j = 0; j < S.TimerInfo.length; j++)
 	{
 		S.TimerInfo[j].CallCount = 0;
+		S.TimerInfo[j].CallCountExcl = 0;
 		S.TimerInfo[j].Sum = 0;
+		S.TimerInfo[j].SumExcl = 0;
 		S.TimerInfo[j].Max = 0;
+		S.TimerInfo[j].MaxExcl = 0;
+		S.TimerInfo[j].Average = 0;
+		S.TimerInfo[j].AverageExcl = 0;
+		S.TimerInfo[j].FrameAverage = 0;
+		S.TimerInfo[j].FrameAverageExcl = 0;
+		S.TimerInfo[j].FrameCallAverage = 0;
 		S.TimerInfo[j].FrameMax = 0;
+		S.TimerInfo[j].FrameMaxExcl = 0;
 	}
 
 
-	var nNumLogs = S.Frames[0].ts.length;
-	var StackPosArray = Array(nNumLogs);
-	var StackArray = Array(nNumLogs);
-	for(var i = 0; i < nNumLogs; ++i)
+	let nNumLogs = S.Frames[0].ts.length;
+	let ChildTimeStackArray = new Array(nNumLogs);
+	let TimerStackArray = new Array(nNumLogs);
+	let StackPosArray = Array(nNumLogs);
+	let StackArray = Array(nNumLogs);
+	function ClearArray(a)
+	{
+		for(let j = 0; j < a.length; ++j)
+			a[j] = 0;
+	}
+	for(let i = 0; i < nNumLogs; ++i)
 	{
 		StackPosArray[i] = 0;
 		StackArray[i] = Array(20);
+		ChildTimeStackArray[i] = Array(32);
+		ClearArray(ChildTimeStackArray[i]);
+		TimerStackArray[i] = Array(S.TimerInfo.length);
+		ClearArray(TimerStackArray[i]);	
 	}
 
-	for(var i = nFrameFirst; i < nFrameLast; i++)
+	for(let i = nFrameFirst; i < nFrameLast; i++)
 	{
-		for(var j = 0; j < S.TimerInfo.length; j++)
+		for(let j = 0; j < S.TimerInfo.length; j++)
 		{
 			S.TimerInfo[j].FrameSum = 0;
+			S.TimerInfo[j].FrameSumExcl = 0;
 		}
 
-		var fr = S.Frames[i];
+		let fr = S.Frames[i];
 		for(nLog = 0; nLog < nNumLogs; nLog++)
 		{
-			var StackPos = StackPosArray[nLog];
-			var Stack = StackArray[nLog];
-			var ts = fr.ts[nLog];
-			var ti = fr.ti[nLog];
-			var tt = fr.tt[nLog];
-			var count = ts.length;
+			let StackPos = StackPosArray[nLog];
+			let Stack = StackArray[nLog];
+			let ChildTimeStack = ChildTimeStackArray[nLog];
+			let TimerStack = TimerStackArray[nLog];
+
+			let ts = fr.ts[nLog];
+			let ti = fr.ti[nLog];
+			let tt = fr.tt[nLog];
+			let count = ts.length;
 			for(j = 0; j < count; j++)
 			{
-				var type = tt[j];
-				var index = ti[j];
-				var time = ts[j];
+				let type = tt[j];
+				let index = ti[j];
+				let time = ts[j];
 				if(index < ETOKEN_MAX && index >= 0)
 				{
 					if(type == 1) //enter
 					{
 						//push
 						Stack[StackPos] = time;
+						TimerStack[index] += 1;
 						if(StackArray[nLog][StackPos] != time)
 						{
 							console.log('fail fail fail');
@@ -1613,20 +1638,33 @@ function PreprocessCalculateAllTimers()
 					}
 					else if(type == 0) // leave
 					{
-						var timestart;
-						var timeend = time;
+						let TimeStart;
+						let TimeEnd = time;
+						let TimeChild = 0;
 						if(StackPos>0)
 						{
 							StackPos--;
-							timestart = Stack[StackPos];
+							TimeStart = Stack[StackPos];
+							TimeChild = ChildTimeStack[StackPos];
+							ChildTimeStack[StackPos] = 0;
 						}
 						else
 						{
-							timestart = S.Frames[nFrameFirst].framestart;
+							TimeStart = S.Frames[nFrameFirst].framestart;
 						}
-						// if(index == TimerIndex)
+						let TimerIsRoot = TimerStack[index] == 0 || (0 == --TimerStack[index]);
+						let TimeDelta = TimeEnd - TimeStart;
+						let TimeDeltaExcl = Math.max(0, TimeDelta - TimeChild);
+						S.TimerInfo[index].SumExcl += TimeDeltaExcl;
+						S.TimerInfo[index].FrameSumExcl += TimeDeltaExcl;
+						S.TimerInfo[index].CallCountExcl++;
+						if(TimeDeltaExcl > S.TimerInfo[index].MaxExcl)
 						{
-							var TimeDelta = timeend - timestart;
+							S.TimerInfo[index].MaxExcl = TimeDeltaExcl;
+						}
+
+						if(TimerIsRoot)
+						{
 							S.TimerInfo[index].CallCount++;
 							S.TimerInfo[index].FrameSum += TimeDelta;
 							S.TimerInfo[index].Sum += TimeDelta;
@@ -1634,24 +1672,27 @@ function PreprocessCalculateAllTimers()
 							{
 								S.TimerInfo[index].Max = TimeDelta;
 								S.TimerInfo[index].worst = TimeDelta;
-								S.TimerInfo[index].worststart = timestart;
-								S.TimerInfo[index].worstend = timeend;
+								S.TimerInfo[index].worststart = TimeStart;
+								S.TimerInfo[index].worstend = TimeEnd;
 								S.TimerInfo[index].worstthread = nLog;
 							}
 						}
+						if(StackPos > 0)
+							ChildTimeStack[StackPos-1] += TimeDelta;
 					}
 				}
-				else
-				{
-					//meta
-				}
 			}
-			for(var j = 0; j < S.TimerInfo.length; j++)
+			for(let j = 0; j < S.TimerInfo.length; j++)
 			{
 				if(S.TimerInfo[j].FrameSum > S.TimerInfo[j].FrameMax)
 				{
 					S.TimerInfo[j].FrameMax = S.TimerInfo[j].FrameSum;
 				}
+				if(S.TimerInfo[j].FrameSumExcl > S.TimerInfo[j].FrameMaxExcl)
+				{
+					S.TimerInfo[j].FrameMaxExcl = S.TimerInfo[j].FrameSumExcl;
+				}
+
 			}
 			StackPosArray[nLog] = StackPos;
 		}
@@ -1659,22 +1700,33 @@ function PreprocessCalculateAllTimers()
 
 	}
 
-	for(var j = 0; j < S.TimerInfo.length; j++)
+	for(let j = 0; j < S.TimerInfo.length; j++)
 	{
-		var CallCount = S.TimerInfo[j].CallCount;
-		var Sum = S.TimerInfo[j].Sum.toFixed(3);
-		var Max = S.TimerInfo[j].Max.toFixed(3);
-		var Average = (S.TimerInfo[j].Sum / S.TimerInfo[j].CallCount).toFixed(3);
-		var FrameAverage = (S.TimerInfo[j].Sum / FrameCount).toFixed(3);
-		var FrameCallAverage = (S.TimerInfo[j].CallCount / FrameCount).toFixed(3);
-		var FrameMax = S.TimerInfo[j].FrameMax.toFixed(3);
+		let CallCount = S.TimerInfo[j].CallCount;
+		let Sum = S.TimerInfo[j].Sum.toFixed(3);
+		let SumExcl = S.TimerInfo[j].SumExcl.toFixed(3);
+		let Max = S.TimerInfo[j].Max.toFixed(3);
+		let MaxExcl = S.TimerInfo[j].MaxExcl.toFixed(3);
+		let Average = (S.TimerInfo[j].Sum / S.TimerInfo[j].CallCount).toFixed(3);
+		let AverageExcl = (S.TimerInfo[j].SumExcl / S.TimerInfo[j].CallCountExcl).toFixed(3);
+		let FrameAverage = (S.TimerInfo[j].Sum / FrameCount).toFixed(3);
+		let FrameAverageExcl = (S.TimerInfo[j].SumExcl / FrameCount).toFixed(3);
+		let FrameCallAverage = (S.TimerInfo[j].CallCount / FrameCount).toFixed(3);
+		let FrameMax = S.TimerInfo[j].FrameMax.toFixed(3);
+		let FrameMaxExcl = S.TimerInfo[j].FrameMaxExcl.toFixed(3);
+
 		S.TimerInfo[j].CallCount = CallCount;
 		S.TimerInfo[j].Sum = Sum;
-		S.TimerInfo[j].Max  = Max ;
+		S.TimerInfo[j].SumExcl = SumExcl;
+		S.TimerInfo[j].Max  = Max;
+		S.TimerInfo[j].MaxExcl = MaxExcl;
 		S.TimerInfo[j].Average = Average;
+		S.TimerInfo[j].AverageExcl = AverageExcl;
 		S.TimerInfo[j].FrameAverage = FrameAverage;
+		S.TimerInfo[j].FrameAverageExcl = FrameAverageExcl;
 		S.TimerInfo[j].FrameCallAverage = FrameCallAverage;
 		S.TimerInfo[j].FrameMax = FrameMax;
+		S.TimerInfo[j].FrameMaxExcl = FrameMaxExcl;	
 	}
 	ProfileLeave();
 }
@@ -2062,15 +2114,30 @@ function BuildToolTipDetailed(S, nHoverToken, HoverTokenOwner, bSecond)
 
 	StringArray.push("");
 	StringArray.push("");
+	StringArray.push("Excl Total");
+	StringArray.push("" + S.TimerInfo[nHoverToken].SumExcl);
+	StringArray.push("Excl Max");
+	StringArray.push("" + S.TimerInfo[nHoverToken].MaxExcl);
+	StringArray.push("Excl Average");
+	StringArray.push("" + S.TimerInfo[nHoverToken].AverageExcl);
+	StringArray.push("Excl Count");
+	StringArray.push("" + S.TimerInfo[nHoverToken].CallCountExcl);
 
+	StringArray.push("");
+	StringArray.push("");
 	StringArray.push("Max/Frame");
 	StringArray.push("" + S.TimerInfo[nHoverToken].FrameMax);
-
 	StringArray.push("Average Time/Frame");
 	StringArray.push("" + S.TimerInfo[nHoverToken].FrameAverage);
-
 	StringArray.push("Average Count/Frame");
 	StringArray.push("" + S.TimerInfo[nHoverToken].FrameCallAverage);
+
+	StringArray.push("");
+	StringArray.push("");
+	StringArray.push("Excl Max/Frame");
+	StringArray.push("" + S.TimerInfo[nHoverToken].FrameMaxExcl);
+	StringArray.push("Excl Average Time/Frame");
+	StringArray.push("" + S.TimerInfo[nHoverToken].FrameAverageExcl);
 
 
 	let Time = fDetailedOffset + fDetailedRange * (DetailedViewMouseX / nWidth);
@@ -2078,26 +2145,27 @@ function BuildToolTipDetailed(S, nHoverToken, HoverTokenOwner, bSecond)
 		Time += fDetailedOffsetSecond;
 	let FrameTime = new Object();
 	let Frame = CalculateTimers2(FrameTime, nHoverToken, Time, S);
-	StringArray.push("");
-	StringArray.push("");
-	if(Frame>-1)
-	{
-		StringArray.push("Frame " + Frame);
-		StringArray.push("");
-		StringArray.push("Total");
-		StringArray.push("" + FrameTime.Sum);
-		StringArray.push("Count");
-		StringArray.push("" + FrameTime.CallCount);
-		StringArray.push("Average");
-		StringArray.push("" + FrameTime.Average);
-		StringArray.push("Max");
-		StringArray.push("" + FrameTime.Max);
-	}
-	else
-	{
-		for(var i = 0; i < 10; ++i)
-			StringArray.push("");
-	}
+	// This is inconsistent with the rest of the code. Needs a rework. Disabled for now.
+	// StringArray.push("");
+	// StringArray.push("");
+	// if(Frame>-1)
+	// {
+	// 	StringArray.push("Frame " + Frame);
+	// 	StringArray.push("");
+	// 	StringArray.push("Total");
+	// 	StringArray.push("" + FrameTime.Sum);
+	// 	StringArray.push("Count");
+	// 	StringArray.push("" + FrameTime.CallCount);
+	// 	StringArray.push("Average");
+	// 	StringArray.push("" + FrameTime.Average);
+	// 	StringArray.push("Max");
+	// 	StringArray.push("" + FrameTime.Max);
+	// }
+	// else
+	// {
+	// 	for(var i = 0; i < 10; ++i)
+	// 		StringArray.push("");
+	// }
 
 	StringArray.push("");
 	StringArray.push("");
