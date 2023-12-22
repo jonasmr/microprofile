@@ -823,6 +823,7 @@ struct MicroProfile
 	uint32_t nAggregateFlipCount;
 	uint32_t nAggregateFrames;
 
+	uint64_t nFlipStartTick;
 	uint64_t nAggregateFlipTick;
 
 	uint32_t nDisplay;
@@ -857,7 +858,7 @@ struct MicroProfile
 	uint32_t DumpFrameCount;
 
 	int64_t nPauseTicks;
-	std::atomic<int> nPauseSignal;
+	std::atomic<int64_t> nContextSwitchStalledTick;
 	int64_t nContextSwitchLastPushed;
 	int64_t nContextSwitchLastIndexPushed;
 
@@ -1577,6 +1578,8 @@ void MicroProfileInit()
 			S.TimerInfo[i].pName[0] = '\0';
 		}
 		S.nGroupCount = 0;
+		S.nFlipStartTick = MP_TICK();
+		S.nContextSwitchStalledTick = MP_TICK();
 		S.nAggregateFlipTick = MP_TICK();
 		memset(S.nActiveGroups, 0, sizeof(S.nActiveGroups));
 		S.nFrozen = 0;
@@ -2287,6 +2290,44 @@ MicroProfileToken MicroProfileGetCounterTokenByParent(int nParent, const char* p
 	MicroProfileToken nResult = MicroProfileCounterTokenInit(nParent);
 	MicroProfileCounterTokenInitName(nResult, pName);
 	return nResult;
+}
+
+// by passing in last token/parent, and a non-changing static string, 
+// we can quickly return in case the parent is the same as before.
+// Note that this doesn't support paths, but instead must be called once per level in the tree
+// String must be preinterned.
+MicroProfileToken MicroProfileCounterTokenTree(MicroProfileToken* LastToken, MicroProfileToken CurrentParent, const char* pString)
+{
+	MicroProfileToken Token = *LastToken;
+	if (Token != MICROPROFILE_INVALID_TOKEN)
+	{
+		if (S.CounterInfo[Token].pName == pString && S.CounterInfo[Token].nParent == CurrentParent)
+		{
+			return Token;
+		}
+	}
+	MicroProfileInit();
+	MicroProfileScopeLock L(MicroProfileMutex());
+	Token = MicroProfileGetCounterTokenByParent(CurrentParent, pString);
+	*LastToken = Token;
+	return Token;
+}
+
+const char* MicroProfileCounterString(const char* pString)
+{
+	MicroProfileInit();
+	MicroProfileScopeLock L(MicroProfileMutex());
+	return MicroProfileStringInternLower(pString);
+}
+	
+// Same as above, but works with non-static strings. always takes a lock, and does a search, so expect this to be not cheap
+MicroProfileToken MicroProfileCounterTokenTreeDynamic(MicroProfileToken* LastToken, MicroProfileToken Parent, const char* pString)
+{
+	(void)LastToken;
+	MicroProfileInit();
+	MicroProfileScopeLock L(MicroProfileMutex());
+	const char* pSubNameLower = MicroProfileStringInternLower(pString);
+	return MicroProfileGetCounterTokenByParent(Parent, pSubNameLower);
 }
 
 MicroProfileToken MicroProfileGetCounterToken(const char* pName)
@@ -3045,28 +3086,26 @@ void MicroProfileGpuLeaveInternalCStr(MicroProfileThreadLogGpu* pGpuLog, uint64_
 
 void MicroProfileContextSwitchPut(MicroProfileContextSwitch* pContextSwitch)
 {
-	if(0 == S.nPauseTicks || pContextSwitch->nTicks <= S.nPauseTicks)
+	if(0 == S.nPauseTicks || (S.nPauseTicks - pContextSwitch->nTicks) > 0)
 	{
 		uint32_t nPut = S.nContextSwitchPut;
 		S.ContextSwitch[nPut] = *pContextSwitch;
 		S.nContextSwitchPut = (S.nContextSwitchPut + 1) % MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE;
-		//		if(S.nContextSwitchPut < nPut)
-		//		{
-		////			uprintf("context switch wrap\n");
-		//		}
-		//		if(S.nContextSwitchPut % 4096 == 0)
-		//		{
-		//			uprintf("cswitch tick %x\n", S.nContextSwitchPut);
-		//		}
+		//if(S.nContextSwitchPut < nPut)
+		//{
+		//	float fMsDelay = MicroProfileTickToMsMultiplierCpu() * ((int64_t)S.nFlipStartTick - pContextSwitch->nTicks);
+		//	uprintf("context switch wrap .. %7.3fms\n", fMsDelay);
+		//}
+		//if(S.nContextSwitchPut % 1024 == 0)
+		//{
+		//	float fMsDelay = MicroProfileTickToMsMultiplierCpu() * ((int64_t)S.nFlipStartTick - pContextSwitch->nTicks);
+		//	uprintf("cswitch tick %x ... %7.3fms\n", S.nContextSwitchPut, fMsDelay);
+		//}
 		S.nContextSwitchLastPushed = pContextSwitch->nTicks;
-	}
-	else if(0 != S.nPauseTicks)
-	{
-		S.nPauseSignal = 1;
 	}
 	else
 	{
-		S.nPauseSignal = 0;
+		S.nContextSwitchStalledTick = MP_TICK();
 	}
 }
 
@@ -3276,6 +3315,7 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB, uint32_t
 	bool nRunning = MicroProfileAnyGroupActive();
 	if(nRunning)
 	{
+		S.nFlipStartTick = MP_TICK();
 		int64_t nGpuWork = MicroProfileGpuEnd(S.pGpuGlobal);
 		MicroProfileGpuSubmit(S.GpuQueue, nGpuWork);
 		MicroProfileThreadLogGpuReset(S.pGpuGlobal);
@@ -4024,9 +4064,6 @@ void MicroProfilePlatformMarkersSetEnabled(int bEnabled)
 
 void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pContextSwitchEnd, uint64_t nBaseTicksCpu, uint64_t nBaseTicksEndCpu)
 {
-
-	// review search!!
-
 	MICROPROFILE_SCOPE(g_MicroProfileContextSwitchSearch);
 	uint32_t nContextSwitchPut = S.nContextSwitchPut;
 	uint64_t nContextSwitchStart, nContextSwitchEnd;
@@ -4076,6 +4113,35 @@ void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pC
 		int64_t nBegin = 0;
 		int64_t nEnd = 0;
 		int nRanges = 0;
+		for (uint32_t i = 0; i < MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE; i += 1024)
+		{
+			int64_t MinTick = INT64_MAX;
+			int64_t MaxTick = INT64_MIN;
+			for (int j = 0; j < 1024; ++j)
+			{
+				MicroProfileContextSwitch& CS = S.ContextSwitch[i+j];
+				int64_t nTicks = CS.nTicks;
+				MinTick = MicroProfileMin(nTicks, MinTick);
+				MaxTick = MicroProfileMax(nTicks, MaxTick);
+
+			}
+			
+			uprintf("XX range [%5" PRIx64 ":%5" PRIx64 "] :: [%6.2f:%6.2f]                 [%p :: %p] .. ref %p\n",
+				i,
+				i + 1024,
+				fToMs * (MinTick - nSearchBegin),
+				fToMs * (MaxTick - nSearchBegin),
+				(void*)MinTick,
+				(void*)MaxTick,
+				(void*)nSearchBegin
+
+			);
+
+
+
+		}
+		uprintf("\n\n");
+
 		for(uint32_t i = 0; i < MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE; ++i)
 		{
 			MicroProfileContextSwitch& CS = S.ContextSwitch[i];
@@ -4544,23 +4610,30 @@ void MicroProfileDumpHtmlLive(MicroProfileWriteCallback CB, void* Handle)
 }
 void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t nMaxFrames, const char* pHost, uint64_t nStartFrameId = (uint64_t)-1)
 {
-	// stall pushing of timers
-
+	// Stall pushing of timers
 	uint64_t nActiveGroup[MICROPROFILE_MAX_GROUP_INTS];
 	memcpy(nActiveGroup, S.nActiveGroups, sizeof(S.nActiveGroups));
 	memset(S.nActiveGroups, 0, sizeof(S.nActiveGroups));
 	bool AnyActive = S.AnyActive;
 	S.AnyActive = false;
 
-	S.nPauseTicks = MP_TICK();
-	int c = 0;
-	while(0 == S.nPauseSignal && S.bContextSwitchRunning && !S.bContextSwitchStop)
-	{
-		MicroProfileSleep(100);
-		if(++c % 100 == 99)
+	S.nPauseTicks = MP_TICK();	
+	if (S.bContextSwitchRunning) {
+		auto StallForContextSwitchThread = []()
 		{
-			uprintf("waiting for pause signal %d", c / 100);
+			int64_t nPauseTicks = S.nPauseTicks;
+			int64_t nContextSwitchStalledTick = S.nContextSwitchStalledTick;
+			return (nPauseTicks - nContextSwitchStalledTick) > 0;
+		};
+		int SleepMs = 1;
+		while (S.bContextSwitchRunning && !S.bContextSwitchStop && StallForContextSwitchThread())
+		{
+			MicroProfileSleep(SleepMs);
+			SleepMs = SleepMs * 2 / 3;
+			SleepMs = MicroProfileMin(128, SleepMs);
 		}
+		int64_t TicksAfterStall = MP_TICK();
+		uprintf("Stalled %7.2fms for context switch data\n", MicroProfileTickToMsMultiplierCpu() * (TicksAfterStall - S.nPauseTicks));
 	}
 
 	MicroProfileHashTable StringsHashTable;
@@ -5307,6 +5380,8 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 	uint32_t nContextSwitchStart = 0;
 	uint32_t nContextSwitchEnd = 0;
 	MicroProfileContextSwitchSearch(&nContextSwitchStart, &nContextSwitchEnd, nTickStart, nTickEnd);
+
+	uprintf("CONTEXT SWITCH SEARCH .... %d %d %d .... %lld, %lld\n", nContextSwitchStart, nContextSwitchEnd, nContextSwitchEnd - nContextSwitchStart, nTickStart, nTickEnd);
 
 	uint32_t nWrittenBefore = S.nWebServerDataSent;
 	MicroProfilePrintf(CB, Handle, "S.CSwitchThreadInOutCpu = [");
@@ -7566,7 +7641,7 @@ bool MicroProfileWebServerUpdate()
 		if(nReceived > 0)
 		{
 			Req[nReceived] = '\0';
-			uprintf("req received\n%s", Req);
+			//uprintf("req received\n%s", Req);
 #if MICROPROFILE_MINIZ
 			// Expires: Tue, 01 Jan 2199 16:00:00 GMT\r\n
 #define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nContent-Encoding: deflate\r\n\r\n"

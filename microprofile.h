@@ -459,6 +459,11 @@ typedef uint32_t MicroProfileTimelineToken;
 #define MicroProfileTick() 0
 #define MicroProfileEnabled() 0
 
+#define MicroProfileCounterString nullptr
+#define MicroProfileCounterTokenTree 0
+#define MicroProfileCounterTokenTreeDynamic 0
+
+
 #else
 
 #include <stdint.h>
@@ -993,6 +998,12 @@ extern "C"
 
 	MICROPROFILE_API void MicroProfileLocalCounterAddAtomic(MicroProfileToken Token, int64_t nCount);
 	MICROPROFILE_API int64_t MicroProfileLocalCounterSetAtomic(MicroProfileToken, int64_t nCount);
+
+
+	MICROPROFILE_API const char* MicroProfileCounterString(const char* String);
+	MICROPROFILE_API MicroProfileToken MicroProfileCounterTokenTree(MicroProfileToken* LastToken, MicroProfileToken CurrentParent, const char* pString);
+	MICROPROFILE_API MicroProfileToken MicroProfileCounterTokenTreeDynamic(MicroProfileToken* LastToken, MicroProfileToken Parent, const char* pString);
+
 
 #ifdef __cplusplus
 }
