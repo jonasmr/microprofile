@@ -957,6 +957,10 @@ struct MicroProfile
 	uint8_t nContextSwitchHoverCpu;
 	uint8_t nContextSwitchHoverCpuNext;
 
+	uint32_t CoreCount;
+	uint8_t CoreEfficiencyClass[MICROPROFILE_MAX_CPU_CORES];
+
+
 	uint32_t nContextSwitchPut;
 	MicroProfileContextSwitch ContextSwitch[MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE];
 
@@ -4608,6 +4612,33 @@ void MicroProfileDumpHtmlLive(MicroProfileWriteCallback CB, void* Handle)
 		CB(Handle, g_MicroProfileHtmlLive_end_sizes[i] - 1, g_MicroProfileHtmlLive_end[i]);
 	}
 }
+void MicroProfileGetCoreInformation()
+{
+#ifdef _WIN32
+	unsigned long BufferSize;
+	HANDLE Process = GetCurrentProcess();
+	GetSystemCpuSetInformation(nullptr, 0, &BufferSize, Process, 0);
+	char* Buffer = (char*)alloca(BufferSize);
+	if(!GetSystemCpuSetInformation((PSYSTEM_CPU_SET_INFORMATION)Buffer, BufferSize, &BufferSize, Process, 0))
+	{
+		return;
+	}
+	for (ULONG Size = 0; Size < BufferSize; )
+	{
+		PSYSTEM_CPU_SET_INFORMATION CpuSet = reinterpret_cast<PSYSTEM_CPU_SET_INFORMATION>(Buffer);
+		if (CpuSet->Type == CPU_SET_INFORMATION_TYPE::CpuSetInformation)
+		{
+			if (CpuSet->CpuSet.CoreIndex < MICROPROFILE_MAX_CPU_CORES)
+			{
+				S.CoreEfficiencyClass[CpuSet->CpuSet.LogicalProcessorIndex] = CpuSet->CpuSet.EfficiencyClass;
+			}
+		}
+		Buffer += CpuSet->Size;
+		Size += CpuSet->Size;
+	}
+#endif
+}
+
 void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t nMaxFrames, const char* pHost, uint64_t nStartFrameId = (uint64_t)-1)
 {
 	// Stall pushing of timers
@@ -4618,6 +4649,10 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 	S.AnyActive = false;
 
 	S.nPauseTicks = MP_TICK();	
+
+	MicroProfileGetCoreInformation();
+
+
 	if (S.bContextSwitchRunning) {
 		auto StallForContextSwitchThread = []()
 		{
@@ -5422,6 +5457,12 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 	}
 
 	MicroProfilePrintf(CB, Handle, "};\n");
+	MicroProfilePrintf(CB, Handle, "S.CoreEfficiencyClass = [");
+	for (uint32_t i = 0; i < MICROPROFILE_MAX_CPU_CORES; ++i)
+	{
+		MicroProfilePrintf(CB, Handle, "%d,", S.CoreEfficiencyClass[i]);
+	}
+	MicroProfilePrintf(CB, Handle, "];\n");
 
 	{
 		MicroProfilePrintf(CB, Handle, "//String Table\n");

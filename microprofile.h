@@ -868,6 +868,12 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #define MICROPROFILE_FLIP_FLAG_DEFAULT (0)
 #endif
 
+#ifndef MICROPROFILE_MAX_CPU_CORES
+#define MICROPROFILE_MAX_CPU_CORES 256
+#endif
+
+
+
 
 
 typedef enum MicroProfileTokenType_t
