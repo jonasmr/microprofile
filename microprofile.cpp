@@ -147,6 +147,7 @@ uint16_t MicroProfileGetTimerIndex(MicroProfileToken t);
 uint32_t MicroProfileGetGroupMask(MicroProfileToken t);
 MicroProfileToken MicroProfileMakeToken(uint64_t nGroupMask, uint32_t nGroupIndex, uint16_t nTimer);
 bool MicroProfileAnyGroupActive();
+void MicroProfileWriteFile(void* Handle, size_t nSize, const char* pData);
 
 // defer implementation
 #define CONCAT_INTERNAL(x, y) x##y
@@ -285,10 +286,10 @@ void MicroProfileFreeAligned(void* pMem)
 #else
 
 #ifndef MICROPROFILE_CUSTOM_PLATFORM
+#include <malloc.h>
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
-#include <malloc.h>
 inline int64_t MicroProfileTicksPerSecondCpu_()
 {
 	return 1000000000ll;
@@ -326,7 +327,7 @@ void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 	}
 	return p;
 #else
-    return memalign(nAlign, nSize);
+	return memalign(nAlign, nSize);
 #endif
 }
 void MicroProfileFreeAligned(void* pMem)
@@ -513,6 +514,18 @@ struct MicroProfileFrameState
 	uint32_t nLogStartTimeline;
 	uint32_t nTimelineFrameMax;
 	int32_t nHistoryTimeline;
+};
+
+
+// All frame counter data stored. Used to store the time for all counters/groups for every frame.
+// Must be enabled with MicroProfileEnableFrameCounterExtraData()
+// Will allocate sizeof(MicroProfileFrameExtraCounterData) * MICROPROFILE_MAX_FRAME_HISTORY bytes
+struct MicroProfileFrameExtraCounterData
+{
+	uint16_t NumTimers;
+	uint16_t NumGroups;
+	uint64_t Timers[MICROPROFILE_MAX_TIMERS];
+	uint64_t Groups[MICROPROFILE_MAX_GROUPS];
 };
 
 #ifdef _WIN32
@@ -916,7 +929,7 @@ struct MicroProfile
 	const char* TimelineTokenStaticString[MICROPROFILE_TIMELINE_MAX_TOKENS];
 
 	uint32_t nTimelineFrameMax;
-
+	MicroProfileFrameExtraCounterData* FrameExtraCounterData;
 	uint32_t nNumLogs;
 	uint32_t nNumLogsGpu;
 	uint32_t nMemUsage;
@@ -959,7 +972,6 @@ struct MicroProfile
 
 	uint32_t CoreCount;
 	uint8_t CoreEfficiencyClass[MICROPROFILE_MAX_CPU_CORES];
-
 
 	uint32_t nContextSwitchPut;
 	MicroProfileContextSwitch ContextSwitch[MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE];
@@ -1643,6 +1655,9 @@ void MicroProfileInit()
 		S.nTimerNegativeCpuIndex = MicroProfileGetTimerIndex(S.nTokenNegativeCpu);
 		S.nTimerNegativeGpuIndex = MicroProfileGetTimerIndex(S.nTokenNegativeGpu);
 	}
+#if MICROPROFILE_FRAME_EXTRA_DATA
+	S.FrameExtraCounterData = (MicroProfileFrameExtraCounterData*)1;
+#endif
 	MicroProfileCounterConfigInternal(S.CounterToken_Alloc_Memory, MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
 	MICROPROFILE_COUNTER_CONFIG("MicroProfile/ThreadLog/Memory", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
 
@@ -1724,6 +1739,15 @@ void MicroProfileStopAutoFlip()
 {
 	S.nAutoFlipStop.store(1);
 	MicroProfileThreadJoin(&S.AutoFlipThread);
+}
+
+void MicroProfileEnableFrameExtraCounterData()
+{
+	// should not be called at the same time as MicroProfileFlip.
+	if(!S.FrameExtraCounterData)
+	{
+		S.FrameExtraCounterData = (MicroProfileFrameExtraCounterData*)1;
+	}
 }
 
 #ifdef MICROPROFILE_IOS
@@ -3403,6 +3427,21 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB, uint32_t
 		const uint64_t nTickEndFrameGpu = bGpuFrameInvalid ? 1 : nTickEndFrameGpu_;
 		const uint64_t nTickStartFrameGpu = bGpuFrameInvalid ? 2 : nTickStartFrameGpu_;
 
+
+		MicroProfileFrameExtraCounterData* ExtraData = S.FrameExtraCounterData;
+		bool UsingExtraData = false;
+		if(ExtraData)
+		{
+			if((intptr_t)ExtraData == 1)
+			{
+				size_t Bytes = sizeof(MicroProfileFrameExtraCounterData) * MICROPROFILE_MAX_FRAME_HISTORY;
+				printf(" allocating %d bytes %f\n", (int)Bytes, Bytes / (1024.0 * 1024.0));
+				ExtraData = S.FrameExtraCounterData = (MicroProfileFrameExtraCounterData*)MicroProfileAllocAligned(Bytes, alignof(uint64_t));
+				memset(ExtraData, 0, Bytes);
+			}
+			ExtraData = ExtraData + S.nFrameCurrent;
+			UsingExtraData = true;
+		}
 #define MP_ASSERT_LE_WRAP(l, g) MP_ASSERT(uint64_t(g - l) < 0x8000000000000000)
 
 		{
@@ -3536,10 +3575,6 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB, uint32_t
 
 					float fToMs = bGpu ? MicroProfileTickToMsMultiplierGpu() : MicroProfileTickToMsMultiplierCpu();
 					float fFrameTime = fToMs * (nTickEndLog - nTickStartLog);
-					if(fFrameTime > 1000)
-					{
-						uprintf("very long frame\n");
-					}
 
 					MicroProfile::GroupTime* pFrameGroupThread = &S.FrameGroupThread[idx_thread][0];
 
@@ -3752,6 +3787,13 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB, uint32_t
 			}
 			{
 				MICROPROFILE_SCOPE(g_MicroProfileAccumulate);
+				uint64_t* ExtraPut = nullptr;
+				if(UsingExtraData)
+				{
+					ExtraPut = &ExtraData->Timers[0];
+					ExtraData->NumTimers = S.nTotalTimers;
+				}
+
 				for(uint32_t i = 0; i < S.nTotalTimers; ++i)
 				{
 					S.AccumTimers[i].nTicks += S.Frame[i].nTicks;
@@ -3760,12 +3802,22 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB, uint32_t
 					S.AccumMinTimers[i] = MicroProfileMin(S.AccumMinTimers[i], S.Frame[i].nTicks);
 					S.AccumTimersExclusive[i] += S.FrameExclusive[i];
 					S.AccumMaxTimersExclusive[i] = MicroProfileMax(S.AccumMaxTimersExclusive[i], S.FrameExclusive[i]);
+					if(ExtraPut)
+						*ExtraPut++ = S.Frame[i].nTicks;					
+				}
+				ExtraPut = nullptr;
+				if(UsingExtraData)
+				{
+					ExtraPut = &ExtraData->Groups[0];
+					ExtraData->NumGroups = S.nGroupCount;
 				}
 
 				for(uint32_t i = 0; i < MICROPROFILE_MAX_GROUPS; ++i)
 				{
 					S.AccumGroup[i] += pFrameGroup[i].nTicks;
 					S.AccumGroupMax[i] = MicroProfileMax(S.AccumGroupMax[i], pFrameGroup[i].nTicks);
+					if(ExtraPut)
+						*ExtraPut++ = pFrameGroup[i].nTicks;
 				}
 			}
 			for(uint32_t i = 0; i < MICROPROFILE_MAX_GRAPHS; ++i)
@@ -4117,32 +4169,28 @@ void MicroProfileContextSwitchSearch(uint32_t* pContextSwitchStart, uint32_t* pC
 		int64_t nBegin = 0;
 		int64_t nEnd = 0;
 		int nRanges = 0;
-		for (uint32_t i = 0; i < MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE; i += 1024)
+		for(uint32_t i = 0; i < MICROPROFILE_CONTEXT_SWITCH_BUFFER_SIZE; i += 1024)
 		{
 			int64_t MinTick = INT64_MAX;
 			int64_t MaxTick = INT64_MIN;
-			for (int j = 0; j < 1024; ++j)
+			for(int j = 0; j < 1024; ++j)
 			{
-				MicroProfileContextSwitch& CS = S.ContextSwitch[i+j];
+				MicroProfileContextSwitch& CS = S.ContextSwitch[i + j];
 				int64_t nTicks = CS.nTicks;
 				MinTick = MicroProfileMin(nTicks, MinTick);
 				MaxTick = MicroProfileMax(nTicks, MaxTick);
-
 			}
-			
+
 			uprintf("XX range [%5" PRIx64 ":%5" PRIx64 "] :: [%6.2f:%6.2f]                 [%p :: %p] .. ref %p\n",
-				i,
-				i + 1024,
-				fToMs * (MinTick - nSearchBegin),
-				fToMs * (MaxTick - nSearchBegin),
-				(void*)MinTick,
-				(void*)MaxTick,
-				(void*)nSearchBegin
+					i,
+					i + 1024,
+					fToMs * (MinTick - nSearchBegin),
+					fToMs * (MaxTick - nSearchBegin),
+					(void*)MinTick,
+					(void*)MaxTick,
+					(void*)nSearchBegin
 
 			);
-
-
-
 		}
 		uprintf("\n\n");
 
@@ -4409,12 +4457,19 @@ void MicroProfileDumpFileImmediately(const char* pHtml, const char* pCsv, void* 
 	uint32_t nDumpMask = 0;
 	if(pHtml)
 	{
+
+
 		size_t nLen = strlen(pHtml);
 		if(nLen > sizeof(S.HtmlDumpPath) - 1)
 		{
 			return;
 		}
-		memcpy(S.HtmlDumpPath, pHtml, nLen + 1);
+		const size_t ExtSize = sizeof(".html")-1;
+		if(nLen > ExtSize && 0 == memcmp(".html", pHtml + nLen - ExtSize, ExtSize))
+			nLen -= ExtSize;
+		memcpy(S.HtmlDumpPath, pHtml, nLen);
+		S.HtmlDumpPath[nLen] = '\0';
+
 
 		nDumpMask |= 1;
 	}
@@ -4425,7 +4480,12 @@ void MicroProfileDumpFileImmediately(const char* pHtml, const char* pCsv, void* 
 		{
 			return;
 		}
+		const size_t ExtSize = sizeof(".csv")-1;
+		if(nLen > ExtSize && 0 == memcmp(".csv", pCsv + nLen - ExtSize, ExtSize))
+			nLen -= ExtSize;
 		memcpy(S.CsvDumpPath, pCsv, nLen + 1);
+		S.CsvDumpPath[nLen] = '\0';
+
 		nDumpMask |= 2;
 	}
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
@@ -4449,7 +4509,11 @@ void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, 
 		{
 			return;
 		}
-		memcpy(S.HtmlDumpPath, pHtml, nLen + 1);
+		const size_t ExtSize = sizeof(".html")-1;
+		if(nLen > ExtSize && 0 == memcmp(".html", pHtml + nLen - ExtSize, ExtSize))
+			nLen -= ExtSize;
+		memcpy(S.HtmlDumpPath, pHtml, nLen);
+		S.HtmlDumpPath[nLen] = '\0';
 
 		nDumpMask |= 1;
 	}
@@ -4460,7 +4524,12 @@ void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, 
 		{
 			return;
 		}
-		memcpy(S.CsvDumpPath, pCsv, nLen + 1);
+		const size_t ExtSize = sizeof(".csv")-1;
+		if(nLen > ExtSize && 0 == memcmp(".csv", pCsv + nLen - ExtSize, ExtSize))
+			nLen -= ExtSize;
+		memcpy(S.CsvDumpPath, pCsv, nLen);
+		S.CsvDumpPath[nLen] = '\0';
+
 		nDumpMask |= 2;
 	}
 	if(fCpuSpike > 0.f || fGpuSpike > 0.f)
@@ -4505,8 +4574,154 @@ void MicroProfilePrintf(MicroProfileWriteCallback CB, void* Handle, const char* 
 	va_end(args);
 }
 
+void MicroProfileGetFramesToDump(uint64_t nStartFrameId, uint32_t nMaxFrames, uint32_t& nFirstFrame, uint32_t& nLastFrame, uint32_t& nNumFrames)
+{
+	nFirstFrame = (uint32_t)-1;
+	nNumFrames = 0;
+
+	if(nStartFrameId != (uint64_t)-1)
+	{
+		// search for the frane
+		for(uint32_t i = 0; i < MICROPROFILE_MAX_FRAME_HISTORY; ++i)
+		{
+			if(S.Frames[i].nFrameId == nStartFrameId)
+			{
+				nFirstFrame = i;
+				break;
+			}
+		}
+		if(nFirstFrame != (uint32_t)-1)
+		{
+			uint32_t nLastFrame = S.nFrameCurrent;
+			uint32_t nDistance = (MICROPROFILE_MAX_FRAME_HISTORY + nFirstFrame - nLastFrame) % MICROPROFILE_MAX_FRAME_HISTORY;
+			nNumFrames = MicroProfileMin(nDistance, (uint32_t)nMaxFrames);
+		}
+	}
+
+	if(nNumFrames == 0)
+	{
+		nNumFrames = (MICROPROFILE_MAX_FRAME_HISTORY - MICROPROFILE_GPU_FRAME_DELAY - 3); // leave a few to not overwrite
+		nNumFrames = MicroProfileMin(nNumFrames, (uint32_t)nMaxFrames);
+		nFirstFrame = (S.nFrameCurrent + MICROPROFILE_MAX_FRAME_HISTORY - nNumFrames) % MICROPROFILE_MAX_FRAME_HISTORY;
+	}
+
+	nLastFrame = (nFirstFrame + nNumFrames) % MICROPROFILE_MAX_FRAME_HISTORY;
+}
+
 #define printf(...) MicroProfilePrintf(CB, Handle, __VA_ARGS__)
-void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle)
+
+void MicroProfileDumpCsvTimerFrames(MicroProfileWriteCallback CB, void* Handle, uint32_t nFirstFrame, uint32_t nLastFrame, uint32_t nNumFrames)
+{
+	MP_ASSERT(S.FrameExtraCounterData);
+	uint32_t TotalTimers = S.nTotalTimers;
+	float* fToMs = (float*)alloca(sizeof(float)*TotalTimers);
+	float fToMsCPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+	float fToMsGPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondGpu());
+	
+	for(uint32_t i = 0; i < TotalTimers; ++i)
+		fToMs[i] = S.TimerInfo[i].Type == MicroProfileTokenTypeGpu ? fToMsGPU : fToMsCPU;
+
+
+
+	for(uint32_t i = 0; i < TotalTimers; ++i)
+	{
+		printf(i == 0 ? "FrameNumber, \"%s\"" : ",\"%s\"", S.TimerInfo[i].pName);
+	}
+	printf("\n");
+
+
+	for(uint32_t i = 0; i < nNumFrames; ++i)
+	{
+		//printf("%d", i) MicroProfileFrame& F = S.Frames[(i + nFirstFrame) % MICROPROFILE_MAX_FRAME_HISTORY];
+		MicroProfileFrameExtraCounterData* Data = S.FrameExtraCounterData;
+		uint32_t NumTimers = 0;
+		uint32_t j;
+		printf("%d", i);
+		Data += ((i + nFirstFrame) % MICROPROFILE_MAX_FRAME_HISTORY);
+		NumTimers = MicroProfileMin(TotalTimers, (uint32_t)Data->NumTimers);			
+		for(j = 0; j < NumTimers; ++j)
+		{
+			printf(",%f", Data->Timers[j] * fToMs[j]);
+		}
+		for(; j < TotalTimers; ++j)
+			printf(",0");
+		printf("\n");
+	}	
+}
+
+void MicroProfileDumpCsvGroupFrames(MicroProfileWriteCallback CB, void* Handle, uint32_t nFirstFrame, uint32_t nLastFrame, uint32_t nNumFrames)
+{
+	MP_ASSERT(S.FrameExtraCounterData);
+	float fToMsCPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
+	float fToMsGPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondGpu());
+
+	uint32_t nGroupCount = S.nGroupCount;
+
+	float* fToMs = (float*)alloca(sizeof(float)*nGroupCount);
+	for(uint32_t i = 0; i < nGroupCount; ++i)
+		fToMs[i] = S.GroupInfo[i].Type == MicroProfileTokenTypeGpu ? fToMsGPU : fToMsCPU;
+
+
+
+	for(uint32_t i = 0; i < nGroupCount; ++i)
+	{
+		printf(i == 0 ? "FrameNumber, \"%s\"" : ",\"%s\"", S.GroupInfo[i].pName);
+	}
+
+	printf("\n");
+	for(uint32_t i = 0; i < nNumFrames; ++i)
+	{
+		MicroProfileFrameExtraCounterData* Data = S.FrameExtraCounterData;
+		uint32_t NumGroups = 0;
+		uint32_t j;
+		printf("%d", i);
+		Data += ((i + nFirstFrame) % MICROPROFILE_MAX_FRAME_HISTORY);
+		NumGroups = MicroProfileMin(nGroupCount, (uint32_t)Data->NumGroups);
+		for(j = 0; j < NumGroups; ++j)
+		{
+			printf(",%f", Data->Groups[j] * fToMs[j]);
+		}
+		for(; j < nGroupCount; ++j)
+			printf(",0");
+		printf("\n");
+	}
+	
+}
+
+void MicroProfileDumpCsv(uint32_t nDumpFrameCount)
+{
+	if(!S.FrameExtraCounterData)
+	{
+		return;
+	}
+	uint32_t nNumFrames, nFirstFrame, nLastFrame;
+	MicroProfileGetFramesToDump((uint64_t)-1, nDumpFrameCount, nFirstFrame, nLastFrame, nNumFrames);
+
+	char Path[MAX_PATH];
+	int Length = snprintf(Path, sizeof(S.CsvDumpPath), "%s_timer_frames.csv", S.CsvDumpPath);
+	if(Length > 0 && Length < MAX_PATH)
+	{
+		FILE* F = fopen(Path, "w");
+		if(F)
+		{
+			MicroProfileDumpCsvTimerFrames(MicroProfileWriteFile, F, nFirstFrame, nLastFrame, nNumFrames);
+			fclose(F);
+		}	
+	}
+	Length = snprintf(Path, sizeof(S.CsvDumpPath), "%s_group_frames.csv", S.CsvDumpPath);
+	if(Length > 0 && Length < MAX_PATH)
+	{
+		FILE* F = fopen(Path, "w");
+		if(F)
+		{
+			MicroProfileDumpCsvGroupFrames(MicroProfileWriteFile, F, nFirstFrame, nLastFrame, nNumFrames);
+			fclose(F);
+		}
+		
+	}
+}
+
+void MicroProfileDumpCsvLegacy(MicroProfileWriteCallback CB, void* Handle)
 {
 	uint32_t nAggregateFrames = S.nAggregateFrames ? S.nAggregateFrames : 1;
 	float fToMsCPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondCpu());
@@ -4600,6 +4815,21 @@ void MicroProfileDumpCsv(MicroProfileWriteCallback CB, void* Handle)
 	printf("\n\n");
 }
 #undef printf
+
+void MicroProfileDumpCsvLegacy()
+{
+	char Path[MAX_PATH];
+	int Length = snprintf(Path, sizeof(S.CsvDumpPath), "%s.csv", S.CsvDumpPath);
+	if(Length > 0 && Length < MAX_PATH)
+	{
+		FILE* F = fopen(Path, "w");
+		if(F)
+		{
+			MicroProfileDumpCsvLegacy(MicroProfileWriteFile, F);
+			fclose(F);
+		}
+	}
+}
 
 void MicroProfileDumpHtmlLive(MicroProfileWriteCallback CB, void* Handle)
 {
@@ -5548,21 +5778,25 @@ void MicroProfileDumpToFile()
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 	if(S.nDumpFileNextFrame & 1)
 	{
-		FILE* F = fopen(S.HtmlDumpPath, "w");
-		if(F)
+		char Path[MAX_PATH];
+		int Length = snprintf(Path, sizeof(S.HtmlDumpPath), "%s.html", S.HtmlDumpPath);
+		if(Length > 0 && Length < MAX_PATH)
 		{
-			MicroProfileDumpHtml(MicroProfileWriteFile, F, S.DumpFrameCount, S.HtmlDumpPath);
-			fclose(F);
+			FILE* F = fopen(Path, "w");
+			if(F)
+			{
+				MicroProfileDumpHtml(MicroProfileWriteFile, F, S.DumpFrameCount, S.HtmlDumpPath);
+				fclose(F);
+			}
 		}
 	}
 	if(S.nDumpFileNextFrame & 2)
 	{
-		FILE* F = fopen(S.CsvDumpPath, "w");
-		if(F)
-		{
-			MicroProfileDumpCsv(MicroProfileWriteFile, F);
-			fclose(F);
-		}
+#if MICROPROFILE_LEGACY_CSV
+		MicroProfileDumpCsvLegacy();
+#else
+		MicroProfileDumpCsv(S.DumpFrameCount);
+#endif
 	}
 }
 

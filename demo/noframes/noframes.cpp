@@ -63,7 +63,7 @@ void Run2Sec()
 		printf("\r%4.2f", fTime);		
 	}while(fTime < 2);
 	printf("\n");
-	MicroProfileDumpFileImmediately("2sec.html", "2sec.csv", nullptr);
+	MicroProfileDumpFileImmediately("2sec", "2sec", nullptr);
 
 
 }
@@ -73,6 +73,7 @@ int main(int argc, char* argv[])
 	MicroProfileOnThreadCreate("Main");
 	MicroProfileSetEnableAllGroups(true);
 	MicroProfileSetForceMetaCounters(true);
+	MicroProfileEnableFrameExtraCounterData();
 
 	printf("running 2 sec test\n");
 	//StartFakeWork();

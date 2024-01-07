@@ -62,6 +62,16 @@
 #define MICROPROFILE_GPU_TIMERS_VULKAN 0
 #endif
 
+#ifndef MICROPROFILE_LEGACY_CSV // set this if you rely on the legacy csv dump format. (single file with multiple csv sections)
+#define MICROPROFILE_LEGACY_CSV 0
+#endif
+
+#ifndef MICROPROFILE_FRAME_EXTRA_DATA // Set this to always allocate frame extra data. This is useful if you're doing profiling on platform where there is plenty of memory. 
+#define MICROPROFILE_FRAME_EXTRA_DATA 0
+#endif
+
+
+
 #ifndef MICROPROFILE_ONCE
 #define MICROPROFILE_ONCE
 
@@ -345,6 +355,7 @@ typedef uint32_t MicroProfileTimelineToken;
 #define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET_ATOMIC(var) do{}while(0)
 #define MicroProfileStartAutoFlip(nHz) do{}while(0)
 #define MicroProfileStopAutoFlip() do{}while(0)
+#define MicroProfileEnableFrameExtraCounterData() do{}while(0)
 #define MicroProfileGetTime(group, name) 0.f
 #define MicroProfileOnThreadCreate(foo)                                                                                                                                                                \
 	do                                                                                                                                                                                                 \
@@ -907,6 +918,7 @@ extern "C"
 	MICROPROFILE_API void MicroProfileShutdown();
 	MICROPROFILE_API void MicroProfileStartAutoFlip(uint32_t nHz);
 	MICROPROFILE_API void MicroProfileStopAutoFlip();
+	MICROPROFILE_API void MicroProfileEnableFrameExtraCounterData(); // enable per frame counter storage. uses more memory
 	MICROPROFILE_API MicroProfileToken MicroProfileFindToken(const char* sGroup, const char* sName);
 	MICROPROFILE_API MicroProfileToken MicroProfileGetToken(const char* sGroup, const char* sName, uint32_t nColor, MicroProfileTokenType Token, uint32_t flags);
 	MICROPROFILE_API void MicroProfileGetTokenC(MicroProfileToken* pToken, const char* sGroup, const char* sName, uint32_t nColor, MicroProfileTokenType Token, uint32_t flags);
