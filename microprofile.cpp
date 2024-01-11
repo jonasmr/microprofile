@@ -4777,7 +4777,7 @@ void MicroProfileGetFramesToDump(uint64_t nStartFrameId, uint32_t nMaxFrames, ui
 		}
 		if(nFirstFrame != (uint32_t)-1)
 		{
-			uint32_t nLastFrame = S.nFrameCurrent;
+			nLastFrame = S.nFrameCurrent;
 			uint32_t nDistance = (MICROPROFILE_MAX_FRAME_HISTORY + nFirstFrame - nLastFrame) % MICROPROFILE_MAX_FRAME_HISTORY;
 			nNumFrames = MicroProfileMin(nDistance, (uint32_t)nMaxFrames);
 		}
@@ -4939,7 +4939,7 @@ void MicroProfileDumpCsv(uint32_t nDumpFrameCount)
 
 	char Path[MICROPROFILE_MAX_PATH];
 	int Length;
-	if(!S.FrameExtraCounterData)
+	if(S.FrameExtraCounterData)
 	{
 		Length = snprintf(Path, sizeof(S.CsvDumpPath), "%s_timer_frames.csv", S.CsvDumpPath);
 		if(Length > 0 && Length < MICROPROFILE_MAX_PATH)
