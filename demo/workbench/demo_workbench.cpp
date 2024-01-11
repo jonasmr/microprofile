@@ -207,7 +207,7 @@ void t3()
 
 void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pFunctionName);
 
-#define DUMP_SPIKE_TEST 0
+#define DUMP_SPIKE_TEST 1
 
 MICROPROFILE_DECLARE_LOCAL_ATOMIC_COUNTER(ThreadsStarted);
 MICROPROFILE_DEFINE_LOCAL_ATOMIC_COUNTER(ThreadSpinSleep, "/runtime/spin_sleep");
@@ -221,7 +221,9 @@ int main(int argc, char* argv[])
 	MicroProfileSetEnableAllGroups(true);
 	MicroProfileSetForceMetaCounters(true);
 
+#if !DUMP_SPIKE_TEST
 	MicroProfileStartContextSwitchTrace();
+#endif
 
 	MICROPROFILE_COUNTER_CONFIG("/runtime/localcounter", MICROPROFILE_COUNTER_FORMAT_BYTES, 10000, 0);
 
@@ -275,6 +277,15 @@ int main(int argc, char* argv[])
 #if TEST_MANY_GROUPS
 	RegisterGroups();
 #endif
+
+	MicroProfileCsvConfigBegin(2, 2, 3, MICROPROFILE_CSV_FLAG_FRAME_TIME);
+	MicroProfileCsvConfigAddCounter("/runtime/localcounter/");
+	MicroProfileCsvConfigAddCounter("/memory/main/");
+	MicroProfileCsvConfigAddCounter("memory/gpu/vertexbuffers", "vbs");
+
+	MicroProfileCsvConfigAddTimer("MAIN", "Main", "renamedMAIN");
+	MicroProfileCsvConfigAddGroup("MAIN");
+	MicroProfileCsvConfigEnd();
 
 	StartFakeWork();
 	while (!g_nQuit)
