@@ -1859,13 +1859,13 @@ void MicroProfileCsvConfigAddGroup(const char* Group, const char* Name)
 void MicroProfileCsvConfigAddCounter(const char* CounterName, const char* Name)
 {
 	MP_ASSERT(S.CsvConfig.State == MicroProfileCsvConfig::CONFIG);
-	if(S.CsvConfig.State == MicroProfileCsvConfig::CONFIG && S.CsvConfig.NumGroups < S.CsvConfig.MaxGroups)
+	if(S.CsvConfig.State == MicroProfileCsvConfig::CONFIG && S.CsvConfig.NumCounters < S.CsvConfig.MaxCounters)
 	{
 		MicroProfileToken Token = MicroProfileGetCounterToken(CounterName, MICROPROFILE_COUNTER_TOKEN_DONT_CREATE);
 		if(MICROPROFILE_INVALID_TOKEN != Token)
 		{
 			MP_ASSERT(Token < UINT16_MAX);
-			S.CsvConfig.pCounterNames[S.CsvConfig.NumTimers] = Name;
+			S.CsvConfig.pCounterNames[S.CsvConfig.NumCounters] = Name;
 			S.CsvConfig.CounterIndices[S.CsvConfig.NumCounters++] = (uint16_t)Token;
 		}
 	}
@@ -4833,7 +4833,7 @@ void MicroProfileDumpCsvWithConfig(MicroProfileWriteCallback CB, void* Handle, u
 	for(uint32_t i = 0; i < NumGroups; ++i)
 		fToMsGroup[i] = S.GroupInfo[i].Type == MicroProfileTokenTypeGpu ? fToMsGPU : fToMsCPU;
 
-	uint64_t TickStart = S.Frames[nFirstFrame].nFrameStartCpu;
+	uint64_t TickStart = S.Frames[nFirstFrame % MICROPROFILE_MAX_FRAME_HISTORY].nFrameStartCpu;
 	
 	for(uint32_t i = 0; i < nNumFrames; ++i)
 	{
