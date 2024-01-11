@@ -4829,9 +4829,9 @@ void MicroProfileDumpCsvWithConfig(MicroProfileWriteCallback CB, void* Handle, u
 	float fToMsGPU = MicroProfileTickToMsMultiplier(MicroProfileTicksPerSecondGpu());
 	
 	for(uint32_t i = 0; i < NumTimers; ++i)
-		fToMsTimer[i] = S.TimerInfo[i].Type == MicroProfileTokenTypeGpu ? fToMsGPU : fToMsCPU;
+		fToMsTimer[i] = S.TimerInfo[TimerIndices[i]].Type == MicroProfileTokenTypeGpu ? fToMsGPU : fToMsCPU;
 	for(uint32_t i = 0; i < NumGroups; ++i)
-		fToMsGroup[i] = S.GroupInfo[i].Type == MicroProfileTokenTypeGpu ? fToMsGPU : fToMsCPU;
+		fToMsGroup[i] = S.GroupInfo[GroupIndices[i]].Type == MicroProfileTokenTypeGpu ? fToMsGPU : fToMsCPU;
 
 	uint64_t TickStart = S.Frames[nFirstFrame % MICROPROFILE_MAX_FRAME_HISTORY].nFrameStartCpu;
 	
