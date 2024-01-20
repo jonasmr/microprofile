@@ -158,11 +158,12 @@ var ReadOnlyPresets = [];
 var ReadOnlyPresetsCache = {};
 
 Settings.SubGraphSettings = {};
+Settings.SubGraphSettingsPercentile = {};
 Settings.ReferenceTime = 100.0;
-var ReferencePresets = [5.0, 10.0, 15.0, 20, 30, 33.33, 50, 66.66,100.0,250.0,500,1000.0];
-var PercentilePresets = [0.0, 1.0, 5.0, 10.0, 50.0, 75.0, 99.0];
-var ReferenceTimeTweak = -1;
-var PercentileTweak = -1;
+const ReferencePresets = [5.0, 10.0, 15.0, 20, 30, 33.33, 50, 66.66,100.0,250.0,500,1000.0];
+const PercentilePresets = [0.0, 1.0, 5.0, 10.0, 50.0, 75.0, 99.0];
+let ReferenceTimeTweak = -1;
+let PercentileTweak = -1;
 
 Settings.TargetTime = 15;
 var TargetTimeTweak = -1;
@@ -223,7 +224,7 @@ var EnabledArray = [];
 
 
 var FrameData = {};
-var FRAME_COUNT = 256;
+var FRAME_COUNT = 1000;
 var FramePending = 0;
 
 var WSConnected = 0;
@@ -239,6 +240,7 @@ var CaptureButtonX = 0;
 var CaptureButtonY = 0;
 var GroupsEnabled = 0;
 var TimersEnabled = 0;
+let CountersEnabled = 0;
 
 var TimersActiveOnly = 0;
 
@@ -363,13 +365,15 @@ var StrExclMin = "Excl Max";
 var StrCallExclAverage = "Call Excl Avg";
 
 
-var CounterNameWidth = 100;
-var CounterValueWidth = 100;
-var CounterLimitWidth = 100;
+let CounterNameWidth = 100;
+let CounterNameMenuWidth = 100;
+let CounterFullNameWidth = 100;
+let CounterValueWidth = 100;
+let CounterLimitWidth = 100;
 
 var FormatCounterDefault = 0;
 var FormatCounterBytes = 1;
-var FormatCounterBytesExt = ["b","kb","mb","gb","tb","pb","eb","zb","yb"];
+const FormatCounterBytesExt = ["b","kb","mb","gb","tb","pb","eb","zb","yb"];
 
 var BarColumnNamesTable = [StrTime, StrExclusive, StrAverage, StrMax, StrMin, StrTotal, StrExclAverage, StrExclMax, StrExclTotal, StrSpike, StrCallAverage, StrCallExclAverage, StrCount];
 var BarColumnNamesMulti = [StrTime, StrAverage, StrMax, StrMin, StrExclAverage, StrExclMax, StrExclMin];
@@ -782,13 +786,33 @@ function ResizeCanvas()
 	ActivateView(Settings.ViewActive);
 }
 
-
 function FormatTime(Time)
 {
 	return Time.toFixed(2);
 }
-var hh = 0;
+function FormatName(T)
+{
+	if(T.idtype == TYPE_COUNTER)
+	{
+		return T.countername;
+	}
+	else
+	{
+		return T.name;
+	}
+}
 
+function FormatTimeText(V, T)
+{
+	if(T.idtype == TYPE_COUNTER)
+	{
+		return V.toFixed(0);
+	}
+	else
+	{
+		return V.toFixed(2) + "ms";
+	}
+}
 
 function DrawBarsLegend(View, LocalMouseX, LocalMouseY, SubIndex)
 {
@@ -1147,28 +1171,30 @@ function SortColumnFromName(Name)
 	return 0;
 }
 
+
 function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 {
 	ProfileEnter("DrawTableView");
-	var Canvas = View.Canvas[View.BackBuffer];
-	var context = Canvas.getContext('2d');
-	var Height = BoxHeight;
-	var Width = nWidth;
-	var Y = Height;
-	var XBase = 0;
-	var nColorIndex = 0;
-	var bMouseIn = 0;
-	var RcpReferenceTime = 1.0 / Settings.ReferenceTime;
-	var CountWidth = 12 * FontWidth;
-	var InnerBoxHeight = BoxHeight-2;
-	var TimerLen = 8;
-	var TimerWidth = TimerLen * FontWidth;
-	var nWidthBars = nBarsWidth+2;
-	var nWidthMs = TimerWidth+2+10;
-	var NameWidth = 200;
-	var R = 0;
+	let Canvas = View.Canvas[View.BackBuffer];
+	let context = Canvas.getContext('2d');
+	let Height = BoxHeight;
+	let Width = nWidth;
+	let Y = Height;
+	let XBase = 0;
+	let nColorIndex = 0;
+	let bMouseIn = 0;
+	let RcpReferenceTime = 1.0 / Settings.ReferenceTime;
+	let CountWidth = 12 * FontWidth;
+	let InnerBoxHeight = BoxHeight-2;
+	let TimerLen = 8;
+	let TimerWidth = TimerLen * FontWidth;
+	let nWidthBars = nBarsWidth+2;
+	let nWidthMs = TimerWidth+2+10;
+	let NameWidth = 200;
+	let R = 0;
+	let X = 0;
 
-	var OffsetY = BoxHeight;
+	let OffsetY = BoxHeight;
 
 
 	context.clearRect(0, 0, View.w, View.h);
@@ -1180,7 +1206,7 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 	{
 		if(Header == null)
 			debugger;
-		var bMouseIn = LocalMouseY >= Y && LocalMouseY < BoxHeight+Y && LocalMouseX < X && LocalMouseX > XBegin;
+		let bMouseIn = LocalMouseY >= Y && LocalMouseY < BoxHeight+Y && LocalMouseX < X && LocalMouseX > XBegin;
 		if(bMouseIn)
 		{
 			SortColumnMouseOverNext = Header;
@@ -1223,7 +1249,7 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 		{
 			context.fillStyle = 'white';
 			context.fillText(HeaderString(Header), X, Y + Height-FontAscent);
-			var XBegin = X;
+			let XBegin = X;
 			X += ColumnsWidth[R];
 			context.fillStyle = nBackColorOffset;
 			if(X >= NameWidth)
@@ -1236,13 +1262,13 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 	}
 	function DrawHeaderSplitLeftRight(HeaderLeft, HeaderRight, Y, Width)
 	{
-		var HeaderLeftS = HeaderString(HeaderLeft);
-		var HeaderRightS = HeaderString(HeaderRight);
+		let HeaderLeftS = HeaderString(HeaderLeft);
+		let HeaderRightS = HeaderString(HeaderRight);
 		context.textAlign = 'left';
 		context.fillStyle = 'white';
 		context.fillText(HeaderLeftS, X, Y + Height-FontAscent);
-		var wLeft = context.measureText(HeaderLeftS).width;
-		var XBegin = X;
+		let wLeft = context.measureText(HeaderLeftS).width;
+		let XBegin = X;
 		X += Width;
 		context.textAlign = 'right';
 		context.fillText(HeaderRightS, X-5, Y + Height-FontAscent);
@@ -1274,8 +1300,8 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
                     debugger;
                     return;
                 }
-                var Prc = Math.max(0, Value) * RcpReferenceTime;
-                var YText = Y+Height-FontAscent;
+                let Prc = Math.max(0, Value) * RcpReferenceTime;
+                let YText = Y+Height-FontAscent;
                 if(Prc > 1)
                 {
                     Prc = 1;
@@ -1285,8 +1311,8 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
                 context.fillRect(X+1, Y+1, Prc * nBarsWidth, InnerBoxHeight);
                 X += nWidthBars;
                 context.fillStyle = 'white';
-                var TimerText = Value.toFixed(2);
-                var W = context.measureText(TimerText).width + FontWidth;
+                let TimerText = Value.toFixed(2);
+                let W = context.measureText(TimerText).width + FontWidth;
                 ColumnsWidth[R] = Math.max(W, ColumnsWidth[R]);
                 X += ColumnsWidth[R];
                 context.textAlign = 'right';
@@ -1365,6 +1391,12 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 			context.fillStyle = T.color;
 			context.fillText(T.name, 1, YText);
 		}
+		else if(T.idtype == TYPE_COUNTER)
+		{
+			context.textAlign = 'left';
+			context.fillStyle = T.color;
+			context.fillText(T.countername, 1, YText);
+		}
 		else
 		{
 			context.textAlign = 'right';
@@ -1373,7 +1405,7 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 			context.textAlign = 'left';
 			let P = TimerArray[T.parent];
 			context.fillStyle = P.color;
-			var ParentName = P.name;
+			let ParentName = P.name;
 			context.fillText(ParentName, 1, YText);
 		}
 	}
@@ -1381,27 +1413,27 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 	{
 		if(!FilterArray)
 			return true;
-		for(var i = 0; i < FilterArray.length; ++i)
+		for(let i = 0; i < FilterArray.length; ++i)
 		{
-			var res = value.search(FilterArray[i]);
+			let res = value.search(FilterArray[i]);
 			if(res<0)
 				return false;
 		}
 		return true;
 	}
-	var TimerMap = FrameData.TimerMap;
+	let TimerMap = FrameData.TimerMap;
 	if(!TimerMap)
 	{
 		return;
 	}
 
-	var wfirst = 100;
-	var OrderArray = new Array();
-	var nTotalRows = 0;
-	for(var key in TimerMap)
+	let wfirst = 100;
+	let OrderArray = new Array();
+	let nTotalRows = 0;
+	for(let key in TimerMap)
 	{
-		var idx = GetTimer(key);
-		var T = TimerArray[idx];
+		let idx = GetTimer(key);
+		let T = TimerArray[idx];
 		if(T.e)
 		{
 			OrderArray.push(idx);
@@ -1412,8 +1444,8 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 	NameWidth = wfirst + 20;
 
 
-	var nTotalRowPixels = nTotalRows * Height;
-	var nFrameRows = nHeight - HistoryHeight - BoxHeight;
+	let nTotalRowPixels = (3+nTotalRows) * Height;
+	let nFrameRows = nHeight - HistoryHeight - BoxHeight;
 	if(nTotalRowPixels > nFrameRows)
 	{
 		if(nOffsetBarsY + nFrameRows > nTotalRowPixels)
@@ -1449,7 +1481,6 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 				let v0 = Key(B);
 				let v1 = Key(A);
 				return Flip * (v0 - v1);
-					//Key(B) - Key(A));
 			};
 			return F;
 		};
@@ -1465,11 +1496,9 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 				};
 
 			};
-			// Do();
 			OrderArray.sort( NumberCompare( function (a) {
 				return TimerArray[a].time;
 			} ) );
-			// Do();
 		}
 		else if(N == StrExclusive)
 		{
@@ -1538,10 +1567,10 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 	let ColorHigh = '#85929e';
 
 
-	for(var i = 0; i < OrderArray.length; ++i)
+	for(let i = 0; i < OrderArray.length; ++i)
 	{
-		var idx = OrderArray[i];
-		var T = TimerArray[idx];
+		let idx = OrderArray[i];
+		let T = TimerArray[idx];
 		if(T.idtype == TYPE_GROUP)
 		{
 			DrawTimerRow(idx, 1);
@@ -1550,10 +1579,10 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 	}
 	let SplitY0 = Y;
 
-	for(var i = 0; i < OrderArray.length; ++i)
+	for(let i = 0; i < OrderArray.length; ++i)
 	{
-		var idx = OrderArray[i];
-		var T = TimerArray[idx];
+		let idx = OrderArray[i];
+		let T = TimerArray[idx];
 		if(T.idtype == TYPE_TIMER)
 		{
 			DrawTimerRow(idx, 1);
@@ -1562,10 +1591,10 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 	}
 	let SplitY1 = Y;
 
-	for(var i = 0; i < OrderArray.length; ++i)
+	for(let i = 0; i < OrderArray.length; ++i)
 	{
-		var idx = OrderArray[i];
-		var T = TimerArray[idx];
+		let idx = OrderArray[i];
+		let T = TimerArray[idx];
 		if(T.idtype == TYPE_COUNTER)
 		{
 			DrawTimerRow(idx, 1);
@@ -1573,7 +1602,7 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 		}
 	}
 
-	var X = 0;
+	
 	context.fillStyle = nBackColorOffset;
 	context.fillRect(0, 0, Width, 2*Height);
 	context.fillStyle = 'white';
@@ -1607,17 +1636,15 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 	SplitX[2] = X;
 
 	context.fillStyle = 'white';
-	for(var i = 0; i < SplitX.length; ++i)
+	for(let i = 0; i < SplitX.length; ++i)
 	{
-		var X0 = i == 0 ? (NameWidth + XBase) : SplitX[i-1];
-		var X1 = SplitX[i];
+		let X0 = i == 0 ? (NameWidth + XBase) : SplitX[i-1];
+		let X1 = SplitX[i];
 		if(X0 != X1)
 		{
 			context.fillText(Headers[i], X0 + 1, Height-FontAscent);
 		}
 	}
-
-
 	X = 0;
 	context.fillStyle = nBackColorOffset;
 	context.fillRect(0, 0, NameWidth, Height * 2);
@@ -1625,10 +1652,10 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
 	DrawHeaderSplitLeftRight(StrGroup, StrTimer, 0, NameWidth);
 
 
-	for(var i = 0; i < SplitX.length; ++i)
+	for(let i = 0; i < SplitX.length; ++i)
 	{
-		var X0 = i == 0 ? (NameWidth + XBase) : SplitX[i-1];
-		var X1 = SplitX[i];
+		let X0 = i == 0 ? (NameWidth + XBase) : SplitX[i-1];
+		let X1 = SplitX[i];
 		if(X0 != X1)
 		{
 			context.fillStyle = ColorHigh;
@@ -1906,10 +1933,11 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 		for(let key in TimerMap)
 		{
 			let idx = GetTimer(key);
+			let T = TimerArray[idx];
 			let TimerState = TimerMap[key];
 			TimerState.tooltipstring = null;
 			let Valid = TimerState.PercentileMax > TimerState.PercentileMin;
-			if(!IsGroup(key) && TimerArray[idx].e)
+			if(!IsGroup(key) && T.e)
 			{
 				let Max = Valid ? TimerState.PercentileMax : 1;
 				let Min = Valid ? TimerState.PercentileMin : 0;
@@ -1937,7 +1965,7 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 				let PercentilePrc = Percentile / 100;
 				let PercentileOffset = PercentilePrc * TotalWidth;
 				let fHeightScale2 = gh / Max;
-				let color = TimerArray[idx].color;
+				let color = T.color;
 				let X = 0;
 				let Y = hstart + gh;
 				let YStart = Y;
@@ -1967,14 +1995,14 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 				context.globalAlpha = 1;
 				context.fillStyle = 'wheat';
 				context.textAlign='right';
-				context.fillText(FormatTime(Reference) + 'ms', nWidth, hstart + FontHeight);
+				context.fillText(FormatTimeText(Reference, T), nWidth, hstart + FontHeight);
 				context.fillText('100%', nWidth, hstart + gh-2);
 				context.textAlign='centered';
 				Percentile = BasePrc;
 				context.fillText( ((Percentile + 100)/2).toFixed(2) + '%', nWidth/2, hstart + gh-2);
 				context.textAlign='left';
 				context.fillText(Percentile.toFixed(2) + "%  [Samples:" + PercentileCount + "]", 0, hstart + gh-2);
-				context.fillText(TimerArray[idx].name, 15, hstart + FontHeight);
+				context.fillText(FormatName(T), 15, hstart + FontHeight);
 				context.fillText(Percentile + '%', nWidth, hstart + FontHeight);
 
 				if(MouseInside)
@@ -2008,7 +2036,7 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 						Idx = Math.max(Idx, 0);
 						Perc = 100 * (Idx / (PercentileCount-1))
 					}
-					TimerState.tooltipstring = FormatTime(Perc) + '% ' + FormatTime(PercentileData[HighlightIndex]) + 'ms';;
+					TimerState.tooltipstring = FormatTime(Perc) + '% ' + FormatTimeText(PercentileData[HighlightIndex], T);
 				}
 				hstart += gh;
 			}
@@ -2021,24 +2049,24 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 
 function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 {
-	var TimerMap = FrameData.TimerMap;
+	let TimerMap = FrameData.TimerMap;
 	if(!TimerMap)
 		return;
 
 	ProfileEnter("DrawGraph");
-	var Canvas = View.Canvas[View.BackBuffer];
-	var context = Canvas.getContext('2d');
+	let Canvas = View.Canvas[View.BackBuffer];
+	let context = Canvas.getContext('2d');
 	context.clearRect(0, 0, View.w, View.h);
 
-	var h = View.h;
-	var w = View.w;
-	var fHeightScale = h / ReferenceGraph;
-	var MouseDragging = 0;
-	var fWidth = w / FRAME_COUNT;
-	var HighlightFrame = -1;
-	var GraphKey = null;
-	var GraphBest = 0;
-	var MouseTime = ReferenceGraph * (1-(LocalMouseY / h));
+	let h = View.h;
+	let w = View.w;
+	let fHeightScale = h / ReferenceGraph;
+	let MouseDragging = 0;
+	let fWidth = w / (FRAME_COUNT-1);
+	let HighlightFrame = -1;
+	let GraphKey = null;
+	let GraphBest = 0;
+	let MouseTime = ReferenceGraph * (1-(LocalMouseY / h));
 
 	if(LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1)
 	{
@@ -2060,37 +2088,40 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 		{
 			if(Split)
 			{
-				var TimerMap = FrameData.TimerMap;
-				var context = canvas.getContext('2d');
+				let TimerMap = FrameData.TimerMap;
+				let context = canvas.getContext('2d');
 				context.font = Font;
-				var XPos = x - 20;
-				for(var key in TimerMap)
+				let XPos = x - 20;
+				for(let key in TimerMap)
 				{
-					var idx = GetTimer(key);
-					var T = TimerArray[idx];
-					var TimerState = TimerMap[key];
-					var Time = TimerState.Time;
-					if(TimerState.tooltipysoft)
+					let idx = GetTimer(key);
+					let T = TimerArray[idx];
+					if(T.e)
 					{
-						var RATE = 0.05;
-						if(Math.abs(TimerState.tooltipysoft - TimerState.tooltipy) > 6)
+						let TimerState = TimerMap[key];
+						let Time = TimerState.Time;
+						if(TimerState.tooltipysoft)
 						{
-							TimerState.tooltipysoft = TimerState.tooltipy * RATE + TimerState.tooltipysoft * (1-RATE);
+							let RATE = 0.05;
+							if(Math.abs(TimerState.tooltipysoft - TimerState.tooltipy) > 6)
+							{
+								TimerState.tooltipysoft = TimerState.tooltipy * RATE + TimerState.tooltipysoft * (1-RATE);
+							}
 						}
+						else
+						{
+							TimerState.tooltipysoft = TimerState.tooltipy;
+						}
+						let Y = TimerState.tooltipysoft;
+						let str = '' + FormatTimeText(Time[index], T);
+						let w = context.measureText(str, XPos, Y).width;
+						let X = Math.max(0, XPos - w);
+						context.fillStyle = 'black';
+						context.fillRect(X - 1, Y-1 , w+2, BoxHeight+2);
+						context.fillStyle = 'white';
+						context.textAlign = 'right';
+						context.fillText(str, X + w, Y+BoxHeight-2);
 					}
-					else
-					{
-						TimerState.tooltipysoft = TimerState.tooltipy;
-					}
-					var Y = TimerState.tooltipysoft;
-					var str = '' + FormatTime(Time[index]) + 'ms';
-					var w = context.measureText(str, XPos, Y).width;
-					var X = Math.max(0, XPos - w);
-					context.fillStyle = 'black';
-					context.fillRect(X - 1, Y-1 , w+2, BoxHeight+2);
-					context.fillStyle = 'white';
-					context.textAlign = 'right';
-					context.fillText(str, X + w, Y+BoxHeight-2);
 
 				}
 				context.textAlign = 'left';
@@ -2125,7 +2156,9 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 		let NumGraphs = 0;
 		for(let key in TimerMap)
 		{
-			if(!IsGroup(key))
+			let idx = GetTimer(key);
+			let T = TimerArray[idx];
+			if(!IsGroup(key) && T.e)
 			{
 				NumGraphs++;
 			}
@@ -2134,24 +2167,25 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 		{
 
 			var hstart = 0;
-			var gh = h / NumGraphs;
-			var Keys = [];
-			var cidx = 1;
-			for(var key in TimerMap)
+			let gh = h / NumGraphs;
+			let Keys = [];
+			let cidx = 1;
+			for(let key in TimerMap)
 			{
-				var idx = GetTimer(key);
-				var TimerState = TimerMap[key];
-				if(!IsGroup(key))
+				let idx = GetTimer(key);
+				let T = TimerArray[idx];
+				let TimerState = TimerMap[key];
+				if(!IsGroup(key) && T.e)
 				{
 					let SubGraphSettings = GetSubGraphSettings(key);
-					var Reference = GetSubGraphReferenceTime(SubGraphSettings, TimerState);
-					var fHeightScale2 = gh / Reference;
+					let Reference = GetSubGraphReferenceTime(SubGraphSettings, TimerState);
+					let fHeightScale2 = gh / Reference;
 
-					var Time = TimerState.Time;
-					var color = TimerArray[idx].color;
-					var X = w - Time.length*fWidth;
-					var Y = hstart + gh;
-					var YStart = Y;
+					let Time = TimerState.Time;
+					let color = TimerArray[idx].color;
+					let X = w - Time.length*fWidth;
+					let Y = hstart + gh;
+					let YStart = Y;
 					context.globalAlpha = 1;
 					context.fillStyle = nBackColorsDark[cidx];
 					cidx = 1-cidx;
@@ -2160,7 +2194,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 					context.fillStyle = color;
 					context.beginPath();
 					context.moveTo(X,Y);
-					for(var i = 0; i < Time.length; ++i)
+					for(let i = 0; i < Time.length; ++i)
 					{
 						Y = Math.max(YStart - Time[i] * fHeightScale2, hstart);
 						context.lineTo(X, Y);
@@ -2176,18 +2210,18 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 					context.globalAlpha = 1;
 					context.fillStyle = 'wheat';
 					context.textAlign='right';
-					context.fillText(FormatTime(Reference) + 'ms', nWidth, hstart + FontHeight);
+					context.fillText(FormatTimeText(Reference, T), nWidth, hstart + FontHeight);
 					context.textAlign='left';
-					context.fillText(TimerArray[idx].name, 15, hstart + FontHeight);
+					context.fillText(FormatName(T), 15, hstart + FontHeight);
 
 					if(HighlightFrame >= 0)
 					{
-						var X = w - Time.length * fWidth + fWidth * HighlightFrame;
-						var Y = YStart - Math.min(Time[HighlightFrame], Reference) * fHeightScale2;
+						let X = w - Time.length * fWidth + fWidth * HighlightFrame;
+						let Y = YStart - Math.min(Time[HighlightFrame], Reference) * fHeightScale2;
 						context.strokeStyle = color;
 						context.beginPath();
-						var CrossX = X;
-						var CrossY = Y;
+						let CrossX = X;
+						let CrossY = Y;
 						context.moveTo(CrossX-2, CrossY-2);
 						context.lineTo(CrossX+2, CrossY+2);
 						context.moveTo(CrossX+2, CrossY-2);
@@ -2860,9 +2894,9 @@ function DrawMessage()
 			{
 				MSG("Paused: Enable groups in 'Control' menu to unpause");
 			}
-			if(TimersEnabled == 0 && Settings.ViewActive != VIEW_GRAPH_THREAD_GROUP)
+			if((CountersEnabled == 0 && TimersEnabled == 0) && Settings.ViewActive != VIEW_GRAPH_THREAD_GROUP)
 			{
-				MSG("Enable Timers or Functions");
+				MSG("Enable Timers or Counters");
 			}
 		}
 	}
@@ -3323,12 +3357,16 @@ function AggregateMenuSize()
 }
 function TimerMenuSize()
 {
-	return MenuSize(WidthArray[TYPE_TIMER] + WidthArray[TYPE_GROUP] + 5 + FontWidth);
+	return MenuSize(Math.max(WidthArray[TYPE_TIMER] + WidthArray[TYPE_GROUP], WidthArray[TYPE_COUNTER]) + 5 + FontWidth);
 }
 
 function GroupMenuSize()
 {
 	return MenuSize(WidthTree);
+}
+function CounterMenuSize()
+{
+	return MenuSize(CounterNameMenuWidth);
 }
 
 function MenuSize(w)
@@ -3409,14 +3447,21 @@ function AddPresets(Obj)
 }
 function GetFullName(T)
 {
-	var parent = T.parent;
-	var ParentName = "unknown";
-	var Name = T.name;
-	if(parent && parent < TimerArray.length)
+	if(T.idtype == TYPE_COUNTER)
 	{
-		ParentName = TimerArray[parent].name;
+		return T.countername;
 	}
-	return ParentName + "/" + Name;
+	else
+	{
+		let parent = T.parent;
+		let ParentName = "unknown";
+		let Name = T.name;
+		if(parent && parent < TimerArray.length)
+		{
+			ParentName = TimerArray[parent].name;
+		}
+		return ParentName + "/" + Name;
+	}
 }
 
 function ColorFromFullName(name, type)
@@ -3480,7 +3525,18 @@ function OnLoadPreset(NewSettings, Apply, RO)
 				{
 					var FullName = Groups[i];
 					EnableByName(FullName, TYPE_GROUP);
-
+				}
+			}
+		}
+		else if(idx == 'Counters')
+		{
+			if(Apply)
+			{
+				var Counters = NewSettings[idx];
+				for(var i = 0; i < Counters.length; ++i)
+				{
+					var FullName = Counters[i];
+					EnableByName(FullName, TYPE_COUNTER);
 				}
 			}
 		}
@@ -3534,12 +3590,13 @@ function SavePreset(Name)
 {
 	Name = SanitizeString(Name);
 	AddPreset(Name);
-	var Timers = [];
-	var Groups = [];
+	let Timers = [];
+	let Groups = [];
+	let Counters = [];
 	for(var i = 0; i < TimerArray.length; ++i)
 	{
-		var t = TimerArray[i];
-		var idtype = TimerArray[i].idtype;
+		let t = TimerArray[i];
+		let idtype = TimerArray[i].idtype;
 		if(t.e)
 		{
 			if(idtype == TYPE_TIMER)
@@ -3550,11 +3607,16 @@ function SavePreset(Name)
 			{
 				Groups.push(GetFullName(t));
 			}
+			else if(idtype == TYPE_COUNTER)
+			{
+				Counters.push(t.countername);
+			}
 		}
 	}
 
 	Settings.Timers = Timers;
 	Settings.Groups = Groups;
+	Settings.Counters = Counters;
 	Settings.PresetName = Name;
 	let Clone = function(A)
 	{
@@ -3656,12 +3718,13 @@ function DrawMenuPresets()
 
 	if(SettingsCached)
 	{
-		var SizeLeft = 10 * FontWidth;
-		var Timers = SettingsCached.Timers;
-		var Groups = SettingsCached.Groups;
-		var Patched = SettingsCached.Patched;
-		var W = 0;
-		var H = 0;
+		let SizeLeft = 10 * FontWidth;
+		let Timers = SettingsCached.Timers;
+		let Groups = SettingsCached.Groups;
+		let Counters = SettingsCached.Counters;
+		let Patched = SettingsCached.Patched;
+		let W = 0;
+		let H = 0;
 		if(Timers)
 		{
 			W = MeasureArray(W, Timers);
@@ -3672,6 +3735,11 @@ function DrawMenuPresets()
 			W = MeasureArray(W, Groups);
 			H = 1 + Groups.length;
 		}
+		if(Counters)
+		{
+			W = MeasureArray(W, Counters);
+			H = 1 + Counters.length;
+		}
 		if(Patched)
 		{
 			W = MeasureArray(W, Patched);
@@ -3679,7 +3747,7 @@ function DrawMenuPresets()
 		}
 		W += 40;
 		H = H * (FontHeight+1);
-		var M = CreateMenuState(SizeInfo);
+		let M = CreateMenuState(SizeInfo);
 		M.x += M.w + 5;
 		M.y = SettingsCachedY;
 		M.w = W;
@@ -3688,7 +3756,7 @@ function DrawMenuPresets()
 		if(Groups && Groups.length)
 		{
 			DrawMenuElement(M, 0, "Groups", "", 'white', 0);
-			for(var i = 0; i < Groups.length; ++i)
+			for(let i = 0; i < Groups.length; ++i)
 			{
 				DrawMenuElement(M, 0, "", Groups[i], 'white', 0);
 			}
@@ -3696,15 +3764,25 @@ function DrawMenuPresets()
 		if(Timers && Timers.length)
 		{
 			DrawMenuElement(M, 0, "Timers", "", 'white', 0);
-			for(var i = 0; i < Timers.length; ++i)
+			for(let i = 0; i < Timers.length; ++i)
 			{
 				DrawMenuElement(M, 0, "", Timers[i], ColorFromFullName(Timers[i], TYPE_TIMER), 0);
 			}
 		}
+		if(Counters && Counters.length)
+		{
+			DrawMenuElement(M, 0, "Counters", "", 'white', 0);
+			for(let i = 0; i < Counters.length; ++i)
+			{
+				DrawMenuElement(M, 0, "", Counters[i], ColorFromFullName(Counters[i], TYPE_COUNTER), 0);
+			}
+		}
+
+
 		if(Patched && Patched.length)
 		{
 			DrawMenuElement(M, 0, "Patched", "", 'white', 0);
-			for(var i = 0; i < Patched.length; ++i)
+			for(let i = 0; i < Patched.length; ++i)
 			{
 				DrawMenuElement(M, 0, "", Patched[i], 'white', 0);
 			}
@@ -4213,25 +4291,15 @@ function GetSubGraphReferenceTime(SubGraphSettings, TimerState)
 		return SubGraphSettings.ReferenceTime;
 	}
 }
-function GetSubGraphSettingsKey(key)
-{
-	if(Settings.ViewActive == VIEW_GRAPH_PERCENTILE)
-	{
-		return "perc_"+key;
-	}
-	else
-	{
-		return key;
-	}
-}
+
 function GetSubGraphSettings(key)
 {
-	let k = GetSubGraphSettingsKey(key);
-	let SubGraphSettings = Settings.SubGraphSettings[k];
+	let Source = Settings.ViewActive == VIEW_GRAPH_PERCENTILE ? Settings.SubGraphSettingsPercentile : Settings.SubGraphSettings;
+	let SubGraphSettings = Source[key];
 	if(!SubGraphSettings)
 	{
 		SubGraphSettings = {"ReferenceTime":10.0, "TargetTime":-1, "AutomaticReference":1, "Percentile":0.0};
-		Settings.SubGraphSettings[k] = SubGraphSettings;
+		Source[key] = SubGraphSettings;
 	}
 	return SubGraphSettings;
 }
@@ -4257,30 +4325,78 @@ function DrawMenuGraphSettings()
 	let context = CanvasDetailedView.getContext('2d');
 	context.fillRect(M.x, M.y, Width, SizeInfo.h);
 	let SubGraphSettings = GetSubGraphSettings(SubMenuGraphSettingsKey);
+	let idx = GetTimer(SubMenuGraphSettingsKey);
+	let T = TimerArray[idx];
 
 
-	ReferenceTimeTweak = DrawMenuRoll(M, "Reference Time", SubGraphSettings.ReferenceTime, '', ReferenceRollSubGraph, ReferenceTimeTweak, 'int');
-	if(DrawMenuElement(M, SubGraphSettings.AutomaticReference, "Automatic Reference Time", SubGraphSettings.AutomaticReference, 'white'))
+	ReferenceTimeTweak = DrawMenuRoll(M, "Reference Value", SubGraphSettings.ReferenceTime, '', ReferenceRollSubGraph, ReferenceTimeTweak, 'int');
+	if(DrawMenuElement(M, SubGraphSettings.AutomaticReference, "Automatic Reference Value", SubGraphSettings.AutomaticReference, 'white'))
 	{
 		SubGraphSettings.AutomaticReference = 1-SubGraphSettings.AutomaticReference;
+	}
+	function ClearPercentile(key)
+	{
+		let TimerMap = FrameData.TimerMap;
+		if(TimerMap)
+		{
+			let TimerState = TimerMap[key];
+			TimerState.PercentileMax = -1e38;
+			TimerState.PercentileMin = 1e38;
+			TimerState.Percentile = new Float32Array(PERCENTILE_SAMPLES);
+			TimerState.Percentile.fill(0.0);
+			TimerState.PercentileCount = 0;
+		}
 	}
 	if(Percentile)
 	{
 		//PercentileTweak = DrawMenuRoll(M, "Percentile", SubGraphSettings.Percentile, '', PercentileRollSubGraph, PercentileTweak, 'int');
 		if(DrawMenuElement(M, 0, "Clear Aggregate", "", 'white'))
 		{
-			let TimerMap = FrameData.TimerMap;
-			if(TimerMap)
+			ClearPercentile(SubMenuGraphSettingsKey);
+		}
+	}
+
+	{
+		let str = T.idtype == TYPE_TIMER ? "TIMERS" : "COUNTERS"
+		DrawMenuElement(M, 0, "--- ALL " + str + "  -- ", "", 'white');
+		let Old = SubGraphSettings.ReferenceTime;
+		let Apply = function(Callback){
+ 			let AllSettings = Percentile ? Settings.SubGraphSettingsPercentile : Settings.SubGraphSettings;
+ 			for(let key in AllSettings)
+ 			{
+ 				let idx = GetTimer(key);
+ 				let T0 = TimerArray[idx];
+ 				if(T0.idtype == T.idtype)
+ 				{
+ 					Callback(AllSettings[key], key);
+ 				}
+ 			}		
+		}
+		if(DrawMenuRoll(M, "Reference Value", SubGraphSettings.ReferenceTime, '', ReferenceRollSubGraph, ReferenceTimeTweak, 'int'))
+		{
+			Apply(function(T){
+				T.ReferenceTime = SubGraphSettings.ReferenceTime;
+			});
+		}
+		if(DrawMenuElement(M, SubGraphSettings.AutomaticReference, "Automatic Reference Value", SubGraphSettings.AutomaticReference, 'white'))
+		{
+			SubGraphSettings.AutomaticReference = 1-SubGraphSettings.AutomaticReference;
+			Apply(function(T){
+				T.AutomaticReference = SubGraphSettings.AutomaticReference;
+			});			
+		}
+		if(Percentile)
+		{
+			if(DrawMenuElement(M, 0, "Clear Aggregate", "", 'white'))
 			{
-				let TimerState = TimerMap[SubMenuGraphSettingsKey];
-				TimerState.PercentileMax = -1e38;
-				TimerState.PercentileMin = 1e38;
-				TimerState.Percentile = new Float32Array(PERCENTILE_SAMPLES);
-				TimerState.Percentile.fill(0.0);
-				TimerState.PercentileCount = 0;
+				ClearPercentile(SubMenuGraphSettingsKey);
+				Apply(function(T, k){
+					ClearPercentile(k);
+				});
 			}
 		}
 	}
+
 	SizeInfo.h = M.y - SizeInfo.y;
 	return SizeInfo;
 
@@ -4293,6 +4409,7 @@ function Dots()
 	let x = Math.floor(t) %4;
 	return dots[x];
 }
+
 function DrawMenuCapture()
 {
 	let Selection = null;
@@ -5511,7 +5628,7 @@ function DrawMenuCounters()
 	var context = CanvasDetailedView.getContext('2d');
 	var nColorIndex = 0;
 	var Selection = null;
-	var SizeInfo = GroupMenuSize();
+	var SizeInfo = CounterMenuSize();
 	SizeInfo.x = MenuItems[SubMenuCounters].x;
 	SizeInfo.y = MenuItems[SubMenuCounters].y;
 	var Y = SizeInfo.y;
@@ -5543,7 +5660,7 @@ function DrawMenuCounters()
 	{
 		ProfileEnter("DrawMenuRecursive");
 		var v = TimerArray[Index];
-		if(v.idtype == TYPE_GROUP || v.idtype == TYPE_TIMER)
+		if(v.idtype == TYPE_GROUP || v.idtype == TYPE_TIMER || v.idtype == TYPE_GROUP || v.idtype == TYPE_SETTING)
 		{
 			return;
 		}
@@ -5556,20 +5673,12 @@ function DrawMenuCounters()
 			}
 		}
 		var catmatch = 0;
-//		if(v.idtype == TYPE_CATEGORY)
-//		{
-//			if(FilterMatch(FilterArray, v.name))
-//			{
-//				catmatch = 1;
-//			}
-//		}
 		var Closed = 0;
 		if(Index > 0)
 		{
 			if(Y > YStart)
 			{
-let yo = v.name + " " + v.id;
-				if(DrawMenuElement(v.e, yo, v.color, Indent))
+				if(DrawMenuElement(v.e, v.name, v.color, Indent*2))
 				{
 					Selection = v.id;
 				}
@@ -5880,6 +5989,7 @@ function WSOpen(event)
 	WidthArray[TYPE_TIMER] = 0;
 	WidthArray[TYPE_GROUP] = 0;
 	WidthArray[TYPE_CATEGORY] = 0;
+	WidthArray[TYPE_COUNTER] = 0;
 	WidthTree = FontWidth;
 	SymbolState = null;
 	FunctionQueryPending = 0;
@@ -5927,17 +6037,19 @@ function GetTimer(id)
 	return null;
 }
 
-function GetCounter(id)
+
+function InitCounterName(T)
 {
-	for(var i = 0; i < TimerArray.length; ++i)
-	{
-		if(TimerArray[i].id == id)
-		{
-			return i;
-		}
-	}
-	return null;
+	if(T.countername)
+		return T.countername;
+	let name = "/" + T.name;
+	if(T.parent)
+		name = InitCounterName(TimerArray[T.parent]) + name;
+	T.countername = name;
+	return name;
 }
+
+
 
 function IsGroup(id)
 {
@@ -5949,6 +6061,7 @@ function UpdateActive()
 {
 	GroupsEnabled = 0;
 	TimersEnabled = 0;
+	CountersEnabled = 0;
 	for(var i = 0; i < TimerArray.length; ++i)
 	{
 		var T = TimerArray[i];
@@ -5960,6 +6073,8 @@ function UpdateActive()
 					GroupsEnabled++;
 				break;
 				case TYPE_TIMER:
+					TimersEnabled++;
+				case TYPE_COUNTER:
 					TimersEnabled++;
 				break;
 			}
@@ -6000,32 +6115,24 @@ function UpdateEnabledTimer(idx)
 	AutoCaptureSourceIndex = NewIndex;
 }
 
-
 function EnableTimer(T)
 {
 	let idx = GetTimer(T.id);
-	if(idx != null && idx>=0)
+	if(idx != null && idx >= 0)
 	{
 		TimerArray[idx].e = T.e;
 		UpdateEnabledTimer(idx);
 	}
 	else
 	{
-		let	idx = GetCounter(T.id);
-		if(idx != null && idx >= 0)
-		{
-			CounterArray[idx].e = T.e;
-			UpdateEnabledCounter(idx);
-		}
-		else
-		{
-			console.log('EnableTimer: unknown enable message');
-		}
+		console.log('EnableTimer: unknown enable message');
 	}
 }
+
 function MeasureWidth(str)
 {
-	var context = CanvasDetailedView.getContext('2d');
+	let context = CanvasDetailedView.getContext('2d');
+	context.font = Font;
 	return context.measureText(str).width;
 }
 function AddTimer(T)
@@ -6035,8 +6142,9 @@ function AddTimer(T)
 		T.color = ColorFromString(T.name, 40, 50);
 	}
 	console.log("Added timer", T.name);
-	var idx = TimerArray.length;
-	var existing = GetTimer(T.id);
+	let idx = TimerArray.length;
+	let existing = GetTimer(T.id);
+	let Parent;
 	if(existing)
 	{
 		idx = existing;
@@ -6058,9 +6166,9 @@ function AddTimer(T)
 	TimerArray[idx].callaverage = 0;
 	TimerArray[idx].callexclaverage = 0;
 	TimerArray[idx].callcount = 0;
-	var w = MeasureWidth(T.name);
-	var idtype = SplitIdTop(T.id);
-	var idelement = SplitIdBottom(T.id);
+	let w = MeasureWidth(T.name);
+	let idtype = SplitIdTop(T.id);
+	let idelement = SplitIdBottom(T.id);
 	TimerArray[idx].idtype = idtype;
 	TimerArray[idx].idelement = idelement;
 	TimerArray[idx].w = w;
@@ -6076,13 +6184,13 @@ function AddTimer(T)
 		WidthArray[idtype] = w;
 	}
 	UpdateEnabledTimer(idx);
-	var wparent = 0;
-	var pidx = GetTimer(T.pid);
+	let wparent = 0;
+	let pidx = GetTimer(T.pid);
 	if(pidx >= 0 && !existing)
 	{
 		TimerArray[idx].parent = pidx;
-		var Parent = TimerArray[pidx];
-		var Sibling = Parent.firstchild;
+		Parent = TimerArray[pidx];
+		let Sibling = Parent.firstchild;
 		wparent = MeasureWidth(Parent.name);
 		Parent.firstchild = idx;
 		if(Sibling != -1)
@@ -6114,10 +6222,20 @@ function AddTimer(T)
 		{
 			debugger;
 		}
+		InitCounterName(TimerArray[idx]);
+		let w = MeasureWidth(T.countername);
+		if(w > WidthArray[idtype])
+		{
+			WidthArray[idtype] = w;
+		}
+
+
 		CounterArray.push(idx);
 		TimerArray[idx].formattedlimit = FormatCounter(TimerArray[idx].format, TimerArray[idx].limit);
 		CounterLimitWidth = Math.max(CounterLimitWidth, TimerArray[idx].formattedlimit.length * (FontWidth+1));
 		CounterNameWidth = Math.max(CounterNameWidth, (TimerArray[idx].name.length + 1 + TimerArray[idx].depth) * (FontWidth+1));
+		CounterNameMenuWidth = Math.max(CounterNameMenuWidth, (TimerArray[idx].name.length + 1 + (2*TimerArray[idx].depth)) * (FontWidth));
+		CounterFullNameWidth = Math.max(CounterFullNameWidth, (TimerArray[idx].countername.length + 1) * (FontWidth));
 		TimerArray[idx].counterhistory = {};
 		TimerArray[idx].counterhistory.history = AllocClearedArray(120);
 		TimerArray[idx].counterhistory.prc = AllocClearedArray(120);
@@ -6135,8 +6253,8 @@ function AddTimer(T)
 
 function AllocClearedArray(Size)
 {
-	var A = new Array(Size);
-	for(var i = 0; i < Size; ++i)
+	let A = new Array(Size);
+	for(let i = 0; i < Size; ++i)
 	{
 		A[i] = 0;
 	}
@@ -6889,7 +7007,7 @@ function MouseHandleDrag()
 						nOffsetMenuFunctions = 0;
 					}
 				}
-				else if(SubMenuActive == SubMenuGroups)
+				else if(SubMenuActive == SubMenuGroup)
 				{
 					nOffsetMenuGroup -= Y;
 					if(nOffsetMenuGroup < 0)

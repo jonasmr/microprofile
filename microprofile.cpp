@@ -8182,10 +8182,11 @@ void MicroProfileWebSocketSendEntry(uint32_t id, uint32_t parent, const char* pN
 	MicroProfileWSFlush();
 }
 
-void MicroProfileWebSocketSendCounterEntry(uint32_t id, uint32_t parent, const char* pName, int64_t nLimit, int nFormat)
+void MicroProfileWebSocketSendCounterEntry(uint32_t id, uint32_t parent, const char* pName, int nEnabled, int64_t nLimit, int nFormat)
 {
 	MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
 	MicroProfileWSPrintf("\"name\":\"%s\",", pName);
+	MicroProfileWSPrintf("\"e\":%d,", nEnabled);
 	MicroProfileWSPrintf("\"limit\":%d,", nLimit);
 	MicroProfileWSPrintf("\"format\":%d", nFormat);
 	MicroProfileWSPrintf("}}");
@@ -8229,7 +8230,7 @@ void MicroProfileWebSocketSendState(MpSocket C)
 			MicroProfileCounterInfo& CI = S.CounterInfo[i];
 			uint32_t id = MicroProfileWebSocketIdPack(TYPE_COUNTER, i);
 			uint32_t parent = CI.nParent == -1 ? 0u : MicroProfileWebSocketIdPack(TYPE_COUNTER, CI.nParent);
-			MicroProfileWebSocketSendCounterEntry(id, parent, CI.pName, CI.nLimit, CI.eFormat);
+			MicroProfileWebSocketSendCounterEntry(id, parent, CI.pName, MicroProfileWebSocketCounterEnabled(i), CI.nLimit, CI.eFormat);
 		}
 #if MICROPROFILE_CONTEXT_SWITCH_TRACE
 		MicroProfileWebSocketSendEntry(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_CONTEXT_SWITCH_TRACE), 0, "Context Switch Trace", S.bContextSwitchRunning, (uint32_t)-1);

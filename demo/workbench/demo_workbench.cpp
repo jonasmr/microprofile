@@ -229,7 +229,7 @@ int main(int argc, char* argv[])
 
 	MICROPROFILE_COUNTER_ADD("memory/main", 1000);
 	MICROPROFILE_COUNTER_ADD("memory/gpu/vertexbuffers", 1000);
-	MICROPROFILE_COUNTER_ADD("memory/gpu/indexbuffersxsxsxsxsxsxsxxsxsxsxs", 200);
+	MICROPROFILE_COUNTER_ADD("memory/gpu/indexbuffersxsxsxsxsxsxsxxasdfasdfasdfasdfasdfsxsxsxs", 200);
 	MICROPROFILE_COUNTER_ADD("memory//main", 1000);
 	MICROPROFILE_COUNTER_ADD("memory//", 1000);
 	MICROPROFILE_COUNTER_ADD("//memory//mainx/\\//", 1000);
