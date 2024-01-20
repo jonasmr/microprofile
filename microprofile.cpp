@@ -7000,6 +7000,24 @@ void MicroProfileWebSocketClearTimers()
 		S.WebSocketTimers = nNext;
 	}
     MP_ASSERT(S.WebSocketTimers == -1);
+	while(S.WebSocketCounters > -1)
+	{
+		int nNext = S.CounterInfo[S.WebSocketCounters].nWSNext;
+		S.CounterInfo[S.WebSocketCounters].nWSNext = -2;
+		S.WebSocketCounters = nNext;
+	}
+    MP_ASSERT(S.WebSocketCounters == -1);
+
+	while(S.WebSocketGroups > -1)
+	{
+		int nNext = S.GroupInfo[S.WebSocketGroups].nWSNext;
+		S.GroupInfo[S.WebSocketGroups].nWSNext = -2;
+		S.WebSocketGroups = nNext;
+	}
+    MP_ASSERT(S.WebSocketGroups == -1);
+
+
+
 
 	S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
 }
