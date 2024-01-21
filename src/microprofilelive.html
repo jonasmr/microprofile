@@ -286,20 +286,19 @@ var WidthTree = 0;
 Settings.ViewActive = 0;
 Settings.ViewCompressed = 0;
 Settings.AllowHighDPI = 1;
-var ViewNames = ["Graph", "Graph", "Graph", "Bars", "Bars", "Bars", "Counters"];
-var ViewNames2 = ["[split]", "[percentile]","[group/thread]","[table]", "[all]", "[single]", ""];
+const ViewNames = ["Graph", "Graph", "Graph", "Bars", "Bars", "Bars", "Counters"];
+const ViewNames2 = ["[split]", "[percentile]","[group/thread]","[table]", "[all]", "[single]", ""];
 
-var VIEW_GRAPH_SPLIT = 0;
+const VIEW_GRAPH_SPLIT = 0;
 // var VIEW_GRAPH = 1;
-var VIEW_GRAPH_PERCENTILE = 1;
-var VIEW_GRAPH_THREAD_GROUP = 2;
-var VIEW_BAR = 3;
-var VIEW_BAR_ALL = 4;
-var VIEW_BAR_SINGLE = 5;
-var VIEW_COUNTERS = 6;
-var VIEW_SIZE = 7;
-
-var GRAPH_ALPHA = 0.5;
+const VIEW_GRAPH_PERCENTILE = 1;
+const VIEW_GRAPH_THREAD_GROUP = 2;
+const VIEW_BAR = 3;
+const VIEW_BAR_ALL = 4;
+const VIEW_BAR_SINGLE = 5;
+const VIEW_COUNTERS = 6;
+const VIEW_SIZE = 7;
+const GRAPH_ALPHA = 0.5;
 
 
 // Settings.FancyGraph = 1;
@@ -307,62 +306,64 @@ Settings.AutomaticReference = 0;
 Cookie.CodeReportMode = 0; // 0: prompt, 1:always send, 2: never send, never prompt
 
 
-var ReferenceHistory = 0;
-var ReferenceGraph = 0;
-var ReferenceBar = 0;
-var ReferenceHistoryAutomatic = 0;
-var ReferenceGraphAutomatic = 0;
-var ReferenceGraphAutomaticGroup = 0;
-var ReferenceBarAutomatic = 0;
+let ReferenceHistory = 0;
+let ReferenceGraph = 0;
+let ReferenceBar = 0;
+let ReferenceHistoryAutomatic = 0;
+let ReferenceGraphAutomatic = 0;
+let ReferenceGraphAutomaticGroup = 0;
+let ReferenceBarAutomatic = 0;
 
-var SingleTimerBars = 0;
-var History;
-var MainView;
-var X7Views;
-var X7LegendView;
-var X7BarColumnRemap = [0,1,2,3,4,5,6];
-var X7BarColumnMask = -1;
-var X7LegendOffset = 25;
-var X7BarLastView = -1;
-var X7BarFirstView = -1;
+let SingleTimerBars = 0;
+let History;
+let MainView;
+let X7Views;
+let X7LegendView;
+let X7BarColumnRemap = [0,1,2,3,4,5,6];
+let X7BarColumnMask = -1;
+let X7LegendOffset = 25;
+let X7BarLastView = -1;
+let X7BarFirstView = -1;
 
 
-var ViewBarMaxMsTextLength = 0;
+let ViewBarMaxMsTextLength = 0;
 
 Settings.SortColumnOrderFlip = 0;
 Settings.SortColumnName = "";
 var SortColumnMouseOverNext = "";
 
 
-var KeyShiftDown = 0;
-var KeyCtrlDown = 0;
+let KeyShiftDown = 0;
+let KeyCtrlDown = 0;
+let PromptActive = 0;
+let PromptExitTime = new Date();
 
-var IsFrozen = 0;
+let IsFrozen = 0;
 
-var PresetToLoad;
-var PresetToLoadRO = 0;
-var HelpFade;
+let PresetToLoad;
+let PresetToLoadRO = 0;
+let HelpFade;
 
 
 TimerArray.push(Empty); // 0 is root of tree
 
-var StrTime = "Time";
-var StrExclusive = "Excl Time";
-var StrGroup = "Group";
-var StrThread = "Thread";
-var StrTimer = "Timer";
-var StrAverage = "Average";
-var StrMax = "Max";
-var StrTotal = "Total";
-var StrExclTotal = "Excl Total";
-var StrMin = "Min";
-var StrSpike = "Spike%";
-var StrCallAverage = "Call Average";
-var StrCount = "Count";
-var StrExclAverage = "Excl Average";
-var StrExclMax = "Excl Max";
-var StrExclMin = "Excl Max";
-var StrCallExclAverage = "Call Excl Avg";
+const StrTime = "Time";
+const StrExclusive = "Excl Time";
+const StrGroup = "Group";
+const StrThread = "Thread";
+const StrTimer = "Timer";
+const StrAverage = "Average";
+const StrMax = "Max";
+const StrTotal = "Total";
+const StrExclTotal = "Excl Total";
+const StrMin = "Min";
+const StrSpike = "Spike%";
+const StrCallAverage = "Call Average";
+const StrCount = "Count";
+const StrExclAverage = "Excl Average";
+const StrExclMax = "Excl Max";
+const StrExclMin = "Excl Max";
+const StrCallExclAverage = "Call Excl Avg";
 
 
 let CounterNameWidth = 100;
@@ -371,13 +372,13 @@ let CounterFullNameWidth = 100;
 let CounterValueWidth = 100;
 let CounterLimitWidth = 100;
 
-var FormatCounterDefault = 0;
-var FormatCounterBytes = 1;
+const FormatCounterDefault = 0;
+const FormatCounterBytes = 1;
 const FormatCounterBytesExt = ["b","kb","mb","gb","tb","pb","eb","zb","yb"];
 
-var BarColumnNamesTable = [StrTime, StrExclusive, StrAverage, StrMax, StrMin, StrTotal, StrExclAverage, StrExclMax, StrExclTotal, StrSpike, StrCallAverage, StrCallExclAverage, StrCount];
-var BarColumnNamesMulti = [StrTime, StrAverage, StrMax, StrMin, StrExclAverage, StrExclMax, StrExclMin];
-var BarColumnNamesSingle = [StrAverage, StrMax, StrMin, StrExclAverage, StrExclMax, StrExclMin, StrCallAverage];
+const BarColumnNamesTable = [StrTime, StrExclusive, StrAverage, StrMax, StrMin, StrTotal, StrExclAverage, StrExclMax, StrExclTotal, StrSpike, StrCallAverage, StrCallExclAverage, StrCount];
+const BarColumnNamesMulti = [StrTime, StrAverage, StrMax, StrMin, StrExclAverage, StrExclMax, StrExclMin];
+const BarColumnNamesSingle = [StrAverage, StrMax, StrMin, StrExclAverage, StrExclMax, StrExclMin, StrCallAverage];
 
 // var SYMBOLSTATE_DEFAULT = 0;
 // var SYMBOLSTATE_LOADING = 1;
@@ -3436,6 +3437,7 @@ function ProcessPresets(Data, Names, Cache)
 			Names.push(idx);
 		}
 		Cache[idx] = JSONTryParse(Data[idx]);
+		Cache[idx].PresetName = idx;
 	}
 }
 function AddPresets(Obj)
@@ -3490,14 +3492,14 @@ function EnableByName(name, type)
 }
 
 
-function OnLoadPreset(NewSettings, Apply, RO)
+function OnLoadPreset(NewSettings, Apply, RO, Name)
 {
 	if(Apply)
 	{
 		WSSendMessage("d");
 		PresetPending = 0;
 	}
-	ActivePreset = NewSettings.PresetName;
+	ActivePreset = Name ? Name : NewSettings.PresetName;
 	ActivePresetRO = RO ? 1 : 0;
 	console.log('loading preset ' + ActivePresetRO);
 	var EnableCount = 0;
@@ -4072,25 +4074,43 @@ function AutoCaptureSourceRoll(Direction, Tweak, SetDirect)
 
 	}
 }
+function IsPromptActive()
+{
+	let Delta = (new Date()) - PromptExitTime;
+	return !PromptActive || Delta > 200; //stall input 200ms
+}
+function EnterPrompt()
+{
+	PromptActive = 1;
+}
+function ExitPrompt()
+{
+	PromptActive = 0;
+	PromptExitTime = new Date();
+}
 
 function ShowPrompt(Title, Value, Type)
 {
-	var v;
+	PromptActive = 1;
+	EnterPrompt();
+	let v;
 	if(Type == 'int')
 	{
-		var newValue = prompt('' + Title, '' + Value);
+		let newValue = prompt('' + Title, '' + Value);
 		v = parseInt(newValue);
 	}
 	else if(Type == 'float')
 	{
-		var newValue = prompt('' + Title, '' + Value);
+		let newValue = prompt('' + Title, '' + Value);
 		v = parseFloat(newValue);
 	}
 	else
 	{
-		var v = prompt('' + Title, '' + Value);
+		let v = prompt('' + Title, '' + Value);
+		ExitPrompt();
 		return v;
 	}
+	ExitPrompt();
 	if(isNaN(v))
 	{
 		return Value;
@@ -6751,11 +6771,11 @@ function WSMessage(event)
 	}
 	else if(k == MSG_LOADSETTINGS)
 	{
-		OnLoadPreset(Obj.v, 1, Obj.ro);
+		OnLoadPreset(Obj.v, 1, Obj.ro, Obj.name);
 	}
 	else if(k == MSG_CURRENTSETTINGS)
 	{
-		OnLoadPreset(Obj.v, 0, Obj.ro);
+		OnLoadPreset(Obj.v, 0, Obj.ro, Obj.name);
 	}
 	else if(k == MSG_PRESETS)
 	{
@@ -7213,23 +7233,18 @@ function MouseOut(evt)
 	MouseDrag(MouseDragOff, evt);
 	KeyCtrlDown = 0;
 	KeyShiftDown = 0;
-	// MouseDragButton = 0;
-	// nHoverToken = -1;
-	// RangeCpu = RangeInit();
 }
 
 function MouseWheel(e)
 {
-//     var e = window.event || e;
-//     var delta = (e.wheelDelta || e.detail * (-120));
-//     ZoomGraph((-4 * delta / 120.0) | 0);
-//     Draw(1);
 }
 
 function KeyUp(evt)
 {
-	var k = evt.keyCode;
-	var InputActive = SubMenuActive == SubMenuTimers || SubMenuActive == SubMenuGroup || SubMenuActive == SubMenuCounters || SubMenuActive == SubMenuFunctions || SubMenuActive == SubMenuPatched || SubMenuActive == SubMenuModules;
+	let k = evt.keyCode;
+	let InputActive = SubMenuActive == SubMenuTimers || SubMenuActive == SubMenuGroup || SubMenuActive == SubMenuCounters || SubMenuActive == SubMenuFunctions || SubMenuActive == SubMenuPatched || SubMenuActive == SubMenuModules;
+	if(IsPromptActive())
+		return;
 	if(!InputActive)
 	{
 		if(k == 220)
@@ -7310,6 +7325,9 @@ function KeyUp(evt)
 
 function KeyDown(evt)
 {
+	if(IsPromptActive())
+		return;
+
 	// console.log("keydow ", k);
 	if(evt.keyCode == 17)
 	{

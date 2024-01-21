@@ -482,6 +482,7 @@ typedef uint32_t MicroProfileTimelineToken;
 
 
 
+
 #else
 
 #include <stdint.h>
@@ -886,6 +887,11 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #define MICROPROFILE_FLIP_FLAG_DEFAULT (0)
 #endif
 
+#ifndef MICROPROFILE_GET_SETTINGS_FILE_PATH
+#define MICROPROFILE_GET_SETTINGS_FILE_PATH "" 
+#endif
+
+
 #ifndef MICROPROFILE_MAX_CPU_CORES
 #define MICROPROFILE_MAX_CPU_CORES 256
 #endif
@@ -1037,7 +1043,6 @@ extern "C"
 	MICROPROFILE_API void MicroProfileCsvConfigAddTimer(const char* Group, const char* Timer, const char* DisplayName IF_CPP(= nullptr) );
 	MICROPROFILE_API void MicroProfileCsvConfigAddGroup(const char* Group, const char* DisplayName IF_CPP(= nullptr) );
 	MICROPROFILE_API void MicroProfileCsvConfigAddCounter(const char* CounterName, const char* DisplayName IF_CPP(= nullptr) );
-
 
 #ifdef __cplusplus
 }

@@ -96,6 +96,18 @@ void MicroProfileGpuSetCallbacks(MicroProfileGpuInsertTimeStamp_CB InsertTimeSta
 #define MP_LOG_EXTENDED 0x2
 #define MP_LOG_EXTENDED_NO_DATA 0x3
 
+
+#ifndef MICROPROFILE_SETTINGS_FILE
+#define MICROPROFILE_SETTINGS_FILE "mppresets.cfg"
+#endif
+#ifndef MICROPROFILE_SETTINGS_FILE_BUILTIN
+#define MICROPROFILE_SETTINGS_FILE_BUILTIN "mppresets.builtin.cfg"
+#endif
+#ifndef MICROPROFILE_SETTINGS_FILE_TEMP 
+#define MICROPROFILE_SETTINGS_FILE_TEMP ".tmp"
+#endif
+
+
 //#define MP_LOG_EXTRA_DATA 0x3
 
 static_assert(0 == (MICROPROFILE_MAX_GROUPS % 32), "MICROPROFILE_MAX_GROUPS must be divisible by 32");
@@ -965,6 +977,9 @@ struct MicroProfile
 	uint32_t nTimelineFrameMax;
 	MicroProfileFrameExtraCounterData* FrameExtraCounterData;
 	MicroProfileCsvConfig CsvConfig;
+	const char* pSettings;
+	const char* pSettingsReadOnly;
+	const char* pSettingsTemp;
 
 	uint32_t nNumLogs;
 	uint32_t nNumLogsGpu;
@@ -1039,6 +1054,7 @@ struct MicroProfile
 	uint32_t WSCountersSent;
 	MicroProfileWebSocketBuffer WSBuf;
 	char* pJsonSettings;
+	const char* pJsonSettingsName;
 	bool bJsonSettingsReadOnly;
 	uint32_t nJsonSettingsPending;
 	uint32_t nJsonSettingsBufferSize;
@@ -1680,6 +1696,7 @@ void MicroProfileInit()
 		MicroProfileGpuBegin(0, S.pGpuGlobal);
 
 		S.pJsonSettings = 0;
+		S.pJsonSettingsName = nullptr;
 		S.nJsonSettingsPending = 0;
 		S.nJsonSettingsBufferSize = 0;
 		S.nWSWasConnected = 0;
@@ -1696,6 +1713,22 @@ void MicroProfileInit()
 		S.nTimerNegativeCpuIndex = MicroProfileGetTimerIndex(S.nTokenNegativeCpu);
 		S.nTimerNegativeGpuIndex = MicroProfileGetTimerIndex(S.nTokenNegativeGpu);
 	}
+	{
+		auto DupeString = [](const char* BasePath, const char* File) -> const char*
+		{
+			size_t Len = strlen(BasePath) + strlen(File) + 1;
+			char* Data = (char*)MicroProfileAllocInternal(Len+1, 1);
+			snprintf(Data, Len,"%s%s", BasePath, File);
+			return Data;
+		};
+		const char* pBaseSettingsPath = MICROPROFILE_GET_SETTINGS_FILE_PATH;
+		S.pSettings = DupeString(pBaseSettingsPath, MICROPROFILE_SETTINGS_FILE);
+		S.pSettingsReadOnly = DupeString(pBaseSettingsPath, MICROPROFILE_SETTINGS_FILE_BUILTIN);
+		S.pSettingsTemp = DupeString(pBaseSettingsPath, MICROPROFILE_SETTINGS_FILE MICROPROFILE_SETTINGS_FILE_TEMP);
+	}
+
+
+
 #if MICROPROFILE_FRAME_EXTRA_DATA
 	S.FrameExtraCounterData = (MicroProfileFrameExtraCounterData*)1;
 #endif
@@ -1726,6 +1759,7 @@ void MicroProfileShutdown()
 		{
 			MP_FREE(S.pJsonSettings);
 			S.pJsonSettings = 0;
+			S.pJsonSettingsName = 0;
 			S.nJsonSettingsBufferSize = 0;
 		}
 		if(S.pGPU)
@@ -1754,6 +1788,13 @@ void MicroProfileShutdown()
 #endif
 			MP_FREE(S.PoolGpu[i]);
 		}
+		MicroProfileFreeInternal((void*)S.pSettings);
+		S.pSettings = nullptr;
+		MicroProfileFreeInternal((void*)S.pSettingsReadOnly);
+		S.pSettingsReadOnly= nullptr;
+		MicroProfileFreeInternal((void*)S.pSettingsTemp);
+		S.pSettingsTemp = nullptr;
+
 	}
 }
 
@@ -2425,7 +2466,7 @@ MicroProfileToken MicroProfileCounterTokenInit(int nParent)
 	S.CounterSource[nResult].nSourceSize = 0;
 	S.CounterInfo[nResult].nNameLen = 0;
 	S.CounterInfo[nResult].pName = nullptr;
-    S.CounterInfo[nResult].nWSNext = -2;    
+	S.CounterInfo[nResult].nWSNext = -2;    
 	if(nParent >= 0)
 	{
 		MP_ASSERT(nParent < (int)S.nNumCounters);
@@ -6999,14 +7040,14 @@ void MicroProfileWebSocketClearTimers()
 		S.TimerInfo[S.WebSocketTimers].nWSNext = -2;
 		S.WebSocketTimers = nNext;
 	}
-    MP_ASSERT(S.WebSocketTimers == -1);
+	MP_ASSERT(S.WebSocketTimers == -1);
 	while(S.WebSocketCounters > -1)
 	{
 		int nNext = S.CounterInfo[S.WebSocketCounters].nWSNext;
 		S.CounterInfo[S.WebSocketCounters].nWSNext = -2;
 		S.WebSocketCounters = nNext;
 	}
-    MP_ASSERT(S.WebSocketCounters == -1);
+	MP_ASSERT(S.WebSocketCounters == -1);
 
 	while(S.WebSocketGroups > -1)
 	{
@@ -7014,11 +7055,7 @@ void MicroProfileWebSocketClearTimers()
 		S.GroupInfo[S.WebSocketGroups].nWSNext = -2;
 		S.WebSocketGroups = nNext;
 	}
-    MP_ASSERT(S.WebSocketGroups == -1);
-
-
-
-
+	MP_ASSERT(S.WebSocketGroups == -1);
 	S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
 }
 void MicroProfileWebSocketToggleTimer(uint32_t nTimer)
@@ -7185,19 +7222,6 @@ struct MicroProfileSettingsHeader
 	uint32_t nNameSize;
 };
 
-typedef bool (*MicroProfileOnSettings)(const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJson);
-
-#ifndef MICROPROFILE_SETTINGS_FILE_PATH
-#define MICROPROFILE_SETTINGS_FILE_PATH ""
-#endif
-#ifndef MICROPROFILE_SETTINGS_FILE
-#define MICROPROFILE_SETTINGS_FILE MICROPROFILE_SETTINGS_FILE_PATH "mppresets.cfg"
-#endif
-#ifndef MICROPROFILE_SETTINGS_FILE_BUILTIN
-#define MICROPROFILE_SETTINGS_FILE_BUILTIN MICROPROFILE_SETTINGS_FILE_PATH "mppresets.builtin.cfg"
-#endif
-#define MICROPROFILE_SETTINGS_FILE_TEMP MICROPROFILE_SETTINGS_FILE ".tmp"
-
 template <typename T>
 void MicroProfileParseSettings(const char* pFileName, T CB)
 {
@@ -7326,11 +7350,12 @@ void MicroProfileParseSettings(const char* pFileName, T CB)
 	}
 }
 
+
 bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSettings)
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileGetMutex());
 
-	FILE* F = fopen(MICROPROFILE_SETTINGS_FILE_TEMP, "w");
+	FILE* F = fopen(S.pSettingsTemp, "w");
 	if(!F)
 	{
 		return false;
@@ -7338,7 +7363,7 @@ bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSetting
 
 	bool bWritten = false;
 
-	MicroProfileParseSettings(MICROPROFILE_SETTINGS_FILE, [&](const char* pName, uint32_t nNameSize, const char* pJson, uint32_t nJsonSize) -> bool {
+	MicroProfileParseSettings(S.pSettings, [&](const char* pName, uint32_t nNameSize, const char* pJson, uint32_t nJsonSize) -> bool {
 		fwrite(pName, nNameSize, 1, F);
 		fputc(' ', F);
 		if(0 != MP_STRCASECMP(pSettingsName, pName))
@@ -7363,11 +7388,11 @@ bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSetting
 	fflush(F);
 	fclose(F);
 #ifdef MICROPROFILE_MOVE_FILE
-	MICROPROFILE_MOVE_FILE(MICROPROFILE_SETTINGS_FILE_TEMP, MICROPROFILE_SETTINGS_FILE);
+	MICROPROFILE_MOVE_FILE(S.pSettingsTemp, S.pSettings);
 #elif defined(_WIN32)
-	MoveFileExA(MICROPROFILE_SETTINGS_FILE_TEMP, MICROPROFILE_SETTINGS_FILE, MOVEFILE_REPLACE_EXISTING);
+	MoveFileExA(S.pSettingsTemp, S.pSettings, MOVEFILE_REPLACE_EXISTING);
 #else
-	rename(MICROPROFILE_SETTINGS_FILE_TEMP, MICROPROFILE_SETTINGS_FILE);
+	rename(S.pSettingsTemp, S.pSettings);
 #endif
 	return false;
 }
@@ -7403,7 +7428,7 @@ void MicroProfileWebSocketSendPresets(MpSocket Connection)
 	MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{", MSG_PRESETS);
 	MicroProfileWSPrintf("\"p\":{\"Default\":\"{}\"");
 
-	MicroProfileParseSettings(MICROPROFILE_SETTINGS_FILE, [](const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJsonLen) {
+	MicroProfileParseSettings(S.pSettings, [](const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJsonLen) {
 		MicroProfileWSPrintf(",\"%s\":", pName);
 		MicroProfileWriteJsonString(pJson, nJsonLen);
 
@@ -7411,7 +7436,7 @@ void MicroProfileWebSocketSendPresets(MpSocket Connection)
 	});
 	MicroProfileWSPrintf("},\"r\":{");
 	bool bFirst = true;
-	MicroProfileParseSettings(MICROPROFILE_SETTINGS_FILE_BUILTIN, [&bFirst](const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJsonLen) {
+	MicroProfileParseSettings(S.pSettingsReadOnly, [&bFirst](const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJsonLen) {
 		MicroProfileWSPrintf("%c\"%s\":", bFirst ? ' ' : ',', pName);
 		MicroProfileWriteJsonString(pJson, nJsonLen);
 
@@ -7423,26 +7448,42 @@ void MicroProfileWebSocketSendPresets(MpSocket Connection)
 	MicroProfileWSPrintEnd();
 }
 
-void MicroProfileLoadPresets(const char* pSettingsName, bool bReadOnlyPreset)
+#define LOAD_PRESET_DEFAULT 0x1
+#define LOAD_PRESET_READONLY 0x2
+
+void MicroProfileLoadPresets(const char* pSettingsName, uint32_t nLoadPresetType)
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileGetMutex());
-	const char* pPresetFile = bReadOnlyPreset ? MICROPROFILE_SETTINGS_FILE_BUILTIN : MICROPROFILE_SETTINGS_FILE;
-	MicroProfileParseSettings(pPresetFile, [=](const char* pName, uint32_t l0, const char* pJson, uint32_t l1) {
-		if(0 == MP_STRCASECMP(pName, pSettingsName))
+	const char* pPresetFiles[] = {S.pSettings, S.pSettingsReadOnly};
+	for(uint32_t i = 0; i < 2; ++i)
+	{
+		if(nLoadPresetType & (1u<<i))
 		{
-			uint32_t nLen = (uint32_t)strlen(pJson) + 1;
-			if(nLen > S.nJsonSettingsBufferSize)
-			{
-				S.pJsonSettings = (char*)MP_REALLOC(S.pJsonSettings, nLen);
-				S.nJsonSettingsBufferSize = nLen;
-			}
-			memcpy(S.pJsonSettings, pJson, nLen);
-			S.nJsonSettingsPending = 1;
-			S.bJsonSettingsReadOnly = bReadOnlyPreset ? 1 : 0;
-			return false;
+			const char* pPresetFile = pPresetFiles[i];
+			bool bReadOnly = (1u<<i) == LOAD_PRESET_READONLY;
+			bool bSuccess = false;
+			MicroProfileParseSettings(pPresetFile, [&bSuccess, bReadOnly, pSettingsName](const char* pName, uint32_t l0, const char* pJson, uint32_t l1) {
+				if(0 == MP_STRCASECMP(pName, pSettingsName))
+				{
+					uint32_t nLen = (uint32_t)strlen(pJson) + 1;
+					if(nLen > S.nJsonSettingsBufferSize)
+					{
+						S.pJsonSettings = (char*)MP_REALLOC(S.pJsonSettings, nLen);
+						S.nJsonSettingsBufferSize = nLen;
+					}
+					S.pJsonSettingsName = pSettingsName;
+					memcpy(S.pJsonSettings, pJson, nLen);
+					S.nJsonSettingsPending = 1;
+					S.bJsonSettingsReadOnly = bReadOnly ? 1 : 0;
+					return false;
+				}
+				return true;
+			});
+			if(bSuccess)
+				return;
+
 		}
-		return true;
-	});
+	}
 }
 
 bool MicroProfileWebSocketReceive(MpSocket Connection)
@@ -7550,12 +7591,12 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 
 	case 'l':
 	{
-		MicroProfileLoadPresets((const char*)Bytes + 1, 0);
+		MicroProfileLoadPresets((const char*)Bytes + 1, LOAD_PRESET_DEFAULT);
 		break;
 	}
 	case 'm':
 	{
-		MicroProfileLoadPresets((const char*)Bytes + 1, 1);
+		MicroProfileLoadPresets((const char*)Bytes + 1, LOAD_PRESET_READONLY);
 		break;
 	}
 	case 'd':
@@ -7786,14 +7827,14 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 	if(!S.nWSWasConnected)
 	{
 		S.nWSWasConnected = 1;
-		MicroProfileLoadPresets("Default", 0);
+		MicroProfileLoadPresets("Default", LOAD_PRESET_DEFAULT|LOAD_PRESET_READONLY);
 	}
 	else
 	{
 		if(S.pJsonSettings)
 		{
 			MicroProfileWSPrintStart(Connection);
-			MicroProfileWSPrintf("{\"k\":\"%d\",\"ro\":%d,\"v\":%s}", MSG_CURRENTSETTINGS, S.bJsonSettingsReadOnly ? 1 : 0, S.pJsonSettings);
+			MicroProfileWSPrintf("{\"k\":\"%d\",\"ro\":%d,\"name\":\"%s\",\"v\":%s}", MSG_CURRENTSETTINGS, S.bJsonSettingsReadOnly ? 1 : 0, S.pJsonSettingsName ? S.pJsonSettingsName : "", S.pJsonSettings);
 			MicroProfileWSFlush();
 			MicroProfileWSPrintEnd();
 		}
@@ -8044,7 +8085,7 @@ void MicroProfileWebSocketFrame()
 			if(S.nJsonSettingsPending)
 			{
 				MicroProfileWSPrintStart(s);
-				MicroProfileWSPrintf("{\"k\":\"%d\",\"ro\":%d,\"v\":%s}", MSG_LOADSETTINGS, S.bJsonSettingsReadOnly ? 1 : 0, S.pJsonSettings);
+				MicroProfileWSPrintf("{\"k\":\"%d\",\"ro\":%d,\"name\":\"%s\",\"v\":%s}", MSG_LOADSETTINGS, S.bJsonSettingsReadOnly ? 1 : 0, S.pJsonSettingsName ? S.pJsonSettingsName : "", S.pJsonSettings);
 				MicroProfileWSFlush();
 				MicroProfileWSPrintEnd();
 				S.nJsonSettingsPending = 0;
