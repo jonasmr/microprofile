@@ -32,6 +32,13 @@
 #include <unistd.h>
 #endif
 
+#ifdef _WIN32
+#include <windows.h>
+#include <stdio.h>
+#include <psapi.h>
+#endif
+
+
 //generate zipped results
 #define MICROPROFILE_MINIZ 1
 #if MICROPROFILE_MINIZ
@@ -443,6 +450,49 @@ int main(int argc, char* argv[])
 		int cosinus = int(cosf(f*1.3f) * 100000 + 50000);
 		MICROPROFILE_COUNTER_SET("/test/sinus", sinus);
 		MICROPROFILE_COUNTER_SET("/test/cosinus", cosinus);
+
+#ifdef _WIN32
+		typedef struct _PROCESS_MEMORY_COUNTERS_EX2 {
+			DWORD   cb;
+			DWORD   PageFaultCount;
+			SIZE_T  PeakWorkingSetSize;
+			SIZE_T  WorkingSetSize;
+			SIZE_T  QuotaPeakPagedPoolUsage;
+			SIZE_T  QuotaPagedPoolUsage;
+			SIZE_T  QuotaPeakNonPagedPoolUsage;
+			SIZE_T  QuotaNonPagedPoolUsage;
+			SIZE_T  PagefileUsage;
+			SIZE_T  PeakPagefileUsage;
+			SIZE_T  PrivateUsage;
+			SIZE_T  PrivateWorkingSetSize;
+			ULONG64 SharedCommitUsage;
+		} PROCESS_MEMORY_COUNTERS_EX2;
+
+		PROCESS_MEMORY_COUNTERS_EX2 pmc;
+		static HANDLE hProcess = OpenProcess(  PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, GetCurrentProcessId() );
+		if(GetProcessMemoryInfo(hProcess, (PPROCESS_MEMORY_COUNTERS)&pmc, sizeof(pmc)))
+		{
+			if(sizeof(pmc) == pmc.cb)
+			{
+
+				MICROPROFILE_COUNTER_CONFIG_ONCE("/windows/PeakWorkingSetSize", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
+				MICROPROFILE_COUNTER_CONFIG_ONCE("/windows/WorkingSetSize", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
+				MICROPROFILE_COUNTER_CONFIG_ONCE("/windows/PrivateUsage", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
+				MICROPROFILE_COUNTER_CONFIG_ONCE("/windows/PrivateWorkingSetSize", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
+				MICROPROFILE_COUNTER_CONFIG_ONCE("/windows/SharedCommitUsage", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
+				MICROPROFILE_COUNTER_CONFIG_ONCE("/windows/PeakPagefileUsage", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
+				MICROPROFILE_COUNTER_CONFIG_ONCE("/windows/PagefileUsage", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
+				MICROPROFILE_COUNTER_SET("/windows/PeakWorkingSetSize", pmc.PeakWorkingSetSize);
+				MICROPROFILE_COUNTER_SET("/windows/WorkingSetSize", pmc.WorkingSetSize);
+				MICROPROFILE_COUNTER_SET("/windows/PrivateUsage", pmc.PrivateUsage);
+				MICROPROFILE_COUNTER_SET("/windows/PrivateWorkingSetSize", pmc.PrivateWorkingSetSize);
+				MICROPROFILE_COUNTER_SET("/windows/SharedCommitUsage", pmc.SharedCommitUsage);
+				MICROPROFILE_COUNTER_SET("/windows/PeakPagefileUsage", pmc.PeakPagefileUsage);
+				MICROPROFILE_COUNTER_SET("/windows/PagefileUsage", pmc.PagefileUsage);
+			}
+		}
+
+#endif
 	}
 
 	StopFakeWork();
