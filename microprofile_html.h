@@ -9647,7 +9647,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "{\n"
 "	if(T.idtype == TYPE_COUNTER)\n"
 "	{\n"
-"		return V.toFixed(0);\n"
+"		return FormatCounter(T.format, V);\n"
 "	}\n"
 "	else\n"
 "	{\n"
@@ -10183,11 +10183,11 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "	}\n"
 "	function DrawMeta(Value, Width, Dec, YText)\n"
 "	{\n"
-"		Value = FormatMeta(Value,";
+"		Value = For";
 
 const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
 const char g_MicroProfileHtmlLive_begin_1[] =
-" Dec);\n"
+"matMeta(Value, Dec);\n"
 "		X += (FontWidth*Width);\n"
 "		context.textAlign = \'right\';\n"
 "		context.fillText(Value, X-FontWidth, YText);\n"
@@ -10786,7 +10786,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "			{\n"
 "				let Max = Valid ? TimerState.PercentileMax : 1;\n"
 "				let Min = Valid ? TimerState.PercentileMin : 0;\n"
-"				let SubGraphSettings = GetSubGraphSettings(key);\n"
+"				let SubGraphSettings = GetSubGraphSettings(GetFullName(T));\n"
 "				let Percentile = 0.0;\n"
 "				if(Percentile == null)\n"
 "					Percentile = 0.0;\n"
@@ -11022,7 +11022,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "				let TimerState = TimerMap[key];\n"
 "				if(!IsGroup(key) && T.e)\n"
 "				{\n"
-"					let SubGraphSettings = GetSubGraphSettings(key);\n"
+"					let SubGraphSettings = GetSubGraphSettings(GetFullName(T));\n"
 "					let Reference = GetSubGraphReferenceTime(SubGraphSettings, TimerState);\n"
 "					let fHeightScale2 = gh / Reference;\n"
 "\n"
@@ -11527,12 +11527,12 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "{\n"
 "	ProfileEnter(\"DrawHistory\");\n"
 "	var Canvas = View.Canvas[View.BackBuffer];\n"
-"	var context = Canvas.getContext(\'2d\');\n"
-"	context.clearRect(0, 0, Vie";
+"	var context = Canvas.getContext";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-"w.w, View.h);\n"
+"(\'2d\');\n"
+"	context.clearRect(0, 0, View.w, View.h);\n"
 "	if(!FrameData.Time)\n"
 "		return;\n"
 "	var fHeight = View.h;\n"
@@ -11792,7 +11792,8 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "		if(!IsGroup(key))\n"
 "		{\n"
 "			let idx = GetTimer(key);\n"
-"			if(TimerArray[idx].e)\n"
+"			let T = TimerArray[idx];\n"
+"			if(T.e)\n"
 "			{\n"
 "				let X = XBase+1;\n"
 "				let Y = hstart+1;\n"
@@ -11807,7 +11808,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "				if(bMouseInside)\n"
 "				{\n"
 "					SubMenuGraphSettingsIndex = NumGraphs;\n"
-"					SubMenuGraphSettingsKey = key;\n"
+"					SubMenuGraphSettingsKey = GetFullName(T);\n"
 "					CaptureButtonX = X + w2 + 2;\n"
 "					CaptureButtonY = Y;\n"
 "					EnableMenu(SubMenuGraphSettings);\n"
@@ -12306,7 +12307,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "		let parent = T.parent;\n"
 "		let ParentName = \"unknown\";\n"
 "		let Name = T.name;\n"
-"		if(parent && parent < TimerArray.length)\n"
+"		if(parent && parent >= 0 && parent < TimerArray.length)\n"
 "		{\n"
 "			ParentName = TimerArray[parent].name;\n"
 "		}\n"
@@ -12925,7 +12926,8 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "function IsPromptActive()\n"
 "{\n"
 "	let Delta = (new Date()) - PromptExitTime;\n"
-"	return !PromptActive || Delta > 200; //stall input 200ms\n"
+"	let Result = PromptActive || Delta < 200;\n"
+"	return Result;\n"
 "}\n"
 "function EnterPrompt()\n"
 "{\n"
@@ -13018,13 +13020,13 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	M.y += BoxHeight;\n"
 "	return bMouseIn && MouseReleased;\n"
 "}\n"
-"function DrawMenuRoll(M, Name, RollValue, RollExt, RollFunction, Tweak, Type)\n"
-"{\n"
-"	var conte";
+"function Draw";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-"xt = CanvasDetailedView.getContext(\'2d\');\n"
+"MenuRoll(M, Name, RollValue, RollExt, RollFunction, Tweak, Type)\n"
+"{\n"
+"	var context = CanvasDetailedView.getContext(\'2d\');\n"
 "\n"
 "	var YText = M.y + BoxHeight - FontAscent;\n"
 "	var SizeMinus = context.measureText(\'-\').width;\n"
@@ -13197,7 +13199,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "	let context = CanvasDetailedView.getContext(\'2d\');\n"
 "	context.fillRect(M.x, M.y, Width, SizeInfo.h);\n"
 "	let SubGraphSettings = GetSubGraphSettings(SubMenuGraphSettingsKey);\n"
-"	let idx = GetTimer(SubMenuGraphSettingsKey);\n"
+"	let idx = GetTimerFromFullName(SubMenuGraphSettingsKey);\n"
 "	let T = TimerArray[idx];\n"
 "\n"
 "\n"
@@ -13221,7 +13223,6 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "	}\n"
 "	if(Percentile)\n"
 "	{\n"
-"		//PercentileTweak = DrawMenuRoll(M, \"Percentile\", SubGraphSettings.Percentile, \'\', PercentileRollSubGraph, PercentileTweak, \'int\');\n"
 "		if(DrawMenuElement(M, 0, \"Clear Aggregate\", \"\", \'white\'))\n"
 "		{\n"
 "			ClearPercentile(SubMenuGraphSettingsKey);\n"
@@ -13231,20 +13232,24 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "	{\n"
 "		let str = T.idtype == TYPE_TIMER ? \"TIMERS\" : \"COUNTERS\"\n"
 "		DrawMenuElement(M, 0, \"--- ALL \" + str + \"  -- \", \"\", \'white\');\n"
-"		let Old = SubGraphSettings.ReferenceTime;\n"
 "		let Apply = function(Callback){\n"
 " 			let AllSettings = Percentile ? Settings.SubGraphSettingsPercentile : Settings.SubGraphSettings;\n"
 " 			for(let key in AllSettings)\n"
 " 			{\n"
-" 				let idx = GetTimer(key);\n"
-" 				let T0 = TimerArray[idx];\n"
-" 				if(T0.idtype == T.idtype)\n"
+" 				let idx = GetTimerFromFullName(key);\n"
+" 				if(idx)\n"
 " 				{\n"
-" 					Callback(AllSettings[key], key);\n"
-" 				}\n"
+"	 				let T0 = TimerArray[idx];\n"
+"	 				if(T0.idtype == T.idtype)\n"
+"	 				{\n"
+"	 					Callback(AllSettings[key], key);\n"
+"	 				}\n"
+"	 			}\n"
 " 			}		\n"
 "		}\n"
-"		if(DrawMenuRoll(M, \"Reference Value\", SubGraphSettings.ReferenceTime, \'\', ReferenceRollSubGraph, ReferenceTimeTweak, \'int\'))\n"
+"		let Old = SubGraphSettings.ReferenceTime;\n"
+"		DrawMenuRoll(M, \"Reference Value\", SubGraphSettings.ReferenceTime, \'\', ReferenceRollSubGraph, ReferenceTimeTweak, \'int\')\n"
+"		if(Old != SubGraphSettings.ReferenceTime)\n"
 "		{\n"
 "			Apply(function(T){\n"
 "				T.ReferenceTime = SubGraphSettings.ReferenceTime;\n"
@@ -14303,11 +14308,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "						context.fillRect(Corner, Y, W, BoxHeight);\n"
 "						context.fillStyle = Color;\n"
 "						context.textAlign = \'center\';\n"
-"						context.fillText(\">>\", Corner + Math.floor(W";
+"						conte";
 
 const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
 const char g_MicroProfileHtmlLive_begin_4[] =
-" / 2), TextY);\n"
+"xt.fillText(\">>\", Corner + Math.floor(W / 2), TextY);\n"
 "\n"
 "						context.textAlign = \'left\';\n"
 "					}\n"
@@ -14906,6 +14911,17 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "	for(var i = 0; i < TimerArray.length; ++i)\n"
 "	{\n"
 "		if(TimerArray[i].id == id)\n"
+"		{\n"
+"			return i;\n"
+"		}\n"
+"	}\n"
+"	return null;\n"
+"}\n"
+"function GetTimerFromFullName(Name)\n"
+"{\n"
+"	for(let i = 0; i < TimerArray.length; ++i)\n"
+"	{\n"
+"		if(GetFullName(TimerArray[i]) == Name)\n"
 "		{\n"
 "			return i;\n"
 "		}\n"
@@ -15730,7 +15746,11 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "{\n"
 "	console.log(\'WSClose\');\n"
 "	WSIsOpen = 0;\n"
-"	window.document.title = \"MicroProfile Live\";\n"
+"	window.document.title = \"Micro";
+
+const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
+const char g_MicroProfileHtmlLive_begin_5[] =
+"Profile Live\";\n"
 "	FilterInputDiv.style[\'display\'] = \'none\';\n"
 "}\n"
 "function WSSendMessage(msgid)\n"
@@ -15744,11 +15764,7 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "	}\n"
 "	else\n"
 "	{\n"
-"		i";
-
-const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
-const char g_MicroProfileHtmlLive_begin_5[] =
-"f(msgid[0] == \'c\')\n"
+"		if(msgid[0] == \'c\')\n"
 "		{\n"
 "			console.log(\'failing to send \' + msgid);\n"
 "		}\n"

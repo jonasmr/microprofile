@@ -1942,7 +1942,7 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 			{
 				let Max = Valid ? TimerState.PercentileMax : 1;
 				let Min = Valid ? TimerState.PercentileMin : 0;
-				let SubGraphSettings = GetSubGraphSettings(key);
+				let SubGraphSettings = GetSubGraphSettings(GetFullName(T));
 				let Percentile = 0.0;
 				if(Percentile == null)
 					Percentile = 0.0;
@@ -2178,7 +2178,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 				let TimerState = TimerMap[key];
 				if(!IsGroup(key) && T.e)
 				{
-					let SubGraphSettings = GetSubGraphSettings(key);
+					let SubGraphSettings = GetSubGraphSettings(GetFullName(T));
 					let Reference = GetSubGraphReferenceTime(SubGraphSettings, TimerState);
 					let fHeightScale2 = gh / Reference;
 
@@ -2944,7 +2944,8 @@ function DrawGraphSettingsMenu(context, XBase, Y, width, height)
 		if(!IsGroup(key))
 		{
 			let idx = GetTimer(key);
-			if(TimerArray[idx].e)
+			let T = TimerArray[idx];
+			if(T.e)
 			{
 				let X = XBase+1;
 				let Y = hstart+1;
@@ -2959,7 +2960,7 @@ function DrawGraphSettingsMenu(context, XBase, Y, width, height)
 				if(bMouseInside)
 				{
 					SubMenuGraphSettingsIndex = NumGraphs;
-					SubMenuGraphSettingsKey = key;
+					SubMenuGraphSettingsKey = GetFullName(T);
 					CaptureButtonX = X + w2 + 2;
 					CaptureButtonY = Y;
 					EnableMenu(SubMenuGraphSettings);
@@ -3458,7 +3459,7 @@ function GetFullName(T)
 		let parent = T.parent;
 		let ParentName = "unknown";
 		let Name = T.name;
-		if(parent && parent < TimerArray.length)
+		if(parent && parent >= 0 && parent < TimerArray.length)
 		{
 			ParentName = TimerArray[parent].name;
 		}
@@ -4077,7 +4078,8 @@ function AutoCaptureSourceRoll(Direction, Tweak, SetDirect)
 function IsPromptActive()
 {
 	let Delta = (new Date()) - PromptExitTime;
-	return !PromptActive || Delta > 200; //stall input 200ms
+	let Result = PromptActive || Delta < 200;
+	return Result;
 }
 function EnterPrompt()
 {
@@ -4345,7 +4347,7 @@ function DrawMenuGraphSettings()
 	let context = CanvasDetailedView.getContext('2d');
 	context.fillRect(M.x, M.y, Width, SizeInfo.h);
 	let SubGraphSettings = GetSubGraphSettings(SubMenuGraphSettingsKey);
-	let idx = GetTimer(SubMenuGraphSettingsKey);
+	let idx = GetTimerFromFullName(SubMenuGraphSettingsKey);
 	let T = TimerArray[idx];
 
 
@@ -4369,7 +4371,6 @@ function DrawMenuGraphSettings()
 	}
 	if(Percentile)
 	{
-		//PercentileTweak = DrawMenuRoll(M, "Percentile", SubGraphSettings.Percentile, '', PercentileRollSubGraph, PercentileTweak, 'int');
 		if(DrawMenuElement(M, 0, "Clear Aggregate", "", 'white'))
 		{
 			ClearPercentile(SubMenuGraphSettingsKey);
@@ -4379,20 +4380,24 @@ function DrawMenuGraphSettings()
 	{
 		let str = T.idtype == TYPE_TIMER ? "TIMERS" : "COUNTERS"
 		DrawMenuElement(M, 0, "--- ALL " + str + "  -- ", "", 'white');
-		let Old = SubGraphSettings.ReferenceTime;
 		let Apply = function(Callback){
  			let AllSettings = Percentile ? Settings.SubGraphSettingsPercentile : Settings.SubGraphSettings;
  			for(let key in AllSettings)
  			{
- 				let idx = GetTimer(key);
- 				let T0 = TimerArray[idx];
- 				if(T0.idtype == T.idtype)
+ 				let idx = GetTimerFromFullName(key);
+ 				if(idx)
  				{
- 					Callback(AllSettings[key], key);
- 				}
+	 				let T0 = TimerArray[idx];
+	 				if(T0.idtype == T.idtype)
+	 				{
+	 					Callback(AllSettings[key], key);
+	 				}
+	 			}
  			}		
 		}
-		if(DrawMenuRoll(M, "Reference Value", SubGraphSettings.ReferenceTime, '', ReferenceRollSubGraph, ReferenceTimeTweak, 'int'))
+		let Old = SubGraphSettings.ReferenceTime;
+		DrawMenuRoll(M, "Reference Value", SubGraphSettings.ReferenceTime, '', ReferenceRollSubGraph, ReferenceTimeTweak, 'int')
+		if(Old != SubGraphSettings.ReferenceTime)
 		{
 			Apply(function(T){
 				T.ReferenceTime = SubGraphSettings.ReferenceTime;
@@ -6050,6 +6055,17 @@ function GetTimer(id)
 	for(var i = 0; i < TimerArray.length; ++i)
 	{
 		if(TimerArray[i].id == id)
+		{
+			return i;
+		}
+	}
+	return null;
+}
+function GetTimerFromFullName(Name)
+{
+	for(let i = 0; i < TimerArray.length; ++i)
+	{
+		if(GetFullName(TimerArray[i]) == Name)
 		{
 			return i;
 		}
