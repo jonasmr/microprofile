@@ -807,7 +807,7 @@ function FormatTimeText(V, T)
 {
 	if(T.idtype == TYPE_COUNTER)
 	{
-		return V.toFixed(0);
+		return FormatCounter(T.format, V);
 	}
 	else
 	{
