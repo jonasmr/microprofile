@@ -96,6 +96,18 @@ void MicroProfileGpuSetCallbacks(MicroProfileGpuInsertTimeStamp_CB InsertTimeSta
 #define MP_LOG_EXTENDED 0x2
 #define MP_LOG_EXTENDED_NO_DATA 0x3
 
+
+#ifndef MICROPROFILE_SETTINGS_FILE
+#define MICROPROFILE_SETTINGS_FILE "mppresets.cfg"
+#endif
+#ifndef MICROPROFILE_SETTINGS_FILE_BUILTIN
+#define MICROPROFILE_SETTINGS_FILE_BUILTIN "mppresets.builtin.cfg"
+#endif
+#ifndef MICROPROFILE_SETTINGS_FILE_TEMP 
+#define MICROPROFILE_SETTINGS_FILE_TEMP ".tmp"
+#endif
+
+
 //#define MP_LOG_EXTRA_DATA 0x3
 
 static_assert(0 == (MICROPROFILE_MAX_GROUPS % 32), "MICROPROFILE_MAX_GROUPS must be divisible by 32");
@@ -452,6 +464,7 @@ struct MicroProfileGroupInfo
 	uint32_t nColor;
 	uint32_t nCategory;
 	MicroProfileTokenType Type;
+	int nWSNext;
 };
 
 struct MicroProfileTimerInfo
@@ -465,7 +478,6 @@ struct MicroProfileTimerInfo
 	uint32_t nColor;
 	int nWSNext;
 	bool bGraph;
-	bool bWSEnabled;
 	MicroProfileTokenType Type;
 	uint32_t Flags;
 };
@@ -480,6 +492,7 @@ struct MicroProfileCounterInfo
 	const char* pName;
 	uint32_t nFlags;
 	int64_t nLimit;
+	int nWSNext;
 	MicroProfileCounterFormat eFormat;
 	std::atomic<int64_t> ExternalAtomic;
 };
@@ -964,6 +977,9 @@ struct MicroProfile
 	uint32_t nTimelineFrameMax;
 	MicroProfileFrameExtraCounterData* FrameExtraCounterData;
 	MicroProfileCsvConfig CsvConfig;
+	const char* pSettings;
+	const char* pSettingsReadOnly;
+	const char* pSettingsTemp;
 
 	uint32_t nNumLogs;
 	uint32_t nNumLogsGpu;
@@ -1020,6 +1036,8 @@ struct MicroProfile
 	uint64_t nWebServerDataSent;
 
 	int WebSocketTimers;
+	int WebSocketCounters;
+	int WebSocketGroups;
 	uint32_t nWebSocketDirty;
 	MpSocket WebSockets[1];
 	int64_t WebSocketFrameLast[1];
@@ -1036,6 +1054,7 @@ struct MicroProfile
 	uint32_t WSCountersSent;
 	MicroProfileWebSocketBuffer WSBuf;
 	char* pJsonSettings;
+	const char* pJsonSettingsName;
 	bool bJsonSettingsReadOnly;
 	uint32_t nJsonSettingsPending;
 	uint32_t nJsonSettingsBufferSize;
@@ -1658,6 +1677,8 @@ void MicroProfileInit()
 		S.nWebServerPort = MICROPROFILE_WEBSERVER_PORT; // Use defined value as default port
 		S.nWebServerDataSent = (uint64_t)-1;
 		S.WebSocketTimers = -1;
+		S.WebSocketCounters = -1;
+		S.WebSocketGroups = -1;
 		S.nSocketFail = 0;
 
 		S.DumpFrameCount = MICROPROFILE_WEBSERVER_DEFAULT_FRAMES;
@@ -1675,6 +1696,7 @@ void MicroProfileInit()
 		MicroProfileGpuBegin(0, S.pGpuGlobal);
 
 		S.pJsonSettings = 0;
+		S.pJsonSettingsName = nullptr;
 		S.nJsonSettingsPending = 0;
 		S.nJsonSettingsBufferSize = 0;
 		S.nWSWasConnected = 0;
@@ -1691,6 +1713,22 @@ void MicroProfileInit()
 		S.nTimerNegativeCpuIndex = MicroProfileGetTimerIndex(S.nTokenNegativeCpu);
 		S.nTimerNegativeGpuIndex = MicroProfileGetTimerIndex(S.nTokenNegativeGpu);
 	}
+	{
+		auto DupeString = [](const char* BasePath, const char* File) -> const char*
+		{
+			size_t Len = strlen(BasePath) + strlen(File) + 1;
+			char* Data = (char*)MicroProfileAllocInternal(Len+1, 1);
+			snprintf(Data, Len,"%s%s", BasePath, File);
+			return Data;
+		};
+		const char* pBaseSettingsPath = MICROPROFILE_GET_SETTINGS_FILE_PATH;
+		S.pSettings = DupeString(pBaseSettingsPath, MICROPROFILE_SETTINGS_FILE);
+		S.pSettingsReadOnly = DupeString(pBaseSettingsPath, MICROPROFILE_SETTINGS_FILE_BUILTIN);
+		S.pSettingsTemp = DupeString(pBaseSettingsPath, MICROPROFILE_SETTINGS_FILE MICROPROFILE_SETTINGS_FILE_TEMP);
+	}
+
+
+
 #if MICROPROFILE_FRAME_EXTRA_DATA
 	S.FrameExtraCounterData = (MicroProfileFrameExtraCounterData*)1;
 #endif
@@ -1721,6 +1759,7 @@ void MicroProfileShutdown()
 		{
 			MP_FREE(S.pJsonSettings);
 			S.pJsonSettings = 0;
+			S.pJsonSettingsName = 0;
 			S.nJsonSettingsBufferSize = 0;
 		}
 		if(S.pGPU)
@@ -1749,6 +1788,13 @@ void MicroProfileShutdown()
 #endif
 			MP_FREE(S.PoolGpu[i]);
 		}
+		MicroProfileFreeInternal((void*)S.pSettings);
+		S.pSettings = nullptr;
+		MicroProfileFreeInternal((void*)S.pSettingsReadOnly);
+		S.pSettingsReadOnly= nullptr;
+		MicroProfileFreeInternal((void*)S.pSettingsTemp);
+		S.pSettingsTemp = nullptr;
+
 	}
 }
 
@@ -2230,6 +2276,8 @@ uint16_t MicroProfileGetGroup(const char* pGroup, MicroProfileTokenType Type)
 	S.GroupInfo[S.nGroupCount].nMaxTimerNameLen = 0;
 	S.GroupInfo[S.nGroupCount].nColor = 0x42;
 	S.GroupInfo[S.nGroupCount].nCategory = 0;
+	S.GroupInfo[S.nGroupCount].nWSNext = -2;
+
 	uint32_t nIndex = S.nGroupCount / 32;
 	uint32_t nBit = S.nGroupCount % 32;
 	{
@@ -2318,8 +2366,7 @@ MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, ui
 	S.TimerInfo[nTimerIndex].nColor = nColor & 0xffffff;
 	S.TimerInfo[nTimerIndex].nGroupIndex = nGroupIndex;
 	S.TimerInfo[nTimerIndex].nTimerIndex = nTimerIndex;
-	S.TimerInfo[nTimerIndex].nWSNext = -1;
-	S.TimerInfo[nTimerIndex].bWSEnabled = false;
+	S.TimerInfo[nTimerIndex].nWSNext = -2;
 	S.TimerInfo[nTimerIndex].Type = Type;
 	S.TimerInfo[nTimerIndex].Flags = Flags;
 	// printf("*** TOKEN %08d %s\\%s .. flags %08x\n", nTimerIndex, pGroup, pName, Flags);
@@ -2419,6 +2466,7 @@ MicroProfileToken MicroProfileCounterTokenInit(int nParent)
 	S.CounterSource[nResult].nSourceSize = 0;
 	S.CounterInfo[nResult].nNameLen = 0;
 	S.CounterInfo[nResult].pName = nullptr;
+	S.CounterInfo[nResult].nWSNext = -2;    
 	if(nParent >= 0)
 	{
 		MP_ASSERT(nParent < (int)S.nNumCounters);
@@ -6986,40 +7034,106 @@ bool MicroProfileWebSocketSend(MpSocket Connection, const char* pMessage, uint64
 
 void MicroProfileWebSocketClearTimers()
 {
-	while(S.WebSocketTimers != -1)
+	while(S.WebSocketTimers > -1)
 	{
 		int nNext = S.TimerInfo[S.WebSocketTimers].nWSNext;
-		S.TimerInfo[S.WebSocketTimers].bWSEnabled = false;
-		S.TimerInfo[S.WebSocketTimers].nWSNext = -1;
+		S.TimerInfo[S.WebSocketTimers].nWSNext = -2;
 		S.WebSocketTimers = nNext;
 	}
+	MP_ASSERT(S.WebSocketTimers == -1);
+	while(S.WebSocketCounters > -1)
+	{
+		int nNext = S.CounterInfo[S.WebSocketCounters].nWSNext;
+		S.CounterInfo[S.WebSocketCounters].nWSNext = -2;
+		S.WebSocketCounters = nNext;
+	}
+	MP_ASSERT(S.WebSocketCounters == -1);
 
+	while(S.WebSocketGroups > -1)
+	{
+		int nNext = S.GroupInfo[S.WebSocketGroups].nWSNext;
+		S.GroupInfo[S.WebSocketGroups].nWSNext = -2;
+		S.WebSocketGroups = nNext;
+	}
+	MP_ASSERT(S.WebSocketGroups == -1);
 	S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
 }
-void MicroProfileToggleWebSocketToggleTimer(uint32_t nTimer)
+void MicroProfileWebSocketToggleTimer(uint32_t nTimer)
 {
 	if(nTimer < S.nTotalTimers)
 	{
 		auto& TI = S.TimerInfo[nTimer];
 		int* pPrev = &S.WebSocketTimers;
-		while(*pPrev != -1 && *pPrev != (int)nTimer)
+		while(*pPrev > -1 && *pPrev != (int)nTimer)
 		{
 			MP_ASSERT(*pPrev < (int)S.nTotalTimers && *pPrev >= 0);
 			pPrev = &S.TimerInfo[*pPrev].nWSNext;
 		}
-		if(TI.bWSEnabled)
+		if(TI.nWSNext >= -1)
 		{
 			MP_ASSERT(*pPrev == (int)nTimer);
 			*pPrev = TI.nWSNext;
-			TI.nWSNext = -1;
-			TI.bWSEnabled = false;
+			TI.nWSNext = -2;
 		}
 		else
 		{
 			MP_ASSERT(*pPrev == -1);
 			TI.nWSNext = -1;
 			*pPrev = (int)nTimer;
-			TI.bWSEnabled = true;
+		}
+		S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
+	}
+}
+
+void MicroProfileWebSocketToggleCounter(uint32_t nCounter)
+{
+	if(nCounter < S.nNumCounters)
+	{
+		auto& TI = S.CounterInfo[nCounter];
+		int* pPrev = &S.WebSocketCounters;
+		while(*pPrev > -1 && *pPrev != (int)nCounter)
+		{
+			MP_ASSERT(*pPrev < (int)S.nNumCounters && *pPrev >= 0);
+			pPrev = &S.CounterInfo[*pPrev].nWSNext;
+		}
+		if(TI.nWSNext >= -1)
+		{
+			MP_ASSERT(*pPrev == (int)nCounter);
+			*pPrev = TI.nWSNext;
+			TI.nWSNext = -2;
+		}
+		else
+		{
+			MP_ASSERT(*pPrev == -1);
+			TI.nWSNext = -1;
+			*pPrev = (int)nCounter;
+		}
+		S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
+	}
+}
+
+void MicroProfileWebSocketToggleGroup(uint32_t nGroup)
+{
+	if(nGroup < S.nGroupCount)
+	{
+		auto& TI = S.GroupInfo[nGroup];
+		int* pPrev = &S.WebSocketGroups;
+		while(*pPrev > -1 && *pPrev != (int)nGroup)
+		{
+			MP_ASSERT(*pPrev < (int)S.nGroupCount && *pPrev >= 0);
+			pPrev = &S.GroupInfo[*pPrev].nWSNext;
+		}
+		if(TI.nWSNext >= -1)
+		{
+			MP_ASSERT(*pPrev == (int)nGroup);
+			*pPrev = TI.nWSNext;
+			TI.nWSNext = -2;
+		}
+		else
+		{
+			MP_ASSERT(*pPrev == -1);
+			TI.nWSNext = -1;
+			*pPrev = (int)nGroup;
 		}
 		S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
 	}
@@ -7029,11 +7143,19 @@ bool MicroProfileWebSocketTimerEnabled(uint32_t nTimer)
 {
 	if(nTimer < S.nTotalTimers)
 	{
-		return S.TimerInfo[nTimer].bWSEnabled;
+		return S.TimerInfo[nTimer].nWSNext > -2;
 	}
 	return false;
 }
 
+bool MicroProfileWebSocketCounterEnabled(uint32_t nCounter)
+{
+	if(nCounter < S.nNumCounters)
+	{
+		return S.CounterInfo[nCounter].nWSNext > -2;
+	}
+	return false;
+}
 void MicroProfileWebSocketCommand(uint32_t nCommand)
 {
 	uint32_t nType, nElement;
@@ -7065,13 +7187,16 @@ void MicroProfileWebSocketCommand(uint32_t nCommand)
 		S.nWebSocketDirty |= MICROPROFILE_WEBSOCKET_DIRTY_ENABLED;
 		break;
 	case TYPE_TIMER:
-		MicroProfileToggleWebSocketToggleTimer(nElement);
+		MicroProfileWebSocketToggleTimer(nElement);
 		break;
 	case TYPE_GROUP:
 		MicroProfileToggleGroup(nElement);
 		break;
 	case TYPE_CATEGORY:
 		MicroProfileToggleCategory(nElement);
+		break;
+	case TYPE_COUNTER:
+		MicroProfileWebSocketToggleCounter(nElement);
 		break;
 	default:
 		uprintf("unknown type %d\n", nType);
@@ -7096,19 +7221,6 @@ struct MicroProfileSettingsHeader
 	uint32_t nNameOffset;
 	uint32_t nNameSize;
 };
-
-typedef bool (*MicroProfileOnSettings)(const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJson);
-
-#ifndef MICROPROFILE_SETTINGS_FILE_PATH
-#define MICROPROFILE_SETTINGS_FILE_PATH ""
-#endif
-#ifndef MICROPROFILE_SETTINGS_FILE
-#define MICROPROFILE_SETTINGS_FILE MICROPROFILE_SETTINGS_FILE_PATH "mppresets.cfg"
-#endif
-#ifndef MICROPROFILE_SETTINGS_FILE_BUILTIN
-#define MICROPROFILE_SETTINGS_FILE_BUILTIN MICROPROFILE_SETTINGS_FILE_PATH "mppresets.builtin.cfg"
-#endif
-#define MICROPROFILE_SETTINGS_FILE_TEMP MICROPROFILE_SETTINGS_FILE ".tmp"
 
 template <typename T>
 void MicroProfileParseSettings(const char* pFileName, T CB)
@@ -7238,11 +7350,12 @@ void MicroProfileParseSettings(const char* pFileName, T CB)
 	}
 }
 
+
 bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSettings)
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileGetMutex());
 
-	FILE* F = fopen(MICROPROFILE_SETTINGS_FILE_TEMP, "w");
+	FILE* F = fopen(S.pSettingsTemp, "w");
 	if(!F)
 	{
 		return false;
@@ -7250,7 +7363,7 @@ bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSetting
 
 	bool bWritten = false;
 
-	MicroProfileParseSettings(MICROPROFILE_SETTINGS_FILE, [&](const char* pName, uint32_t nNameSize, const char* pJson, uint32_t nJsonSize) -> bool {
+	MicroProfileParseSettings(S.pSettings, [&](const char* pName, uint32_t nNameSize, const char* pJson, uint32_t nJsonSize) -> bool {
 		fwrite(pName, nNameSize, 1, F);
 		fputc(' ', F);
 		if(0 != MP_STRCASECMP(pSettingsName, pName))
@@ -7275,11 +7388,11 @@ bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSetting
 	fflush(F);
 	fclose(F);
 #ifdef MICROPROFILE_MOVE_FILE
-	MICROPROFILE_MOVE_FILE(MICROPROFILE_SETTINGS_FILE_TEMP, MICROPROFILE_SETTINGS_FILE);
+	MICROPROFILE_MOVE_FILE(S.pSettingsTemp, S.pSettings);
 #elif defined(_WIN32)
-	MoveFileExA(MICROPROFILE_SETTINGS_FILE_TEMP, MICROPROFILE_SETTINGS_FILE, MOVEFILE_REPLACE_EXISTING);
+	MoveFileExA(S.pSettingsTemp, S.pSettings, MOVEFILE_REPLACE_EXISTING);
 #else
-	rename(MICROPROFILE_SETTINGS_FILE_TEMP, MICROPROFILE_SETTINGS_FILE);
+	rename(S.pSettingsTemp, S.pSettings);
 #endif
 	return false;
 }
@@ -7315,7 +7428,7 @@ void MicroProfileWebSocketSendPresets(MpSocket Connection)
 	MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{", MSG_PRESETS);
 	MicroProfileWSPrintf("\"p\":{\"Default\":\"{}\"");
 
-	MicroProfileParseSettings(MICROPROFILE_SETTINGS_FILE, [](const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJsonLen) {
+	MicroProfileParseSettings(S.pSettings, [](const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJsonLen) {
 		MicroProfileWSPrintf(",\"%s\":", pName);
 		MicroProfileWriteJsonString(pJson, nJsonLen);
 
@@ -7323,7 +7436,7 @@ void MicroProfileWebSocketSendPresets(MpSocket Connection)
 	});
 	MicroProfileWSPrintf("},\"r\":{");
 	bool bFirst = true;
-	MicroProfileParseSettings(MICROPROFILE_SETTINGS_FILE_BUILTIN, [&bFirst](const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJsonLen) {
+	MicroProfileParseSettings(S.pSettingsReadOnly, [&bFirst](const char* pName, uint32_t nNameLen, const char* pJson, uint32_t nJsonLen) {
 		MicroProfileWSPrintf("%c\"%s\":", bFirst ? ' ' : ',', pName);
 		MicroProfileWriteJsonString(pJson, nJsonLen);
 
@@ -7335,26 +7448,43 @@ void MicroProfileWebSocketSendPresets(MpSocket Connection)
 	MicroProfileWSPrintEnd();
 }
 
-void MicroProfileLoadPresets(const char* pSettingsName, bool bReadOnlyPreset)
+#define LOAD_PRESET_DEFAULT 0x1
+#define LOAD_PRESET_READONLY 0x2
+
+void MicroProfileLoadPresets(const char* pSettingsName, uint32_t nLoadPresetType)
 {
 	std::lock_guard<std::recursive_mutex> Lock(MicroProfileGetMutex());
-	const char* pPresetFile = bReadOnlyPreset ? MICROPROFILE_SETTINGS_FILE_BUILTIN : MICROPROFILE_SETTINGS_FILE;
-	MicroProfileParseSettings(pPresetFile, [=](const char* pName, uint32_t l0, const char* pJson, uint32_t l1) {
-		if(0 == MP_STRCASECMP(pName, pSettingsName))
+	const char* pPresetFiles[] = {S.pSettings, S.pSettingsReadOnly};
+	for(uint32_t i = 0; i < 2; ++i)
+	{
+		if(nLoadPresetType & (1u<<i))
 		{
-			uint32_t nLen = (uint32_t)strlen(pJson) + 1;
-			if(nLen > S.nJsonSettingsBufferSize)
-			{
-				S.pJsonSettings = (char*)MP_REALLOC(S.pJsonSettings, nLen);
-				S.nJsonSettingsBufferSize = nLen;
-			}
-			memcpy(S.pJsonSettings, pJson, nLen);
-			S.nJsonSettingsPending = 1;
-			S.bJsonSettingsReadOnly = bReadOnlyPreset ? 1 : 0;
-			return false;
+			const char* pPresetFile = pPresetFiles[i];
+			bool bReadOnly = (1u<<i) == LOAD_PRESET_READONLY;
+			bool bSuccess = false;
+			MicroProfileParseSettings(pPresetFile, [&bSuccess, bReadOnly, pSettingsName](const char* pName, uint32_t l0, const char* pJson, uint32_t l1) {
+				if(0 == MP_STRCASECMP(pName, pSettingsName))
+				{
+					uint32_t nLen = (uint32_t)strlen(pJson) + 1;
+					if(nLen > S.nJsonSettingsBufferSize)
+					{
+						S.pJsonSettings = (char*)MP_REALLOC(S.pJsonSettings, nLen);
+						S.nJsonSettingsBufferSize = nLen;
+					}
+					S.pJsonSettingsName = pSettingsName;
+					memcpy(S.pJsonSettings, pJson, nLen);
+					S.nJsonSettingsPending = 1;
+					S.bJsonSettingsReadOnly = bReadOnly ? 1 : 0;
+					bSuccess = true;
+					return false;
+				}
+				return true;
+			});
+			if(bSuccess)
+				return;
+
 		}
-		return true;
-	});
+	}
 }
 
 bool MicroProfileWebSocketReceive(MpSocket Connection)
@@ -7462,12 +7592,12 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 
 	case 'l':
 	{
-		MicroProfileLoadPresets((const char*)Bytes + 1, 0);
+		MicroProfileLoadPresets((const char*)Bytes + 1, LOAD_PRESET_DEFAULT);
 		break;
 	}
 	case 'm':
 	{
-		MicroProfileLoadPresets((const char*)Bytes + 1, 1);
+		MicroProfileLoadPresets((const char*)Bytes + 1, LOAD_PRESET_READONLY);
 		break;
 	}
 	case 'd':
@@ -7698,14 +7828,14 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 	if(!S.nWSWasConnected)
 	{
 		S.nWSWasConnected = 1;
-		MicroProfileLoadPresets("Default", 0);
+		MicroProfileLoadPresets("Default", LOAD_PRESET_DEFAULT|LOAD_PRESET_READONLY);
 	}
 	else
 	{
 		if(S.pJsonSettings)
 		{
 			MicroProfileWSPrintStart(Connection);
-			MicroProfileWSPrintf("{\"k\":\"%d\",\"ro\":%d,\"v\":%s}", MSG_CURRENTSETTINGS, S.bJsonSettingsReadOnly ? 1 : 0, S.pJsonSettings);
+			MicroProfileWSPrintf("{\"k\":\"%d\",\"ro\":%d,\"name\":\"%s\",\"v\":%s}", MSG_CURRENTSETTINGS, S.bJsonSettingsReadOnly ? 1 : 0, S.pJsonSettingsName ? S.pJsonSettingsName : "", S.pJsonSettings);
 			MicroProfileWSFlush();
 			MicroProfileWSPrintEnd();
 		}
@@ -7848,10 +7978,10 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 
 		if(S.nFrameCurrent != S.WebSocketFrameLast[0])
 		{
-			MicroProfileWSPrintf(",\"x\":{");
+			MicroProfileWSPrintf(",\"x\":{\"t\":{");
 			int nTimer = S.WebSocketTimers;
 			// uprintf("T : ");
-			while(-1 != nTimer)
+			while(nTimer >= 0)
 			{
 				MicroProfileTimerInfo& TI = S.TimerInfo[nTimer];
 				float fTickToMs = TI.Type == MicroProfileTokenTypeGpu ? fTickToMsGpu : fTickToMsCpu;
@@ -7867,8 +7997,20 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 				nTimer = TI.nWSNext;
 				MicroProfileWSPrintf("\"%d\":[%f,%f,%f]%c", id, fTime, fTimeExcl, fCount, nTimer == -1 ? ' ' : ',');
 			}
+			MicroProfileWSPrintf("}, \"c\":{");
+			int nCounter = S.WebSocketCounters;
+			while(nCounter >= 0)
+			{
+				MicroProfileCounterInfo& CI = S.CounterInfo[nCounter];
+				uint32_t id = MicroProfileWebSocketIdPack(TYPE_COUNTER, nCounter);
+				uint64_t value = S.Counters[nCounter].load();
+				nCounter = CI.nWSNext;
+				MicroProfileWSPrintf("\"%d\":%lld%c", id, value, nCounter < 0 ? ' ' : ',' );
+			}
+			MicroProfileWSPrintf("}, \"g\":{");
 			// uprintf("\n");
-			MicroProfileWSPrintf("}");
+			MicroProfileWSPrintf("}}");
+
 		}
 		MicroProfileWSPrintf("}}");
 		MicroProfileWSFlush();
@@ -7944,7 +8086,7 @@ void MicroProfileWebSocketFrame()
 			if(S.nJsonSettingsPending)
 			{
 				MicroProfileWSPrintStart(s);
-				MicroProfileWSPrintf("{\"k\":\"%d\",\"ro\":%d,\"v\":%s}", MSG_LOADSETTINGS, S.bJsonSettingsReadOnly ? 1 : 0, S.pJsonSettings);
+				MicroProfileWSPrintf("{\"k\":\"%d\",\"ro\":%d,\"name\":\"%s\",\"v\":%s}", MSG_LOADSETTINGS, S.bJsonSettingsReadOnly ? 1 : 0, S.pJsonSettingsName ? S.pJsonSettingsName : "", S.pJsonSettings);
 				MicroProfileWSFlush();
 				MicroProfileWSPrintEnd();
 				S.nJsonSettingsPending = 0;
@@ -8073,6 +8215,10 @@ void MicroProfileWebSocketSendEnabled(MpSocket C)
 	{
 		MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_TIMER, i), MicroProfileWebSocketTimerEnabled(i));
 	}
+	for(uint32_t i = 0; i < S.nNumCounters; ++i)
+	{
+		MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_COUNTER, i), MicroProfileWebSocketCounterEnabled(i));
+	}
 	MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_FORCE_ENABLE), MicroProfileGetEnableAllGroups());
 	MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_CONTEXT_SWITCH_TRACE), S.bContextSwitchRunning);
 	MicroProfileWebSocketSendEnabledMessage(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_PLATFORM_MARKERS), MicroProfilePlatformMarkersGetEnabled());
@@ -8096,10 +8242,11 @@ void MicroProfileWebSocketSendEntry(uint32_t id, uint32_t parent, const char* pN
 	MicroProfileWSFlush();
 }
 
-void MicroProfileWebSocketSendCounterEntry(uint32_t id, uint32_t parent, const char* pName, int64_t nLimit, int nFormat)
+void MicroProfileWebSocketSendCounterEntry(uint32_t id, uint32_t parent, const char* pName, int nEnabled, int64_t nLimit, int nFormat)
 {
 	MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
 	MicroProfileWSPrintf("\"name\":\"%s\",", pName);
+	MicroProfileWSPrintf("\"e\":%d,", nEnabled);
 	MicroProfileWSPrintf("\"limit\":%d,", nLimit);
 	MicroProfileWSPrintf("\"format\":%d", nFormat);
 	MicroProfileWSPrintf("}}");
@@ -8143,7 +8290,7 @@ void MicroProfileWebSocketSendState(MpSocket C)
 			MicroProfileCounterInfo& CI = S.CounterInfo[i];
 			uint32_t id = MicroProfileWebSocketIdPack(TYPE_COUNTER, i);
 			uint32_t parent = CI.nParent == -1 ? 0u : MicroProfileWebSocketIdPack(TYPE_COUNTER, CI.nParent);
-			MicroProfileWebSocketSendCounterEntry(id, parent, CI.pName, CI.nLimit, CI.eFormat);
+			MicroProfileWebSocketSendCounterEntry(id, parent, CI.pName, MicroProfileWebSocketCounterEnabled(i), CI.nLimit, CI.eFormat);
 		}
 #if MICROPROFILE_CONTEXT_SWITCH_TRACE
 		MicroProfileWebSocketSendEntry(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_CONTEXT_SWITCH_TRACE), 0, "Context Switch Trace", S.bContextSwitchRunning, (uint32_t)-1);
@@ -8174,7 +8321,7 @@ bool MicroProfileWebServerUpdate()
 		if(nReceived > 0)
 		{
 			Req[nReceived] = '\0';
-			//uprintf("req received\n%s", Req);
+			uprintf("req received\n%s", Req);
 #if MICROPROFILE_MINIZ
 			// Expires: Tue, 01 Jan 2199 16:00:00 GMT\r\n
 #define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nContent-Encoding: deflate\r\n\r\n"
@@ -8182,6 +8329,7 @@ bool MicroProfileWebServerUpdate()
 #define MICROPROFILE_HTML_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n"
 #endif
 			char* pHttp = strstr(Req, "HTTP/");
+
 			char* pGet = strstr(Req, "GET /");
 			char* pHost = strstr(Req, "Host: ");
 			char* pWebSocketKey = strstr(Req, "Sec-WebSocket-Key: ");
@@ -10861,7 +11009,7 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, co
 			MicroProfileToggleGroup(nGroup);
 		}
 #if MICROPROFILE_WEBSERVER
-		MicroProfileToggleWebSocketToggleTimer(MicroProfileGetTimerIndex(Tok));
+		MicroProfileWebSocketToggleTimer(MicroProfileGetTimerIndex(Tok));
 #endif
 	}
 	else
