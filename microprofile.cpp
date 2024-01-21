@@ -7475,6 +7475,7 @@ void MicroProfileLoadPresets(const char* pSettingsName, uint32_t nLoadPresetType
 					memcpy(S.pJsonSettings, pJson, nLen);
 					S.nJsonSettingsPending = 1;
 					S.bJsonSettingsReadOnly = bReadOnly ? 1 : 0;
+					bSuccess = true;
 					return false;
 				}
 				return true;
