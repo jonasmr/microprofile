@@ -1828,12 +1828,12 @@ void MicroProfileCsvConfigBegin(uint32_t MaxTimers, uint32_t MaxGroups, uint32_t
 	S.CsvConfig.State = MicroProfileCsvConfig::CONFIG;
 	S.CsvConfig.Flags = Flags;
 }
-void MicroProfileCsvConfigAddTimer(const char* Group, const char* Timer, const char* Name)
+void MicroProfileCsvConfigAddTimer(const char* Group, const char* Timer, const char* Name, MicroProfileTokenType Type)
 {
 	MP_ASSERT(S.CsvConfig.State == MicroProfileCsvConfig::CONFIG);
 	if(S.CsvConfig.State == MicroProfileCsvConfig::CONFIG && S.CsvConfig.NumTimers < S.CsvConfig.MaxTimers)
 	{
-		MicroProfileToken ret = MicroProfileFindToken(Group, Timer);
+		MicroProfileToken ret = MicroProfileGetToken(Group, Timer, MP_AUTO, Type, MICROPROFILE_TIMER_FLAG_PLACEHOLDER);
 		if(ret != MICROPROFILE_INVALID_TOKEN)
 		{
 			S.CsvConfig.pTimerNames[S.CsvConfig.NumTimers] = Name;
@@ -1861,7 +1861,7 @@ void MicroProfileCsvConfigAddCounter(const char* CounterName, const char* Name)
 	MP_ASSERT(S.CsvConfig.State == MicroProfileCsvConfig::CONFIG);
 	if(S.CsvConfig.State == MicroProfileCsvConfig::CONFIG && S.CsvConfig.NumCounters < S.CsvConfig.MaxCounters)
 	{
-		MicroProfileToken Token = MicroProfileGetCounterToken(CounterName, MICROPROFILE_COUNTER_TOKEN_DONT_CREATE);
+		MicroProfileToken Token = MicroProfileGetCounterToken(CounterName, 0);
 		if(MICROPROFILE_INVALID_TOKEN != Token)
 		{
 			MP_ASSERT(Token < UINT16_MAX);
@@ -2292,7 +2292,12 @@ MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, ui
 	if(ret != MICROPROFILE_INVALID_TOKEN)
 	{
 		int idx = MicroProfileGetTimerIndex(ret);
-		MP_ASSERT(S.TimerInfo[idx].Flags == Flags);
+		if (S.TimerInfo[idx].Flags & MICROPROFILE_TIMER_FLAG_PLACEHOLDER)
+		{
+			S.TimerInfo[idx].nColor = nColor & 0xffffff;
+			S.TimerInfo[idx].Flags = Flags;
+		}
+		MP_ASSERT(S.TimerInfo[idx].Flags == Flags || (Flags & MICROPROFILE_TIMER_FLAG_PLACEHOLDER));
 		return ret;
 	}
 	uint16_t nGroupIndex = MicroProfileGetGroup(pGroup, Type);

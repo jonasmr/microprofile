@@ -920,6 +920,7 @@ extern "C"
 
 #define MICROPROFILE_INVALID_TOKEN ((uint64_t)-1)
 #define MICROPROFILE_TIMER_FLAG_SECTION 0x1
+#define MICROPROFILE_TIMER_FLAG_PLACEHOLDER 0x1000
 #define MICROPROFILE_COUNTER_TOKEN_DONT_CREATE 0x1
 #define MICROPROFILE_CSV_FLAG_FRAME_NUMBERS 0x0
 #define MICROPROFILE_CSV_FLAG_FRAME_TIME 0x1
@@ -1034,7 +1035,7 @@ extern "C"
 
 	MICROPROFILE_API void MicroProfileCsvConfigEnd();
 	MICROPROFILE_API void MicroProfileCsvConfigBegin(uint32_t MaxTimers, uint32_t MaxGroups, uint32_t MaxCounters, uint32_t Flags);
-	MICROPROFILE_API void MicroProfileCsvConfigAddTimer(const char* Group, const char* Timer, const char* DisplayName IF_CPP(= nullptr) );
+	MICROPROFILE_API void MicroProfileCsvConfigAddTimer(const char* Group, const char* Timer, const char* DisplayName IF_CPP(= nullptr), MicroProfileTokenType Type IF_CPP(= MicroProfileTokenTypeCpu));
 	MICROPROFILE_API void MicroProfileCsvConfigAddGroup(const char* Group, const char* DisplayName IF_CPP(= nullptr) );
 	MICROPROFILE_API void MicroProfileCsvConfigAddCounter(const char* CounterName, const char* DisplayName IF_CPP(= nullptr) );
 
