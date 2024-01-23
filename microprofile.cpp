@@ -1713,21 +1713,7 @@ void MicroProfileInit()
 		S.nTimerNegativeCpuIndex = MicroProfileGetTimerIndex(S.nTokenNegativeCpu);
 		S.nTimerNegativeGpuIndex = MicroProfileGetTimerIndex(S.nTokenNegativeGpu);
 	}
-	{
-		auto DupeString = [](const char* BasePath, const char* File) -> const char*
-		{
-			size_t Len = strlen(BasePath) + strlen(File) + 1;
-			char* Data = (char*)MicroProfileAllocInternal(Len+1, 1);
-			snprintf(Data, Len,"%s%s", BasePath, File);
-			return Data;
-		};
-		const char* pBaseSettingsPath = MICROPROFILE_GET_SETTINGS_FILE_PATH;
-		S.pSettings = DupeString(pBaseSettingsPath, MICROPROFILE_SETTINGS_FILE);
-		S.pSettingsReadOnly = DupeString(pBaseSettingsPath, MICROPROFILE_SETTINGS_FILE_BUILTIN);
-		S.pSettingsTemp = DupeString(pBaseSettingsPath, MICROPROFILE_SETTINGS_FILE MICROPROFILE_SETTINGS_FILE_TEMP);
-	}
-
-
+	MicroProfileUpdateSettingsPath();
 
 #if MICROPROFILE_FRAME_EXTRA_DATA
 	S.FrameExtraCounterData = (MicroProfileFrameExtraCounterData*)1;
@@ -1740,6 +1726,47 @@ void MicroProfileInit()
 		mutex.unlock();
 	}
 }
+void MicroProfileUpdateSettingsPath()
+{
+	if(S.pSettings)
+	{
+		MicroProfileFreeInternal((void*)S.pSettings);
+		S.pSettings = nullptr;
+	}
+	if(S.pSettingsReadOnly)
+	{
+		MicroProfileFreeInternal((void*)S.pSettingsReadOnly);
+		S.pSettingsReadOnly = nullptr;
+	}
+	if(S.pSettingsTemp)
+	{
+		MicroProfileFreeInternal((void*)S.pSettingsTemp);
+		S.pSettingsTemp = nullptr;
+	}
+	auto DupeString = [](const char* BasePath, const char* File) -> const char*
+	{
+		size_t BaseLen = strlen(BasePath);
+		bool TrailingSlash = BaseLen > 1 && (BasePath[BaseLen - 1] == '\\' || BasePath[BaseLen - 1] == '/');
+		size_t Len = BaseLen + strlen(File) + 2;
+		char* Data = (char*)MicroProfileAllocInternal(Len + 1, 1);
+#ifdef _WIN32
+		char Slash = '\\';
+#else
+		char Slash = '/';
+#endif
+		if (TrailingSlash)
+			snprintf(Data, Len, "%s%s", BasePath, File);
+		else
+			snprintf(Data, Len, "%s%c%s", BasePath, Slash, File);
+
+		return Data;
+	};
+	const char* pBaseSettingsPath = MICROPROFILE_GET_SETTINGS_FILE_PATH;
+	S.pSettings = DupeString(pBaseSettingsPath, MICROPROFILE_SETTINGS_FILE);
+	S.pSettingsReadOnly = DupeString(pBaseSettingsPath, MICROPROFILE_SETTINGS_FILE_BUILTIN);
+	S.pSettingsTemp = DupeString(pBaseSettingsPath, MICROPROFILE_SETTINGS_FILE MICROPROFILE_SETTINGS_FILE_TEMP);
+}
+
 
 void MicroProfileJoinContextSwitchTrace();
 
@@ -7473,7 +7500,9 @@ void MicroProfileLoadPresets(const char* pSettingsName, uint32_t nLoadPresetType
 					uint32_t nLen = (uint32_t)strlen(pJson) + 1;
 					if(nLen > S.nJsonSettingsBufferSize)
 					{
-						S.pJsonSettings = (char*)MP_REALLOC(S.pJsonSettings, nLen);
+						if (S.pJsonSettings)
+							S.pJsonSettings = nullptr;
+						S.pJsonSettings = (char*)MP_ALLOC(nLen, 1);
 						S.nJsonSettingsBufferSize = nLen;
 					}
 					S.pJsonSettingsName = pSettingsName;

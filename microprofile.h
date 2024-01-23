@@ -479,6 +479,7 @@ typedef uint32_t MicroProfileTimelineToken;
 #define MicroProfileCsvConfigAddTimer(...)
 #define MicroProfileCsvConfigAddGroup(...)
 #define MicroProfileCsvConfigAddCounter(...)
+#define MicroProfileUpdateSettingsPath(...)
 
 
 
@@ -1045,6 +1046,8 @@ extern "C"
 	MICROPROFILE_API void MicroProfileCsvConfigAddGroup(const char* Group, const char* DisplayName IF_CPP(= nullptr) );
 	MICROPROFILE_API void MicroProfileCsvConfigAddCounter(const char* CounterName, const char* DisplayName IF_CPP(= nullptr) );
 
+	MICROPROFILE_API void MicroProfileUpdateSettingsPath();
+
 #ifdef __cplusplus
 }
 #endif
@@ -1154,7 +1157,7 @@ extern "C"
 #endif
 
 #if MICROPROFILE_GPU_TIMERS_D3D11
-#define MICROPROFILE_D3D_MAX_QUERIES (8 << 10)
+#define MICROPROFILE_D3D_MAX_QUERIES (32 << 10)
 	MICROPROFILE_API void MicroProfileGpuInitD3D11(void* pDevice, void* pDeviceContext);
 	MICROPROFILE_API void MicroProfileGpuShutdown();
 #endif
