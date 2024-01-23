@@ -98,13 +98,15 @@ var nHeight = CanvasDetailedView.height;
 var nBackColors = ['#292929', '#343434' ];
 var nBackColorsDark = ['#292929', '#272727' ];
 var nBackColorOffset = '#404040';
-var FontHeight = 10;
-var FontHeightLarge = 12;
+const FontHeight = 10;
+const FontHeightLarge = 12;
+const FontHeightLarger = 22;
 var FontWidth = 1;
 var FontAscent = 3; //Set manually
-var Font = 'Bold ' + FontHeight + 'px Courier New';
-var FontLarge = 'Bold ' + FontHeightLarge + 'px Courier New';
-var FontFlash = 'Bold ' + 35 + 'px Courier New';
+const Font = 'Bold ' + FontHeight + 'px Courier New';
+const FontLarge = 'Bold ' + FontHeightLarge + 'px Courier New';
+const FontLarger = 'Bold ' + FontHeightLarger + 'px Courier New';
+const FontFlash = 'Bold ' + 35 + 'px Courier New';
 var BoxHeight = FontHeight + 2;
 var MouseX = 0;
 var MouseY = 0;
@@ -259,12 +261,15 @@ var MSG_INSTRUMENT_ERROR = 11;
 // var MSG_MODULE_NAME = 12;
 
 
-var TYPE_NONE = 0;
-var TYPE_TIMER = 1;
-var TYPE_GROUP = 2;
-var TYPE_CATEGORY = 3;
-var TYPE_SETTING = 4;
-var TYPE_COUNTER = 5;
+const TYPE_NONE = 0;
+const TYPE_TIMER = 1;
+const TYPE_GROUP = 2;
+const TYPE_CATEGORY = 3;
+const TYPE_SETTING = 4;
+const TYPE_COUNTER = 5;
+
+const MicroProfileTokenTypeCpu=0;
+const MicroProfileTokenTypeGpu=1;
 
 
 var WSSend = 0;
@@ -2046,6 +2051,22 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 	ProfileLeave();
 }
 
+function DrawGraphViewLargeHeader(context, Text, Y, TextOffset)
+{
+	context.textAlign = "left";
+	context.fillStyle = "grey";
+	context.strokeStyle = "grey";
+	context.textBaseline = "top";
+	context.font = FontLarger;
+	context.beginPath();
+	context.moveTo(0, Y);
+	context.lineTo(nWidth, Y);
+	context.stroke();
+	context.fillText(Text, 0, Y + 2 + TextOffset);
+	context.font = Font;
+	context.textBaseline = "alphabetic";
+	return Y + 2 + FontHeightLarger;
+}
 
 
 function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
@@ -2068,6 +2089,52 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 	let GraphKey = null;
 	let GraphBest = 0;
 	let MouseTime = ReferenceGraph * (1-(LocalMouseY / h));
+
+	let NumGraphs = 0;
+	let Keys = [];
+	for(let key in TimerMap)
+	{
+		let idx = GetTimer(key);
+		let T = TimerArray[idx];
+		if(!IsGroup(key) && T.e)
+		{
+			Keys.push(key);
+			NumGraphs++;
+		}
+	}
+	function CounterType(k)
+	{
+		let T = TimerArray[GetTimer(k)];
+		let t0 = T.idtype;
+		if(t0 == TYPE_TIMER)
+		{
+			if(T.timertype == MicroProfileTokenTypeGpu)
+			{
+				return 0;
+			}
+			else
+			{
+				return 1;
+			}
+		}
+		else
+		{
+			return 2;
+		}
+	}
+	// sort based on idtype
+	Keys.sort(function(l, r) {
+		return CounterType(l)-CounterType(r);
+	});
+	function CounterTypeName(n)
+	{
+		if(n == 0)
+			return "GPU";
+		if(n == 2)
+			return "Counter";
+		return "CPU";
+	}
+
 
 	if(LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1)
 	{
@@ -2154,30 +2221,22 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 
 	if(Split)
 	{
-		let NumGraphs = 0;
-		for(let key in TimerMap)
-		{
-			let idx = GetTimer(key);
-			let T = TimerArray[idx];
-			if(!IsGroup(key) && T.e)
-			{
-				NumGraphs++;
-			}
-		}
 		if(NumGraphs)
 		{
 
 			var hstart = 0;
 			let gh = h / NumGraphs;
-			let Keys = [];
+			let CurrentType = -1;
 			let cidx = 1;
-			for(let key in TimerMap)
+			for(let index in Keys)
 			{
+				let key = Keys[index];
 				let idx = GetTimer(key);
 				let T = TimerArray[idx];
 				let TimerState = TimerMap[key];
 				if(!IsGroup(key) && T.e)
 				{
+
 					let SubGraphSettings = GetSubGraphSettings(GetFullName(T));
 					let Reference = GetSubGraphReferenceTime(SubGraphSettings, TimerState);
 					let fHeightScale2 = gh / Reference;
@@ -2186,11 +2245,13 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 					let color = TimerArray[idx].color;
 					let X = w - Time.length*fWidth;
 					let Y = hstart + gh;
+					let YHeader = hstart;
 					let YStart = Y;
 					context.globalAlpha = 1;
 					context.fillStyle = nBackColorsDark[cidx];
 					cidx = 1-cidx;
 					context.fillRect(0, hstart, w, gh);
+
 					context.strokeStyle = color;
 					context.fillStyle = color;
 					context.beginPath();
@@ -2214,6 +2275,12 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 					context.fillText(FormatTimeText(Reference, T), nWidth, hstart + FontHeight);
 					context.textAlign='left';
 					context.fillText(FormatName(T), 15, hstart + FontHeight);
+					let Type = CounterType(key);
+					if(Type != CurrentType)
+					{ 
+						CurrentType = Type;
+						DrawGraphViewLargeHeader(context, CounterTypeName(CurrentType), YHeader, FontHeight + 3);
+					}
 
 					if(HighlightFrame >= 0)
 					{
@@ -2239,359 +2306,6 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 	}
 	else
 	{
-		var Keys = [];
-		var Prev = Array();
-		var He = Array();
-		for(var key in TimerMap)
-		{
-			if(!IsGroup(key))
-			{
-				var idx = GetTimer(key);
-				var TimerState = TimerMap[key];
-				var Time = TimerState.Time;
-				var color = TimerArray[idx].color;
-				var X = w - Time.length*fWidth;
-				var Y = h;
-				while(Time.length > He.length)
-				{
-					He.push(0.0);
-				}
-				for(var i = 0; i < Time.length; ++i)
-				{
-					He[i] += Time[i];
-				}
-			}
-		}
-		if(1) // graph with clipping. this code seems way to complicated
-		{
-			var NumGraphs = 0;
-			var Len = 0;
-			for(let key in TimerMap)
-			{
-				if(!IsGroup(key))
-				{
-					var idx = GetTimer(key);
-					var TimerState = TimerMap[key];
-					var Time = TimerState.Time;
-					Len = Math.max(Len, Time.length);
-					NumGraphs++;
-				}
-			}
-			let g = Array(Len);
-			for(let i = 0; i < g.length; ++i)
-				g[i] = Array(NumGraphs);
-			let i = 0;
-			for(let key in TimerMap)
-			{
-				if(!IsGroup(key))
-				{
-					var TimerState = TimerMap[key];
-					var Time = TimerState.Time;
-					let x = GetTimer(key);
-					for(let j = 0; j < Time.length; ++j)
-					{
-						g[j][i] = {k:key, v: Time[j], x:x, c:TimerArray[x].color,n:TimerArray[x].name};
-					}
-					i++;
-				}
-			}
-			for(let i = 0; i < g.length; ++i)
-			{
-				let a = g[i];
-				a.sort( function(l, r){
-					return l.v-r.v;
-				});
-			}
-			let cvt = function(t){ return h - t * fHeightScale; };
-			if(1)
-			{
-				let Segments = Array();
-				let MakeSegment = function(b,e)
-				{
-					let s = {b:b, e:e, a:[]};
-					Segments.push(s);
-					return s;
-				};
-				let MakeEntry = function(y0l, y0h, y1l, y1h, c)
-				{
-					let e ={y0l:y0l,y0h:y0h,y1h:y1h,y1l:y1l,c:c,t:0};
-					return e;
-				};
-
-				let X = 0;
-				for(let i = 1; i < g.length; ++i)
-				{
-					let a0 = g[i-1];
-					let a1 = g[i];
-					let s = MakeSegment(X, X + fWidth);
-					if(a0.length != a1.length)
-					{
-						console.log("should not happen!!");
-						debugger;
-					}
-					let FailIndex = -1;
-					for(let j = 0; j < a0.length; ++j)
-					{
-						if(a0[j].k != a1[j].k)
-						{
-							FailIndex = j;
-							break;
-						}
-
-						let t0l = j > 0 ? a0[j-1].v : 0;
-						let t0h = a0[j].v;
-						let t1l = j > 0 ? a1[j-1].v : 0;
-						let t1h = a1[j].v;
-						let c = a1[j].c;
-						let e = MakeEntry(t0l, t0h, t1l, t1h, c);
-						s.a.push(e);
-					}
-					if(FailIndex >= 0)
-					{
-						let l = a0.length;
-						let ax = Array(l);
-						if(FailIndex + 1 >= l)
-							debugger;///no lines, should not happen.
-						for(let j = FailIndex; j < l; ++j)
-						{
-							//find matching
-							for(let k = FailIndex; k < l; ++k)
-							{
-								if(a1[k].k == a0[j].k)
-								{
-									if(ax[j])
-									{
-										console.log("should never happen");
-										debugger;//should not happen
-									}
-									ax[j] = a1[k];
-									break;
-								}
-							}
-						}
-						//find all intersections within [0-1]
-						let I = [];
-						I.push(0);
-						for(let j = FailIndex; j < l; ++j)
-						{
-							let ya = a0[j].v;
-							let yam = ax[j].v;
-							let ka = yam-ya;
-							for(let k = j + 1; k < l; ++k)
-							{
-								let yb = a0[k].v;
-								let ybm = ax[k].v;
-								let kb = ybm-yb;
-								let num = yb-ya;
-								let denom = ka-kb;
-								if(denom>0.00001||denom < -0.00001)
-								{
-									let x = num/denom;
-									if(x>=0 && x <= 1)
-									{
-										I.push(x);
-									}
-								}
-							}
-						}
-						I.push(1);
-						if(I.length)
-						{
-							I.push(I[0]);
-							I.push(I[0]);
-							I.sort();
-
-							let i = 0;
-							let DIST = 0.00001;
-							while(i+1 < I.length)
-							{
-								if(Math.abs(I[i] - I[i+1]) < DIST)
-								{
-									I.splice(i, 1);
-								}
-								else
-								{
-									i++;
-								}
-							}
-						}
-						for(let i = 0; i < I.length-1; ++i)
-						{
-							let x0 = I[i];
-							let x1 = I[i+1];
-							let xm =  0.5 * (x0+x1);
-							let b = X + x0 * fWidth;
-							let e = X + x1 * fWidth;
-							let c = X + xm * fWidth;
-							let s = MakeSegment(b, e);
-							for(let j = FailIndex; j < l; ++j)
-							{
-								let y = a0[j].v;
-								let yx = ax[j].v;
-								let yd = yx - y;
-								let y0 = y + yd * x0;
-								let y1 = y + yd * x1;
-								let ym = y + yd * xm;
-								let e = MakeEntry(ym, y0, ym, y1, a0[j].c);
-								s.a.push(e);
-							}
-							s.a.sort(function(l, r){
-								return l.y0l-r.y0l;
-							});
-							for(let j = 0; j < s.a.length; ++j)
-							{
-								if(j == 0)
-								{
-									s.a[j].y0l = 0;
-									s.a[j].y1l = 0;
-								}
-								else
-								{
-									s.a[j].y0l = s.a[j-1].y0h;
-									s.a[j].y1l = s.a[j-1].y1h;
-								}
-							}
-						}
-					}
-					X += fWidth;
-				}
-				for(let i = 0; i < Segments.length; ++i)
-				{
-					let s = Segments[i];
-					let X0 = s.b;
-					let X1 = s.e;
-					for(let j = 0; j < s.a.length; ++j)
-					{
-						let e = s.a[j];
-						let xs = [];
-						let ytop = [];
-						let ybot = [];
-						if(!e.t)
-						{
-							e.t = 1;
-							let XB = X0;
-							let XE = X1;
-							xs.push(XB);
-							ytop.push(cvt(e.y0h));
-							ybot.push(cvt(e.y0l));
-							let yeh = e.y1h;
-							let yel = e.y1l;
-							let k = i + 1;
-							let Found = true;
-							while(k < Segments.length && Found)
-							{
-								Found = false;
-								let s = Segments[k];
-								for(let l = 0; l < s.a.length && !Found; ++l)
-								{
-									let e1 = s.a[l];
-									if(!e1.t && e1.c == e.c && Math.abs(e1.y0l-e.y1l) < 0.0001 && Math.abs(e1.y0h - e.y1h) < 0.0001)
-									{
-										e1.t = 1;
-										xs.push(XE);
-										ytop.push(cvt(yeh));
-										ybot.push(cvt(yel));
-										XE = s.e;
-										yeh = e1.y1h;
-										yel = e1.y1l;
-										Found = true;
-										e = e1;
-									}
-								}
-								k++;
-							}
-							xs.push(XE);
-							ytop.push(cvt(yeh));
-							ybot.push(cvt(yel));
-						}
-						if(xs.length)
-						{
-							context.strokeStyle = e.c;
-							context.fillStyle = e.c;
-							context.globalAlpha = GRAPH_ALPHA;
-							context.beginPath();
-							context.moveTo(xs[0], ytop[0]);
-							for(let k = 1; k < xs.length; ++k)
-							{
-								context.lineTo(xs[k], ytop[k]);
-							}
-							for(let k = xs.length-1; k >= 0; --k)
-							{
-								context.lineTo(xs[k], ybot[k]);
-							}
-							context.fill();
-							context.beginPath();
-							context.moveTo(xs[0], ytop[0]);
-							for(let k = 1; k < xs.length; ++k)
-							{
-								context.lineTo(xs[k], ytop[k]);
-							}
-							context.globalAlpha = 1.0;
-							context.stroke();
-						}
-					}
-				}
-			}
-		}
-		if(0) //old graph code, no clipping
-		{
-			for(var key in TimerMap)
-			{
-				if(!IsGroup(key))
-				{
-					var idx = GetTimer(key);
-					var TimerState = TimerMap[key];
-					var Time = TimerState.Time;
-					var color = TimerArray[idx].color;
-					var X = w - Time.length*fWidth;
-					var Y = h;
-					context.strokeStyle = color;
-					context.fillStyle = color;
-
-					context.beginPath();
-					context.moveTo(X,Y);
-					for(var i = 0; i < Time.length; ++i)
-					{
-						Y = h - Time[i] * fHeightScale;
-						context.lineTo(X, Y);
-						X += fWidth;
-					}
-					context.stroke();
-					context.lineTo(X, h);
-					context.globalAlpha = GRAPH_ALPHA;
-					context.fill();
-					context.globalAlpha = 1;
-				}
-			}
-		}
-		if(HighlightFrame >= 0)
-		{
-			for(var key in TimerMap)
-			{
-				if(!IsGroup(key))
-				{
-					var idx = GetTimer(key);
-					var TimerState = TimerMap[key];
-					var Time = TimerState.Time;
-					var color = TimerArray[idx].color;
-					var X = w - Time.length*fWidth + fWidth * HighlightFrame;
-					var Y = h - Time[HighlightFrame] * fHeightScale;
-					context.strokeStyle = color;
-					context.beginPath();
-					var CrossX = X;
-					var CrossY = Y;
-					context.moveTo(CrossX-2, CrossY-2);
-					context.lineTo(CrossX+2, CrossY+2);
-					context.moveTo(CrossX+2, CrossY-2);
-					context.lineTo(CrossX-2, CrossY+2);
-					context.stroke();
-				}
-			}
-		}
-		context.fillStyle = 'wheat';
-		context.textAlign='right';
-		context.fillText(FormatTime(ReferenceGraph) + 'ms', nWidth, FontHeight);
-		context.textAlign='left';
 	}
 
 	ProfileLeave();
@@ -6209,6 +5923,7 @@ function AddTimer(T)
 	TimerArray[idx].idelement = idelement;
 	TimerArray[idx].w = w;
 	TimerArray[idx].wtree = w;
+	TimerArray[idx].timertype = T.type;
 	if(!existing)
 	{
 		TimerArray[idx].sibling = -1;

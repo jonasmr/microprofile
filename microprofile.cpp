@@ -8259,11 +8259,12 @@ void MicroProfileWebSocketSendEnabled(MpSocket C)
 
 	MicroProfileWSPrintEnd();
 }
-void MicroProfileWebSocketSendEntry(uint32_t id, uint32_t parent, const char* pName, int nEnabled, uint32_t nColor)
+void MicroProfileWebSocketSendEntry(uint32_t id, uint32_t parent, const char* pName, int nEnabled, uint32_t nColor, uint32_t nType)
 {
 	MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
 	MicroProfileWSPrintf("\"name\":\"%s\",", pName);
 	MicroProfileWSPrintf("\"e\":%d,", nEnabled);
+	MicroProfileWSPrintf("\"type\":%d,", nType);
 	if(nColor == 0x42)
 	{
 		MicroProfileWSPrintf("\"color\":\"\"");
@@ -8272,6 +8273,7 @@ void MicroProfileWebSocketSendEntry(uint32_t id, uint32_t parent, const char* pN
 	{
 		MicroProfileWSPrintf("\"color\":\"#%02x%02x%02x\"", MICROPROFILE_UNPACK_RED(nColor) & 0xff, MICROPROFILE_UNPACK_GREEN(nColor) & 0xff, MICROPROFILE_UNPACK_BLUE(nColor) & 0xff);
 	}
+
 	MicroProfileWSPrintf("}}");
 	MicroProfileWSFlush();
 }
@@ -8293,14 +8295,14 @@ void MicroProfileWebSocketSendState(MpSocket C)
 	{
 		MicroProfileWSPrintStart(C);
 		uint32_t root = MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_FORCE_ENABLE);
-		MicroProfileWebSocketSendEntry(root, 0, "All", MicroProfileGetEnableAllGroups(), (uint32_t)-1);
+		MicroProfileWebSocketSendEntry(root, 0, "All", MicroProfileGetEnableAllGroups(), (uint32_t)-1, 0);
 		for(uint32_t i = S.WSCategoriesSent; i < S.nCategoryCount; ++i)
 		{
 
 			MicroProfileCategory& CI = S.CategoryInfo[i];
 			uint32_t id = MicroProfileWebSocketIdPack(TYPE_CATEGORY, i);
 			uint32_t parent = root;
-			MicroProfileWebSocketSendEntry(id, parent, CI.pName, MicroProfileCategoryEnabled(i), 0xffffffff);
+			MicroProfileWebSocketSendEntry(id, parent, CI.pName, MicroProfileCategoryEnabled(i), 0xffffffff, 0);
 		}
 
 		for(uint32_t i = S.WSGroupsSent; i < S.nGroupCount; ++i)
@@ -8308,7 +8310,7 @@ void MicroProfileWebSocketSendState(MpSocket C)
 			MicroProfileGroupInfo& GI = S.GroupInfo[i];
 			uint32_t id = MicroProfileWebSocketIdPack(TYPE_GROUP, i);
 			uint32_t parent = MicroProfileWebSocketIdPack(TYPE_CATEGORY, GI.nCategory);
-			MicroProfileWebSocketSendEntry(id, parent, GI.pName, MicroProfileGroupEnabled(i), GI.nColor);
+			MicroProfileWebSocketSendEntry(id, parent, GI.pName, MicroProfileGroupEnabled(i), GI.nColor, GI.Type);
 		}
 
 		for(uint32_t i = S.WSTimersSent; i < S.nTotalTimers; ++i)
@@ -8316,7 +8318,7 @@ void MicroProfileWebSocketSendState(MpSocket C)
 			MicroProfileTimerInfo& TI = S.TimerInfo[i];
 			uint32_t id = MicroProfileWebSocketIdPack(TYPE_TIMER, i);
 			uint32_t parent = MicroProfileWebSocketIdPack(TYPE_GROUP, TI.nGroupIndex);
-			MicroProfileWebSocketSendEntry(id, parent, TI.pName, MicroProfileWebSocketTimerEnabled(i), TI.nColor);
+			MicroProfileWebSocketSendEntry(id, parent, TI.pName, MicroProfileWebSocketTimerEnabled(i), TI.nColor, TI.Type);
 		}
 
 		for(uint32_t i = S.WSCountersSent; i < S.nNumCounters; ++i)
@@ -8327,7 +8329,7 @@ void MicroProfileWebSocketSendState(MpSocket C)
 			MicroProfileWebSocketSendCounterEntry(id, parent, CI.pName, MicroProfileWebSocketCounterEnabled(i), CI.nLimit, CI.eFormat);
 		}
 #if MICROPROFILE_CONTEXT_SWITCH_TRACE
-		MicroProfileWebSocketSendEntry(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_CONTEXT_SWITCH_TRACE), 0, "Context Switch Trace", S.bContextSwitchRunning, (uint32_t)-1);
+		MicroProfileWebSocketSendEntry(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_CONTEXT_SWITCH_TRACE), 0, "Context Switch Trace", S.bContextSwitchRunning, (uint32_t)-1, 0);
 #endif
 #if MICROPROFILE_PLATFORM_MARKERS
 		MicroProfileWebSocketSendEntry(MicroProfileWebSocketIdPack(TYPE_SETTING, SETTING_PLATFORM_MARKERS), 0, "Platform Markers", S.bContextSwitchRunning, (uint32_t)-1);
