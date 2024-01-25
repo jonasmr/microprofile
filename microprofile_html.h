@@ -9005,6 +9005,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "const ReferencePresets = [5.0, 10.0, 15.0, 20, 30, 33.33, 50, 66.66,100.0,250.0,500,1000.0];\n"
 "const PercentilePresets = [0.0, 1.0, 5.0, 10.0, 50.0, 75.0, 99.0];\n"
 "let ReferenceTimeTweak = -1;\n"
+"const CounterByteNames = [\"bytes\", \"kilobytes\", \"megabytes\", \"gigabytes\"];\n"
 "let PercentileTweak = -1;\n"
 "\n"
 "Settings.TargetTime = 15;\n"
@@ -9146,7 +9147,6 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "const GRAPH_ALPHA = 0.5;\n"
 "\n"
 "\n"
-"// Settings.FancyGraph = 1;\n"
 "Settings.AutomaticReference = 0;\n"
 "Cookie.CodeReportMode = 0; // 0: prompt, 1:always send, 2: never send, never prompt\n"
 "\n"
@@ -10178,12 +10178,12 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "            if(!Skip)\n"
 "            {\n"
 "                context.fillStyle = \'white\';\n"
-"                context.textAlign = \'right\';\n"
-"    ";
+"  ";
 
 const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
 const char g_MicroProfileHtmlLive_begin_1[] =
-"            let YText = Y+Height-FontAscent;\n"
+"              context.textAlign = \'right\';\n"
+"                let YText = Y+Height-FontAscent;\n"
 "                context.fillText(Str, X-6, YText);\n"
 "            }\n"
 "		}\n"
@@ -10963,7 +10963,14 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "		}\n"
 "		else\n"
 "		{\n"
-"			return 2;\n"
+"			if(T.format == FormatCounterBytes)\n"
+"			{\n"
+"				return 3;\n"
+"			}\n"
+"			else\n"
+"			{\n"
+"				return 2;\n"
+"			}\n"
 "		}\n"
 "	}\n"
 "	// sort based on idtype\n"
@@ -10974,8 +10981,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	{\n"
 "		if(n == 0)\n"
 "			return \"GPU\";\n"
+"		if(n == 3)\n"
+"			return \"Byte Counter\";\n"
 "		if(n == 2)\n"
 "			return \"Counter\";\n"
+"\n"
 "		return \"CPU\";\n"
 "	}\n"
 "\n"
@@ -11082,7 +11092,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "				{\n"
 "\n"
 "					let SubGraphSettings = GetSubGraphSettings(GetFullName(T));\n"
-"					let Reference = GetSubGraphReferenceTime(SubGraphSettings, TimerState);\n"
+"					let Reference = GetSubGraphReferenceTime(T, SubGraphSettings, TimerState);\n"
 "					let fHeightScale2 = gh / Reference;\n"
 "\n"
 "					let Time = TimerState.Time;\n"
@@ -11540,14 +11550,14 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "		return;\n"
 "	}\n"
 "\n"
-"	var CaptureRange = MouseDragActiveXStart < MouseDragActiveXEnd ? \"Selection\" : (\"\"+Settings.CaptureFrames);\n"
-"	var CaptureText = \"Capture[\" + CaptureRange + \"]\";\n"
-"	var w = 10 + context.measureText(CaptureText).width;\n"
-"	var X = nWidth / 2 - w /";
+"	var CaptureRange = MouseDragActiveXStart < MouseDragActiveXEnd ? \"Se";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-" 2;\n"
+"lection\" : (\"\"+Settings.CaptureFrames);\n"
+"	var CaptureText = \"Capture[\" + CaptureRange + \"]\";\n"
+"	var w = 10 + context.measureText(CaptureText).width;\n"
+"	var X = nWidth / 2 - w / 2;\n"
 "	var XCenter = nWidth / 2;\n"
 "	var Y = nHeight - 30;\n"
 "	MouseInCaptureButton = MouseInside(X, Y, w, 4 + FontHeight);\n"
@@ -12864,7 +12874,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	}\n"
 "}\n"
 "\n"
-"function GetSubGraphReferenceTime(SubGraphSettings, TimerState)\n"
+"function GetSubGraphReferenceTime(T, SubGraphSettings, TimerState)\n"
 "{\n"
 "	if(SubGraphSettings.AutomaticReference)\n"
 "	{\n"
@@ -12872,7 +12882,14 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	}\n"
 "	else\n"
 "	{\n"
-"		return SubGraphSettings.ReferenceTime;\n"
+"		if(T.idtype == TYPE_COUNTER && T.format == FormatCounterBytes)\n"
+"		{\n"
+"			return (1 << (10*SubGraphSettings.Bytes)) * SubGraphSettings.ReferenceTime;\n"
+"		}\n"
+"		else\n"
+"		{\n"
+"			return SubGraphSettings.ReferenceTime;\n"
+"		}\n"
 "	}\n"
 "}\n"
 "\n"
@@ -12882,7 +12899,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	let SubGraphSettings = Source[key];\n"
 "	if(!SubGraphSettings)\n"
 "	{\n"
-"		SubGraphSettings = {\"ReferenceTime\":10.0, \"TargetTime\":-1, \"AutomaticReference\":1, \"Percentile\":0.0};\n"
+"		SubGraphSettings = {\"ReferenceTime\":10.0, \"TargetTime\":-1, \"AutomaticReference\":1, \"Percentile\":0.0, \"Bytes\":0};\n"
 "		Source[key] = SubGraphSettings;\n"
 "	}\n"
 "	return SubGraphSettings;\n"
@@ -12911,9 +12928,13 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	let SubGraphSettings = GetSubGraphSettings(SubMenuGraphSettingsKey);\n"
 "	let idx = GetTimerFromFullName(SubMenuGraphSettingsKey);\n"
 "	let T = TimerArray[idx];\n"
-"\n"
-"\n"
+"	const IsByteCounter = T.idtype == TYPE_COUNTER && T.format == FormatCounterBytes;\n"
+"	\n"
 "	ReferenceTimeTweak = DrawMenuRoll(M, \"Reference Value\", SubGraphSettings.ReferenceTime, \'\', ReferenceRollSubGraph, ReferenceTimeTweak, \'int\');\n"
+"	if(IsByteCounter)\n"
+"	{\n"
+"		DrawMenuRoll(M, \"\", CounterByteNames[SubGraphSettings.Bytes], \'\', ReferenceRollBytes, -1);\n"
+"	}\n"
 "	if(DrawMenuElement(M, SubGraphSettings.AutomaticReference, \"Automatic Reference Value\", SubGraphSettings.AutomaticReference, \'white\'))\n"
 "	{\n"
 "		SubGraphSettings.AutomaticReference = 1-SubGraphSettings.AutomaticReference;\n"
@@ -12940,7 +12961,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	}\n"
 "\n"
 "	{\n"
-"		let str = T.idtype == TYPE_TIMER ? \"TIMERS\" : \"COUNTERS\"\n"
+"		let str = T.idtype == TYPE_TIMER ? \"TIMERS\" : (T.format == FormatCounterBytes ? \"BYTE COUNTERS\" : \"COUNTERS\");\n"
 "		DrawMenuElement(M, 0, \"--- ALL \" + str + \"  -- \", \"\", \'white\');\n"
 "		let Apply = function(Callback){\n"
 " 			let AllSettings = Percentile ? Settings.SubGraphSettingsPercentile : Settings.SubGraphSettings;\n"
@@ -12950,7 +12971,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 " 				if(idx)\n"
 " 				{\n"
 "	 				let T0 = TimerArray[idx];\n"
-"	 				if(T0.idtype == T.idtype)\n"
+"	 				if(T0.idtype == T.idtype && T.format == T0.format)\n"
 "	 				{\n"
 "	 					Callback(AllSettings[key], key);\n"
 "	 				}\n"
@@ -12965,7 +12986,23 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "				T.ReferenceTime = SubGraphSettings.ReferenceTime;\n"
 "			});\n"
 "		}\n"
-"		if(DrawMenuElement(M, SubGraphSettings.AutomaticReference, \"Automatic Reference Value\", SubGraphSettings.AutomaticReference, \'white\'))\n"
+"		if(IsByteCounter)\n"
+"		{\n"
+"			let OldBytes = SubGraphSettings.Bytes;\n"
+"			DrawMenuRoll(M, \"\", CounterByteNames[SubGraphSettings.Bytes], \'\', ReferenceRollBytes, -1);\n"
+"			if(OldBytes != SubGraphSettings.Bytes)\n"
+"			{\n"
+"				Apply(function(T){\n"
+"					T.Bytes = SubGraphSettings.Bytes;\n"
+"				});\n"
+"			}\n"
+"		}\n"
+"\n"
+"		if(DrawMenuElement(M, SubGraphSettings.Aut";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+"omaticReference, \"Automatic Reference Value\", SubGraphSettings.AutomaticReference, \'white\'))\n"
 "		{\n"
 "			SubGraphSettings.AutomaticReference = 1-SubGraphSettings.AutomaticReference;\n"
 "			Apply(function(T){\n"
@@ -13002,11 +13039,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	let Selection = null;\n"
 "	let SizeInfo = {};\n"
 "	SizeInfo.h = 7 * BoxHeight;\n"
-"	let Strings = [\"Popups Allowed\", \"AutoCapture Enabled\", \"AutoCapture Threshold\", \"AutoCapture Source\", \"Capture Length\", \"Capture Del";
-
-const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
-const char g_MicroProfileHtmlLive_begin_3[] =
-"ay\"];\n"
+"	let Strings = [\"Popups Allowed\", \"AutoCapture Enabled\", \"AutoCapture Threshold\", \"AutoCapture Source\", \"Capture Length\", \"Capture Delay\"];\n"
 "	let wLeft = MeasureArray(0, Strings);\n"
 "	let wRight = 50;\n"
 "	wRight = MeasureArray(wRight, [\"Frame Time\"]);\n"
@@ -13138,6 +13171,25 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "		SubGraphSettings.ReferenceTime = NextValue(ReferencePresets, SubGraphSettings.ReferenceTime, Direction);\n"
 "	}\n"
 "}\n"
+"\n"
+"\n"
+"function ReferenceRollBytes(Direction, Tweak, SetDirect)\n"
+"{\n"
+"	let SubGraphSettings = GetSubGraphSettings(SubMenuGraphSettingsKey);\n"
+"	if(SetDirect)\n"
+"	{\n"
+"		debugger;\n"
+"	}\n"
+"	else if(Tweak)\n"
+"	{\n"
+"		debugger;\n"
+"	}\n"
+"	else if(Direction)\n"
+"	{\n"
+"		SubGraphSettings.Bytes = (SubGraphSettings.Bytes + Direction) % CounterByteNames.length;\n"
+"	}\n"
+"}\n"
+"\n"
 "\n"
 "function PercentileRollSubGraph(Direction, Tweak, SetDirect)\n"
 "{\n"
@@ -14247,7 +14299,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "		Y += BoxHeight;\n"
 "		return bMouseIn;\n"
 "	}\n"
-"	function DrawMenuRecursive(Index, Indent, categorymatch)\n"
+"	function DrawMenuRecursive(Index, Inde";
+
+const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
+const char g_MicroProfileHtmlLive_begin_4[] =
+"nt, categorymatch)\n"
 "	{\n"
 "		ProfileEnter(\"DrawMenuRecursive\");\n"
 "		var v = TimerArray[Index];\n"
@@ -14316,11 +14372,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "\n"
 "function DrawMenu()\n"
 "{\n"
-"	";
-
-const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
-const char g_MicroProfileHtmlLive_begin_4[] =
-"if(WSConnected && WS && WS.readyState == 1)\n"
+"	if(WSConnected && WS && WS.readyState == 1)\n"
 "	{\n"
 "		var context = CanvasDetailedView.getContext(\'2d\');\n"
 "		var nColorIndex = 0;\n"
@@ -15734,7 +15786,11 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "			MouseDragTarget = Event.target;\n"
 "			MouseDragButton = MapMouseButton(Event);\n"
 "			MouseDragState = MouseDragDown;\n"
-"			MouseDragXStart = MouseDragX;\n"
+"			MouseDragX";
+
+const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
+const char g_MicroProfileHtmlLive_begin_5[] =
+"Start = MouseDragX;\n"
 "			MouseDragYStart = MouseDragY;\n"
 "			MouseDragKeyCtrl = 0;\n"
 "			MouseDragKeyShift = 0;\n"
@@ -15798,11 +15854,7 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "				Settings.SortColumnOrderFlip = 0;\n"
 "			}\n"
 "\n"
-"		";
-
-const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
-const char g_MicroProfileHtmlLive_begin_5[] =
-"	Settings.SortColumnName = SortColumnMouseOverNext;\n"
+"			Settings.SortColumnName = SortColumnMouseOverNext;\n"
 "			SortColumnMouseOverNext = null;\n"
 "		}\n"
 "	}\n"

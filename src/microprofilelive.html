@@ -165,6 +165,7 @@ Settings.ReferenceTime = 100.0;
 const ReferencePresets = [5.0, 10.0, 15.0, 20, 30, 33.33, 50, 66.66,100.0,250.0,500,1000.0];
 const PercentilePresets = [0.0, 1.0, 5.0, 10.0, 50.0, 75.0, 99.0];
 let ReferenceTimeTweak = -1;
+const CounterByteNames = ["bytes", "kilobytes", "megabytes", "gigabytes"];
 let PercentileTweak = -1;
 
 Settings.TargetTime = 15;
@@ -306,7 +307,6 @@ const VIEW_SIZE = 7;
 const GRAPH_ALPHA = 0.5;
 
 
-// Settings.FancyGraph = 1;
 Settings.AutomaticReference = 0;
 Cookie.CodeReportMode = 0; // 0: prompt, 1:always send, 2: never send, never prompt
 
@@ -2119,7 +2119,14 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 		}
 		else
 		{
-			return 2;
+			if(T.format == FormatCounterBytes)
+			{
+				return 3;
+			}
+			else
+			{
+				return 2;
+			}
 		}
 	}
 	// sort based on idtype
@@ -2130,8 +2137,11 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 	{
 		if(n == 0)
 			return "GPU";
+		if(n == 3)
+			return "Byte Counter";
 		if(n == 2)
 			return "Counter";
+
 		return "CPU";
 	}
 
@@ -2238,7 +2248,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 				{
 
 					let SubGraphSettings = GetSubGraphSettings(GetFullName(T));
-					let Reference = GetSubGraphReferenceTime(SubGraphSettings, TimerState);
+					let Reference = GetSubGraphReferenceTime(T, SubGraphSettings, TimerState);
 					let fHeightScale2 = gh / Reference;
 
 					let Time = TimerState.Time;
@@ -4016,7 +4026,7 @@ function CheckPopupAllowed()
 	}
 }
 
-function GetSubGraphReferenceTime(SubGraphSettings, TimerState)
+function GetSubGraphReferenceTime(T, SubGraphSettings, TimerState)
 {
 	if(SubGraphSettings.AutomaticReference)
 	{
@@ -4024,7 +4034,14 @@ function GetSubGraphReferenceTime(SubGraphSettings, TimerState)
 	}
 	else
 	{
-		return SubGraphSettings.ReferenceTime;
+		if(T.idtype == TYPE_COUNTER && T.format == FormatCounterBytes)
+		{
+			return (1 << (10*SubGraphSettings.Bytes)) * SubGraphSettings.ReferenceTime;
+		}
+		else
+		{
+			return SubGraphSettings.ReferenceTime;
+		}
 	}
 }
 
@@ -4034,7 +4051,7 @@ function GetSubGraphSettings(key)
 	let SubGraphSettings = Source[key];
 	if(!SubGraphSettings)
 	{
-		SubGraphSettings = {"ReferenceTime":10.0, "TargetTime":-1, "AutomaticReference":1, "Percentile":0.0};
+		SubGraphSettings = {"ReferenceTime":10.0, "TargetTime":-1, "AutomaticReference":1, "Percentile":0.0, "Bytes":0};
 		Source[key] = SubGraphSettings;
 	}
 	return SubGraphSettings;
@@ -4063,9 +4080,13 @@ function DrawMenuGraphSettings()
 	let SubGraphSettings = GetSubGraphSettings(SubMenuGraphSettingsKey);
 	let idx = GetTimerFromFullName(SubMenuGraphSettingsKey);
 	let T = TimerArray[idx];
-
-
+	const IsByteCounter = T.idtype == TYPE_COUNTER && T.format == FormatCounterBytes;
+	
 	ReferenceTimeTweak = DrawMenuRoll(M, "Reference Value", SubGraphSettings.ReferenceTime, '', ReferenceRollSubGraph, ReferenceTimeTweak, 'int');
+	if(IsByteCounter)
+	{
+		DrawMenuRoll(M, "", CounterByteNames[SubGraphSettings.Bytes], '', ReferenceRollBytes, -1);
+	}
 	if(DrawMenuElement(M, SubGraphSettings.AutomaticReference, "Automatic Reference Value", SubGraphSettings.AutomaticReference, 'white'))
 	{
 		SubGraphSettings.AutomaticReference = 1-SubGraphSettings.AutomaticReference;
@@ -4092,7 +4113,7 @@ function DrawMenuGraphSettings()
 	}
 
 	{
-		let str = T.idtype == TYPE_TIMER ? "TIMERS" : "COUNTERS"
+		let str = T.idtype == TYPE_TIMER ? "TIMERS" : (T.format == FormatCounterBytes ? "BYTE COUNTERS" : "COUNTERS");
 		DrawMenuElement(M, 0, "--- ALL " + str + "  -- ", "", 'white');
 		let Apply = function(Callback){
  			let AllSettings = Percentile ? Settings.SubGraphSettingsPercentile : Settings.SubGraphSettings;
@@ -4102,7 +4123,7 @@ function DrawMenuGraphSettings()
  				if(idx)
  				{
 	 				let T0 = TimerArray[idx];
-	 				if(T0.idtype == T.idtype)
+	 				if(T0.idtype == T.idtype && T.format == T0.format)
 	 				{
 	 					Callback(AllSettings[key], key);
 	 				}
@@ -4117,6 +4138,18 @@ function DrawMenuGraphSettings()
 				T.ReferenceTime = SubGraphSettings.ReferenceTime;
 			});
 		}
+		if(IsByteCounter)
+		{
+			let OldBytes = SubGraphSettings.Bytes;
+			DrawMenuRoll(M, "", CounterByteNames[SubGraphSettings.Bytes], '', ReferenceRollBytes, -1);
+			if(OldBytes != SubGraphSettings.Bytes)
+			{
+				Apply(function(T){
+					T.Bytes = SubGraphSettings.Bytes;
+				});
+			}
+		}
+
 		if(DrawMenuElement(M, SubGraphSettings.AutomaticReference, "Automatic Reference Value", SubGraphSettings.AutomaticReference, 'white'))
 		{
 			SubGraphSettings.AutomaticReference = 1-SubGraphSettings.AutomaticReference;
@@ -4286,6 +4319,25 @@ function ReferenceRollSubGraph(Direction, Tweak, SetDirect)
 		SubGraphSettings.ReferenceTime = NextValue(ReferencePresets, SubGraphSettings.ReferenceTime, Direction);
 	}
 }
+
+
+function ReferenceRollBytes(Direction, Tweak, SetDirect)
+{
+	let SubGraphSettings = GetSubGraphSettings(SubMenuGraphSettingsKey);
+	if(SetDirect)
+	{
+		debugger;
+	}
+	else if(Tweak)
+	{
+		debugger;
+	}
+	else if(Direction)
+	{
+		SubGraphSettings.Bytes = (SubGraphSettings.Bytes + Direction) % CounterByteNames.length;
+	}
+}
+
 
 function PercentileRollSubGraph(Direction, Tweak, SetDirect)
 {
