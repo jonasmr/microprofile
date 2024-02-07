@@ -292,6 +292,42 @@ int64_t MicroProfileGetTick();
 #define MP_THREAD_LOCAL __declspec(thread)
 #define MP_NOINLINE __declspec(noinline)
 
+#ifndef MICROPROFILE_WIN32_TRAP_ALLOCATOR
+#define MICROPROFILE_WIN32_TRAP_ALLOCATOR 0
+#endif
+
+#if MICROPROFILE_WIN32_TRAP_ALLOCATOR
+//minimal trap allocator
+#define PAGE_SIZE (4096)
+void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
+{
+	(void)nAlign;
+	size_t nAlignedSize = (nSize + PAGE_SIZE - 1) & (~(PAGE_SIZE - 1));
+	size_t nDelta = nAlignedSize - nSize;
+	size_t nFullSize = nAlignedSize + 2 * PAGE_SIZE;
+
+	void* ptr = VirtualAlloc(0, nFullSize, MEM_RESERVE, PAGE_READWRITE);
+	intptr_t intptr = (intptr_t)ptr;
+
+	void* pResult = VirtualAlloc((void*)(intptr + PAGE_SIZE), nAlignedSize, MEM_COMMIT, PAGE_READWRITE);
+	memset(pResult, 0xf0, nAlignedSize);
+
+	intptr_t page = (intptr_t)pResult;
+	//((char*)page)[-1] = 0x70; //trap test
+	page += nDelta; 
+	pResult = (void*)page;
+	memset(pResult, 0xfe, nSize);
+	//((char*)page)[nSize] = 0x70; //trap test
+	return (void*)page;
+}
+
+void MicroProfileFreeAligned(void* pMem)
+{
+	intptr_t intptr = (intptr_t)pMem;
+	intptr = (intptr & (~(PAGE_SIZE - 1))) - PAGE_SIZE;
+	VirtualFree(pMem, 0, MEM_RELEASE);
+}
+#else
 void* MicroProfileAllocAligned(size_t nSize, size_t nAlign)
 {
 	return _aligned_malloc(nSize, nAlign);
@@ -301,6 +337,7 @@ void MicroProfileFreeAligned(void* pMem)
 {
 	_aligned_free(pMem);
 }
+#endif
 
 #else
 
@@ -1884,17 +1921,17 @@ void MicroProfileCsvConfigBegin(uint32_t MaxTimers, uint32_t MaxGroups, uint32_t
 	S.CsvConfig.TimerIndices = (uint16_t*)MicroProfileAllocInternal(TimerIndexSize, alignof(uint16_t));
 	S.CsvConfig.pTimerNames = (const char**)MicroProfileAllocInternal(MaxTimers * sizeof(const char*), alignof(const char*));
 	memset(S.CsvConfig.pTimerNames, 0, MaxTimers * sizeof(const char*));
-	for(uint32_t i = 0; i < TimerIndexSize; ++i)
+	for(uint32_t i = 0; i < MaxTimers; ++i)
 		S.CsvConfig.TimerIndices[i] = UINT16_MAX;
 	S.CsvConfig.pGroupNames = (const char**)MicroProfileAllocInternal(MaxGroups * sizeof(const char*), alignof(const char*));
 	memset(S.CsvConfig.pGroupNames, 0, MaxGroups * sizeof(const char*));
 	S.CsvConfig.GroupIndices = (uint16_t*)MicroProfileAllocInternal(GroupIndexSize, alignof(uint16_t));
-	for(uint32_t i = 0; i < GroupIndexSize; ++i)
+	for(uint32_t i = 0; i < MaxGroups; ++i)
 		S.CsvConfig.GroupIndices[i] = UINT16_MAX;
 	S.CsvConfig.pCounterNames = (const char**)MicroProfileAllocInternal(MaxCounters * sizeof(const char*), alignof(const char*));
 	memset(S.CsvConfig.pCounterNames, 0, MaxCounters * sizeof(const char*));
 	S.CsvConfig.CounterIndices = (uint16_t*)MicroProfileAllocInternal(CounterIndexSize, alignof(uint16_t));
-	for(uint32_t i = 0; i < CounterIndexSize; ++i)
+	for(uint32_t i = 0; i < MaxCounters; ++i)
 		S.CsvConfig.CounterIndices[i] = UINT16_MAX;
 	S.CsvConfig.FrameData = (uint64_t*)MicroProfileAllocInternal(FrameDataSize, alignof(uint64_t));
 	memset(S.CsvConfig.FrameData, 0, FrameDataSize);
@@ -1909,6 +1946,7 @@ void MicroProfileCsvConfigAddTimer(const char* Group, const char* Timer, const c
 		MicroProfileToken ret = MicroProfileGetToken(Group, Timer, MP_AUTO, Type, MICROPROFILE_TIMER_FLAG_PLACEHOLDER);
 		if(ret != MICROPROFILE_INVALID_TOKEN)
 		{
+			MP_ASSERT(S.CsvConfig.NumTimers < S.CsvConfig.MaxTimers);
 			S.CsvConfig.pTimerNames[S.CsvConfig.NumTimers] = Name;
 			S.CsvConfig.TimerIndices[S.CsvConfig.NumTimers++] = MicroProfileGetTimerIndex(ret);
 		}
@@ -1923,6 +1961,7 @@ void MicroProfileCsvConfigAddGroup(const char* Group, const char* Name)
 		MP_ASSERT(UINT16_MAX != Index);
 		if(UINT16_MAX != Index)
 		{
+			MP_ASSERT(S.CsvConfig.NumGroups < S.CsvConfig.MaxGroups);
 			S.CsvConfig.pGroupNames[S.CsvConfig.NumGroups] = Name;
 			S.CsvConfig.GroupIndices[S.CsvConfig.NumGroups++] = Index;
 		}
@@ -1938,6 +1977,7 @@ void MicroProfileCsvConfigAddCounter(const char* CounterName, const char* Name)
 		if(MICROPROFILE_INVALID_TOKEN != Token)
 		{
 			MP_ASSERT(Token < UINT16_MAX);
+			MP_ASSERT(S.CsvConfig.NumCounters < S.CsvConfig.MaxCounters);
 			S.CsvConfig.pCounterNames[S.CsvConfig.NumCounters] = Name;
 			S.CsvConfig.CounterIndices[S.CsvConfig.NumCounters++] = (uint16_t)Token;
 		}
