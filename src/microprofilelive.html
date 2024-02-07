@@ -2069,6 +2069,69 @@ function DrawGraphViewLargeHeader(context, Text, Y, TextOffset)
 }
 
 
+function CounterType(k)
+{
+	let T = TimerArray[GetTimer(k)];
+	let t0 = T.idtype;
+	if(t0 == TYPE_TIMER)
+	{
+		if(T.timertype == MicroProfileTokenTypeGpu)
+		{
+			return 0;
+		}
+		else
+		{
+			return 1;
+		}
+	}
+	else
+	{
+		if(T.format == FormatCounterBytes)
+		{
+			return 3;
+		}
+		else
+		{
+			return 2;
+		}
+	}
+}
+
+function CounterTypeName(n)
+{
+	if(n == 0)
+		return "GPU";
+	if(n == 3)
+		return "Byte Counter";
+	if(n == 2)
+		return "Counter";
+
+	return "CPU";
+}
+
+function SortGraphs()
+{
+	let TimerMap = FrameData.TimerMap;
+	let Keys = [];
+	for(let key in TimerMap)
+	{
+		let idx = GetTimer(key);
+		let T = TimerArray[idx];
+		if(!IsGroup(key) && T.e)
+		{
+			Keys.push(key);
+		}
+	}
+	// sort based on idtype
+	Keys.sort(function(l, r) {
+		return CounterType(l)-CounterType(r);
+	});
+
+	return Keys;
+}
+
+
+
 function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 {
 	let TimerMap = FrameData.TimerMap;
@@ -2090,61 +2153,9 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 	let GraphBest = 0;
 	let MouseTime = ReferenceGraph * (1-(LocalMouseY / h));
 
-	let NumGraphs = 0;
-	let Keys = [];
-	for(let key in TimerMap)
-	{
-		let idx = GetTimer(key);
-		let T = TimerArray[idx];
-		if(!IsGroup(key) && T.e)
-		{
-			Keys.push(key);
-			NumGraphs++;
-		}
-	}
-	function CounterType(k)
-	{
-		let T = TimerArray[GetTimer(k)];
-		let t0 = T.idtype;
-		if(t0 == TYPE_TIMER)
-		{
-			if(T.timertype == MicroProfileTokenTypeGpu)
-			{
-				return 0;
-			}
-			else
-			{
-				return 1;
-			}
-		}
-		else
-		{
-			if(T.format == FormatCounterBytes)
-			{
-				return 3;
-			}
-			else
-			{
-				return 2;
-			}
-		}
-	}
-	// sort based on idtype
-	Keys.sort(function(l, r) {
-		return CounterType(l)-CounterType(r);
-	});
-	function CounterTypeName(n)
-	{
-		if(n == 0)
-			return "GPU";
-		if(n == 3)
-			return "Byte Counter";
-		if(n == 2)
-			return "Counter";
-
-		return "CPU";
-	}
-
+	
+	let Keys = SortGraphs();
+	let NumGraphs = Keys.length;
 
 	if(LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1)
 	{
@@ -2644,28 +2655,19 @@ function DrawGraphSettingsMenu(context, XBase, Y, width, height)
 	{
 		return;
 	}
-	let NumGraphs = 0;
+	
 	let TimerMap = FrameData.TimerMap;
+	let Keys = SortGraphs();
+	let NumGraphs = Keys.length;
 
-	for(let key in TimerMap)
-	{
-		if(!IsGroup(key))
-		{
-			let idx = GetTimer(key);
-			if(TimerArray[idx].e)
-			{
-				NumGraphs++;
-			}
-		}
-	}
 	let h = height;
 	let w = width;
 	let hstart = Y;
 	let gh = h / NumGraphs;
 	NumGraphs = 0;
-	for(let key in TimerMap)
+	for(let index in Keys)
 	{
-		if(!IsGroup(key))
+		let key = Keys[index];
 		{
 			let idx = GetTimer(key);
 			let T = TimerArray[idx];
@@ -4054,6 +4056,8 @@ function GetSubGraphSettings(key)
 		SubGraphSettings = {"ReferenceTime":10.0, "TargetTime":-1, "AutomaticReference":1, "Percentile":0.0, "Bytes":0};
 		Source[key] = SubGraphSettings;
 	}
+	if(!SubGraphSettings.Bytes)
+		SubGraphSettings.Bytes = 0;
 	return SubGraphSettings;
 }
 
@@ -4334,7 +4338,9 @@ function ReferenceRollBytes(Direction, Tweak, SetDirect)
 	}
 	else if(Direction)
 	{
-		SubGraphSettings.Bytes = (SubGraphSettings.Bytes + Direction) % CounterByteNames.length;
+		SubGraphSettings.Bytes = (SubGraphSettings.Bytes + Direction);
+		if(SubGraphSettings.Bytes<0)
+			SubGraphSettings.Bytes = CounterByteNames.length-1;
 	}
 }
 
