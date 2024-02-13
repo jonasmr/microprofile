@@ -11138,14 +11138,53 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "					context.fillStyle = \'wheat\';\n"
 "					context.textAlign=\'right\';\n"
 "					context.fillText(FormatTimeText(Reference, T), nWidth, hstart + FontHeight);\n"
+"					{\n"
+"						let Value = Time[Time.length-1];\n"
+"						let YPos = Value * fHeightScale2 + Math.floor(0.5*FontHeight);\n"
+"						const sp = FontHeight+2;\n"
+"						YPos = Math.min(Math.max(sp, YPos), gh-2*sp);\n"
+"						let Y = YStart - YPos;\n"
+"						TimerState.finaly = Y;\n"
+"						if(TimerState.finalysoft)\n"
+"						{\n"
+"							let RATE = 0.025;\n"
+"							if(Math.abs(TimerState.finalysoft - TimerState.finaly) > 6)\n"
+"							{\n"
+"								TimerState.finalysoft = TimerState.finaly * RATE + TimerState.finalysoft * (1-RATE);\n"
+"							}\n"
+"						}\n"
+"						else\n"
+"						{\n"
+"							TimerState.finalysoft = TimerState.finaly;\n"
+"						}\n"
+"						Y = TimerState.finalysoft;\n"
+"						let str = \'\' + FormatTimeText(Value, T);\n"
+"						let X = nWidth;\n"
+"						let w = context.measureText(str, X, Y).width;\n"
+"						context.fillStyle = \'black\';\n"
+"						let a = context.globalAlpha;\n"
+"						context.globalAlpha = 0.3;\n"
+"						context.fillRect(X-w, Y-1-FontHeight , w+2, BoxHeight+2);\n"
+"						context.globalAlpha = a;\n"
+"						context.fillStyle = \'white\';\n"
+"						context.fillText(FormatTimeText(Value, T), nWidth, TimerState.finalysoft);\n"
+"						\n"
+"\n"
+"					}\n"
 "					context.textAlign=\'left\';\n"
 "					context.fillText(FormatName(T), 15, hstart + FontHeight);\n"
+"\n"
+"\n"
 "					let Type = CounterType(key);\n"
 "					if(Type != CurrentType)\n"
 "					{ \n"
 "						CurrentType = Type;\n"
 "						DrawGraphViewLargeHeader(context, CounterTypeName(CurrentType), YHeader, FontHeight + 3);\n"
 "					}\n"
+"\n"
+"\n"
+"\n"
+"\n"
 "\n"
 "					if(HighlightFrame >= 0)\n"
 "					{\n"
@@ -11511,6 +11550,10 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	NumGraphs = 0;\n"
 "	for(let index in Keys)\n"
 "	{\n"
+"";
+
+const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
+const char g_MicroProfileHtmlLive_begin_2[] =
 "		let key = Keys[index];\n"
 "		{\n"
 "			let idx = GetTimer(key);\n"
@@ -11552,11 +11595,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "		return;\n"
 "	}\n"
 "\n"
-"	var CaptureRange = MouseDragActiveXStart < MouseDragActiveXEnd ? \"Selection\" : (\"\"+Settings.CaptureFr";
-
-const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
-const char g_MicroProfileHtmlLive_begin_2[] =
-"ames);\n"
+"	var CaptureRange = MouseDragActiveXStart < MouseDragActiveXEnd ? \"Selection\" : (\"\"+Settings.CaptureFrames);\n"
 "	var CaptureText = \"Capture[\" + CaptureRange + \"]\";\n"
 "	var w = 10 + context.measureText(CaptureText).width;\n"
 "	var X = nWidth / 2 - w / 2;\n"
@@ -12965,7 +13004,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	}\n"
 "\n"
 "	{\n"
-"		let str = T.idtype == TYPE_TIMER ? \"TIMERS\" : (T.format == FormatCounterBytes ? \"BYTE COUNTERS\" : \"COUNTERS\");\n"
+"		let str = T.idtype == TYPE_TIMER ? \"TIMERS\" : (T.format == FormatCounterBytes ? \"BYTE COUNTERS\" : \"COUNTERS\")";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+";\n"
 "		DrawMenuElement(M, 0, \"--- ALL \" + str + \"  -- \", \"\", \'white\');\n"
 "		let Apply = function(Callback){\n"
 " 			let AllSettings = Percentile ? Settings.SubGraphSettingsPercentile : Settings.SubGraphSettings;\n"
@@ -13002,11 +13045,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "			}\n"
 "		}\n"
 "\n"
-"		if(DrawMenuEleme";
-
-const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
-const char g_MicroProfileHtmlLive_begin_3[] =
-"nt(M, SubGraphSettings.AutomaticReference, \"Automatic Reference Value\", SubGraphSettings.AutomaticReference, \'white\'))\n"
+"		if(DrawMenuElement(M, SubGraphSettings.AutomaticReference, \"Automatic Reference Value\", SubGraphSettings.AutomaticReference, \'white\'))\n"
 "		{\n"
 "			SubGraphSettings.AutomaticReference = 1-SubGraphSettings.AutomaticReference;\n"
 "			Apply(function(T){\n"
@@ -14268,7 +14307,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "\n"
 "function DrawMenuCounters()\n"
 "{\n"
-"	if(FilterInputValueLast != FilterInput.value)\n"
+"	if(FilterInputValue";
+
+const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
+const char g_MicroProfileHtmlLive_begin_4[] =
+"Last != FilterInput.value)\n"
 "	{\n"
 "		nOffsetMenuCounters = 0;\n"
 "	}\n"
@@ -14301,11 +14344,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "		context.fillStyle = color;\n"
 "		if(!Indent) Indent = 0;\n"
 "		context.fillText(Name, X + Indent*FontWidth, Y+BoxHeight-FontAscent);\n"
-"		nColorIndex = 1-nColor";
-
-const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
-const char g_MicroProfileHtmlLive_begin_4[] =
-"Index;\n"
+"		nColorIndex = 1-nColorIndex;\n"
 "		Y += BoxHeight;\n"
 "		return bMouseIn;\n"
 "	}\n"
@@ -15745,7 +15784,11 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "{\n"
 "	MouseDragState = MouseDragOff;\n"
 "	MouseDragTarget = 0;\n"
-"	MouseDragKeyShift = 0;\n"
+"	MouseDragKeyShi";
+
+const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
+const char g_MicroProfileHtmlLive_begin_5[] =
+"ft = 0;\n"
 "	MouseDragKeyCtrl = 0;\n"
 "	MouseDragButton = 0;\n"
 "}\n"
@@ -15790,11 +15833,7 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "		if(Source == MouseDragDown || KeyShiftDown || KeyCtrlDown)\n"
 "		{\n"
 "			MouseDragTarget = Event.target;\n"
-"			Mou";
-
-const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
-const char g_MicroProfileHtmlLive_begin_5[] =
-"seDragButton = MapMouseButton(Event);\n"
+"			MouseDragButton = MapMouseButton(Event);\n"
 "			MouseDragState = MouseDragDown;\n"
 "			MouseDragXStart = MouseDragX;\n"
 "			MouseDragYStart = MouseDragY;\n"

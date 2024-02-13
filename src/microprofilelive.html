@@ -2294,8 +2294,43 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 					context.fillStyle = 'wheat';
 					context.textAlign='right';
 					context.fillText(FormatTimeText(Reference, T), nWidth, hstart + FontHeight);
+					{
+						let Value = Time[Time.length-1];
+						let YPos = Value * fHeightScale2 + Math.floor(0.5*FontHeight);
+						const sp = FontHeight+2;
+						YPos = Math.min(Math.max(sp, YPos), gh-2*sp);
+						let Y = YStart - YPos;
+						TimerState.finaly = Y;
+						if(TimerState.finalysoft)
+						{
+							let RATE = 0.025;
+							if(Math.abs(TimerState.finalysoft - TimerState.finaly) > 6)
+							{
+								TimerState.finalysoft = TimerState.finaly * RATE + TimerState.finalysoft * (1-RATE);
+							}
+						}
+						else
+						{
+							TimerState.finalysoft = TimerState.finaly;
+						}
+						Y = TimerState.finalysoft;
+						let str = '' + FormatTimeText(Value, T);
+						let X = nWidth;
+						let w = context.measureText(str, X, Y).width;
+						context.fillStyle = 'black';
+						let a = context.globalAlpha;
+						context.globalAlpha = 0.3;
+						context.fillRect(X-w, Y-1-FontHeight , w+2, BoxHeight+2);
+						context.globalAlpha = a;
+						context.fillStyle = 'white';
+						context.fillText(FormatTimeText(Value, T), nWidth, TimerState.finalysoft);
+						
+
+					}
 					context.textAlign='left';
 					context.fillText(FormatName(T), 15, hstart + FontHeight);
+
+
 					let Type = CounterType(key);
 					if(Type != CurrentType)
 					{ 
