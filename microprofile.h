@@ -439,7 +439,7 @@ typedef uint32_t MicroProfileTimelineToken;
 #define MicroProfileGpuGetTimeStamp(a) 0
 #define MicroProfileTicksPerSecondGpu() 1
 #define MicroProfileGetGpuTickReference(a, b) 0
-#define MicroProfileGpuInitD3D12(pDevice, nNodeCount, pCommandQueue)                                                                                                                                   \
+#define MicroProfileGpuInitD3D12(pDevice, nNodeCount, pCommandQueue, pCopyQueue)                                                                                                                                   \
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
@@ -1093,7 +1093,7 @@ extern "C"
 #endif
 
 #if MICROPROFILE_GPU_TIMERS_D3D12
-	MICROPROFILE_API void MicroProfileGpuInitD3D12(void* pDevice, uint32_t nNodeCount, void** pCommandQueues);
+	MICROPROFILE_API void MicroProfileGpuInitD3D12(void* pDevice, uint32_t nNodeCount, void** pCommandQueues, void** pCopyQueues);
 	MICROPROFILE_API void MicroProfileGpuShutdown();
 	MICROPROFILE_API void MicroProfileSetCurrentNodeD3D12(uint32_t nNode);
 #endif

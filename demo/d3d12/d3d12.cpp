@@ -15,6 +15,7 @@
 //hack to make it work with the weird object oriented design of the sample
 ID3D12Device* g_pDevice = 0;
 ID3D12CommandQueue* g_pCommandQueue = 0;
+ID3D12CommandQueue* g_pCopyQueue = 0;
 int g_QueueGraphics = -1;
 
 
@@ -213,7 +214,7 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 	MicroProfileSetEnableAllGroups(true);
 	MicroProfileSetForceMetaCounters(true);
 	MICROPROFILE_CONDITIONAL(g_QueueGraphics = MICROPROFILE_GPU_INIT_QUEUE("GPU-Graphics-Queue"));
-	MicroProfileGpuInitD3D12(g_pDevice, 1, (void**)&g_pCommandQueue);
+	MicroProfileGpuInitD3D12(g_pDevice, 1, (void**)&g_pCommandQueue, (void**)&g_pCopyQueue);
 	MicroProfileSetCurrentNodeD3D12(0);
 	//MICROPROFILE_GPU_BEGIN(0, MicroProfileGetGlobalGpuThreadLog());
 
@@ -445,6 +446,13 @@ void D3D12HelloTriangle::LoadPipeline()
 
 	ThrowIfFailed(m_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_commandQueue)));
 	g_pCommandQueue = m_commandQueue.Get();
+
+	queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+	queueDesc.Type = D3D12_COMMAND_LIST_TYPE_COPY;
+
+	ThrowIfFailed(m_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&g_pCopyQueue)));
+
+
 
 	// Describe and create the swap chain.
 	DXGI_SWAP_CHAIN_DESC swapChainDesc = {};

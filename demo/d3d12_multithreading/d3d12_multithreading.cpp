@@ -39,6 +39,7 @@ static const int CommandListPost = 2;
 #include "microprofile.h"
 
 ID3D12Device* g_pDevice = 0;
+ID3D12CommandQueue* g_pCopyQueue = 0;
 ID3D12CommandQueue* g_pCommandQueue = 0;
 ID3D12CommandQueue* g_pComputeQueue = 0;
 int g_QueueGraphics = -1;
@@ -532,7 +533,7 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 		snprintf(frame, sizeof(frame) - 1, "Compute-Write-%d", i);
 		g_TokenGpuComputeFrameIndex[i] = MicroProfileGetToken("GPU", frame, (uint32_t)-1, MicroProfileTokenTypeGpu, 0);
 	}
-	MicroProfileGpuInitD3D12(g_pDevice, 1, (void**)&g_pCommandQueue);
+	MicroProfileGpuInitD3D12(g_pDevice, 1, (void**)&g_pCommandQueue, (void**)&g_pCopyQueue);
 	MicroProfileSetCurrentNodeD3D12(0);
 
 
@@ -930,6 +931,10 @@ void D3D12Multithreading::LoadPipeline()
 	queueDesc.Type = D3D12_COMMAND_LIST_TYPE_COMPUTE;
 
 	ThrowIfFailed(m_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&g_pComputeQueue)));
+
+	queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+	queueDesc.Type = D3D12_COMMAND_LIST_TYPE_COPY;
+	ThrowIfFailed(m_device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&g_pCopyQueue)));
 
 	// Describe and create the swap chain.
 	DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
