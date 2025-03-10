@@ -2094,12 +2094,32 @@ function BuildToolTipDetailed(S, nHoverToken, HoverTokenOwner, bSecond)
 
 	if(S == HoverTokenOwner)
 	{
-		StringArray.push("Time");
-		StringArray.push((RangeCpu.End-RangeCpu.Begin).toFixed(3));
+		if(RangeValid(RangeGpu))
+		{
+			StringArray.push("GPU Time");
+			StringArray.push((RangeGpu.End-RangeGpu.Begin).toFixed(3));
+			StringArray.push("CPU Time");
+			StringArray.push((RangeCpu.End-RangeCpu.Begin).toFixed(3));
+		}
+		else
+		{
+			StringArray.push("CPU Time");
+			StringArray.push((RangeCpu.End-RangeCpu.Begin).toFixed(3));
+		}
+
+
 	}
 	else
 	{
 		StringArray.push("");
+		StringArray.push("");
+	}
+
+	if(RangeValid(RangeGpu))
+	{
+		StringArray.push("");
+		StringArray.push("");
+		StringArray.push("GPU Aggregates");
 		StringArray.push("");
 	}
 

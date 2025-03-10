@@ -2112,12 +2112,32 @@ const char g_MicroProfileHtml_end_1[] =
 "\n"
 "	if(S == HoverTokenOwner)\n"
 "	{\n"
-"		StringArray.push(\"Time\");\n"
-"		StringArray.push((RangeCpu.End-RangeCpu.Begin).toFixed(3));\n"
+"		if(RangeValid(RangeGpu))\n"
+"		{\n"
+"			StringArray.push(\"GPU Time\");\n"
+"			StringArray.push((RangeGpu.End-RangeGpu.Begin).toFixed(3));\n"
+"			StringArray.push(\"CPU Time\");\n"
+"			StringArray.push((RangeCpu.End-RangeCpu.Begin).toFixed(3));\n"
+"		}\n"
+"		else\n"
+"		{\n"
+"			StringArray.push(\"CPU Time\");\n"
+"			StringArray.push((RangeCpu.End-RangeCpu.Begin).toFixed(3));\n"
+"		}\n"
+"\n"
+"\n"
 "	}\n"
 "	else\n"
 "	{\n"
 "		StringArray.push(\"\");\n"
+"		StringArray.push(\"\");\n"
+"	}\n"
+"\n"
+"	if(RangeValid(RangeGpu))\n"
+"	{\n"
+"		StringArray.push(\"\");\n"
+"		StringArray.push(\"\");\n"
+"		StringArray.push(\"GPU Aggregates\");\n"
 "		StringArray.push(\"\");\n"
 "	}\n"
 "\n"
@@ -2999,7 +3019,11 @@ const char g_MicroProfileHtml_end_1[] =
 "		context.fillRect(0, Y, Width, HeightExpanded);\n"
 "		context.fillStyle = \'white\';\n"
 "		var c = Counter.closed ? \'*\' : \' \';\n"
-"		context.fillText(c + Counter.name, Indent, Y+Height-FontAscent);\n"
+"		context.fillText(c + C";
+
+const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
+const char g_MicroProfileHtml_end_2[] =
+"ounter.name, Indent, Y+Height-FontAscent);\n"
 "		X += CounterNameWidth;\n"
 "		X += CounterValueWidth - FontWidth;\n"
 "		context.textAlign = \'right\';\n"
@@ -3010,11 +3034,7 @@ const char g_MicroProfileHtml_end_1[] =
 "		if(Counter.limit != 0)\n"
 "		{\n"
 "			context.fillText(Counter.formattedlimit, X, Y+Height-FontAscent);\n"
-"			X += CounterLimitWidth";
-
-const size_t g_MicroProfileHtml_end_1_size = sizeof(g_MicroProfileHtml_end_1);
-const char g_MicroProfileHtml_end_2[] =
-";\n"
+"			X += CounterLimitWidth;\n"
 "			var X0 = X + 1;\n"
 "			context.fillStyle = \'white\';\n"
 "			context.fillRect(X0, Y0, Counter.boxprc * (CounterWidth-2), Height-2);\n"
@@ -4248,7 +4268,11 @@ const char g_MicroProfileHtml_end_2[] =
 "		Blinking = 1;\n"
 "		var b0 = Blinks* Math.PI * Delta;\n"
 "		var b1 = b0 / BlinkTime;\n"
-"		var Mag = Math.abs(Math.sin(b1));\n"
+"		var Mag = Math.abs(Math.sin(b1));";
+
+const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
+const char g_MicroProfileHtml_end_3[] =
+"\n"
 "		HoverFloat = Mag * 0.5 + 0.2;\n"
 "	}\n"
 "	var Lines = new Array();\n"
@@ -4264,11 +4288,7 @@ const char g_MicroProfileHtml_end_2[] =
 "		var OffsetTop = Range.YBegin + ThreadY[Range.Thread];\n"
 "		var OffsetBottom = OffsetTop + BoxHeight;\n"
 "\n"
-"		if(fBegin < fEn";
-
-const size_t g_MicroProfileHtml_end_2_size = sizeof(g_MicroProfileHtml_end_2);
-const char g_MicroProfileHtml_end_3[] =
-"d)\n"
+"		if(fBegin < fEnd)\n"
 "		{\n"
 "			{\n"
 "				OffsetTop = Math.max(OffsetTop, 0);\n"
@@ -5620,7 +5640,11 @@ const char g_MicroProfileHtml_end_3[] =
 "	let ElementsGPU = [TextGPU, \"Off\", \"Flip\", \"On\"];\n"
 "	\n"
 "	let CallbacksAll = [null,\n"
-"		function(){ ToggleThread(0, 1, 0, 0); },\n"
+"		function(){ ToggleThread(0, 1, 0, ";
+
+const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
+const char g_MicroProfileHtml_end_4[] =
+"0); },\n"
 "		function(){ ToggleThread(0, 1, 0, 1); },\n"
 "		function(){ ToggleThread(0, 1, 0, 2); },\n"
 "	];\n"
@@ -5632,11 +5656,7 @@ const char g_MicroProfileHtml_end_3[] =
 "	];\n"
 "	let CallbacksGPU = [null,\n"
 "		function(){ ToggleThread(0, 0, GPULogs, 0); },\n"
-"		function(){ ToggleThread(0, 0, GPULogs,";
-
-const size_t g_MicroProfileHtml_end_3_size = sizeof(g_MicroProfileHtml_end_3);
-const char g_MicroProfileHtml_end_4[] =
-" 1); },\n"
+"		function(){ ToggleThread(0, 0, GPULogs, 1); },\n"
 "		function(){ ToggleThread(0, 0, GPULogs, 2); },\n"
 "	];\n"
 "\n"
@@ -7169,7 +7189,11 @@ const char g_MicroProfileHtml_end_4[] =
 "	o.MinDelta = MinDelta;\n"
 "	o.TimeArray = TimeArray;\n"
 "	o.TypeArray = TypeArray;\n"
-"	o.IndexArray = IndexArray;\n"
+"	o";
+
+const size_t g_MicroProfileHtml_end_4_size = sizeof(g_MicroProfileHtml_end_4);
+const char g_MicroProfileHtml_end_5[] =
+".IndexArray = IndexArray;\n"
 "	o.LogStart = LogStart;\n"
 "	S.LodData[index] = o;\n"
 "}\n"
@@ -7187,11 +7211,7 @@ const char g_MicroProfileHtml_end_4[] =
 "	}\n"
 "\n"
 "\n"
-"	for(nLog = 0; nLog";
-
-const size_t g_MicroProfileHtml_end_4_size = sizeof(g_MicroProfileHtml_end_4);
-const char g_MicroProfileHtml_end_5[] =
-" < nNumLogs; nLog++)\n"
+"	for(nLog = 0; nLog < nNumLogs; nLog++)\n"
 "	{\n"
 "		var MaxDepth = 1;\n"
 "		var StackPos = 0;\n"
@@ -8594,7 +8614,11 @@ const char g_MicroProfileHtml_end_5[] =
 "		debugger;\n"
 "	for(let i = 0; i < S0.TimerInfo.length; ++i)\n"
 "	{\n"
-"		let t0 = S0.TimerInfo[i];\n"
+"		let t0 = S0.TimerInfo[";
+
+const size_t g_MicroProfileHtml_end_5_size = sizeof(g_MicroProfileHtml_end_5);
+const char g_MicroProfileHtml_end_6[] =
+"i];\n"
 "		let t1 = S1.TimerInfo[i];\n"
 "		if(t0.id != t1.id)\n"
 "			debugger;\n"
@@ -8617,11 +8641,7 @@ const char g_MicroProfileHtml_end_5[] =
 "	}\n"
 "}\n"
 "\n"
-"fu";
-
-const size_t g_MicroProfileHtml_end_5_size = sizeof(g_MicroProfileHtml_end_5);
-const char g_MicroProfileHtml_end_6[] =
-"nction ReadHtmlFile(File)\n"
+"function ReadHtmlFile(File)\n"
 "{\n"
 "	if (!File)\n"
 "	{\n"
@@ -11182,10 +11202,6 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "						DrawGraphViewLargeHeader(context, CounterTypeName(CurrentType), YHeader, FontHeight + 3);\n"
 "					}\n"
 "\n"
-"\n"
-"\n"
-"\n"
-"\n"
 "					if(HighlightFrame >= 0)\n"
 "					{\n"
 "						let X = w - Time.length * fWidth + fWidth * HighlightFrame;\n"
@@ -11550,11 +11566,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	NumGraphs = 0;\n"
 "	for(let index in Keys)\n"
 "	{\n"
-"";
+"		le";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-"		let key = Keys[index];\n"
+"t key = Keys[index];\n"
 "		{\n"
 "			let idx = GetTimer(key);\n"
 "			let T = TimerArray[idx];\n"
@@ -13004,12 +13020,12 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	}\n"
 "\n"
 "	{\n"
-"		let str = T.idtype == TYPE_TIMER ? \"TIMERS\" : (T.format == FormatCounterBytes ? \"BYTE COUNTERS\" : \"COUNTERS\")";
+"		let str = T.idtype == TYPE_TIMER ? \"TIMERS\" : (T.format == FormatCounterBytes ? \"BYTE COUNTERS\" : \"COUNTERS\");\n"
+"		";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-";\n"
-"		DrawMenuElement(M, 0, \"--- ALL \" + str + \"  -- \", \"\", \'white\');\n"
+"DrawMenuElement(M, 0, \"--- ALL \" + str + \"  -- \", \"\", \'white\');\n"
 "		let Apply = function(Callback){\n"
 " 			let AllSettings = Percentile ? Settings.SubGraphSettingsPercentile : Settings.SubGraphSettings;\n"
 " 			for(let key in AllSettings)\n"
@@ -14307,11 +14323,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "\n"
 "function DrawMenuCounters()\n"
 "{\n"
-"	if(FilterInputValue";
+"	if(FilterInputValueLast";
 
 const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
 const char g_MicroProfileHtmlLive_begin_4[] =
-"Last != FilterInput.value)\n"
+" != FilterInput.value)\n"
 "	{\n"
 "		nOffsetMenuCounters = 0;\n"
 "	}\n"
@@ -15784,11 +15800,11 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "{\n"
 "	MouseDragState = MouseDragOff;\n"
 "	MouseDragTarget = 0;\n"
-"	MouseDragKeyShi";
+"	MouseDragKeyShift =";
 
 const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
 const char g_MicroProfileHtmlLive_begin_5[] =
-"ft = 0;\n"
+" 0;\n"
 "	MouseDragKeyCtrl = 0;\n"
 "	MouseDragButton = 0;\n"
 "}\n"
