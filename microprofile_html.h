@@ -9152,6 +9152,7 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "Settings.ViewActive = 0;\n"
 "Settings.ViewCompressed = 0;\n"
 "Settings.AllowHighDPI = 1;\n"
+"let ViewCompressedTimeout = -1;\n"
 "const ViewNames = [\"Graph\", \"Graph\", \"Graph\", \"Bars\", \"Bars\", \"Bars\", \"Counters\"];\n"
 "const ViewNames2 = [\"[split]\", \"[percentile]\",\"[group/thread]\",\"[table]\", \"[all]\", \"[single]\", \"\"];\n"
 "\n"
@@ -10197,12 +10198,12 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "			ColumnsWidth[R] = Math.max(W, ColumnsWidth[R]);\n"
 "            if(!Skip)\n"
 "            {\n"
-"                context.fillStyle = \'white\';\n"
-"  ";
+"               ";
 
 const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
 const char g_MicroProfileHtmlLive_begin_1[] =
-"              context.textAlign = \'right\';\n"
+" context.fillStyle = \'white\';\n"
+"                context.textAlign = \'right\';\n"
 "                let YText = Y+Height-FontAscent;\n"
 "                context.fillText(Str, X-6, YText);\n"
 "            }\n"
@@ -11519,6 +11520,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	{\n"
 "		MSG(\"FROZEN[space]\");\n"
 "	}\n"
+"	if(Settings.ViewCompressed && ViewCompressedTimeout > 0)\n"
+"	{\n"
+"		ViewCompressedTimeout -= Delta;\n"
+"		MSG(\"Compressed: [CTRL-SPACE] To Exit\");\n"
+"	}\n"
 "\n"
 "	PresetPending++; //hack: wait 20 frames before showing enable messages to prevent it from showing when loading settings. [[[test]]]\n"
 "	if(WSIsOpen && PresetPending > 20)\n"
@@ -11556,7 +11562,11 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	}\n"
 "	\n"
 "	let TimerMap = FrameData.TimerMap;\n"
-"	let Keys = SortGraphs();\n"
+"	let K";
+
+const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
+const char g_MicroProfileHtmlLive_begin_2[] =
+"eys = SortGraphs();\n"
 "	let NumGraphs = Keys.length;\n"
 "\n"
 "	let h = height;\n"
@@ -11566,11 +11576,7 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	NumGraphs = 0;\n"
 "	for(let index in Keys)\n"
 "	{\n"
-"		le";
-
-const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
-const char g_MicroProfileHtmlLive_begin_2[] =
-"t key = Keys[index];\n"
+"		let key = Keys[index];\n"
 "		{\n"
 "			let idx = GetTimer(key);\n"
 "			let T = TimerArray[idx];\n"
@@ -11743,8 +11749,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "		}\n"
 "	}\n"
 "\n"
-"	DrawCaptureMenu(context);\n"
-"	DrawGraphSettingsMenu(context, MainView.x, MainView.y, MainView.w, MainView.h);\n"
+"	if(!Settings.ViewCompressed)\n"
+"	{\n"
+"		DrawCaptureMenu(context);\n"
+"		DrawGraphSettingsMenu(context, MainView.x, MainView.y, MainView.w, MainView.h);\n"
+"	}\n"
 "\n"
 "	ProfileLeave();\n"
 "\n"
@@ -13013,7 +13022,11 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "	}\n"
 "	if(Percentile)\n"
 "	{\n"
-"		if(DrawMenuElement(M, 0, \"Clear Aggregate\", \"\", \'white\'))\n"
+"		if(DrawMenuElement(M, ";
+
+const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
+const char g_MicroProfileHtmlLive_begin_3[] =
+"0, \"Clear Aggregate\", \"\", \'white\'))\n"
 "		{\n"
 "			ClearPercentile(SubMenuGraphSettingsKey);\n"
 "		}\n"
@@ -13021,11 +13034,7 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "\n"
 "	{\n"
 "		let str = T.idtype == TYPE_TIMER ? \"TIMERS\" : (T.format == FormatCounterBytes ? \"BYTE COUNTERS\" : \"COUNTERS\");\n"
-"		";
-
-const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
-const char g_MicroProfileHtmlLive_begin_3[] =
-"DrawMenuElement(M, 0, \"--- ALL \" + str + \"  -- \", \"\", \'white\');\n"
+"		DrawMenuElement(M, 0, \"--- ALL \" + str + \"  -- \", \"\", \'white\');\n"
 "		let Apply = function(Callback){\n"
 " 			let AllSettings = Percentile ? Settings.SubGraphSettingsPercentile : Settings.SubGraphSettings;\n"
 " 			for(let key in AllSettings)\n"
@@ -13303,6 +13312,15 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "		SubGraphSettings.TargetTime = NextValue(ReferencePresets, SubGraphSettings.TargetTime, Direction);\n"
 "	}\n"
 "}\n"
+"\n"
+"function ToggleCompressedView()\n"
+"{\n"
+"	Settings.ViewCompressed = 1-Settings.ViewCompressed;\n"
+"	if(Settings.ViewCompressed)\n"
+"		ViewCompressedTimeout = 3000.0;\n"
+"	ResizeCanvas();\n"
+"}\n"
+"\n"
 "function DrawMenuSettings()\n"
 "{\n"
 "	var context = CanvasDetailedView.getContext(\'2d\');\n"
@@ -13323,8 +13341,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "	}\n"
 "	if(DrawMenuElement(M, Settings.ViewCompressed, \"Compressed View\", Settings.ViewCompressed, \'white\'))\n"
 "	{\n"
-"		Settings.ViewCompressed = 1-Settings.ViewCompressed;\n"
-"		ResizeCanvas();\n"
+"		ToggleCompressedView();\n"
 "	}\n"
 "\n"
 "	if(Settings.AggregateFrames <= 0)\n"
@@ -14306,7 +14323,11 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "			var ChildIndex = v.firstchild;\n"
 "			while(ChildIndex != -1)\n"
 "			{\n"
-"				DrawMenuRecursive(ChildIndex, Indent + 1, catmatch);\n"
+"				";
+
+const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
+const char g_MicroProfileHtmlLive_begin_4[] =
+"DrawMenuRecursive(ChildIndex, Indent + 1, catmatch);\n"
 "				ChildIndex = TimerArray[ChildIndex].sibling;\n"
 "			}\n"
 "		}\n"
@@ -14323,11 +14344,7 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "\n"
 "function DrawMenuCounters()\n"
 "{\n"
-"	if(FilterInputValueLast";
-
-const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
-const char g_MicroProfileHtmlLive_begin_4[] =
-" != FilterInput.value)\n"
+"	if(FilterInputValueLast != FilterInput.value)\n"
 "	{\n"
 "		nOffsetMenuCounters = 0;\n"
 "	}\n"
@@ -14433,7 +14450,7 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "\n"
 "function DrawMenu()\n"
 "{\n"
-"	if(WSConnected && WS && WS.readyState == 1)\n"
+"	if(WSConnected && WS && WS.readyState == 1 && !Settings.ViewCompressed)\n"
 "	{\n"
 "		var context = CanvasDetailedView.getContext(\'2d\');\n"
 "		var nColorIndex = 0;\n"
@@ -14721,6 +14738,7 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "	{\n"
 "		LoadPreset(PresetToLoad, PresetToLoadRO);\n"
 "	}\n"
+"	ViewCompressedTimeout = 5000.0;\n"
 "}\n"
 "\n"
 "function SplitIdTop(v)\n"
@@ -15769,7 +15787,11 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "			}\n"
 "			else\n"
 "			{\n"
-"				TimerArray[nHoverCounter].Expanded = !TimerArray[nHoverCounter].Expanded;\n"
+"				TimerArray[nHoverCounter].Expanded = !TimerAr";
+
+const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
+const char g_MicroProfileHtmlLive_begin_5[] =
+"ray[nHoverCounter].Expanded;\n"
 "			}\n"
 "			Draw(1);\n"
 "		}\n"
@@ -15800,11 +15822,7 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "{\n"
 "	MouseDragState = MouseDragOff;\n"
 "	MouseDragTarget = 0;\n"
-"	MouseDragKeyShift =";
-
-const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
-const char g_MicroProfileHtmlLive_begin_5[] =
-" 0;\n"
+"	MouseDragKeyShift = 0;\n"
 "	MouseDragKeyCtrl = 0;\n"
 "	MouseDragButton = 0;\n"
 "}\n"
@@ -15977,7 +15995,14 @@ const char g_MicroProfileHtmlLive_begin_5[] =
 "				console.log(\"TimerArray =\");\n"
 "				console.log(JSON.stringify(TimerArray));\n"
 "			}\n"
-"			WSSendMessage(\"f\");\n"
+"			if(KeyCtrlDown)\n"
+"			{\n"
+"				ToggleCompressedView();\n"
+"			}\n"
+"			else\n"
+"			{				\n"
+"				WSSendMessage(\"f\");\n"
+"			}\n"
 "		}\n"
 "		if(k == 88)\n"
 "		{\n"
@@ -16008,11 +16033,6 @@ const char g_MicroProfileHtmlLive_begin_5[] =
 "		MouseDragActiveXStart = MouseDragActiveXEnd = -1;\n"
 "		Settings.SortColumnName = \"\";\n"
 "		ShowHelp(0);\n"
-"	}\n"
-"	if(k == 192)\n"
-"	{\n"
-"		Settings.ViewCompressed = Settings.ViewCompressed ? 0 : 1;\n"
-"		ResizeCanvas();\n"
 "	}\n"
 "\n"
 "	if(evt.keyCode == 17)\n"
