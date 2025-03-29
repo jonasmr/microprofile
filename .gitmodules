@@ -4,3 +4,6 @@
 [submodule "stb"]
 	path = stb
 	url = https://github.com/nothings/stb.git
+[submodule "demo/d3d12/imgui"]
+	path = demo/d3d12/imgui
+	url = https://github.com/ocornut/imgui.git

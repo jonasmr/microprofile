@@ -13,7 +13,6 @@ BreakBeforeBinaryOperators: false
 AllowShortBlocksOnASingleLine : false
 AllowShortFunctionsOnASingleLine : false
 BreakConstructorInitializersBeforeComma: true
-BinPackParameters: true
 ColumnLimit:     200
 ConstructorInitializerAllOnOneLineOrOnePerLine: false
 DerivePointerBinding: false

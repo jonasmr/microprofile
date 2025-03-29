@@ -9,8 +9,77 @@
 #include <string>
 #include <wrl.h>
 
+#define MICROPROFILE_IMGUI 1
+
 #include "microprofile.h"
 
+#if MICROPROFILE_IMGUI
+#include "imgui/imgui.h"
+#include "imgui/backends/imgui_impl_dx12.h"
+#include "imgui/backends/imgui_impl_win32.h"
+ID3D12DescriptorHeap* g_srvHeap;
+uint64_t g_srvHeapOffset = 0;
+uint64_t g_srvHeapIncrement = 0;
+void ImGuiInit(HWND hwnd, ID3D12Device* Device, ID3D12CommandQueue* Queue)
+{
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+
+	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+	srvHeapDesc.NumDescriptors = 128;
+	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	Device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&g_srvHeap));
+	g_srvHeapIncrement = Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+	ImGui_ImplWin32_Init(hwnd);
+	ImGui_ImplDX12_InitInfo init_info = {};
+	init_info.Device = Device;
+	init_info.CommandQueue = Queue;
+	init_info.NumFramesInFlight = 3;
+	init_info.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+	init_info.DSVFormat = DXGI_FORMAT_UNKNOWN;
+	init_info.SrvDescriptorHeap = g_srvHeap;
+	init_info.SrvDescriptorAllocFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE* out_cpu_handle, D3D12_GPU_DESCRIPTOR_HANDLE* out_gpu_handle)
+	{ 
+		uint64_t off = g_srvHeapOffset;
+		g_srvHeapOffset += g_srvHeapIncrement;
+		*out_cpu_handle = g_srvHeap->GetCPUDescriptorHandleForHeapStart();
+		out_cpu_handle->ptr += off;
+		*out_gpu_handle = g_srvHeap->GetGPUDescriptorHandleForHeapStart();
+		out_gpu_handle->ptr += off;
+	};
+	init_info.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle, D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle) { __debugbreak(); };
+	ImGui_ImplDX12_Init(&init_info);
+
+
+}
+
+void ImGuiRender(ID3D12GraphicsCommandList* pCommandList)
+{
+	using namespace ImGui;
+	pCommandList->SetDescriptorHeaps(1, &g_srvHeap);
+	ImGui_ImplDX12_NewFrame();
+	ImGui_ImplWin32_NewFrame();
+	NewFrame();
+
+	{
+		Begin("Imgui");                          // Create a window called "Hello, world!" and append into it.
+		Text("This is some useful text.");               // Display some text (you can use a format strings too)
+		static float f = 0.5f;
+		SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+		End();
+	}
+	
+	Render();
+
+	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pCommandList);
+}
+#endif
 
 //hack to make it work with the weird object oriented design of the sample
 ID3D12Device* g_pDevice = 0;
@@ -216,7 +285,10 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 	MICROPROFILE_CONDITIONAL(g_QueueGraphics = MICROPROFILE_GPU_INIT_QUEUE("GPU-Graphics-Queue"));
 	MicroProfileGpuInitD3D12(g_pDevice, 1, (void**)&g_pCommandQueue, (void**)&g_pCopyQueue);
 	MicroProfileSetCurrentNodeD3D12(0);
-	//MICROPROFILE_GPU_BEGIN(0, MicroProfileGetGlobalGpuThreadLog());
+
+
+	ImGuiInit(m_hwnd, g_pDevice, g_pCommandQueue);
+
 
 
 	// Main sample loop.
@@ -637,8 +709,6 @@ void D3D12HelloTriangle::OnRender()
 	// Record all the commands we need to render the scene into the command list.
 	PopulateCommandList();
 
-	
-
 
 	ThrowIfFailed(m_commandList->Close());
 
@@ -709,6 +779,10 @@ void D3D12HelloTriangle::PopulateCommandList()
 			m_commandList->DrawInstanced(3, 1, 0, 0);
 		}
 	}
+
+	ImGuiRender(m_commandList.Get());
+
+
 
 	// Indicate that the back buffer will now be used to present.
 	m_commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_renderTargets[m_frameIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
