@@ -59,7 +59,7 @@ void ImGuiInit(HWND hwnd, ID3D12Device* Device, ID3D12CommandQueue* Queue)
 
 }
 
-void ImGuiRender(ID3D12GraphicsCommandList* pCommandList)
+void ImGuiRender(ID3D12GraphicsCommandList* pCommandList, uint32_t Width, uint32_t Height)
 {
 	using namespace ImGui;
 	pCommandList->SetDescriptorHeaps(1, &g_srvHeap);
@@ -68,11 +68,13 @@ void ImGuiRender(ID3D12GraphicsCommandList* pCommandList)
 	NewFrame();
 
 	{
-		Begin("Imgui");                          // Create a window called "Hello, world!" and append into it.
-		Text("This is some useful text.");               // Display some text (you can use a format strings too)
-		static float f = 0.5f;
-		SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+		Begin("MicroProfile Control Window");                          // Create a window called "Hello, world!" and append into it.
+			MicroProfileImguiControlWindow();
 		End();
+
+		MicroProfileImguiRenderGraphs(Width, Height);
+		ShowDemoWindow(nullptr);
+
 	}
 	
 	Render();
@@ -387,6 +389,11 @@ LRESULT CALLBACK DXSample::WindowProc(HWND hWnd, UINT message, WPARAM wParam, LP
 		PostQuitMessage(0);
 		return 0;
 	}
+	extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+	if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam))
+		return true;
+
 
 	// Handle any messages the switch statement didn't.
 	return DefWindowProc(hWnd, message, wParam, lParam);
@@ -780,7 +787,7 @@ void D3D12HelloTriangle::PopulateCommandList()
 		}
 	}
 
-	ImGuiRender(m_commandList.Get());
+	ImGuiRender(m_commandList.Get(), m_width, m_height);
 
 
 

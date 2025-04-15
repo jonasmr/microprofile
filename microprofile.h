@@ -70,7 +70,9 @@
 #define MICROPROFILE_FRAME_EXTRA_DATA 0
 #endif
 
-
+#ifndef MICROPROFILE_IMGUI
+#define MICROPROFILE_IMGUI 0
+#endif
 
 #ifndef MICROPROFILE_ONCE
 #define MICROPROFILE_ONCE
@@ -481,6 +483,8 @@ typedef uint32_t MicroProfileTimelineToken;
 #define MicroProfileCsvConfigAddCounter(...)
 #define MicroProfileUpdateSettingsPath(...)
 
+#define MicroProfileImguiControlWindow() do{}while(0)
+#define MicroProfileImguiRenderGraphs(...) do{}while(0)
 
 
 
@@ -1047,6 +1051,13 @@ extern "C"
 	MICROPROFILE_API void MicroProfileCsvConfigAddCounter(const char* CounterName, const char* DisplayName IF_CPP(= nullptr) );
 
 	MICROPROFILE_API void MicroProfileUpdateSettingsPath();
+
+#if MICROPROFILE_IMGUI
+	MICROPROFILE_API void MicroProfileImguiControlWindow();
+	MICROPROFILE_API void MicroProfileImguiRenderGraphs(uint32_t Width, uint32_t Height);
+#endif
+
+
 
 #ifdef __cplusplus
 }

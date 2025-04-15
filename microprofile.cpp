@@ -4089,6 +4089,10 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB, uint32_t
 					if(ExtraPut)
 						*ExtraPut++ = pFrameGroup[i].nTicks;
 				}
+				#if MICROPROFILE_IMGUI
+				void MicroProfileImguiGather();
+				MicroProfileImguiGather();
+				#endif
 				if(S.CsvConfig.State == MicroProfileCsvConfig::ACTIVE)
 				{
 					uint32_t FrameIndex = S.nFrameCurrent % MICROPROFILE_MAX_FRAME_HISTORY;
@@ -14545,6 +14549,221 @@ void MicroProfileHashTableTest()
 	DumpTableStr(&Strings);
 	MicroProfileHashTableDestroy(&Strings);
 }
+
+
+#if MICROPROFILE_IMGUI
+#include "imgui.h"
+#ifndef MICROPROFILE_IMGUI_MAX_GRAPHS
+#define MICROPROFILE_IMGUI_MAX_GRAPHS 64
+#endif
+
+#define MICROPROFILE_IMGUI_GRAPH_SIZE 256
+struct MicroProfileImguiState
+{
+	
+	struct GraphInfo
+	{
+		int TimerIndex;
+		uint32_t Enabled;
+		float fValues[MICROPROFILE_IMGUI_GRAPH_SIZE];
+	};
+	GraphInfo Graphs[MICROPROFILE_IMGUI_MAX_GRAPHS];
+	uint32_t NumGraphs = 0;
+	uint32_t GraphPut;
+};
+static MicroProfileImguiState ImguiState;
+
+
+void MicroProfileImguiGather()
+{
+	MICROPROFILE_SCOPEI("MicroProfile", "ImguiGather", MP_AUTO);
+	uint32_t Put = ImguiState.GraphPut;
+	for(uint32_t i = 0; i < ImguiState.NumGraphs; ++i)
+	{
+		MicroProfileImguiState::GraphInfo* pGraphInfo = &ImguiState.Graphs[i];
+		uint64_t Ticks = S.Frame[pGraphInfo->TimerIndex].nTicks;
+		float fToMs = S.TimerInfo[pGraphInfo->TimerIndex].Type == MicroProfileTokenTypeGpu ? MicroProfileTickToMsMultiplierGpu() : MicroProfileTickToMsMultiplierCpu();
+		pGraphInfo->fValues[Put] = fToMs * Ticks;
+	}
+	ImguiState.GraphPut = (ImguiState.GraphPut + 1) % MICROPROFILE_IMGUI_GRAPH_SIZE;
+}
+void MicroProfileImguiControlWindow()
+{
+	using namespace ImGui;
+	if(BeginListBox("Groups Enabled"))
+	{
+		for(uint32_t i = 0; i < S.nGroupCount; ++i)
+		{
+			const char* pName = S.GroupInfo[i].pName;
+			bool bEnabled = MicroProfileGroupEnabled(i);
+			if(Selectable(pName, bEnabled))
+			{
+				MicroProfileToggleGroup(i);
+			}
+		} 
+		EndListBox();
+	}
+	static int SelectedTimer = -1;
+
+	static ImGuiTextFilter filter;
+	filter.Draw();
+
+
+	if(BeginListBox("Timer Graph"))
+	{
+		for(uint32_t i = 0; i < S.nTotalTimers; ++i)
+		{
+			PushID(i);
+			const char* pName = S.TimerInfo[i].pName;
+			bool bEnabled = i == SelectedTimer;
+			if(filter.PassFilter(pName))
+			{
+				
+				if(Selectable(pName, bEnabled))
+				{
+					if(i != SelectedTimer)
+						SelectedTimer = i;
+					else
+						SelectedTimer = -1;
+				}
+			}
+			PopID();
+		} 
+		EndListBox();
+	}
+	Separator();
+	if(SelectedTimer >= 0 && SelectedTimer < (int)S.nTotalTimers)
+	{
+		MicroProfileImguiState::GraphInfo* pGraphInfo = nullptr;
+		for(uint32_t i = 0; i < ImguiState.NumGraphs; ++i)
+		{
+			if(ImguiState.Graphs[i].TimerIndex == SelectedTimer)
+			{
+				pGraphInfo = &ImguiState.Graphs[i];
+			}
+		}
+		if(!pGraphInfo)
+		{
+			if(ImguiState.NumGraphs < MICROPROFILE_IMGUI_MAX_GRAPHS)
+			{
+				pGraphInfo = &ImguiState.Graphs[ImguiState.NumGraphs++];
+				pGraphInfo->TimerIndex = SelectedTimer;
+				pGraphInfo->Enabled = 0;
+			}
+		}
+		if(!pGraphInfo)
+		{
+			Text("Max Graphs (%d) active. Disable some or bump MICROPROFILE_IMGUI_MAX_GRAPHS.", MICROPROFILE_IMGUI_MAX_GRAPHS);
+		}
+		else
+		{
+			uint32_t& v = pGraphInfo->Enabled;
+			if(RadioButton("Off", v == 0))
+				v = 0;
+			if(RadioButton("Lower Left", v & 1))
+			{
+				v &= 0xf;
+				v |= 1;
+			}
+			if(RadioButton("Lower Right", v & 2))
+			{
+				v &= 0xf;
+				v |= 2;
+			}
+			if(RadioButton("Top Left", v & 4))
+			{
+				v &= 0xf;
+				v |= 4;
+			}
+			if(RadioButton("Top Right", v & 8))
+			{
+				v &= 0xf;
+				v |= 8;
+			}
+			bool Table = (v&0x10) != 0;
+			bool TableOrg = Table;
+			Checkbox("Table", &Table);
+			if(Table != TableOrg)
+			{
+				v ^= 0x10;
+			}
+		
+			if(v == 0)
+			{
+				int Index = pGraphInfo - &ImguiState.Graphs[0];
+				int Last = ImguiState.NumGraphs-1;
+				if(Index != Last)
+				{
+					ImguiState.Graphs[Index] = ImguiState.Graphs[Last];
+					memset(&ImguiState.Graphs[Last], 0, sizeof(ImguiState.Graphs[Last]));
+				}
+				ImguiState.NumGraphs--;
+			}
+		}
+	}
+}
+void MicroProfileImguiRenderGraphs(uint32_t Width, uint32_t Height)
+{
+	using namespace ImGui;
+	int NumGraphs[4] = {0};
+	const uint32_t GRAPH_WIDTH = 300;
+	const uint32_t GRAPH_HEIGHT = 80;
+	for(int corner = 0; corner < 4; ++corner)
+	{
+		int Dir;
+		int Count;
+		for(uint32_t i = 0; i < ImguiState.NumGraphs; ++i)
+		{
+			auto* pGraphInfo = &ImguiState.Graphs[i];
+			if((1<<i) & pGraphInfo->Enabled)
+				Count++;
+		}
+		uint32_t WindowHeight = Min(Height, (GRAPH_HEIGHT+10) * Count);
+		switch(corner)
+		{
+		case 0:
+		case 1:
+		case 2:
+			Dir = -1;
+			SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
+			SetNextWindowSize(ImVec2(GRAPH_WIDTH, WindowHeight), ImGuiCond_Always);
+		case 3:
+			Dir = 1;
+			SetNextWindowPos(ImVec2(0, Width - GRAPH_WIDTH), ImGuiCond_Always);
+			SetNextWindowSize(ImVec2(GRAPH_WIDTH, WindowHeight), ImGuiCond_Always);
+
+		}
+		bool open = true;
+		if(Begin("MicroProfileImguiGraphWindow", &open, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground))
+		{
+			for(uint32_t i = 0; i < ImguiState.NumGraphs; ++i)
+			{
+				auto* pGraphInfo = &ImguiState.Graphs[i];
+				uint32_t Enabled = pGraphInfo->Enabled;
+				uint32_t TimerIndex = pGraphInfo->TimerIndex;
+				const MicroProfileTimerInfo& TI = S.TimerInfo[TimerIndex];
+			//	PlotLines(const char* label, const float* values, int values_count, int values_offset = 0, const char* overlay_text = NULL, float scale_min = FLT_MAX, float scale_max = FLT_MAX, ImVec2 graph_size = ImVec2(0, 0), int stride = sizeof(float));
+		   // IMGUI_API void          
+				PushID(i<<16 | TimerIndex);
+				PlotLines("", &pGraphInfo->fValues[0], MICROPROFILE_IMGUI_GRAPH_SIZE, 0, TI.pNameExt, 0.f, 1.f, ImVec2(0.f, 80.f));			
+				PopID();
+				//{
+				//    float average = 0.0f;
+				//    for (int n = 0; n < IM_ARRAYSIZE(values); n++)
+				//        average += values[n];
+				//    average /= (float)IM_ARRAYSIZE(values);
+				//    char overlay[32];
+				//    sprintf(overlay, "avg %f", average);
+				//    ImGui::PlotLines("Lines", values, IM_ARRAYSIZE(values), values_offset, overlay, -1.0f, 1.0f, ImVec2(0, 80.0f));
+				//}
+			}
+			End();
+		}
+	}
+}
+#endif
+
+
 
 #undef uprintf
 
