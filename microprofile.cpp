@@ -14796,7 +14796,7 @@ void MicroProfileImguiTable(const MicroProfileImguiWindowDesc& Window, const Mic
 	}
 	
 
-	float TableWidth = GroupWidth + NameWidth + BaseWidth * 4 + NumColumns * (Padding + GetStyle().ItemSpacing.x);
+	float TableWidth = GroupWidth + NameWidth + BaseWidth * 4 + NumColumns * Padding + (NumColumns-1) * GetStyle().ItemSpacing.x;
 	float TableHeight = Height * (NumEntries+1);
 
 	ImVec2 TablePos = ImVec2(0.f, 0.f);
@@ -14866,22 +14866,34 @@ void MicroProfileImguiTable(const MicroProfileImguiWindowDesc& Window, const Mic
 void MicroProfileImguiGraphs(const MicroProfileImguiWindowDesc& Window, const MicroProfileImguiEntryDesc* Entries, uint32_t NumEntries)
 {
 	using namespace ImGui;
+	ImGuiIO& io = ImGui::GetIO();
+	uint32_t Width = Window.GraphWidth;
+	uint32_t Height = (Window.GraphHeight + GetStyle().ItemSpacing.y) * NumEntries;
+
+	ImVec2 Pos = ImVec2(0.f, 0.f);
+	if(Window.Align == MICROPROFILE_IMGUI_ALIGN_TOP_RIGHT || Window.Align == MICROPROFILE_IMGUI_ALIGN_BOTTOM_RIGHT)
+		Pos.x = io.DisplaySize.x - Width;
+
+	if(Window.Align == MICROPROFILE_IMGUI_ALIGN_BOTTOM_LEFT || Window.Align == MICROPROFILE_IMGUI_ALIGN_BOTTOM_RIGHT)
+		Pos.y = io.DisplaySize.y - Height;
+	
+
+
+
+	for (uint32_t i = 0; i < NumEntries; ++i)
 	{
-		for (uint32_t i = 0; i < NumEntries; ++i)
-		{
-			uint32_t TimerIndex = MicroProfileGetTimerIndex(Entries[i].GraphTimer);
-			float GraphMax = Entries[i].GraphMax;
-			const MicroProfileTimerInfo& TI = S.TimerInfo[TimerIndex];
+		SetCursorScreenPos(Pos);
+		uint32_t TimerIndex = MicroProfileGetTimerIndex(Entries[i].GraphTimer);
+		float GraphMax = Entries[i].GraphMax;
+		const MicroProfileTimerInfo& TI = S.TimerInfo[TimerIndex];
 
-			MicroProfileImguiTimerState* TimerState = MicroProfileImguiGetTimerState(TimerIndex);
+		MicroProfileImguiTimerState* TimerState = MicroProfileImguiGetTimerState(TimerIndex);
 
-			PushID(i << 16 | TimerIndex);
-			PlotLines("", &TimerState->fValues[0], MICROPROFILE_IMGUI_GRAPH_SIZE, 0, TI.pNameExt, 0.f, GraphMax, ImVec2(Window.GraphWidth, Window.GraphHeight));
-			PopID();
-		}
+		PushID(i << 16 | TimerIndex);
+		PlotLines("", &TimerState->fValues[0], MICROPROFILE_IMGUI_GRAPH_SIZE, 0, TI.pNameExt, 0.f, GraphMax, ImVec2(Window.GraphWidth, Window.GraphHeight));
+		PopID();
+		Pos.y += Window.GraphHeight + GetStyle().ItemSpacing.y;
 	}
-
-
 }
 #if 0
 void MicroProfileImguiRenderGraphs(uint32_t Width, uint32_t Height)
