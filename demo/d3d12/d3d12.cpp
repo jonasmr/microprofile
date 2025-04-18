@@ -67,12 +67,47 @@ void ImGuiRender(ID3D12GraphicsCommandList* pCommandList, uint32_t Width, uint32
 	ImGui_ImplWin32_NewFrame();
 	NewFrame();
 
-	{
-		Begin("MicroProfile Control Window");                          // Create a window called "Hello, world!" and append into it.
-			MicroProfileImguiControlWindow();
-		End();
+	MICROPROFILE_SCOPEI("Main", "Fisk", MP_AUTO);
+	MicroProfileToken t0 = MicroProfileFindToken("Main", "Fisk");
+	MicroProfileToken t1 = MicroProfileFindToken("Main", "Fisk");
+	MicroProfileToken t2 = MicroProfileFindToken("Main", "Hest");
+	MicroProfileToken t3 = MicroProfileFindToken("Main", "Hest");
 
-		MicroProfileImguiRenderGraphs(Width, Height);
+	static MicroProfileImguiEntryDesc Entries[] = {
+		{
+			MicroProfileFindToken("Main", "WaitPrev"),
+			1.f
+		},
+		{
+			MicroProfileFindToken("Main", "Main")
+		}
+	};
+
+	{
+
+		//Begin("MicroProfile Control Window");                          // Create a window called "Hello, world!" and append into it.
+		//	MicroProfileImguiControlWindow();
+		//End();
+
+
+		// MicroProfileImgui doesn't create any windows, you have to init those yourself - it just renders an array of graphs and a table
+		// This example shows how to make a transparent window ignoring clicks, covering the entire screen.
+
+		ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
+		ImGui::SetNextWindowSize(ImVec2((float)Width, (float)Height), ImGuiCond_Always);
+
+		bool Open = true;
+		if (ImGui::Begin("MicroProfileImguiGraphWindow", &Open, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground))
+		{
+			MicroProfileImguiGraphs(
+				{
+					/* .Width = */ Width,
+					/* .Height = */ Height,
+				}, Entries, sizeof(Entries)/sizeof(Entries[0]));
+			ImGui::End();
+		}
+
+		//MicroProfileImguiRenderGraphs(Width, Height);
 		ShowDemoWindow(nullptr);
 
 	}

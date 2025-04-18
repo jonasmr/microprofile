@@ -2308,7 +2308,7 @@ void MicroProfileInitThreadLog()
 	MicroProfileOnThreadCreate(nullptr);
 }
 
-MicroProfileToken MicroProfileFindToken(const char* pGroup, const char* pName)
+MicroProfileToken MicroProfileFindTokenInternal(const char* pGroup, const char* pName)
 {
 	MicroProfileInit();
 	MicroProfileScopeLock L(MicroProfileMutex());
@@ -2321,6 +2321,11 @@ MicroProfileToken MicroProfileFindToken(const char* pGroup, const char* pName)
 	}
 	return MICROPROFILE_INVALID_TOKEN;
 }
+MicroProfileToken MicroProfileFindToken(const char* pGroup, const char* pName)
+{
+	return MicroProfileGetToken(pGroup, pName, MP_AUTO, MicroProfileTokenTypeCpu, MICROPROFILE_TIMER_FLAG_PLACEHOLDER);
+}
+
 uint16_t MicroProfileFindGroup(const char* pGroup)
 {
 	for(uint32_t i = 0; i < S.nGroupCount; ++i)
@@ -2416,7 +2421,7 @@ MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, ui
 {
 	MicroProfileInit();
 	MicroProfileScopeLock L(MicroProfileMutex());
-	MicroProfileToken ret = MicroProfileFindToken(pGroup, pName);
+	MicroProfileToken ret = MicroProfileFindTokenInternal(pGroup, pName);
 	if(ret != MICROPROFILE_INVALID_TOKEN)
 	{
 		int idx = MicroProfileGetTimerIndex(ret);
@@ -2424,6 +2429,7 @@ MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, ui
 		{
 			S.TimerInfo[idx].nColor = nColor & 0xffffff;
 			S.TimerInfo[idx].Flags = Flags;
+			S.TimerInfo[idx].Type = Type;
 		}
 		MP_ASSERT(S.TimerInfo[idx].Flags == Flags || (Flags & MICROPROFILE_TIMER_FLAG_PLACEHOLDER));
 		return ret;
@@ -2459,10 +2465,6 @@ MicroProfileToken MicroProfileGetToken(const char* pGroup, const char* pName, ui
 	return nToken;
 }
 
-// MicroProfileToken MicroProfileGetCStrToken(const char* pCStr)
-//{
-//	return MicroProfileMakeTokenCStr(pCStr);
-//}
 
 void MicroProfileGetTokenC(MicroProfileToken* pToken, const char* pGroup, const char* pName, uint32_t nColor, MicroProfileTokenType Type, uint32_t flags)
 {
@@ -4418,7 +4420,7 @@ void MicroProfileCalcAllTimers(
 
 float MicroProfileGetTime(const char* pGroup, const char* pName)
 {
-	MicroProfileToken nToken = MicroProfileFindToken(pGroup, pName);
+	MicroProfileToken nToken = MicroProfileFindTokenInternal(pGroup, pName);
 	if(nToken == MICROPROFILE_INVALID_TOKEN)
 	{
 		return 0.f;
@@ -14558,19 +14560,24 @@ void MicroProfileHashTableTest()
 #endif
 
 #define MICROPROFILE_IMGUI_GRAPH_SIZE 256
+
+struct MicroProfileImguiTimerState
+{
+	int TimerIndex = -1;
+	uint64_t FrameFetched = (uint64_t)-1;
+	float fValues[MICROPROFILE_IMGUI_GRAPH_SIZE];
+	
+};
+
+
 struct MicroProfileImguiState
 {
-	
-	struct GraphInfo
-	{
-		int TimerIndex;
-		uint32_t Enabled;
-		float fValues[MICROPROFILE_IMGUI_GRAPH_SIZE];
-	};
-	GraphInfo Graphs[MICROPROFILE_IMGUI_MAX_GRAPHS];
-	uint32_t NumGraphs = 0;
+	MicroProfileImguiTimerState Timers[MICROPROFILE_IMGUI_MAX_GRAPHS];
+	uint32_t NumTimers = 0;
 	uint32_t GraphPut;
 };
+
+
 static MicroProfileImguiState ImguiState;
 
 
@@ -14578,130 +14585,216 @@ void MicroProfileImguiGather()
 {
 	MICROPROFILE_SCOPEI("MicroProfile", "ImguiGather", MP_AUTO);
 	uint32_t Put = ImguiState.GraphPut;
-	for(uint32_t i = 0; i < ImguiState.NumGraphs; ++i)
+	for(uint32_t i = 0; i < ImguiState.NumTimers; ++i)
 	{
-		MicroProfileImguiState::GraphInfo* pGraphInfo = &ImguiState.Graphs[i];
+		MicroProfileImguiTimerState* pGraphInfo = &ImguiState.Timers[i];
 		uint64_t Ticks = S.Frame[pGraphInfo->TimerIndex].nTicks;
 		float fToMs = S.TimerInfo[pGraphInfo->TimerIndex].Type == MicroProfileTokenTypeGpu ? MicroProfileTickToMsMultiplierGpu() : MicroProfileTickToMsMultiplierCpu();
 		pGraphInfo->fValues[Put] = fToMs * Ticks;
 	}
 	ImguiState.GraphPut = (ImguiState.GraphPut + 1) % MICROPROFILE_IMGUI_GRAPH_SIZE;
 }
-void MicroProfileImguiControlWindow()
+
+//void MicroProfileImguiControlWindow()
+//{
+//	using namespace ImGui;
+//	if(BeginListBox("Groups Enabled"))
+//	{
+//		for(uint32_t i = 0; i < S.nGroupCount; ++i)
+//		{
+//			const char* pName = S.GroupInfo[i].pName;
+//			bool bEnabled = MicroProfileGroupEnabled(i);
+//			if(Selectable(pName, bEnabled))
+//			{
+//				MicroProfileToggleGroup(i);
+//			}
+//		} 
+//		EndListBox();
+//	}
+//	static int SelectedTimer = -1;
+//
+//	static ImGuiTextFilter filter;
+//	filter.Draw();
+//
+//
+//	if(BeginListBox("Timer Graph"))
+//	{
+//		for(uint32_t i = 0; i < S.nTotalTimers; ++i)
+//		{
+//			PushID(i);
+//			const char* pName = S.TimerInfo[i].pName;
+//			bool bEnabled = i == SelectedTimer;
+//			if(filter.PassFilter(pName))
+//			{
+//				
+//				if(Selectable(pName, bEnabled))
+//				{
+//					if(i != SelectedTimer)
+//						SelectedTimer = i;
+//					else
+//						SelectedTimer = -1;
+//				}
+//			}
+//			PopID();
+//		} 
+//		EndListBox();
+//	}
+//	Separator();
+//	if(SelectedTimer >= 0 && SelectedTimer < (int)S.nTotalTimers)
+//	{
+//		MicroProfileImguiState::GraphInfo* pGraphInfo = nullptr;
+//		for(uint32_t i = 0; i < ImguiState.NumGraphs; ++i)
+//		{
+//			if(ImguiState.Graphs[i].TimerIndex == SelectedTimer)
+//			{
+//				pGraphInfo = &ImguiState.Graphs[i];
+//			}
+//		}
+//		if(!pGraphInfo)
+//		{
+//			if(ImguiState.NumGraphs < MICROPROFILE_IMGUI_MAX_GRAPHS)
+//			{
+//				pGraphInfo = &ImguiState.Graphs[ImguiState.NumGraphs++];
+//				pGraphInfo->TimerIndex = SelectedTimer;
+//				pGraphInfo->Enabled = 0;
+//			}
+//		}
+//		if(!pGraphInfo)
+//		{
+//			Text("Max Graphs (%d) active. Disable some or bump MICROPROFILE_IMGUI_MAX_GRAPHS.", MICROPROFILE_IMGUI_MAX_GRAPHS);
+//		}
+//		else
+//		{
+//			uint32_t& v = pGraphInfo->Enabled;
+//			if(RadioButton("Off", v == 0))
+//				v = 0;
+//			if(RadioButton("Lower Left", v & 1))
+//			{
+//				v &= 0xf;
+//				v |= 1;
+//			}
+//			if(RadioButton("Lower Right", v & 2))
+//			{
+//				v &= 0xf;
+//				v |= 2;
+//			}
+//			if(RadioButton("Top Left", v & 4))
+//			{
+//				v &= 0xf;
+//				v |= 4;
+//			}
+//			if(RadioButton("Top Right", v & 8))
+//			{
+//				v &= 0xf;
+//				v |= 8;
+//			}
+//			bool Table = (v&0x10) != 0;
+//			bool TableOrg = Table;
+//			Checkbox("Table", &Table);
+//			if(Table != TableOrg)
+//			{
+//				v ^= 0x10;
+//			}
+//		
+//			if(v == 0)
+//			{
+//				int Index = pGraphInfo - &ImguiState.Graphs[0];
+//				int Last = ImguiState.NumGraphs-1;
+//				if(Index != Last)
+//				{
+//					ImguiState.Graphs[Index] = ImguiState.Graphs[Last];
+//					memset(&ImguiState.Graphs[Last], 0, sizeof(ImguiState.Graphs[Last]));
+//				}
+//				ImguiState.NumGraphs--;
+//			}
+//		}
+//	}
+//}
+MicroProfileImguiTimerState* MicroProfileImguiGetTimerState(int TimerIndex)
+{
+	MicroProfileImguiTimerState* ptr = nullptr;
+	for(uint32_t i = 0; i < ImguiState.NumTimers; ++i)
+		if(ImguiState.Timers[i].TimerIndex == TimerIndex)
+			return &ImguiState.Timers[i];
+
+	if(ImguiState.NumTimers < MICROPROFILE_IMGUI_MAX_GRAPHS)
+	{
+		MicroProfileImguiTimerState* pState = &ImguiState.Timers[ImguiState.NumTimers++];
+		pState->TimerIndex = TimerIndex;
+		memset(&pState->fValues[0], 0, sizeof(pState->fValues));
+		return pState;
+	}
+
+	return nullptr;
+
+}
+
+
+void MicroProfileImguiGraphs(const MicroProfileImguiWindowDesc& Window, const MicroProfileImguiEntryDesc* Entries, uint32_t NumEntries)
 {
 	using namespace ImGui;
-	if(BeginListBox("Groups Enabled"))
+	//SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
+	//SetNextWindowSize(ImVec2(Window.Width, Window.Height), ImGuiCond_Always);
+
+	//bool Open = true;
+	//if (Begin("MicroProfileImguiGraphWindow", &Open, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground))
 	{
-		for(uint32_t i = 0; i < S.nGroupCount; ++i)
+		for (uint32_t i = 0; i < NumEntries; ++i)
 		{
-			const char* pName = S.GroupInfo[i].pName;
-			bool bEnabled = MicroProfileGroupEnabled(i);
-			if(Selectable(pName, bEnabled))
-			{
-				MicroProfileToggleGroup(i);
-			}
-		} 
-		EndListBox();
-	}
-	static int SelectedTimer = -1;
-
-	static ImGuiTextFilter filter;
-	filter.Draw();
+			uint32_t TimerIndex = MicroProfileGetTimerIndex(Entries[i].GraphTimer);
+			float GraphMax = Entries[i].GraphMax;
+			const MicroProfileTimerInfo& TI = S.TimerInfo[TimerIndex];
 
 
-	if(BeginListBox("Timer Graph"))
-	{
-		for(uint32_t i = 0; i < S.nTotalTimers; ++i)
-		{
-			PushID(i);
-			const char* pName = S.TimerInfo[i].pName;
-			bool bEnabled = i == SelectedTimer;
-			if(filter.PassFilter(pName))
-			{
-				
-				if(Selectable(pName, bEnabled))
-				{
-					if(i != SelectedTimer)
-						SelectedTimer = i;
-					else
-						SelectedTimer = -1;
-				}
-			}
+			//struct MicroProfileImguiTimerState
+			//{
+			//	int TimerIndex = -1;
+			//	uint64_t FrameFetched = (uint64_t)-1;
+			//	float fValues[MICROPROFILE_IMGUI_GRAPH_SIZE];
+
+			//};
+
+
+			//struct MicroProfileImguiState
+			//{
+			//	MicroProfileImguiTimerState Timers[MICROPROFILE_IMGUI_MAX_GRAPHS];
+			//	uint32_t NumTimers = 0;
+			//	uint32_t GraphPut;
+			//};
+
+			MicroProfileImguiTimerState* TimerState = MicroProfileImguiGetTimerState(TimerIndex);
+
+			PushID(i << 16 | TimerIndex);
+			PlotLines("", &TimerState->fValues[0], MICROPROFILE_IMGUI_GRAPH_SIZE, 0, TI.pNameExt, 0.f, GraphMax, ImVec2(Window.GraphWidth, Window.GraphHeight));
 			PopID();
-		} 
-		EndListBox();
+
+
+
+			//MicroProfileToken GraphTimer;
+			//float GraphMax = -1;
+
+
+
+
+
+			//	PlotLines(const char* label, const float* values, int values_count, int values_offset = 0, const char* overlay_text = NULL, float scale_min = FLT_MAX, float scale_max = FLT_MAX, ImVec2 graph_size = ImVec2(0, 0), int stride = sizeof(float));
+		   // IMGUI_API void          
+			//{
+			//    float average = 0.0f;
+			//    for (int n = 0; n < IM_ARRAYSIZE(values); n++)
+			//        average += values[n];
+			//    average /= (float)IM_ARRAYSIZE(values);
+			//    char overlay[32];
+			//    sprintf(overlay, "avg %f", average);
+			//    ImGui::PlotLines("Lines", values, IM_ARRAYSIZE(values), values_offset, overlay, -1.0f, 1.0f, ImVec2(0, 80.0f));
+			//}
+		}
+		//End();
 	}
-	Separator();
-	if(SelectedTimer >= 0 && SelectedTimer < (int)S.nTotalTimers)
-	{
-		MicroProfileImguiState::GraphInfo* pGraphInfo = nullptr;
-		for(uint32_t i = 0; i < ImguiState.NumGraphs; ++i)
-		{
-			if(ImguiState.Graphs[i].TimerIndex == SelectedTimer)
-			{
-				pGraphInfo = &ImguiState.Graphs[i];
-			}
-		}
-		if(!pGraphInfo)
-		{
-			if(ImguiState.NumGraphs < MICROPROFILE_IMGUI_MAX_GRAPHS)
-			{
-				pGraphInfo = &ImguiState.Graphs[ImguiState.NumGraphs++];
-				pGraphInfo->TimerIndex = SelectedTimer;
-				pGraphInfo->Enabled = 0;
-			}
-		}
-		if(!pGraphInfo)
-		{
-			Text("Max Graphs (%d) active. Disable some or bump MICROPROFILE_IMGUI_MAX_GRAPHS.", MICROPROFILE_IMGUI_MAX_GRAPHS);
-		}
-		else
-		{
-			uint32_t& v = pGraphInfo->Enabled;
-			if(RadioButton("Off", v == 0))
-				v = 0;
-			if(RadioButton("Lower Left", v & 1))
-			{
-				v &= 0xf;
-				v |= 1;
-			}
-			if(RadioButton("Lower Right", v & 2))
-			{
-				v &= 0xf;
-				v |= 2;
-			}
-			if(RadioButton("Top Left", v & 4))
-			{
-				v &= 0xf;
-				v |= 4;
-			}
-			if(RadioButton("Top Right", v & 8))
-			{
-				v &= 0xf;
-				v |= 8;
-			}
-			bool Table = (v&0x10) != 0;
-			bool TableOrg = Table;
-			Checkbox("Table", &Table);
-			if(Table != TableOrg)
-			{
-				v ^= 0x10;
-			}
-		
-			if(v == 0)
-			{
-				int Index = pGraphInfo - &ImguiState.Graphs[0];
-				int Last = ImguiState.NumGraphs-1;
-				if(Index != Last)
-				{
-					ImguiState.Graphs[Index] = ImguiState.Graphs[Last];
-					memset(&ImguiState.Graphs[Last], 0, sizeof(ImguiState.Graphs[Last]));
-				}
-				ImguiState.NumGraphs--;
-			}
-		}
-	}
+
+
 }
+#if 0
 void MicroProfileImguiRenderGraphs(uint32_t Width, uint32_t Height)
 {
 	using namespace ImGui;
@@ -14711,26 +14804,30 @@ void MicroProfileImguiRenderGraphs(uint32_t Width, uint32_t Height)
 	for(int corner = 0; corner < 4; ++corner)
 	{
 		int Dir;
-		int Count;
+		int Count = 0;
 		for(uint32_t i = 0; i < ImguiState.NumGraphs; ++i)
 		{
 			auto* pGraphInfo = &ImguiState.Graphs[i];
 			if((1<<i) & pGraphInfo->Enabled)
 				Count++;
 		}
-		uint32_t WindowHeight = Min(Height, (GRAPH_HEIGHT+10) * Count);
+		uint32_t WindowHeight = MicroProfileMin(Height, (GRAPH_HEIGHT+10) * Count);
 		switch(corner)
 		{
 		case 0:
+			break;
 		case 1:
+			break;
 		case 2:
 			Dir = -1;
 			SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
 			SetNextWindowSize(ImVec2(GRAPH_WIDTH, WindowHeight), ImGuiCond_Always);
+			break;
 		case 3:
 			Dir = 1;
 			SetNextWindowPos(ImVec2(0, Width - GRAPH_WIDTH), ImGuiCond_Always);
 			SetNextWindowSize(ImVec2(GRAPH_WIDTH, WindowHeight), ImGuiCond_Always);
+			break;
 
 		}
 		bool open = true;
@@ -14761,6 +14858,8 @@ void MicroProfileImguiRenderGraphs(uint32_t Width, uint32_t Height)
 		}
 	}
 }
+#endif
+
 #endif
 
 

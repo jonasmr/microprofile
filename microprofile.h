@@ -483,8 +483,8 @@ typedef uint32_t MicroProfileTimelineToken;
 #define MicroProfileCsvConfigAddCounter(...)
 #define MicroProfileUpdateSettingsPath(...)
 
-#define MicroProfileImguiControlWindow() do{}while(0)
-#define MicroProfileImguiRenderGraphs(...) do{}while(0)
+#define MicroProfileImguiGraphs(...) do {} while(0)
+#define MicroProfileImguiTable(...) do {} while(0)
 
 
 
@@ -1053,8 +1053,12 @@ extern "C"
 	MICROPROFILE_API void MicroProfileUpdateSettingsPath();
 
 #if MICROPROFILE_IMGUI
-	MICROPROFILE_API void MicroProfileImguiControlWindow();
-	MICROPROFILE_API void MicroProfileImguiRenderGraphs(uint32_t Width, uint32_t Height);
+
+	enum MicroProfileImguiAlign;
+	struct MicroProfileImguiWindowDesc;
+	struct MicroProfileImguiEntryDesc;
+	MICROPROFILE_API void MicroProfileImguiGraphs(const MicroProfileImguiWindowDesc& Window, const MicroProfileImguiEntryDesc* Entries, uint32_t NumEntries);
+	MICROPROFILE_API void MicroProfileImguiTable(const MicroProfileImguiWindowDesc& Window, const MicroProfileImguiEntryDesc* Entries, uint32_t NumEntries);
 #endif
 
 
@@ -1285,6 +1289,30 @@ struct MicroProfileScopeTimelineExitHandler
 		MicroProfileTimelineLeave(nToken);
 	}
 };
+
+#if MICROPROFILE_IMGUI
+enum MicroProfileImguiAlign
+{
+	MICROPROFILE_IMGUI_ALIGN_TOP_LEFT = 0,
+	MICROPROFILE_IMGUI_ALIGN_TOP_RIGHT = 1,
+	MICROPROFILE_IMGUI_ALIGN_BOTTOM_LEFT = 2,
+	MICROPROFILE_IMGUI_ALIGN_BOTTOM_RIGHT = 3,
+};
+
+struct MicroProfileImguiWindowDesc
+{
+	uint32_t Width;
+	uint32_t Height;
+	uint32_t GraphWidth = 300;
+	uint32_t GraphHeight = 80;
+	uint32_t Align = MICROPROFILE_IMGUI_ALIGN_TOP_LEFT;
+};
+struct MicroProfileImguiEntryDesc
+{
+	MicroProfileToken GraphTimer;
+	float GraphMax = -1;
+};
+#endif
 
 #endif //__cplusplus
 #endif // enabled
