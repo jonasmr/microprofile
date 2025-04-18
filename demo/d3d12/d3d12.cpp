@@ -67,7 +67,7 @@ void ImGuiRender(ID3D12GraphicsCommandList* pCommandList, uint32_t Width, uint32
 	ImGui_ImplWin32_NewFrame();
 	NewFrame();
 
-	MICROPROFILE_SCOPEI("Main", "Fisk", MP_AUTO);
+	MICROPROFILE_SCOPEI("Main", "FiskFISKFISKFISK", MP_AUTO);
 	MicroProfileToken t0 = MicroProfileFindToken("Main", "Fisk");
 	MicroProfileToken t1 = MicroProfileFindToken("Main", "Fisk");
 	MicroProfileToken t2 = MicroProfileFindToken("Main", "Hest");
@@ -79,7 +79,11 @@ void ImGuiRender(ID3D12GraphicsCommandList* pCommandList, uint32_t Width, uint32
 			1.f
 		},
 		{
-			MicroProfileFindToken("Main", "Main")
+			MicroProfileFindToken("Main", "OnRender")
+		}
+		,
+		{
+			MicroProfileFindToken("Main", "FiskFISKFISKFISK")
 		}
 	};
 
@@ -97,15 +101,30 @@ void ImGuiRender(ID3D12GraphicsCommandList* pCommandList, uint32_t Width, uint32
 		ImGui::SetNextWindowSize(ImVec2((float)Width, (float)Height), ImGuiCond_Always);
 
 		bool Open = true;
-		if (ImGui::Begin("MicroProfileImguiGraphWindow", &Open, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground))
+		if (ImGui::Begin("MicroProfileImguiGraphWindowxxx", &Open, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground))
 		{
 			MicroProfileImguiGraphs(
 				{
-					/* .Width = */ Width,
-					/* .Height = */ Height,
+					MICROPROFILE_IMGUI_ALIGN_BOTTOM_LEFT,
+					200,
+					40,
+				}, Entries, sizeof(Entries)/sizeof(Entries[0]));
+
+			ImGui::End();
+		}
+		ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
+		ImGui::SetNextWindowSize(ImVec2((float)Width, (float)Height), ImGuiCond_Always);
+		Open = true;
+		if (ImGui::Begin("MicroProfileImguiTableWindow", &Open, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground))
+		{
+		
+			MicroProfileImguiTable(
+				{
+					MICROPROFILE_IMGUI_ALIGN_BOTTOM_RIGHT
 				}, Entries, sizeof(Entries)/sizeof(Entries[0]));
 			ImGui::End();
 		}
+
 
 		//MicroProfileImguiRenderGraphs(Width, Height);
 		ShowDemoWindow(nullptr);

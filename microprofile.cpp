@@ -4368,6 +4368,51 @@ void MicroProfileForceDisableGroup(const char* pGroup, MicroProfileTokenType Typ
 	S.nForceGroups[nIndex] &= ~(1ll << nBit);
 }
 
+struct MicroProfileTimerValues
+{
+	float TimeMs;
+	float AverageMs;
+	float MaxMs;
+	float MinMs;
+	float CallAverageMs;
+	float ExclusiveMs;
+	float AverageExclusiveMs;
+	float MaxExclusiveMs;
+	float TotalMs;
+	uint32_t nCount;
+};
+
+void MicroProfileCalcTimers(int nTimer, MicroProfileTimerValues& Out)
+{
+	const uint32_t nGroupId = S.TimerInfo[nTimer].nGroupIndex;
+	const float fToMs = MicroProfileTickToMsMultiplier(S.GroupInfo[nGroupId].Type == MicroProfileTokenTypeGpu ? MicroProfileTicksPerSecondGpu() : MicroProfileTicksPerSecondCpu());
+	uint32_t nAggregateFrames = S.nAggregateFrames ? S.nAggregateFrames : 1;
+	uint32_t nAggregateCount = S.Aggregate[nTimer].nCount ? S.Aggregate[nTimer].nCount : 1;
+	Out.nCount = S.Aggregate[nTimer].nCount;
+
+	float fToPrc = S.fRcpReferenceTime;
+	float fMs = fToMs * (S.Frame[nTimer].nTicks);
+
+	float fAverageMs = fToMs * (S.Aggregate[nTimer].nTicks / nAggregateFrames);
+	float fMaxMs = fToMs * (S.AggregateMax[nTimer]);
+	float fMinMs = fToMs * (S.AggregateMin[nTimer] != uint64_t(-1) ? S.AggregateMin[nTimer] : 0);
+	float fCallAverageMs = fToMs * (S.Aggregate[nTimer].nTicks / nAggregateCount);
+	float fMsExclusive = fToMs * (S.FrameExclusive[nTimer]);
+	float fAverageMsExclusive = fToMs * (S.AggregateExclusive[nTimer] / nAggregateFrames);
+	float fMaxMsExclusive = fToMs * (S.AggregateMaxExclusive[nTimer]);
+	float fTotalMs = fToMs * S.Aggregate[nTimer].nTicks;
+
+	Out.TimeMs = fMs;
+	Out.AverageMs = fAverageMs;
+	Out.MaxMs = fMaxMs;
+	Out.MinMs = fMinMs;
+	Out.CallAverageMs = fCallAverageMs;
+	Out.ExclusiveMs = fMsExclusive;
+	Out.AverageExclusiveMs = fAverageMsExclusive;
+	Out.MaxExclusiveMs = fMaxMsExclusive;
+	Out.TotalMs = fTotalMs;
+}
+
 void MicroProfileCalcAllTimers(
 	float* pTimers, float* pAverage, float* pMax, float* pMin, float* pCallAverage, float* pExclusive, float* pAverageExclusive, float* pMaxExclusive, float* pTotal, uint32_t nSize)
 {
@@ -14729,15 +14774,98 @@ MicroProfileImguiTimerState* MicroProfileImguiGetTimerState(int TimerIndex)
 
 }
 
+void MicroProfileImguiTable(const MicroProfileImguiWindowDesc& Window, const MicroProfileImguiEntryDesc* Entries, uint32_t NumEntries)
+{
+	using namespace ImGui;
+	const uint32_t NumColumns = 6;
+	ImGuiIO& io = ImGui::GetIO();
+
+	float Padding = GetStyle().CellPadding.x * 2;
+	float GroupWidth = CalcTextSize("Group").x;
+	float NameWidth = CalcTextSize("Name").x;
+	float BaseWidth = CalcTextSize("100000.00").x;
+	float Height = CalcTextSize("G").y + Padding;
+
+	for(uint32_t i = 0; i < NumEntries; ++i)
+	{
+		uint32_t TimerIndex = MicroProfileGetTimerIndex(Entries[i].GraphTimer);
+		const MicroProfileTimerInfo& TI = S.TimerInfo[TimerIndex];
+		const MicroProfileGroupInfo& GI = S.GroupInfo[TI.nGroupIndex];
+		GroupWidth = MicroProfileMax(GroupWidth, CalcTextSize(GI.pName).x);
+		NameWidth = MicroProfileMax(NameWidth, CalcTextSize(TI.pName).x);
+	}
+	
+
+	float TableWidth = GroupWidth + NameWidth + BaseWidth * 4 + NumColumns * (Padding + GetStyle().ItemSpacing.x);
+	float TableHeight = Height * (NumEntries+1);
+
+	ImVec2 TablePos = ImVec2(0.f, 0.f);
+	if(Window.Align == MICROPROFILE_IMGUI_ALIGN_TOP_RIGHT || Window.Align == MICROPROFILE_IMGUI_ALIGN_BOTTOM_RIGHT)
+		TablePos.x = io.DisplaySize.x - TableWidth;
+
+	if(Window.Align == MICROPROFILE_IMGUI_ALIGN_BOTTOM_LEFT || Window.Align == MICROPROFILE_IMGUI_ALIGN_BOTTOM_RIGHT)
+		TablePos.y = io.DisplaySize.y - TableHeight;
+
+	SetCursorScreenPos(TablePos);
+
+	if(BeginTable("MicroProfileImguiTable", NumColumns, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_NoHostExtendX))
+	{
+		TableSetupColumn("Group", ImGuiTableColumnFlags_WidthFixed, GroupWidth);
+		TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed, NameWidth);
+
+		TableSetupColumn("Max", ImGuiTableColumnFlags_WidthFixed, BaseWidth);
+		TableSetupColumn("Min", ImGuiTableColumnFlags_WidthFixed, BaseWidth);
+		TableSetupColumn("Avg", ImGuiTableColumnFlags_WidthFixed, BaseWidth);
+		TableSetupColumn("Time", ImGuiTableColumnFlags_WidthFixed, BaseWidth);
+
+		TableHeadersRow();
+
+		for(uint32_t i = 0; i < NumEntries; ++i)
+		{
+			uint32_t TimerIndex = MicroProfileGetTimerIndex(Entries[i].GraphTimer);
+
+			MicroProfileTimerValues Values;
+			MicroProfileCalcTimers(TimerIndex, Values);
+			const MicroProfileTimerInfo& TI = S.TimerInfo[TimerIndex];
+			const MicroProfileGroupInfo& GI = S.GroupInfo[TI.nGroupIndex];
+			TableNextRow();
+			ImU32 RowBGColor	= GetColorU32((i % 2) ? ImVec4(0.1f, 0.1f, 0.1f, 0.85f) : ImVec4(0.2f, 0.2f, 0.2f, 0.85f));
+			TableSetBgColor(ImGuiTableBgTarget_RowBg1, RowBGColor);
+			PushID(i);
+			float fMax = 0.f, fMin = 0.f, fAvg = 0.f, fTime = 0.f;
+	
+			auto RightAlignedFloat = [](float f)
+			{
+				float CellWidth = GetContentRegionAvail().x;
+				char Buffer[32];
+				stbsp_snprintf(Buffer, sizeof(Buffer) - 1, "%.2f", f);
+				ImVec2 TextSize = CalcTextSize(Buffer);
+				SetCursorPosX(GetCursorPosX() + (CellWidth  - TextSize.x));
+				TextUnformatted(Buffer);	
+			};
+
+			TableSetColumnIndex(0);
+			Text(GI.pName);
+			TableSetColumnIndex(1);
+			Text(TI.pName);
+			TableSetColumnIndex(2);
+			RightAlignedFloat(Values.MaxMs);
+			TableSetColumnIndex(3);
+			RightAlignedFloat(Values.MinMs);
+			TableSetColumnIndex(4);
+			RightAlignedFloat(Values.AverageMs);
+			TableSetColumnIndex(5);
+			RightAlignedFloat(Values.TimeMs);
+			PopID();
+		}
+		EndTable();
+	}
+
+}
 
 void MicroProfileImguiGraphs(const MicroProfileImguiWindowDesc& Window, const MicroProfileImguiEntryDesc* Entries, uint32_t NumEntries)
 {
 	using namespace ImGui;
-	//SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
-	//SetNextWindowSize(ImVec2(Window.Width, Window.Height), ImGuiCond_Always);
-
-	//bool Open = true;
-	//if (Begin("MicroProfileImguiGraphWindow", &Open, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground))
 	{
 		for (uint32_t i = 0; i < NumEntries; ++i)
 		{
@@ -14745,51 +14873,12 @@ void MicroProfileImguiGraphs(const MicroProfileImguiWindowDesc& Window, const Mi
 			float GraphMax = Entries[i].GraphMax;
 			const MicroProfileTimerInfo& TI = S.TimerInfo[TimerIndex];
 
-
-			//struct MicroProfileImguiTimerState
-			//{
-			//	int TimerIndex = -1;
-			//	uint64_t FrameFetched = (uint64_t)-1;
-			//	float fValues[MICROPROFILE_IMGUI_GRAPH_SIZE];
-
-			//};
-
-
-			//struct MicroProfileImguiState
-			//{
-			//	MicroProfileImguiTimerState Timers[MICROPROFILE_IMGUI_MAX_GRAPHS];
-			//	uint32_t NumTimers = 0;
-			//	uint32_t GraphPut;
-			//};
-
 			MicroProfileImguiTimerState* TimerState = MicroProfileImguiGetTimerState(TimerIndex);
 
 			PushID(i << 16 | TimerIndex);
 			PlotLines("", &TimerState->fValues[0], MICROPROFILE_IMGUI_GRAPH_SIZE, 0, TI.pNameExt, 0.f, GraphMax, ImVec2(Window.GraphWidth, Window.GraphHeight));
 			PopID();
-
-
-
-			//MicroProfileToken GraphTimer;
-			//float GraphMax = -1;
-
-
-
-
-
-			//	PlotLines(const char* label, const float* values, int values_count, int values_offset = 0, const char* overlay_text = NULL, float scale_min = FLT_MAX, float scale_max = FLT_MAX, ImVec2 graph_size = ImVec2(0, 0), int stride = sizeof(float));
-		   // IMGUI_API void          
-			//{
-			//    float average = 0.0f;
-			//    for (int n = 0; n < IM_ARRAYSIZE(values); n++)
-			//        average += values[n];
-			//    average /= (float)IM_ARRAYSIZE(values);
-			//    char overlay[32];
-			//    sprintf(overlay, "avg %f", average);
-			//    ImGui::PlotLines("Lines", values, IM_ARRAYSIZE(values), values_offset, overlay, -1.0f, 1.0f, ImVec2(0, 80.0f));
-			//}
 		}
-		//End();
 	}
 
 
