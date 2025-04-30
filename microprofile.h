@@ -485,7 +485,7 @@ typedef uint32_t MicroProfileTimelineToken;
 
 #define MicroProfileImguiGraphs(...) do {} while(0)
 #define MicroProfileImguiTable(...) do {} while(0)
-
+#define MicroProfileImguiControls(...) do {} while(0)
 
 
 #else
@@ -1059,6 +1059,7 @@ extern "C"
 	struct MicroProfileImguiEntryDesc;
 	MICROPROFILE_API void MicroProfileImguiGraphs(const MicroProfileImguiWindowDesc& Window, const MicroProfileImguiEntryDesc* Entries, uint32_t NumEntries);
 	MICROPROFILE_API void MicroProfileImguiTable(const MicroProfileImguiWindowDesc& Window, const MicroProfileImguiEntryDesc* Entries, uint32_t NumEntries);
+	MICROPROFILE_API void MicroProfileImguiControls();
 #endif
 
 
@@ -1304,6 +1305,8 @@ struct MicroProfileImguiWindowDesc
 	uint32_t Align = MICROPROFILE_IMGUI_ALIGN_TOP_LEFT;
 	uint32_t GraphWidth = 300;
 	uint32_t GraphHeight = 80;
+	uint32_t OffsetX = 0;
+	uint32_t OffsetY = 0;
 };
 struct MicroProfileImguiEntryDesc
 {

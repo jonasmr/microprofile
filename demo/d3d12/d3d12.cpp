@@ -58,6 +58,38 @@ void ImGuiInit(HWND hwnd, ID3D12Device* Device, ID3D12CommandQueue* Queue)
 
 
 }
+static int64_t JqTicksPerSecond()
+{
+	static int64_t nTicksPerSecond = 0;
+	if(nTicksPerSecond == 0)
+	{
+		QueryPerformanceFrequency((LARGE_INTEGER*)&nTicksPerSecond);
+	}
+	return nTicksPerSecond;
+}
+static int64_t JqTick()
+{
+	int64_t ticks;
+	QueryPerformanceCounter((LARGE_INTEGER*)&ticks);
+	return ticks;
+}
+
+static void SpinSleep(float fTime)
+{
+	static volatile uint32_t JqSpinLoop = 42;
+	uint64_t nTick			 = JqTick();
+	uint64_t nTicksPerSecond = JqTicksPerSecond();
+	do
+	{
+		uint32_t result = 0;
+		for(uint32_t i = 0; i < 1000; ++i)
+		{
+			result |= i << (i & 7); // do something.. whatever
+		}
+		JqSpinLoop |= result; // write it somewhere so the optimizer can't remote it
+	} while((1.f * (JqTick() - nTick)) / nTicksPerSecond < fTime);
+
+}
 
 void ImGuiRender(ID3D12GraphicsCommandList* pCommandList, uint32_t Width, uint32_t Height)
 {
@@ -67,66 +99,87 @@ void ImGuiRender(ID3D12GraphicsCommandList* pCommandList, uint32_t Width, uint32
 	ImGui_ImplWin32_NewFrame();
 	NewFrame();
 
-	MICROPROFILE_SCOPEI("Main", "FiskFISKFISKFISK", MP_AUTO);
-	MicroProfileToken t0 = MicroProfileFindToken("Main", "Fisk");
-	MicroProfileToken t1 = MicroProfileFindToken("Main", "Fisk");
-	MicroProfileToken t2 = MicroProfileFindToken("Main", "Hest");
-	MicroProfileToken t3 = MicroProfileFindToken("Main", "Hest");
-
 	static MicroProfileImguiEntryDesc Entries[] = {
-		{
-			MicroProfileFindToken("Main", "WaitPrev"),
-			1.f
-		},
-		{
-			MicroProfileFindToken("Main", "OnRender")
-		}
-		,
-		{
-			MicroProfileFindToken("Main", "FiskFISKFISKFISK")
-		}
-	};
+	{
+		MicroProfileFindToken("Main", "WaitPrev"),
+		20.f
+	},
+	{
+		MicroProfileFindToken("Main", "OnRender"),
+		20.f
+	},
+	{
+		MicroProfileFindToken("Main", "Sleep"),
+		20.f
+	},
+	{
+		MicroProfileFindToken("Main", "ImGuiRender"),
+		2.f
+	}
+}	;
+
+
+	MICROPROFILE_SCOPEI("Main", "ImGuiRender", MP_AUTO);
+
 
 	{
+		static bool ShowTable = true;
+		static bool ShowGraphs[] = { true, false, false };
+		static float SleepTime = 1.f;
+		Begin("MicroProfile Control Window");
+		Checkbox("Show Table", &ShowTable);
+		Checkbox("Show Graph 0", &ShowGraphs[0]);
+		Checkbox("Show Graph 1", &ShowGraphs[1]);
+		Checkbox("Show Graph 2", &ShowGraphs[2]);
+		SliderFloat("SleepTime", &SleepTime, 0.f, 30.f);
 
-		//Begin("MicroProfile Control Window");                          // Create a window called "Hello, world!" and append into it.
-		//	MicroProfileImguiControlWindow();
-		//End();
+		Separator();
+		// Draw simple default controls for enabling groups/categories
+		// this is intended to be in a menu, but for this demo its in a window.
+		MicroProfileImguiControls();
+		End();
+
+		{
+			MICROPROFILE_SCOPEI("main", "Sleep", MP_AUTO);
+			SpinSleep(SleepTime / 1000.f);
+		}
 
 
 		// MicroProfileImgui doesn't create any windows, you have to init those yourself - it just renders an array of graphs and a table
 		// This example shows how to make a transparent window ignoring clicks, covering the entire screen.
 
-		ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
-		ImGui::SetNextWindowSize(ImVec2((float)Width, (float)Height), ImGuiCond_Always);
+		SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
+		SetNextWindowSize(ImVec2((float)Width, (float)Height), ImGuiCond_Always);
 
-		bool Open = true;
-		if (ImGui::Begin("MicroProfileImguiGraphWindowxxx", &Open, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground))
+		uint32_t Offset = 0;
+		for(int i = 0; i < 3; ++i)
 		{
-			MicroProfileImguiGraphs(
-				{
-					MICROPROFILE_IMGUI_ALIGN_BOTTOM_LEFT,
-					200,
-					40,
-				}, Entries, sizeof(Entries)/sizeof(Entries[0]));
-
-			ImGui::End();
+			PushID(i);
+			if(ShowGraphs[i] && Begin("MicroProfileImguiGraphWindow", &ShowGraphs[i], ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground))
+			{
+				MicroProfileImguiGraphs(
+					{
+						MICROPROFILE_IMGUI_ALIGN_BOTTOM_LEFT,
+						300,
+						40,
+						Offset, 
+						0,
+					}, Entries, sizeof(Entries)/sizeof(Entries[0]));
+				Offset += 300;
+				End();
+			}
+			PopID();
 		}
-		ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
-		ImGui::SetNextWindowSize(ImVec2((float)Width, (float)Height), ImGuiCond_Always);
-		Open = true;
-		if (ImGui::Begin("MicroProfileImguiTableWindow", &Open, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground))
+		SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
+		SetNextWindowSize(ImVec2((float)Width, (float)Height), ImGuiCond_Always);
+		if(ShowTable && Begin("MicroProfileImguiTableWindow", &ShowTable, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground))
 		{
-		
 			MicroProfileImguiTable(
 				{
-					MICROPROFILE_IMGUI_ALIGN_BOTTOM_RIGHT
+					MICROPROFILE_IMGUI_ALIGN_TOP_RIGHT
 				}, Entries, sizeof(Entries)/sizeof(Entries[0]));
 			ImGui::End();
 		}
-
-
-		//MicroProfileImguiRenderGraphs(Width, Height);
 		ShowDemoWindow(nullptr);
 
 	}

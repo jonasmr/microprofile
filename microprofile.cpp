@@ -4742,6 +4742,26 @@ bool MicroProfileCategoryEnabled(uint32_t nCategory)
 	}
 	return false;
 }
+
+bool MicroProfileCategoryDisabled(uint32_t nCategory)
+{
+	if (nCategory < S.nCategoryCount)
+	{
+		for (uint32_t i = 0; i < MICROPROFILE_MAX_GROUP_INTS; ++i)
+		{
+			uint32_t ActiveMask = S.nActiveGroupsWanted[i];
+			uint32_t CategoryMask = S.CategoryInfo[nCategory].nGroupMask[i];
+
+			if(0 != (ActiveMask & CategoryMask))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+	return false;
+}
+
 void MicroProfileToggleCategory(uint32_t nCategory)
 {
 	if (nCategory < S.nCategoryCount)
@@ -10312,6 +10332,66 @@ const char* MicroProfileStrDup(const char* pStr)
 	return pOut;
 }
 
+
+uint32_t MicroProfileColorFromString(const char* pString) // note matching code/constants in javascript: microprofilelive.html: function StringToColor(s)
+{
+	// 	var h = StringHash(s);
+	// var cidx = h % 360;
+	// return "hsl(" + cidx + ",50%, 70%)"; //note: matching code constants in microprofile.cpp: MicroProfileColorFromString
+
+	float h = MicroProfileStringHash(pString) % 360;
+	float s = 0.5f;
+	float l = 0.7f;
+	// from https://www.rapidtables.com/convert/color/hsl-to-rgb.html
+	float c = (1 - fabsf(2 * l - 1)) * s;
+	float x = c * (1 - fabsf(fmodf(h / 60, 2.f) - 1));
+	float m = l - c / 2.f;
+	float r = 0.f, g = 0.f, b = 0.f;
+	if(h < 60)
+	{
+		r = c;
+		g = x;
+	}
+	else if(h < 120.f)
+	{
+		r = x;
+		g = c;
+	}
+	else if(h < 180.f)
+	{
+		g = c;
+		b = x;
+	}
+	else if(h < 240.f)
+	{
+		g = x;
+		b = c;
+	}
+	else if(h < 300.f)
+	{
+		r = x;
+		b = c;
+	}
+	else
+	{
+		r = c;
+		b = x;
+	}
+	r += m;
+	g += m;
+	b += m;
+
+	r *= 255.f;
+	g *= 255.f;
+	b *= 255.f;
+
+	uint32_t R = MicroProfileMin(0xffu, (uint32_t)r);
+	uint32_t G = MicroProfileMin(0xffu, (uint32_t)g);
+	uint32_t B = MicroProfileMin(0xffu, (uint32_t)b);
+
+	return (R << 16) | (G << 8) | B;
+}
+
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
 // '##::::'##::'#######:::'#######::'##:::'##:::::'######::'##::::'##::::'###::::'########::'########:'########::
 //  ##:::: ##:'##.... ##:'##.... ##: ##::'##:::::'##... ##: ##:::: ##:::'## ##::: ##.... ##: ##.....:: ##.... ##:
@@ -11031,64 +11111,7 @@ extern "C" void MicroProfileInterceptLeave(int a)
 	MicroProfileLeaveInternal(pScopeState->Token, pScopeState->nTick);
 }
 
-uint32_t MicroProfileColorFromString(const char* pString) // note matching code/constants in javascript: microprofilelive.html: function StringToColor(s)
-{
-	// 	var h = StringHash(s);
-	// var cidx = h % 360;
-	// return "hsl(" + cidx + ",50%, 70%)"; //note: matching code constants in microprofile.cpp: MicroProfileColorFromString
 
-	float h = MicroProfileStringHash(pString) % 360;
-	float s = 0.5f;
-	float l = 0.7f;
-	// from https://www.rapidtables.com/convert/color/hsl-to-rgb.html
-	float c = (1 - fabsf(2 * l - 1)) * s;
-	float x = c * (1 - fabsf(fmodf(h / 60, 2.f) - 1));
-	float m = l - c / 2.f;
-	float r = 0.f, g = 0.f, b = 0.f;
-	if(h < 60)
-	{
-		r = c;
-		g = x;
-	}
-	else if(h < 120.f)
-	{
-		r = x;
-		g = c;
-	}
-	else if(h < 180.f)
-	{
-		g = c;
-		b = x;
-	}
-	else if(h < 240.f)
-	{
-		g = x;
-		b = c;
-	}
-	else if(h < 300.f)
-	{
-		r = x;
-		b = c;
-	}
-	else
-	{
-		r = c;
-		b = x;
-	}
-	r += m;
-	g += m;
-	b += m;
-
-	r *= 255.f;
-	g *= 255.f;
-	b *= 255.f;
-
-	uint32_t R = MicroProfileMin(0xffu, (uint32_t)r);
-	uint32_t G = MicroProfileMin(0xffu, (uint32_t)g);
-	uint32_t B = MicroProfileMin(0xffu, (uint32_t)b);
-
-	return (R << 16) | (G << 8) | B;
-}
 
 void MicroProfileInstrumentFromAddressOnly(void* pFunction)
 {
@@ -14598,6 +14621,20 @@ void MicroProfileHashTableTest()
 }
 
 
+uint32_t MicroProfileGetColor(uint32_t TimerIndex)
+{
+	MicroProfileTimerInfo& TI = S.TimerInfo[TimerIndex];
+	if(TI.nColor == MP_AUTO)
+	{
+		return MicroProfileColorFromString(TI.pName);
+	}
+	else
+	{
+		return TI.nColor;
+	}
+}
+
+
 #if MICROPROFILE_IMGUI
 #include "imgui.h"
 #ifndef MICROPROFILE_IMGUI_MAX_GRAPHS
@@ -14610,6 +14647,7 @@ struct MicroProfileImguiTimerState
 {
 	int TimerIndex = -1;
 	uint64_t FrameFetched = (uint64_t)-1;
+	uint32_t nColor = 0;
 	float fValues[MICROPROFILE_IMGUI_GRAPH_SIZE];
 	
 };
@@ -14640,121 +14678,114 @@ void MicroProfileImguiGather()
 	ImguiState.GraphPut = (ImguiState.GraphPut + 1) % MICROPROFILE_IMGUI_GRAPH_SIZE;
 }
 
-//void MicroProfileImguiControlWindow()
-//{
-//	using namespace ImGui;
-//	if(BeginListBox("Groups Enabled"))
-//	{
-//		for(uint32_t i = 0; i < S.nGroupCount; ++i)
-//		{
-//			const char* pName = S.GroupInfo[i].pName;
-//			bool bEnabled = MicroProfileGroupEnabled(i);
-//			if(Selectable(pName, bEnabled))
-//			{
-//				MicroProfileToggleGroup(i);
-//			}
-//		} 
-//		EndListBox();
-//	}
-//	static int SelectedTimer = -1;
-//
-//	static ImGuiTextFilter filter;
-//	filter.Draw();
-//
-//
-//	if(BeginListBox("Timer Graph"))
-//	{
-//		for(uint32_t i = 0; i < S.nTotalTimers; ++i)
-//		{
-//			PushID(i);
-//			const char* pName = S.TimerInfo[i].pName;
-//			bool bEnabled = i == SelectedTimer;
-//			if(filter.PassFilter(pName))
-//			{
-//				
-//				if(Selectable(pName, bEnabled))
-//				{
-//					if(i != SelectedTimer)
-//						SelectedTimer = i;
-//					else
-//						SelectedTimer = -1;
-//				}
-//			}
-//			PopID();
-//		} 
-//		EndListBox();
-//	}
-//	Separator();
-//	if(SelectedTimer >= 0 && SelectedTimer < (int)S.nTotalTimers)
-//	{
-//		MicroProfileImguiState::GraphInfo* pGraphInfo = nullptr;
-//		for(uint32_t i = 0; i < ImguiState.NumGraphs; ++i)
-//		{
-//			if(ImguiState.Graphs[i].TimerIndex == SelectedTimer)
-//			{
-//				pGraphInfo = &ImguiState.Graphs[i];
-//			}
-//		}
-//		if(!pGraphInfo)
-//		{
-//			if(ImguiState.NumGraphs < MICROPROFILE_IMGUI_MAX_GRAPHS)
-//			{
-//				pGraphInfo = &ImguiState.Graphs[ImguiState.NumGraphs++];
-//				pGraphInfo->TimerIndex = SelectedTimer;
-//				pGraphInfo->Enabled = 0;
-//			}
-//		}
-//		if(!pGraphInfo)
-//		{
-//			Text("Max Graphs (%d) active. Disable some or bump MICROPROFILE_IMGUI_MAX_GRAPHS.", MICROPROFILE_IMGUI_MAX_GRAPHS);
-//		}
-//		else
-//		{
-//			uint32_t& v = pGraphInfo->Enabled;
-//			if(RadioButton("Off", v == 0))
-//				v = 0;
-//			if(RadioButton("Lower Left", v & 1))
-//			{
-//				v &= 0xf;
-//				v |= 1;
-//			}
-//			if(RadioButton("Lower Right", v & 2))
-//			{
-//				v &= 0xf;
-//				v |= 2;
-//			}
-//			if(RadioButton("Top Left", v & 4))
-//			{
-//				v &= 0xf;
-//				v |= 4;
-//			}
-//			if(RadioButton("Top Right", v & 8))
-//			{
-//				v &= 0xf;
-//				v |= 8;
-//			}
-//			bool Table = (v&0x10) != 0;
-//			bool TableOrg = Table;
-//			Checkbox("Table", &Table);
-//			if(Table != TableOrg)
-//			{
-//				v ^= 0x10;
-//			}
-//		
-//			if(v == 0)
-//			{
-//				int Index = pGraphInfo - &ImguiState.Graphs[0];
-//				int Last = ImguiState.NumGraphs-1;
-//				if(Index != Last)
-//				{
-//					ImguiState.Graphs[Index] = ImguiState.Graphs[Last];
-//					memset(&ImguiState.Graphs[Last], 0, sizeof(ImguiState.Graphs[Last]));
-//				}
-//				ImguiState.NumGraphs--;
-//			}
-//		}
-//	}
-//}
+
+
+uint32_t MicroProfileImGuiColor(uint32_t Color)
+{
+	uint32_t A = 0xff;
+	uint32_t R = 0xff & (Color >> 16);
+	uint32_t G = 0xff & (Color >> 8);
+	uint32_t B = 0xff & (Color);
+
+	return (A << IM_COL32_A_SHIFT) | (R << IM_COL32_R_SHIFT) | (G << IM_COL32_G_SHIFT) | (B << IM_COL32_B_SHIFT);
+
+}
+void MicroProfileImguiControls()
+{
+	using namespace ImGui;
+	uint32_t IdCounter = 42;
+	{
+		PushID(IdCounter++);
+		int Aggr = MicroProfileGetAggregateFrames();
+		Text("Aggregate Frames %7d", MicroProfileGetCurrentAggregateFrames());
+		SameLine();
+		if(RadioButton("Inf", Aggr == 0))
+			MicroProfileSetAggregateFrames(0);
+		int AggrFrameOptions[] = {
+			30, 60, 100, 1000,
+		};
+		for(int i = 0; i < sizeof(AggrFrameOptions) / sizeof(AggrFrameOptions[0]); ++i)
+		{
+			int v = AggrFrameOptions[i];
+			char Buffer[32];
+			stbsp_snprintf(Buffer, sizeof(Buffer) - 1, "%d", v);
+			SameLine();
+			if(RadioButton(Buffer, Aggr == v))
+				MicroProfileSetAggregateFrames(v);
+		}
+
+		if(Aggr == 0)
+		{
+			if(Button("Clear Inf Aggregate"))
+				S.nAggregateClear = 1;
+		}
+
+		PopID();
+	}
+	Separator();
+	{
+		PushID(IdCounter++);
+		Text("Categories");
+		if(BeginTable("CategoryTable", 3, 0))
+		{
+			TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
+			TableSetupColumn("On", ImGuiTableColumnFlags_WidthFixed, 70);
+			TableSetupColumn("Off", ImGuiTableColumnFlags_WidthFixed, 70);
+			for(uint32_t i = 0; i < S.nCategoryCount; ++i)
+			{
+				PushID(i);
+				TableNextRow();
+				TableSetColumnIndex(0);
+				Text(S.CategoryInfo[i].pName);
+				bool bEnabled = MicroProfileCategoryEnabled(i);
+				bool bDisabled = MicroProfileCategoryDisabled(i);
+				TableSetColumnIndex(1);
+				if(RadioButton("On", bEnabled))
+					MicroProfileEnableCategory(S.CategoryInfo[i].pName);
+				TableSetColumnIndex(2);
+				if(RadioButton("Off", bDisabled))
+					MicroProfileDisableCategory(S.CategoryInfo[i].pName);
+
+				PopID();
+			}
+			EndTable();
+		}
+		PopID();
+	}
+	Separator();
+	{
+		PushID(IdCounter++);
+		Text("Groups");
+		if(BeginTable("GroupTable", 3, 0))
+		{
+			TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
+			TableSetupColumn("On", ImGuiTableColumnFlags_WidthFixed, 70);
+			TableSetupColumn("Off", ImGuiTableColumnFlags_WidthFixed, 70);
+
+
+			for(uint32_t i = 0; i < S.nGroupCount; ++i)
+			{
+				TableNextRow();
+				PushID(i);
+				const char* pName = S.GroupInfo[i].pName;
+				bool bEnabled = MicroProfileGroupEnabled(i);
+				TableSetColumnIndex(0);
+				Text(pName); 
+				TableSetColumnIndex(1);
+				if(RadioButton("On", bEnabled))
+					MicroProfileToggleGroup(i);
+				TableSetColumnIndex(2);
+				if(RadioButton("Off", !bEnabled))
+					MicroProfileToggleGroup(i);
+				PopID();
+	  		}
+	  		EndTable();
+	  	} 
+		PopID();
+	}
+}
+
+
 MicroProfileImguiTimerState* MicroProfileImguiGetTimerState(int TimerIndex)
 {
 	MicroProfileImguiTimerState* ptr = nullptr;
@@ -14766,6 +14797,7 @@ MicroProfileImguiTimerState* MicroProfileImguiGetTimerState(int TimerIndex)
 	{
 		MicroProfileImguiTimerState* pState = &ImguiState.Timers[ImguiState.NumTimers++];
 		pState->TimerIndex = TimerIndex;
+		pState->nColor = MicroProfileGetColor(TimerIndex);
 		memset(&pState->fValues[0], 0, sizeof(pState->fValues));
 		return pState;
 	}
@@ -14876,10 +14908,9 @@ void MicroProfileImguiGraphs(const MicroProfileImguiWindowDesc& Window, const Mi
 
 	if(Window.Align == MICROPROFILE_IMGUI_ALIGN_BOTTOM_LEFT || Window.Align == MICROPROFILE_IMGUI_ALIGN_BOTTOM_RIGHT)
 		Pos.y = io.DisplaySize.y - Height;
-	
 
-
-
+	Pos.x += Window.OffsetX;
+	Pos.y += Window.OffsetY;
 	for (uint32_t i = 0; i < NumEntries; ++i)
 	{
 		SetCursorScreenPos(Pos);
@@ -14890,7 +14921,26 @@ void MicroProfileImguiGraphs(const MicroProfileImguiWindowDesc& Window, const Mi
 		MicroProfileImguiTimerState* TimerState = MicroProfileImguiGetTimerState(TimerIndex);
 
 		PushID(i << 16 | TimerIndex);
-		PlotLines("", &TimerState->fValues[0], MICROPROFILE_IMGUI_GRAPH_SIZE, 0, TI.pNameExt, 0.f, GraphMax, ImVec2(Window.GraphWidth, Window.GraphHeight));
+		if(TimerState->nColor == 0)
+			TimerState->nColor = MicroProfileGetColor(TimerIndex);
+		PushStyleColor(ImGuiCol_PlotLines, MicroProfileImGuiColor(TimerState->nColor));
+
+		uint32_t Start = (ImguiState.GraphPut) %  MICROPROFILE_IMGUI_GRAPH_SIZE;	
+		uint32_t Last = (ImguiState.GraphPut + MICROPROFILE_IMGUI_GRAPH_SIZE - 1) %  MICROPROFILE_IMGUI_GRAPH_SIZE;	
+		PlotLines("", &TimerState->fValues[0], MICROPROFILE_IMGUI_GRAPH_SIZE, Start, nullptr, 0.f, GraphMax, ImVec2(Window.GraphWidth, Window.GraphHeight));
+		
+		char TimeStr[32];
+		stbsp_snprintf(TimeStr, sizeof(TimeStr)-1, "%.3fms", TimerState->fValues[Last]); 
+		ImVec2 PlotMin = GetItemRectMin();
+		ImVec2 PlotMax = GetItemRectMax();
+		ImVec2 NameSize = CalcTextSize(TI.pName);
+		ImVec2 NamePos = ImVec2(PlotMin.x + 1, PlotMax.y - NameSize.y - 1);
+		ImVec2 TimeSize = CalcTextSize(TimeStr);
+		ImVec2 TimePos = ImVec2(PlotMax.x - TimeSize.x - 1, PlotMax.y - TimeSize.y - 1);
+		GetWindowDrawList()->AddText(NamePos, GetColorU32(ImGuiCol_Text), TI.pName);
+		GetWindowDrawList()->AddText(TimePos, GetColorU32(ImGuiCol_Text), TimeStr);
+	
+		PopStyleColor();
 		PopID();
 		Pos.y += Window.GraphHeight + GetStyle().ItemSpacing.y;
 	}
