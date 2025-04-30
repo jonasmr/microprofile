@@ -99,6 +99,14 @@ void ImGuiRender(ID3D12GraphicsCommandList* pCommandList, uint32_t Width, uint32
 	ImGui_ImplWin32_NewFrame();
 	NewFrame();
 
+	static float SleepTime = 1.f;
+	{
+		MICROPROFILE_SCOPEI("main", "Sleep", MP_AUTO);
+		SpinSleep(SleepTime / 1000.f);
+	}
+
+
+
 	static MicroProfileImguiEntryDesc Entries[] = {
 	{
 		MicroProfileFindToken("Main", "WaitPrev"),
@@ -125,7 +133,6 @@ void ImGuiRender(ID3D12GraphicsCommandList* pCommandList, uint32_t Width, uint32
 	{
 		static bool ShowTable = true;
 		static bool ShowGraphs[] = { true, false, false };
-		static float SleepTime = 1.f;
 		Begin("MicroProfile Control Window");
 		Checkbox("Show Table", &ShowTable);
 		Checkbox("Show Graph 0", &ShowGraphs[0]);
@@ -138,12 +145,7 @@ void ImGuiRender(ID3D12GraphicsCommandList* pCommandList, uint32_t Width, uint32
 		// this is intended to be in a menu, but for this demo its in a window.
 		MicroProfileImguiControls();
 		End();
-
-		{
-			MICROPROFILE_SCOPEI("main", "Sleep", MP_AUTO);
-			SpinSleep(SleepTime / 1000.f);
-		}
-
+	
 
 		// MicroProfileImgui doesn't create any windows, you have to init those yourself - it just renders an array of graphs and a table
 		// This example shows how to make a transparent window ignoring clicks, covering the entire screen.

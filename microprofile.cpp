@@ -14678,8 +14678,6 @@ void MicroProfileImguiGather()
 	ImguiState.GraphPut = (ImguiState.GraphPut + 1) % MICROPROFILE_IMGUI_GRAPH_SIZE;
 }
 
-
-
 uint32_t MicroProfileImGuiColor(uint32_t Color)
 {
 	uint32_t A = 0xff;
@@ -14690,6 +14688,7 @@ uint32_t MicroProfileImGuiColor(uint32_t Color)
 	return (A << IM_COL32_A_SHIFT) | (R << IM_COL32_R_SHIFT) | (G << IM_COL32_G_SHIFT) | (B << IM_COL32_B_SHIFT);
 
 }
+
 void MicroProfileImguiControls()
 {
 	using namespace ImGui;
@@ -14923,8 +14922,14 @@ void MicroProfileImguiGraphs(const MicroProfileImguiWindowDesc& Window, const Mi
 		PushID(i << 16 | TimerIndex);
 		if(TimerState->nColor == 0)
 			TimerState->nColor = MicroProfileGetColor(TimerIndex);
-		PushStyleColor(ImGuiCol_PlotLines, MicroProfileImGuiColor(TimerState->nColor));
+		ImVec4 FrameBg = GetStyleColorVec4(ImGuiCol_FrameBg);
+		FrameBg.x = 0.15f;
+		FrameBg.y = 0.15f;
+		FrameBg.z = 0.15f;
+		FrameBg.w = 0.8f;
 
+		PushStyleColor(ImGuiCol_PlotLines, MicroProfileImGuiColor(TimerState->nColor));
+		PushStyleColor(ImGuiCol_FrameBg, FrameBg);
 		uint32_t Start = (ImguiState.GraphPut) %  MICROPROFILE_IMGUI_GRAPH_SIZE;	
 		uint32_t Last = (ImguiState.GraphPut + MICROPROFILE_IMGUI_GRAPH_SIZE - 1) %  MICROPROFILE_IMGUI_GRAPH_SIZE;	
 		PlotLines("", &TimerState->fValues[0], MICROPROFILE_IMGUI_GRAPH_SIZE, Start, nullptr, 0.f, GraphMax, ImVec2(Window.GraphWidth, Window.GraphHeight));
@@ -14941,75 +14946,11 @@ void MicroProfileImguiGraphs(const MicroProfileImguiWindowDesc& Window, const Mi
 		GetWindowDrawList()->AddText(TimePos, GetColorU32(ImGuiCol_Text), TimeStr);
 	
 		PopStyleColor();
+		PopStyleColor();
 		PopID();
 		Pos.y += Window.GraphHeight + GetStyle().ItemSpacing.y;
 	}
 }
-#if 0
-void MicroProfileImguiRenderGraphs(uint32_t Width, uint32_t Height)
-{
-	using namespace ImGui;
-	int NumGraphs[4] = {0};
-	const uint32_t GRAPH_WIDTH = 300;
-	const uint32_t GRAPH_HEIGHT = 80;
-	for(int corner = 0; corner < 4; ++corner)
-	{
-		int Dir;
-		int Count = 0;
-		for(uint32_t i = 0; i < ImguiState.NumGraphs; ++i)
-		{
-			auto* pGraphInfo = &ImguiState.Graphs[i];
-			if((1<<i) & pGraphInfo->Enabled)
-				Count++;
-		}
-		uint32_t WindowHeight = MicroProfileMin(Height, (GRAPH_HEIGHT+10) * Count);
-		switch(corner)
-		{
-		case 0:
-			break;
-		case 1:
-			break;
-		case 2:
-			Dir = -1;
-			SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
-			SetNextWindowSize(ImVec2(GRAPH_WIDTH, WindowHeight), ImGuiCond_Always);
-			break;
-		case 3:
-			Dir = 1;
-			SetNextWindowPos(ImVec2(0, Width - GRAPH_WIDTH), ImGuiCond_Always);
-			SetNextWindowSize(ImVec2(GRAPH_WIDTH, WindowHeight), ImGuiCond_Always);
-			break;
-
-		}
-		bool open = true;
-		if(Begin("MicroProfileImguiGraphWindow", &open, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground))
-		{
-			for(uint32_t i = 0; i < ImguiState.NumGraphs; ++i)
-			{
-				auto* pGraphInfo = &ImguiState.Graphs[i];
-				uint32_t Enabled = pGraphInfo->Enabled;
-				uint32_t TimerIndex = pGraphInfo->TimerIndex;
-				const MicroProfileTimerInfo& TI = S.TimerInfo[TimerIndex];
-			//	PlotLines(const char* label, const float* values, int values_count, int values_offset = 0, const char* overlay_text = NULL, float scale_min = FLT_MAX, float scale_max = FLT_MAX, ImVec2 graph_size = ImVec2(0, 0), int stride = sizeof(float));
-		   // IMGUI_API void          
-				PushID(i<<16 | TimerIndex);
-				PlotLines("", &pGraphInfo->fValues[0], MICROPROFILE_IMGUI_GRAPH_SIZE, 0, TI.pNameExt, 0.f, 1.f, ImVec2(0.f, 80.f));			
-				PopID();
-				//{
-				//    float average = 0.0f;
-				//    for (int n = 0; n < IM_ARRAYSIZE(values); n++)
-				//        average += values[n];
-				//    average /= (float)IM_ARRAYSIZE(values);
-				//    char overlay[32];
-				//    sprintf(overlay, "avg %f", average);
-				//    ImGui::PlotLines("Lines", values, IM_ARRAYSIZE(values), values_offset, overlay, -1.0f, 1.0f, ImVec2(0, 80.0f));
-				//}
-			}
-			End();
-		}
-	}
-}
-#endif
 
 #endif
 
