@@ -946,6 +946,7 @@ extern "C"
 	MICROPROFILE_API void MicroProfileCounterSet(MicroProfileToken nToken, int64_t nCount);
 	MICROPROFILE_API void MicroProfileCounterSetLimit(MicroProfileToken nToken, int64_t nCount);
 	MICROPROFILE_API void MicroProfileCounterConfig(const char* pCounterName, uint32_t nFormat, int64_t nLimit, uint32_t nFlags);
+	MICROPROFILE_API void MicroProfileCounterConfigToken(MicroProfileToken nToken, uint32_t nFormat, int64_t nLimit, uint32_t nFlags);
 	MICROPROFILE_API void MicroProfileCounterSetPtr(const char* pCounterName, void* pValue, uint32_t nSize);
 	MICROPROFILE_API void MicroProfileCounterFetchCounters();
 	MICROPROFILE_API void MicroProfileLocalCounterAdd(int64_t* pCounter, int64_t nCount);

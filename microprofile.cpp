@@ -1613,7 +1613,7 @@ void MicroProfileStringsDestroy(MicroProfileStrings* pStrings);
 
 MicroProfileToken MicroProfileCounterTokenInit(int nParent);
 void MicroProfileCounterTokenInitName(MicroProfileToken nToken, const char* pName);
-void MicroProfileCounterConfigInternal(MicroProfileToken, uint32_t eFormat, int64_t nLimit, uint32_t nFlags);
+void MicroProfileCounterConfigToken(MicroProfileToken, uint32_t eFormat, int64_t nLimit, uint32_t nFlags);
 uint16_t MicroProfileFindGroup(const char* pGroup);
 
 inline std::recursive_mutex& MicroProfileMutex()
@@ -1768,7 +1768,7 @@ void MicroProfileInit()
 #if MICROPROFILE_FRAME_EXTRA_DATA
 	S.FrameExtraCounterData = (MicroProfileFrameExtraCounterData*)1;
 #endif
-	MicroProfileCounterConfigInternal(S.CounterToken_Alloc_Memory, MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
+	MicroProfileCounterConfigToken(S.CounterToken_Alloc_Memory, MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
 	MICROPROFILE_COUNTER_CONFIG("MicroProfile/ThreadLog/Memory", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
 
 	if(bUseLock)
@@ -3090,7 +3090,7 @@ void MicroProfileCounterSetLimit(MicroProfileToken nToken, int64_t nCount)
 	S.CounterInfo[nToken].nLimit = nCount;
 }
 
-void MicroProfileCounterConfigInternal(MicroProfileToken nToken, uint32_t eFormat, int64_t nLimit, uint32_t nFlags)
+void MicroProfileCounterConfigToken(MicroProfileToken nToken, uint32_t eFormat, int64_t nLimit, uint32_t nFlags)
 {
 	S.CounterInfo[nToken].eFormat = (MicroProfileCounterFormat)eFormat;
 	S.CounterInfo[nToken].nLimit = nLimit;
@@ -3100,7 +3100,7 @@ void MicroProfileCounterConfigInternal(MicroProfileToken nToken, uint32_t eForma
 void MicroProfileCounterConfig(const char* pName, uint32_t eFormat, int64_t nLimit, uint32_t nFlags)
 {
 	MicroProfileToken nToken = MicroProfileGetCounterToken(pName, 0);
-	MicroProfileCounterConfigInternal(nToken, eFormat, nLimit, nFlags);
+	MicroProfileCounterConfigToken(nToken, eFormat, nLimit, nFlags);
 }
 
 void MicroProfileCounterSetPtr(const char* pCounterName, void* pSource, uint32_t nSize)
