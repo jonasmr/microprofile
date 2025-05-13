@@ -2652,6 +2652,12 @@ MicroProfileToken MicroProfileGetCounterToken(const char* pName, uint32_t Counte
 	return nResult;
 }
 
+MicroProfileToken MicroProfileGetChildCounterToken(MicroProfileToken Parent, const char* pName)
+{
+	MP_ASSERT(NULL == strpbrk(pName, "\\/")); // delimiters not supported when manually building the tree.
+	return MicroProfileCounterTokenTreeDynamic(nullptr, Parent, pName);
+}
+
 inline void MicroProfileLogPut(MicroProfileLogEntry LE, MicroProfileThreadLog* pLog)
 {
 	MP_ASSERT(pLog != 0);		   // this assert is hit if MicroProfileOnCreateThread is not called

@@ -941,6 +941,7 @@ extern "C"
 	MICROPROFILE_API MicroProfileToken MicroProfileGetToken(const char* sGroup, const char* sName, uint32_t nColor, MicroProfileTokenType Token, uint32_t flags);
 	MICROPROFILE_API void MicroProfileGetTokenC(MicroProfileToken* pToken, const char* sGroup, const char* sName, uint32_t nColor, MicroProfileTokenType Token, uint32_t flags);
 	MICROPROFILE_API MicroProfileToken MicroProfileGetCounterToken(const char* pName, uint32_t CounterTokenFlag);
+	MICROPROFILE_API MicroProfileToken MicroProfileGetChildCounterToken(MicroProfileToken Parent, const char* pName); // manually create the child/parent tree
 	MICROPROFILE_API void MicroProfileCounterAdd(MicroProfileToken nToken, int64_t nCount);
 	MICROPROFILE_API void MicroProfileCounterSet(MicroProfileToken nToken, int64_t nCount);
 	MICROPROFILE_API void MicroProfileCounterSetLimit(MicroProfileToken nToken, int64_t nCount);
