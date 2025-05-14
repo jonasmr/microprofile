@@ -8342,7 +8342,7 @@ void MicroProfileWebSocketSendCounterEntry(uint32_t id, uint32_t parent, const c
 	MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
 	MicroProfileWSPrintf("\"name\":\"%s\",", pName);
 	MicroProfileWSPrintf("\"e\":%d,", nEnabled);
-	MicroProfileWSPrintf("\"limit\":%d,", nLimit);
+	MicroProfileWSPrintf("\"limit\":%lld,", nLimit);
 	MicroProfileWSPrintf("\"format\":%d", nFormat);
 	MicroProfileWSPrintf("}}");
 	MicroProfileWSFlush();
@@ -9679,7 +9679,7 @@ uint32_t MicroProfileGpuFlip(void* pContext)
 		{
 			pCommandList->ResolveQueryData(S.pGPU->NodeState[nNode].pHeap, D3D12_QUERY_TYPE_TIMESTAMP, 0, nEnd + nStart - MICROPROFILE_D3D_MAX_QUERIES, S.pGPU->pBuffer, 0);
 		}
-	pCommandList->Close();
+		pCommandList->Close();
 	}
 
 	{
