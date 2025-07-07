@@ -647,6 +647,15 @@ void D3D12HelloTriangle::OnRender()
 	ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
 	m_commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
+	static float f = 0.f;
+	f += 0.2f;
+	double s = sin(f);
+	double c = 1000*1000*cos((f+0.34)*1.3);
+
+	MICROPROFILE_COUNTER_SET_DOUBLE("/double/sin", s);
+	MICROPROFILE_COUNTER_SET_DOUBLE("/double/cos", c);
+	MICROPROFILE_COUNTER_CONFIG("/double/cos", MICROPROFILE_COUNTER_FORMAT_DEFAULT, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
+
 	MicroProfileFlip(m_commandList.Get());
 
 	MICROPROFILE_SCOPEI("Main", "WaitPrev", 0);
