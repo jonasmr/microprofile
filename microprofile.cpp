@@ -5759,7 +5759,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 		{
 			uint64_t nCounter = S.Counters[i].load();
 			uint64_t nLimit = S.CounterInfo[i].nLimit;
-			float fCounterPrc = 0.f;
+			fCounterPrc = 0.f;
 			if(nLimit)
 			{
 				fCounterPrc = (float)nCounter / nLimit;
@@ -5782,7 +5782,7 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 		{
 			dCounter = S.CountersDouble[i].load();
 			dLimit = S.CounterInfo[i].dLimit;
-			float fCounterPrc = 0.f;
+			fCounterPrc = 0.f;
 			if (dLimit > 0.f)
 			{
 				fCounterPrc = (float)(dCounter / dLimit);
