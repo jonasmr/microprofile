@@ -2672,7 +2672,7 @@ MicroProfileToken MicroProfileGetCounterToken(const char* pName, uint32_t Counte
 			break;
 		}
 		const char* pSubNameLower = MicroProfileStringInternLower(SubName);
-		nResult = MicroProfileGetCounterTokenByParent(nResult, pSubNameLower, CounterFlag);
+		nResult = MicroProfileGetCounterTokenByParent(nResult, pSubNameLower, 0);
 		if(MICROPROFILE_INVALID_TOKEN == nResult)
 			return nResult;
 
@@ -2682,6 +2682,7 @@ MicroProfileToken MicroProfileGetCounterToken(const char* pName, uint32_t Counte
 #if MICROPROFILE_COUNTER_HISTORY
 	if (CounterFlag & MICROPROFILE_COUNTER_FLAG_DOUBLE)
 	{
+		S.CounterInfo[nResult].nFlags |= MICROPROFILE_COUNTER_FLAG_DOUBLE;
 		S.dCounterMax[nResult]= -DBL_MAX;
 		S.dCounterMin[nResult] = DBL_MAX;
 	}
@@ -4187,7 +4188,7 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB, uint32_t
 							uint16_t Index = CounterIndices[i];
 							if(Index != UINT16_MAX)
 							{
-								if(S.CounterInfo[i].nFlags & MICROPROFILE_COUNTER_FLAG_DOUBLE)
+								if(S.CounterInfo[Index].nFlags & MICROPROFILE_COUNTER_FLAG_DOUBLE)
 								{
 									double d = S.CountersDouble[Index].load();
 									memcpy(FrameData, &d, sizeof(d));
@@ -5095,7 +5096,7 @@ void MicroProfileDumpCsvWithConfig(MicroProfileWriteCallback CB, void* Handle, u
 			printf(", %f",  Data[Offset++] * fToMsGroup[j]);
 		for(uint32_t j = 0; j < NumCounters; ++j)
 		{
-			if(S.CounterInfo[j].nFlags & MICROPROFILE_COUNTER_FLAG_DOUBLE)
+			if(S.CounterInfo[CounterIndices[j]].nFlags & MICROPROFILE_COUNTER_FLAG_DOUBLE)
 			{
 				printf(", %f", ((double*)Data)[Offset++]);		
 			}
