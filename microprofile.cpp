@@ -221,6 +221,7 @@ void MicroProfileFreeAligned(void* pMem);
 #include <mach/mach.h>
 #include <mach/mach_time.h>
 #include <unistd.h>
+#include <float.h>
 
 #if TARGET_OS_IPHONE
 #define MICROPROFILE_IOS
@@ -346,6 +347,8 @@ void MicroProfileFreeAligned(void* pMem)
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
+#include <float.h>
+
 inline int64_t MicroProfileTicksPerSecondCpu_()
 {
 	return 1000000000ll;
@@ -5757,7 +5760,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 			uint64_t nCounter = S.Counters[i].load();
 			uint64_t nLimit = S.CounterInfo[i].nLimit;
 			float fCounterPrc = 0.f;
-			float fBoxPrc = 1.f;
 			if(nLimit)
 			{
 				fCounterPrc = (float)nCounter / nLimit;
@@ -5781,7 +5783,6 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 			dCounter = S.CountersDouble[i].load();
 			dLimit = S.CounterInfo[i].dLimit;
 			float fCounterPrc = 0.f;
-			float fBoxPrc = 1.f;
 			if (dLimit > 0.f)
 			{
 				fCounterPrc = (float)(dCounter / dLimit);
