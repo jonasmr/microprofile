@@ -320,6 +320,10 @@ typedef uint32_t MicroProfileTimelineToken;
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
+#define MICROPROFILE_COUNTER_SET_DOUBLE(name, count)                                                                                                                                                          \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
 #define MICROPROFILE_COUNTER_SET_INT32_PTR(name, ptr)                                                                                                                                                  \
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
@@ -653,6 +657,9 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #define MICROPROFILE_COUNTER_SET(name, count)                                                                                                                                                          \
 	static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter_set, __LINE__) = MicroProfileGetCounterToken(name, 0);                                                                                 \
 	MicroProfileCounterSet(MICROPROFILE_TOKEN_PASTE(g_mp_counter_set, __LINE__), count)
+#define MICROPROFILE_COUNTER_SET_DOUBLE(name, count)                                                                                                                                                          \
+	static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter_set, __LINE__) = MicroProfileGetCounterToken(name, MICROPROFILE_COUNTER_FLAG_DOUBLE);                                                                                 \
+	MicroProfileCounterSetDouble(MICROPROFILE_TOKEN_PASTE(g_mp_counter_set, __LINE__), count)
 #define MICROPROFILE_COUNTER_SET_INT32_PTR(name, ptr) MicroProfileCounterSetPtr(name, ptr, sizeof(int32_t))
 #define MICROPROFILE_COUNTER_SET_INT64_PTR(name, ptr) MicroProfileCounterSetPtr(name, ptr, sizeof(int64_t))
 #define MICROPROFILE_COUNTER_CLEAR_PTR(name) MicroProfileCounterSetPtr(name, 0, 0)
@@ -928,7 +935,6 @@ extern "C"
 #define MICROPROFILE_INVALID_TOKEN ((uint64_t)-1)
 #define MICROPROFILE_TIMER_FLAG_SECTION 0x1
 #define MICROPROFILE_TIMER_FLAG_PLACEHOLDER 0x1000
-#define MICROPROFILE_COUNTER_TOKEN_DONT_CREATE 0x1
 #define MICROPROFILE_CSV_FLAG_FRAME_NUMBERS 0x0
 #define MICROPROFILE_CSV_FLAG_FRAME_TIME 0x1
 
@@ -943,7 +949,9 @@ extern "C"
 	MICROPROFILE_API MicroProfileToken MicroProfileGetCounterToken(const char* pName, uint32_t CounterTokenFlag);
 	MICROPROFILE_API void MicroProfileCounterAdd(MicroProfileToken nToken, int64_t nCount);
 	MICROPROFILE_API void MicroProfileCounterSet(MicroProfileToken nToken, int64_t nCount);
+	MICROPROFILE_API void MicroProfileCounterSetDouble(MicroProfileToken nToken, double dCount);
 	MICROPROFILE_API void MicroProfileCounterSetLimit(MicroProfileToken nToken, int64_t nCount);
+	MICROPROFILE_API void MicroProfileCounterSetLimitDouble(MicroProfileToken nToken, double nCount);
 	MICROPROFILE_API void MicroProfileCounterConfig(const char* pCounterName, uint32_t nFormat, int64_t nLimit, uint32_t nFlags);
 	MICROPROFILE_API void MicroProfileCounterSetPtr(const char* pCounterName, void* pValue, uint32_t nSize);
 	MICROPROFILE_API void MicroProfileCounterFetchCounters();
@@ -1043,8 +1051,8 @@ extern "C"
 	MICROPROFILE_API void MicroProfileCsvConfigEnd();
 	MICROPROFILE_API void MicroProfileCsvConfigBegin(uint32_t MaxTimers, uint32_t MaxGroups, uint32_t MaxCounters, uint32_t Flags);
 	MICROPROFILE_API void MicroProfileCsvConfigAddTimer(const char* Group, const char* Timer, const char* DisplayName IF_CPP(= nullptr), MicroProfileTokenType Type IF_CPP(= MicroProfileTokenTypeCpu));
-	MICROPROFILE_API void MicroProfileCsvConfigAddGroup(const char* Group, const char* DisplayName IF_CPP(= nullptr) );
-	MICROPROFILE_API void MicroProfileCsvConfigAddCounter(const char* CounterName, const char* DisplayName IF_CPP(= nullptr) );
+	MICROPROFILE_API void MicroProfileCsvConfigAddGroup(const char* Group, const char* DisplayName IF_CPP(= nullptr));
+	MICROPROFILE_API void MicroProfileCsvConfigAddCounter(const char* CounterName, const char* DisplayName IF_CPP(= nullptr));
 
 	MICROPROFILE_API void MicroProfileUpdateSettingsPath();
 
@@ -1105,7 +1113,7 @@ extern "C"
 	MICROPROFILE_API void MicroProfileSetCurrentNodeVulkan(uint32_t nNode);
 #endif
 
-	MICROPROFILE_API void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, float fGpuSpike, uint32_t FrameCount IF_CPP(= MICROPROFILE_WEBSERVER_DEFAULT_FRAMES) );
+	MICROPROFILE_API void MicroProfileDumpFile(const char* pHtml, const char* pCsv, float fCpuSpike, float fGpuSpike, uint32_t FrameCount IF_CPP(= MICROPROFILE_WEBSERVER_DEFAULT_FRAMES));
 	MICROPROFILE_API void MicroProfileDumpFileImmediately(const char* pHtml, const char* pCsv, void* pGpuContext, uint32_t FrameCount IF_CPP(= MICROPROFILE_WEBSERVER_DEFAULT_FRAMES));
 
 #if MICROPROFILE_ENABLED && MICROPROFILE_WEBSERVER
@@ -1122,18 +1130,18 @@ extern "C"
 
 #if MICROPROFILE_GPU_TIMERS
 #if MICROPROFILE_GPU_TIMER_CALLBACKS
-	typedef uint32_t (*MicroProfileGpuInsertTimeStamp_CB)(void* pContext);
-	typedef uint64_t (*MicroProfileGpuGetTimeStamp_CB)(uint32_t nKey);
-	typedef uint64_t (*MicroProfileTicksPerSecondGpu_CB)();
+	typedef uint32_t(*MicroProfileGpuInsertTimeStamp_CB)(void* pContext);
+	typedef uint64_t(*MicroProfileGpuGetTimeStamp_CB)(uint32_t nKey);
+	typedef uint64_t(*MicroProfileTicksPerSecondGpu_CB)();
 	typedef int (*MicroProfileGetGpuTickReference_CB)(int64_t* pOutCPU, int64_t* pOutGpu);
-	typedef uint32_t (*MicroProfileGpuFlip_CB)(void*);
+	typedef uint32_t(*MicroProfileGpuFlip_CB)(void*);
 	typedef void (*MicroProfileGpuShutdown_CB)();
 	MICROPROFILE_API void MicroProfileGpuSetCallbacks(MicroProfileGpuInsertTimeStamp_CB InsertTimeStamp,
-													  MicroProfileGpuGetTimeStamp_CB GetTimeStamp,
-													  MicroProfileTicksPerSecondGpu_CB TicksPerSecond,
-													  MicroProfileGetGpuTickReference_CB GetTickReference,
-													  MicroProfileGpuFlip_CB Flip,
-													  MicroProfileGpuShutdown_CB Shutdown);
+		MicroProfileGpuGetTimeStamp_CB GetTimeStamp,
+		MicroProfileTicksPerSecondGpu_CB TicksPerSecond,
+		MicroProfileGetGpuTickReference_CB GetTickReference,
+		MicroProfileGpuFlip_CB Flip,
+		MicroProfileGpuShutdown_CB Shutdown);
 #else
 	MICROPROFILE_API uint32_t MicroProfileGpuInsertTimeStamp(void* pContext);
 	MICROPROFILE_API uint64_t MicroProfileGpuGetTimeStamp(uint32_t nKey);
@@ -1257,7 +1265,7 @@ struct MicroProfileConditionalScopeHandler
 	}
 	~MicroProfileConditionalScopeHandler()
 	{
-		if(nTick != MICROPROFILE_INVALID_TOKEN)
+		if (nTick != MICROPROFILE_INVALID_TOKEN)
 		{
 			MicroProfileLeaveInternal(nToken, nTick);
 		}
@@ -1267,8 +1275,9 @@ struct MicroProfileScopeTimelineExitHandler
 {
 	MicroProfileTimelineToken nToken;
 	MicroProfileScopeTimelineExitHandler(MicroProfileTimelineToken Token)
-	: nToken(Token)
-	{}
+		: nToken(Token)
+	{
+	}
 	~MicroProfileScopeTimelineExitHandler()
 	{
 		MicroProfileTimelineLeave(nToken);
@@ -1295,6 +1304,9 @@ enum MicroProfileCounterFlags
 	MICROPROFILE_COUNTER_FLAG_CLOSED = 0x8,
 	MICROPROFILE_COUNTER_FLAG_MANUAL_SWAP = 0x10,
 	MICROPROFILE_COUNTER_FLAG_LEAF = 0x20,
+	MICROPROFILE_COUNTER_FLAG_DOUBLE = 0x40,
+	MICROPROFILE_COUNTER_FLAG_TYPE_MASK = MICROPROFILE_COUNTER_FLAG_DOUBLE,
+	MICROPROFILE_COUNTER_FLAG_TOKEN_DONT_CREATE = 0x80000000,
 };
 
 #endif // once
