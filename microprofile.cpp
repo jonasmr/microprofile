@@ -1960,8 +1960,14 @@ void MicroProfileCsvConfigAddTimer(const char* Group, const char* Timer, const c
 		if(ret != MICROPROFILE_INVALID_TOKEN)
 		{
 			MP_ASSERT(S.CsvConfig.NumTimers < S.CsvConfig.MaxTimers);
+			uint16_t TimerIndex = MicroProfileGetTimerIndex(ret);
+			for(uint32_t i = 0; i < S.CsvConfig.NumTimers; ++i)
+			{
+				if(S.CsvConfig.TimerIndices[i] == TimerIndex)
+					return;
+			}
 			S.CsvConfig.pTimerNames[S.CsvConfig.NumTimers] = Name;
-			S.CsvConfig.TimerIndices[S.CsvConfig.NumTimers++] = MicroProfileGetTimerIndex(ret);
+			S.CsvConfig.TimerIndices[S.CsvConfig.NumTimers++] = TimerIndex;
 		}
 	}
 }
@@ -1975,6 +1981,11 @@ void MicroProfileCsvConfigAddGroup(const char* Group, const char* Name)
 		if(UINT16_MAX != Index)
 		{
 			MP_ASSERT(S.CsvConfig.NumGroups < S.CsvConfig.MaxGroups);
+			for(uint32_t i = 0; i < S.CsvConfig.NumGroups; ++i)
+			{
+				if(S.CsvConfig.GroupIndices[i] == Index)
+					return;
+			}
 			S.CsvConfig.pGroupNames[S.CsvConfig.NumGroups] = Name;
 			S.CsvConfig.GroupIndices[S.CsvConfig.NumGroups++] = Index;
 		}
@@ -1991,6 +2002,11 @@ void MicroProfileCsvConfigAddCounter(const char* CounterName, const char* Name)
 		{
 			MP_ASSERT(Token < UINT16_MAX);
 			MP_ASSERT(S.CsvConfig.NumCounters < S.CsvConfig.MaxCounters);
+			for(uint32_t i = 0; i < S.CsvConfig.NumCounters; ++i)
+			{
+				if(S.CsvConfig.CounterIndices[i] == (uint16_t)Token)
+					return;
+			}
 			S.CsvConfig.pCounterNames[S.CsvConfig.NumCounters] = Name;
 			S.CsvConfig.CounterIndices[S.CsvConfig.NumCounters++] = (uint16_t)Token;
 		}
@@ -9578,6 +9594,8 @@ void MicroProfileGpuWaitFence(uint32_t nNode, uint64_t nFence)
 		MICROPROFILE_SCOPEI("Microprofile", "gpu-wait", MP_GREEN4);
 		Sleep(20); // todo: use event.
 		nCompletedFrame = GetFence();
+		if((uint64_t)-1 == nCompletedFrame) // likely device removed.
+			return;
 	}
 }
 
@@ -9706,8 +9724,8 @@ uint32_t MicroProfileGpuFlip(void* pContext)
 	
 	if(pCommandList)
 	{
-	ID3D12CommandList* pList = pCommandList;
-	S.pGPU->NodeState[nNode].pCommandQueue->ExecuteCommandLists(1, &pList);
+		ID3D12CommandList* pList = pCommandList;
+		S.pGPU->NodeState[nNode].pCommandQueue->ExecuteCommandLists(1, &pList);
 	}
 	if(pCommandListCopy)
 	{
