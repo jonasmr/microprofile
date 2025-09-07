@@ -298,6 +298,7 @@ var WidthTree = 0;
 Settings.ViewActive = 0;
 Settings.ViewCompressed = 0;
 Settings.AllowHighDPI = 1;
+let ViewCompressedTimeout = -1;
 const ViewNames = ["Graph", "Graph", "Graph", "Bars", "Bars", "Bars", "Counters"];
 const ViewNames2 = ["[split]", "[percentile]","[group/thread]","[table]", "[all]", "[single]", ""];
 
@@ -2682,6 +2683,11 @@ function DrawMessage()
 	{
 		MSG("FROZEN[space]");
 	}
+	if(Settings.ViewCompressed && ViewCompressedTimeout > 0)
+	{
+		ViewCompressedTimeout -= Delta;
+		MSG("Compressed: [CTRL-SPACE] To Exit");
+	}
 
 	PresetPending++; //hack: wait 20 frames before showing enable messages to prevent it from showing when loading settings. [[[test]]]
 	if(WSIsOpen && PresetPending > 20)
@@ -2902,8 +2908,11 @@ function DrawViews()
 		}
 	}
 
-	DrawCaptureMenu(context);
-	DrawGraphSettingsMenu(context, MainView.x, MainView.y, MainView.w, MainView.h);
+	if(!Settings.ViewCompressed)
+	{
+		DrawCaptureMenu(context);
+		DrawGraphSettingsMenu(context, MainView.x, MainView.y, MainView.w, MainView.h);
+	}
 
 	ProfileLeave();
 
@@ -4501,6 +4510,15 @@ function TargetRollSubGraph(Direction, Tweak, SetDirect)
 		SubGraphSettings.TargetTime = NextValue(ReferencePresets, SubGraphSettings.TargetTime, Direction);
 	}
 }
+
+function ToggleCompressedView()
+{
+	Settings.ViewCompressed = 1-Settings.ViewCompressed;
+	if(Settings.ViewCompressed)
+		ViewCompressedTimeout = 3000.0;
+	ResizeCanvas();
+}
+
 function DrawMenuSettings()
 {
 	var context = CanvasDetailedView.getContext('2d');
@@ -4521,8 +4539,7 @@ function DrawMenuSettings()
 	}
 	if(DrawMenuElement(M, Settings.ViewCompressed, "Compressed View", Settings.ViewCompressed, 'white'))
 	{
-		Settings.ViewCompressed = 1-Settings.ViewCompressed;
-		ResizeCanvas();
+		ToggleCompressedView();
 	}
 
 	if(Settings.AggregateFrames <= 0)
@@ -5627,7 +5644,7 @@ function ShowMenu()
 
 function DrawMenu()
 {
-	if(WSConnected && WS && WS.readyState == 1)
+	if(WSConnected && WS && WS.readyState == 1 && !Settings.ViewCompressed)
 	{
 		var context = CanvasDetailedView.getContext('2d');
 		var nColorIndex = 0;
@@ -5915,6 +5932,7 @@ function WSOpen(event)
 	{
 		LoadPreset(PresetToLoad, PresetToLoadRO);
 	}
+	ViewCompressedTimeout = 5000.0;
 }
 
 function SplitIdTop(v)
@@ -7192,7 +7210,14 @@ function KeyUp(evt)
 				console.log("TimerArray =");
 				console.log(JSON.stringify(TimerArray));
 			}
-			WSSendMessage("f");
+			if(KeyCtrlDown)
+			{
+				ToggleCompressedView();
+			}
+			else
+			{				
+				WSSendMessage("f");
+			}
 		}
 		if(k == 88)
 		{
@@ -7223,11 +7248,6 @@ function KeyUp(evt)
 		MouseDragActiveXStart = MouseDragActiveXEnd = -1;
 		Settings.SortColumnName = "";
 		ShowHelp(0);
-	}
-	if(k == 192)
-	{
-		Settings.ViewCompressed = Settings.ViewCompressed ? 0 : 1;
-		ResizeCanvas();
 	}
 
 	if(evt.keyCode == 17)

@@ -947,12 +947,14 @@ extern "C"
 	MICROPROFILE_API MicroProfileToken MicroProfileGetToken(const char* sGroup, const char* sName, uint32_t nColor, MicroProfileTokenType Token, uint32_t flags);
 	MICROPROFILE_API void MicroProfileGetTokenC(MicroProfileToken* pToken, const char* sGroup, const char* sName, uint32_t nColor, MicroProfileTokenType Token, uint32_t flags);
 	MICROPROFILE_API MicroProfileToken MicroProfileGetCounterToken(const char* pName, uint32_t CounterTokenFlag);
+	MICROPROFILE_API MicroProfileToken MicroProfileGetChildCounterToken(MicroProfileToken Parent, const char* pName); // manually create the child/parent tree
 	MICROPROFILE_API void MicroProfileCounterAdd(MicroProfileToken nToken, int64_t nCount);
 	MICROPROFILE_API void MicroProfileCounterSet(MicroProfileToken nToken, int64_t nCount);
 	MICROPROFILE_API void MicroProfileCounterSetDouble(MicroProfileToken nToken, double dCount);
 	MICROPROFILE_API void MicroProfileCounterSetLimit(MicroProfileToken nToken, int64_t nCount);
 	MICROPROFILE_API void MicroProfileCounterSetLimitDouble(MicroProfileToken nToken, double nCount);
 	MICROPROFILE_API void MicroProfileCounterConfig(const char* pCounterName, uint32_t nFormat, int64_t nLimit, uint32_t nFlags);
+	MICROPROFILE_API void MicroProfileCounterConfigToken(MicroProfileToken nToken, uint32_t nFormat, int64_t nLimit, uint32_t nFlags);
 	MICROPROFILE_API void MicroProfileCounterSetPtr(const char* pCounterName, void* pValue, uint32_t nSize);
 	MICROPROFILE_API void MicroProfileCounterFetchCounters();
 	MICROPROFILE_API void MicroProfileLocalCounterAdd(int64_t* pCounter, int64_t nCount);
