@@ -105,8 +105,6 @@ void ImGuiRender(ID3D12GraphicsCommandList* pCommandList, uint32_t Width, uint32
 		SpinSleep(SleepTime / 1000.f);
 	}
 
-
-
 	static MicroProfileImguiEntryDesc Entries[] = {
 	{
 		MicroProfileFindToken("Main", "WaitPrev"),
@@ -131,13 +129,37 @@ void ImGuiRender(ID3D12GraphicsCommandList* pCommandList, uint32_t Width, uint32
 
 
 	{
+		static uint32_t TablePos = MICROPROFILE_IMGUI_ALIGN_TOP_RIGHT;
 		static bool ShowTable = true;
 		static bool ShowGraphs[] = { true, false, false };
+		static uint32_t GraphPos[] = { MICROPROFILE_IMGUI_ALIGN_BOTTOM_LEFT, MICROPROFILE_IMGUI_ALIGN_BOTTOM_RIGHT, MICROPROFILE_IMGUI_ALIGN_TOP_RIGHT};
+		auto PosButtons = [](uint32_t id, uint32_t& TablePos)
+		{
+			SameLine();
+			if(RadioButton("Top Left", TablePos == MICROPROFILE_IMGUI_ALIGN_TOP_LEFT))
+				TablePos = MICROPROFILE_IMGUI_ALIGN_TOP_LEFT;
+			SameLine();
+			if(RadioButton("Top Right", TablePos == MICROPROFILE_IMGUI_ALIGN_TOP_RIGHT))
+				TablePos = MICROPROFILE_IMGUI_ALIGN_TOP_RIGHT;
+			SameLine();
+			if(RadioButton("Bottom Left", TablePos == MICROPROFILE_IMGUI_ALIGN_BOTTOM_LEFT))
+				TablePos = MICROPROFILE_IMGUI_ALIGN_BOTTOM_LEFT;
+			SameLine();
+			if(RadioButton("Bottom Right", TablePos == MICROPROFILE_IMGUI_ALIGN_TOP_RIGHT))
+				TablePos = MICROPROFILE_IMGUI_ALIGN_TOP_RIGHT;
+		};
+
+
 		Begin("MicroProfile Control Window");
+		int id = 112;
 		Checkbox("Show Table", &ShowTable);
+		PosButtons(id++, TablePos);
 		Checkbox("Show Graph 0", &ShowGraphs[0]);
+		PosButtons(id++, GraphPos[0]);		
 		Checkbox("Show Graph 1", &ShowGraphs[1]);
+		PosButtons(id++, GraphPos[1]);
 		Checkbox("Show Graph 2", &ShowGraphs[2]);
+		PosButtons(id++, GraphPos[2]);
 		SliderFloat("SleepTime", &SleepTime, 0.f, 30.f);
 
 		Separator();
@@ -153,21 +175,43 @@ void ImGuiRender(ID3D12GraphicsCommandList* pCommandList, uint32_t Width, uint32
 		SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
 		SetNextWindowSize(ImVec2((float)Width, (float)Height), ImGuiCond_Always);
 
-		uint32_t Offset = 0;
+		int OffsetX[MICROPROFILE_IMGUI_ALIGN_BOTTOM_RIGHT+1] = {0, 0, 0, 0};
+		int OffsetY[MICROPROFILE_IMGUI_ALIGN_BOTTOM_RIGHT+1] = {0, 0, 0, 0};
+
+		auto AddOffset = [&](int pos, int x, int y)
+		{
+			switch(pos)
+			{
+			case MICROPROFILE_IMGUI_ALIGN_TOP_LEFT:
+				OffsetY[pos] += y;
+				break;
+			case MICROPROFILE_IMGUI_ALIGN_TOP_RIGHT:
+				OffsetY[pos] -= x;
+				break;
+			case MICROPROFILE_IMGUI_ALIGN_BOTTOM_LEFT:
+				OffsetX[pos] += x;
+				break;
+			case MICROPROFILE_IMGUI_ALIGN_BOTTOM_RIGHT:
+				OffsetY[pos] -= y;
+				break;
+			}
+		};
 		for(int i = 0; i < 3; ++i)
 		{
 			PushID(i);
 			if(ShowGraphs[i] && Begin("MicroProfileImguiGraphWindow", &ShowGraphs[i], ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground))
 			{
+				int SizeX = 300;
+				int SizeY = 40;
 				MicroProfileImguiGraphs(
 					{
-						MICROPROFILE_IMGUI_ALIGN_BOTTOM_LEFT,
-						300,
-						40,
-						Offset, 
-						0,
+						GraphPos[i],
+						SizeX,
+						SizeY,
+						OffsetX[GraphPos[i]], 
+						OffsetY[GraphPos[i]],
 					}, Entries, sizeof(Entries)/sizeof(Entries[0]));
-				Offset += 300;
+				AddOffset(GraphPos[i], SizeX, SizeY);
 				End();
 			}
 			PopID();
@@ -178,9 +222,13 @@ void ImGuiRender(ID3D12GraphicsCommandList* pCommandList, uint32_t Width, uint32
 		{
 			MicroProfileImguiTable(
 				{
-					MICROPROFILE_IMGUI_ALIGN_TOP_RIGHT
+					TablePos,
+					0, 
+					0,
+					OffsetX[TablePos], 
+					OffsetY[TablePos]
 				}, Entries, sizeof(Entries)/sizeof(Entries[0]));
-			ImGui::End();
+			End();
 		}
 		ShowDemoWindow(nullptr);
 

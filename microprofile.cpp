@@ -14836,6 +14836,8 @@ void MicroProfileImguiTable(const MicroProfileImguiWindowDesc& Window, const Mic
 
 	if(Window.Align == MICROPROFILE_IMGUI_ALIGN_BOTTOM_LEFT || Window.Align == MICROPROFILE_IMGUI_ALIGN_BOTTOM_RIGHT)
 		TablePos.y = io.DisplaySize.y - TableHeight;
+	TablePos.x += Window.OffsetX;
+	TablePos.y += Window.OffsetY;
 
 	SetCursorScreenPos(TablePos);
 

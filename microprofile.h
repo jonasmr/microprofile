@@ -1303,10 +1303,10 @@ enum MicroProfileImguiAlign
 struct MicroProfileImguiWindowDesc
 {
 	uint32_t Align = MICROPROFILE_IMGUI_ALIGN_TOP_LEFT;
-	uint32_t GraphWidth = 300;
-	uint32_t GraphHeight = 80;
-	uint32_t OffsetX = 0;
-	uint32_t OffsetY = 0;
+	int GraphWidth = 300;
+	int GraphHeight = 80;
+	int OffsetX = 0;
+	int OffsetY = 0;
 };
 struct MicroProfileImguiEntryDesc
 {
