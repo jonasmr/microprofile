@@ -776,7 +776,11 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #endif
 
 #ifndef MICROPROFILE_GPU_TIMERS
+#if defined(MICROPROFILE_GPU_TIMERS_VULKAN) || defined(MICROPROFILE_GPU_TIMERS_D3D12) || defined(MICROPROFILE_GPU_TIMERS_D3D11) || defined(MICROPROFILE_GPU_TIMERS_GL)
+#define MICROPROFILE_GPU_TIMERS 1
+#else
 #define MICROPROFILE_GPU_TIMERS 0
+#endif
 #endif
 
 #ifndef MICROPROFILE_GPU_TIMER_CALLBACKS
