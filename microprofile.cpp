@@ -221,6 +221,7 @@ void MicroProfileFreeAligned(void* pMem);
 #include <mach/mach.h>
 #include <mach/mach_time.h>
 #include <unistd.h>
+#include <float.h>
 
 #if TARGET_OS_IPHONE
 #define MICROPROFILE_IOS
@@ -346,6 +347,8 @@ void MicroProfileFreeAligned(void* pMem)
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
+#include <float.h>
+
 inline int64_t MicroProfileTicksPerSecondCpu_()
 {
 	return 1000000000ll;
@@ -529,6 +532,7 @@ struct MicroProfileCounterInfo
 	const char* pName;
 	uint32_t nFlags;
 	int64_t nLimit;
+	double dLimit;
 	int nWSNext;
 	MicroProfileCounterFormat eFormat;
 	std::atomic<int64_t> ExternalAtomic;
@@ -1118,11 +1122,15 @@ struct MicroProfile
 	uint32_t nNumCounters;
 	uint32_t nCounterNamePos;
 	std::atomic<int64_t> Counters[MICROPROFILE_MAX_COUNTERS];
+	std::atomic<double>* CountersDouble;
 #if MICROPROFILE_COUNTER_HISTORY // uses 1kb per allocated counter. 512kb for default counter count
 	uint32_t nCounterHistoryPut;
 	int64_t nCounterHistory[MICROPROFILE_GRAPH_HISTORY][MICROPROFILE_MAX_COUNTERS]; // flipped to make swapping cheap, drawing more expensive.
 	int64_t nCounterMax[MICROPROFILE_MAX_COUNTERS];
 	int64_t nCounterMin[MICROPROFILE_MAX_COUNTERS];
+	double* dCounterHistory;
+	double* dCounterMax;
+	double* dCounterMin;
 #endif
 
 	MicroProfileThread AutoFlipThread;
@@ -1611,9 +1619,9 @@ const char* MicroProfileStringIntern(const char* pStr, uint32_t nLen, uint32_t n
 void MicroProfileStringsInit(MicroProfileStrings* pStrings);
 void MicroProfileStringsDestroy(MicroProfileStrings* pStrings);
 
-MicroProfileToken MicroProfileCounterTokenInit(int nParent);
+MicroProfileToken MicroProfileCounterTokenInit(int nParent, uint32_t nFlags);
 void MicroProfileCounterTokenInitName(MicroProfileToken nToken, const char* pName);
-void MicroProfileCounterConfigInternal(MicroProfileToken, uint32_t eFormat, int64_t nLimit, uint32_t nFlags);
+void MicroProfileCounterConfigToken(MicroProfileToken, uint32_t eFormat, int64_t nLimit, uint32_t nFlags);
 uint16_t MicroProfileFindGroup(const char* pGroup);
 
 inline std::recursive_mutex& MicroProfileMutex()
@@ -1660,16 +1668,16 @@ void MicroProfileInit()
 		MicroProfileStringsInit(&S.Strings);
 
 		// these strings are used for counter names inside the string
-		S.CounterToken_MicroProfile = MicroProfileCounterTokenInit(-1);
-		S.CounterToken_StringBlock = MicroProfileCounterTokenInit(S.CounterToken_MicroProfile);
-		S.CounterToken_StringBlock_Count = MicroProfileCounterTokenInit(S.CounterToken_StringBlock);
-		S.CounterToken_StringBlock_Waste = MicroProfileCounterTokenInit(S.CounterToken_StringBlock);
-		S.CounterToken_StringBlock_Strings = MicroProfileCounterTokenInit(S.CounterToken_StringBlock);
-		S.CounterToken_StringBlock_Memory = MicroProfileCounterTokenInit(S.CounterToken_StringBlock);
+		S.CounterToken_MicroProfile = MicroProfileCounterTokenInit(-1, 0);
+		S.CounterToken_StringBlock = MicroProfileCounterTokenInit(S.CounterToken_MicroProfile, 0);
+		S.CounterToken_StringBlock_Count = MicroProfileCounterTokenInit(S.CounterToken_StringBlock, 0);
+		S.CounterToken_StringBlock_Waste = MicroProfileCounterTokenInit(S.CounterToken_StringBlock, 0);
+		S.CounterToken_StringBlock_Strings = MicroProfileCounterTokenInit(S.CounterToken_StringBlock, 0);
+		S.CounterToken_StringBlock_Memory = MicroProfileCounterTokenInit(S.CounterToken_StringBlock, 0);
 
-		S.CounterToken_Alloc = MicroProfileCounterTokenInit(S.CounterToken_MicroProfile);
-		S.CounterToken_Alloc_Memory = MicroProfileCounterTokenInit(S.CounterToken_Alloc);
-		S.CounterToken_Alloc_Count = MicroProfileCounterTokenInit(S.CounterToken_Alloc);
+		S.CounterToken_Alloc = MicroProfileCounterTokenInit(S.CounterToken_MicroProfile, 0);
+		S.CounterToken_Alloc_Memory = MicroProfileCounterTokenInit(S.CounterToken_Alloc, 0);
+		S.CounterToken_Alloc_Count = MicroProfileCounterTokenInit(S.CounterToken_Alloc, 0);
 
 		MicroProfileCounterTokenInitName(S.CounterToken_MicroProfile, "microprofile");
 		MicroProfileCounterTokenInitName(S.CounterToken_StringBlock, "stringblock");
@@ -1763,13 +1771,20 @@ void MicroProfileInit()
 		S.nTimerNegativeCpuIndex = MicroProfileGetTimerIndex(S.nTokenNegativeCpu);
 		S.nTimerNegativeGpuIndex = MicroProfileGetTimerIndex(S.nTokenNegativeGpu);
 		memset(&S.AccumMinTimers[0], 0xFF, sizeof(S.AccumMinTimers));
+		S.CountersDouble = (std::atomic<double>*)&S.Counters;
+#if MICROPROFILE_COUNTER_HISTORY
+		S.dCounterHistory = (double*)S.nCounterHistory;
+		S.dCounterMax = (double*)S.nCounterMax;
+		S.dCounterMin = (double*)S.nCounterMin;
+#endif
+
 	}
 	MicroProfileUpdateSettingsPath();
 
 #if MICROPROFILE_FRAME_EXTRA_DATA
 	S.FrameExtraCounterData = (MicroProfileFrameExtraCounterData*)1;
 #endif
-	MicroProfileCounterConfigInternal(S.CounterToken_Alloc_Memory, MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
+	MicroProfileCounterConfigToken(S.CounterToken_Alloc_Memory, MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
 	MICROPROFILE_COUNTER_CONFIG("MicroProfile/ThreadLog/Memory", MICROPROFILE_COUNTER_FORMAT_BYTES, 0, MICROPROFILE_COUNTER_FLAG_DETAILED);
 
 	if(bUseLock)
@@ -1961,8 +1976,14 @@ void MicroProfileCsvConfigAddTimer(const char* Group, const char* Timer, const c
 		if(ret != MICROPROFILE_INVALID_TOKEN)
 		{
 			MP_ASSERT(S.CsvConfig.NumTimers < S.CsvConfig.MaxTimers);
+			uint16_t TimerIndex = MicroProfileGetTimerIndex(ret);
+			for(uint32_t i = 0; i < S.CsvConfig.NumTimers; ++i)
+			{
+				if(S.CsvConfig.TimerIndices[i] == TimerIndex)
+					return;
+			}
 			S.CsvConfig.pTimerNames[S.CsvConfig.NumTimers] = Name;
-			S.CsvConfig.TimerIndices[S.CsvConfig.NumTimers++] = MicroProfileGetTimerIndex(ret);
+			S.CsvConfig.TimerIndices[S.CsvConfig.NumTimers++] = TimerIndex;
 		}
 	}
 }
@@ -1976,6 +1997,11 @@ void MicroProfileCsvConfigAddGroup(const char* Group, const char* Name)
 		if(UINT16_MAX != Index)
 		{
 			MP_ASSERT(S.CsvConfig.NumGroups < S.CsvConfig.MaxGroups);
+			for(uint32_t i = 0; i < S.CsvConfig.NumGroups; ++i)
+			{
+				if(S.CsvConfig.GroupIndices[i] == Index)
+					return;
+			}
 			S.CsvConfig.pGroupNames[S.CsvConfig.NumGroups] = Name;
 			S.CsvConfig.GroupIndices[S.CsvConfig.NumGroups++] = Index;
 		}
@@ -1992,6 +2018,11 @@ void MicroProfileCsvConfigAddCounter(const char* CounterName, const char* Name)
 		{
 			MP_ASSERT(Token < UINT16_MAX);
 			MP_ASSERT(S.CsvConfig.NumCounters < S.CsvConfig.MaxCounters);
+			for(uint32_t i = 0; i < S.CsvConfig.NumCounters; ++i)
+			{
+				if(S.CsvConfig.CounterIndices[i] == (uint16_t)Token)
+					return;
+			}
 			S.CsvConfig.pCounterNames[S.CsvConfig.NumCounters] = Name;
 			S.CsvConfig.CounterIndices[S.CsvConfig.NumCounters++] = (uint16_t)Token;
 		}
@@ -2539,14 +2570,14 @@ const char* MicroProfileCounterFullName(int nCounter)
 	return &Buffer[0];
 }
 
-// S.CounterTokenStringBlock = MicroProfileCounterTokenInit(S.CounterTokenMicroProfile);
-MicroProfileToken MicroProfileCounterTokenInit(int nParent)
+MicroProfileToken MicroProfileCounterTokenInit(int nParent, uint32_t nFlags)
 {
+	MP_ASSERT(0 == (nFlags & (~MICROPROFILE_COUNTER_FLAG_TYPE_MASK)));
 	MicroProfileToken nResult = S.nNumCounters++;
 	S.CounterInfo[nResult].nParent = nParent;
 	S.CounterInfo[nResult].nSibling = -1;
 	S.CounterInfo[nResult].nFirstChild = -1;
-	S.CounterInfo[nResult].nFlags = 0;
+	S.CounterInfo[nResult].nFlags = nFlags;
 	S.CounterInfo[nResult].eFormat = MICROPROFILE_COUNTER_FORMAT_DEFAULT;
 	S.CounterInfo[nResult].nLimit = 0;
 	S.CounterInfo[nResult].ExternalAtomic = 0;
@@ -2584,9 +2615,9 @@ MicroProfileToken MicroProfileGetCounterTokenByParent(int nParent, const char* p
 			return i;
 		}
 	}
-	if(0 != (MICROPROFILE_COUNTER_TOKEN_DONT_CREATE & nFlags))
+	if(0 != (MICROPROFILE_COUNTER_FLAG_TOKEN_DONT_CREATE & nFlags))
 		return MICROPROFILE_INVALID_TOKEN;
-	MicroProfileToken nResult = MicroProfileCounterTokenInit(nParent);
+	MicroProfileToken nResult = MicroProfileCounterTokenInit(nParent, nFlags);
 	MicroProfileCounterTokenInitName(nResult, pName);
 	return nResult;
 }
@@ -2644,15 +2675,30 @@ MicroProfileToken MicroProfileGetCounterToken(const char* pName, uint32_t Counte
 			break;
 		}
 		const char* pSubNameLower = MicroProfileStringInternLower(SubName);
-		nResult = MicroProfileGetCounterTokenByParent(nResult, pSubNameLower, CounterFlag);
+		nResult = MicroProfileGetCounterTokenByParent(nResult, pSubNameLower, 0);
 		if(MICROPROFILE_INVALID_TOKEN == nResult)
 			return nResult;
 
 	} while(pName != 0);
 	S.CounterInfo[nResult].nFlags |= MICROPROFILE_COUNTER_FLAG_LEAF;
 
+#if MICROPROFILE_COUNTER_HISTORY
+	if (CounterFlag & MICROPROFILE_COUNTER_FLAG_DOUBLE)
+	{
+		S.CounterInfo[nResult].nFlags |= MICROPROFILE_COUNTER_FLAG_DOUBLE;
+		S.dCounterMax[nResult]= -DBL_MAX;
+		S.dCounterMin[nResult] = DBL_MAX;
+	}
+#endif
+
 	MP_ASSERT((int)nResult >= 0);
 	return nResult;
+}
+
+MicroProfileToken MicroProfileGetChildCounterToken(MicroProfileToken Parent, const char* pName)
+{
+	MP_ASSERT(NULL == strpbrk(pName, "\\/")); // delimiters not supported when manually building the tree.
+	return MicroProfileCounterTokenTreeDynamic(nullptr, Parent, pName);
 }
 
 inline void MicroProfileLogPut(MicroProfileLogEntry LE, MicroProfileThreadLog* pLog)
@@ -3080,6 +3126,12 @@ void MicroProfileCounterSet(MicroProfileToken nToken, int64_t nCount)
 	MP_ASSERT(nToken < S.nNumCounters);
 	S.Counters[nToken].store(nCount);
 }
+void MicroProfileCounterSetDouble(MicroProfileToken nToken, double nCount)
+{
+	MP_ASSERT(nToken < S.nNumCounters);
+	MP_ASSERT((S.CounterInfo[nToken].nFlags & MICROPROFILE_COUNTER_FLAG_DOUBLE) == MICROPROFILE_COUNTER_FLAG_DOUBLE);
+	S.CountersDouble[nToken].store(nCount);
+}
 
 void MicroProfileCounterSetLimit(MicroProfileToken nToken, int64_t nCount)
 {
@@ -3087,7 +3139,14 @@ void MicroProfileCounterSetLimit(MicroProfileToken nToken, int64_t nCount)
 	S.CounterInfo[nToken].nLimit = nCount;
 }
 
-void MicroProfileCounterConfigInternal(MicroProfileToken nToken, uint32_t eFormat, int64_t nLimit, uint32_t nFlags)
+void MicroProfileCounterSetLimitDouble(MicroProfileToken nToken, double dCount)
+{
+	MP_ASSERT(nToken < S.nNumCounters);
+	MP_ASSERT((S.CounterInfo[nToken].nFlags & MICROPROFILE_COUNTER_FLAG_DOUBLE) == MICROPROFILE_COUNTER_FLAG_DOUBLE);
+	S.CounterInfo[nToken].dLimit = dCount;
+}
+
+void MicroProfileCounterConfigToken(MicroProfileToken nToken, uint32_t eFormat, int64_t nLimit, uint32_t nFlags)
 {
 	S.CounterInfo[nToken].eFormat = (MicroProfileCounterFormat)eFormat;
 	S.CounterInfo[nToken].nLimit = nLimit;
@@ -3097,7 +3156,7 @@ void MicroProfileCounterConfigInternal(MicroProfileToken nToken, uint32_t eForma
 void MicroProfileCounterConfig(const char* pName, uint32_t eFormat, int64_t nLimit, uint32_t nFlags)
 {
 	MicroProfileToken nToken = MicroProfileGetCounterToken(pName, 0);
-	MicroProfileCounterConfigInternal(nToken, eFormat, nLimit, nFlags);
+	MicroProfileCounterConfigToken(nToken, eFormat, nLimit, nFlags);
 }
 
 void MicroProfileCounterSetPtr(const char* pCounterName, void* pSource, uint32_t nSize)
@@ -3109,6 +3168,7 @@ void MicroProfileCounterSetPtr(const char* pCounterName, void* pSource, uint32_t
 
 inline void MicroProfileFetchCounter(uint32_t i)
 {
+	MP_ASSERT(0 == S.CounterSource[i].nSourceSize || (S.CounterInfo[i].nFlags & MICROPROFILE_COUNTER_FLAG_DOUBLE) == MICROPROFILE_COUNTER_FLAG_DOUBLE);
 	switch(S.CounterSource[i].nSourceSize)
 	{
 	case sizeof(int32_t):
@@ -4135,7 +4195,15 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB, uint32_t
 							uint16_t Index = CounterIndices[i];
 							if(Index != UINT16_MAX)
 							{
-								*FrameData = S.Counters[Index].load();
+								if(S.CounterInfo[Index].nFlags & MICROPROFILE_COUNTER_FLAG_DOUBLE)
+								{
+									double d = S.CountersDouble[Index].load();
+									memcpy(FrameData, &d, sizeof(d));
+								}
+								else
+								{
+									*FrameData = S.Counters[Index].load();
+								}
 							}else{
 								*FrameData = 0;
 							}
@@ -4233,10 +4301,23 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB, uint32_t
 			if(0 != (S.CounterInfo[i].nFlags & MICROPROFILE_COUNTER_FLAG_DETAILED))
 			{
 				MicroProfileFetchCounter(i);
-				uint64_t nValue = S.Counters[i].load(std::memory_order_relaxed);
-				pDest[i] = nValue;
-				S.nCounterMin[i] = MicroProfileMin(S.nCounterMin[i], (int64_t)nValue);
-				S.nCounterMax[i] = MicroProfileMax(S.nCounterMax[i], (int64_t)nValue);
+				bool IsDouble = (S.CounterInfo[i].nFlags & MICROPROFILE_COUNTER_FLAG_DOUBLE) != 0;
+				if(IsDouble)
+				{
+					double dValue = S.CountersDouble[i].load(std::memory_order_relaxed);
+					memcpy(&pDest[i], &dValue, sizeof(dValue));
+					S.dCounterMin[i] = MicroProfileMin(S.dCounterMin[i], dValue);
+					S.dCounterMax[i] = MicroProfileMax(S.dCounterMax[i], dValue);
+				}
+				else
+				{
+					uint64_t nValue = S.Counters[i].load(std::memory_order_relaxed);
+					pDest[i] = nValue;
+					S.nCounterMin[i] = MicroProfileMin(S.nCounterMin[i], (int64_t)nValue);
+					S.nCounterMax[i] = MicroProfileMax(S.nCounterMax[i], (int64_t)nValue);
+
+
+				}
 			}
 		}
 #endif
@@ -4690,6 +4771,38 @@ int MicroProfileFormatCounter(int eFormat, int64_t nCounter, char* pOut, uint32_
 	return nLen;
 }
 
+int MicroProfileFormatCounterDouble(int eFormat, double dCounter, char* pOut, uint32_t nBufferSize)
+{
+	int nLen = 0;
+	switch (eFormat)
+	{
+	case MICROPROFILE_COUNTER_FORMAT_DEFAULT:
+	{
+		nLen = stbsp_snprintf(pOut, nBufferSize - 1, "%f", dCounter);
+	}
+	break;
+	case MICROPROFILE_COUNTER_FORMAT_BYTES:
+	{
+		const char* pExt[] = { "b", "kb", "mb", "gb", "tb", "pb", "eb", "zb", "yb" };
+		double scale = 1.f;
+		int offset = 0;
+		int end = sizeof(pExt)/sizeof(pExt[0]);
+		double d = dCounter;
+		while(d / scale > 1024.f  && offset + 1 < end)
+		{
+			scale *= 1024.f;
+			offset += 1;
+		}
+		nLen = stbsp_snprintf(pOut, nBufferSize - 1, "%.3f%s", d / scale, pExt[offset]);
+	}
+	break;
+	}
+	pOut[nLen] = '\0';
+
+	return nLen;
+}
+
+
 bool MicroProfileAnyGroupActive()
 {
 	for (uint32_t i = 0; i < MICROPROFILE_MAX_GROUP_INTS; ++i)
@@ -5039,7 +5152,6 @@ void MicroProfileDumpCsvWithConfig(MicroProfileWriteCallback CB, void* Handle, u
 		fToMsGroup[i] = S.GroupInfo[GroupIndices[i]].Type == MicroProfileTokenTypeGpu ? fToMsGPU : fToMsCPU;
 
 	uint64_t TickStart = S.Frames[nFirstFrame % MICROPROFILE_MAX_FRAME_HISTORY].nFrameStartCpu;
-	
 	for(uint32_t i = 0; i < nNumFrames; ++i)
 	{
 		uint32_t FrameIndex = ((nFirstFrame + i) % MICROPROFILE_MAX_FRAME_HISTORY);
@@ -5055,9 +5167,18 @@ void MicroProfileDumpCsvWithConfig(MicroProfileWriteCallback CB, void* Handle, u
 		for(uint32_t j = 0; j < NumGroups; ++j)
 			printf(", %f",  Data[Offset++] * fToMsGroup[j]);
 		for(uint32_t j = 0; j < NumCounters; ++j)
-			printf(", %lld", Data[Offset++]);
+		{
+			if(S.CounterInfo[CounterIndices[j]].nFlags & MICROPROFILE_COUNTER_FLAG_DOUBLE)
+			{
+				printf(", %f", ((double*)Data)[Offset++]);		
+			}
+			else
+			{
+				printf(", %lld", Data[Offset++]);
+			}
+		}
 		printf("\n");
-	}	
+	}
 }
 void MicroProfileDumpCsvTimerFrames(MicroProfileWriteCallback CB, void* Handle, uint32_t nFirstFrame, uint32_t nLastFrame, uint32_t nNumFrames)
 {
@@ -5655,8 +5776,9 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 
 	for(int i = 0; i < (int)S.nNumCounters; ++i)
 	{
-		if(0 != (S.CounterInfo[i].nFlags & MICROPROFILE_COUNTER_FLAG_DETAILED))
-		{
+		bool IsDouble = (S.CounterInfo[i].nFlags & MICROPROFILE_COUNTER_FLAG_DOUBLE) != 0;
+		if(0 != (S.CounterInfo[i].nFlags & MICROPROFILE_COUNTER_FLAG_DETAILED) && !IsDouble)
+		{		
 			int64_t nCounterMax = S.nCounterMax[i];
 			int64_t nCounterMin = S.nCounterMin[i];
 			uint32_t nBaseIndex = S.nCounterHistoryPut;
@@ -5699,38 +5821,70 @@ void MicroProfileDumpHtml(MicroProfileWriteCallback CB, void* Handle, uint64_t n
 
 	for(int i = 0; i < (int)S.nNumCounters; ++i)
 	{
-		uint64_t nCounter = S.Counters[i].load();
-		uint64_t nLimit = S.CounterInfo[i].nLimit;
+		bool IsDouble = (S.CounterInfo[i].nFlags & MICROPROFILE_COUNTER_FLAG_DOUBLE) != 0;
 		float fCounterPrc = 0.f;
 		float fBoxPrc = 1.f;
-		if(nLimit)
-		{
-			fCounterPrc = (float)nCounter / nLimit;
-			if(fCounterPrc > 1.f)
-			{
-				fBoxPrc = 1.f / fCounterPrc;
-				fCounterPrc = 1.f;
-			}
-		}
-
+		double dCounter, dLimit, dMax, dMin;
 		char Formatted[64];
 		char FormattedLimit[64];
-		MicroProfileFormatCounter(S.CounterInfo[i].eFormat, nCounter, Formatted, sizeof(Formatted) - 1);
-		MicroProfileFormatCounter(S.CounterInfo[i].eFormat, S.CounterInfo[i].nLimit, FormattedLimit, sizeof(FormattedLimit) - 1);
+
+		if(!IsDouble)
+		{
+			uint64_t nCounter = S.Counters[i].load();
+			uint64_t nLimit = S.CounterInfo[i].nLimit;
+			fCounterPrc = 0.f;
+			if(nLimit)
+			{
+				fCounterPrc = (float)nCounter / nLimit;
+				if(fCounterPrc > 1.f)
+				{
+					fBoxPrc = 1.f / fCounterPrc;
+					fCounterPrc = 1.f;
+				}
+			}
+			MicroProfileFormatCounter(S.CounterInfo[i].eFormat, nCounter, Formatted, sizeof(Formatted) - 1);
+			MicroProfileFormatCounter(S.CounterInfo[i].eFormat, S.CounterInfo[i].nLimit, FormattedLimit, sizeof(FormattedLimit) - 1);
+
+
+			dCounter = (double)nCounter;
+			dMin = (double)S.nCounterMin[i];
+			dMax = (double)S.nCounterMax[i];
+			dLimit = (double)nLimit;
+		}
+		else
+		{
+			dCounter = S.CountersDouble[i].load();
+			dLimit = S.CounterInfo[i].dLimit;
+			fCounterPrc = 0.f;
+			if (dLimit > 0.f)
+			{
+				fCounterPrc = (float)(dCounter / dLimit);
+				if (fCounterPrc > 1.f)
+				{
+					fBoxPrc = 1.f / fCounterPrc;
+					fCounterPrc = 1.f;
+				}
+			}
+			MicroProfileFormatCounterDouble(S.CounterInfo[i].eFormat, dCounter, Formatted, sizeof(Formatted) - 1);
+			MicroProfileFormatCounterDouble(S.CounterInfo[i].eFormat, S.CounterInfo[i].dLimit, FormattedLimit, sizeof(FormattedLimit) - 1);
+			dMin = (double)S.dCounterMin[i];
+			dMax = (double)S.dCounterMax[i];
+
+		}
 		MicroProfilePrintf(CB,
 						   Handle,
-						   "MakeCounter(%d, %d, %d, %d, %d, '%s', %lld, %lld, %lld, '%s', %lld, '%s', %f, %f, %d, S.CounterHistory%d),",
+						   "MakeCounter(%d, %d, %d, %d, %d, '%s', %f, %f, %f, '%s', %f, '%s', %f, %f, %d, S.CounterHistory%d),",
 						   i,
 						   S.CounterInfo[i].nParent,
 						   S.CounterInfo[i].nSibling,
 						   S.CounterInfo[i].nFirstChild,
 						   S.CounterInfo[i].nLevel,
 						   S.CounterInfo[i].pName,
-						   nCounter,
-						   S.nCounterMin[i],
-						   S.nCounterMax[i],
+						   dCounter,
+						   dMin,
+						   dMax,
 						   Formatted,
-						   nLimit,
+						   dLimit,
 						   FormattedLimit,
 						   fCounterPrc,
 						   fBoxPrc,
@@ -8009,8 +8163,17 @@ void MicroProfileWebSocketSendCounters()
 		MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":[", MSG_COUNTERS);
 		for(uint32_t i = 0; i < S.nNumCounters; ++i)
 		{
-			uint64_t nCounter = S.Counters[i].load();
-			MicroProfileWSPrintf("%c%lld", i == 0 ? ' ' : ',', nCounter);
+			bool IsDouble = (S.CounterInfo[i].nFlags & MICROPROFILE_COUNTER_FLAG_DOUBLE) != 0;
+			if(IsDouble)
+			{
+				double dCounter = S.CountersDouble[i].load();
+				MicroProfileWSPrintf("%c%f", i == 0 ? ' ' : ',', dCounter);
+			}
+			else
+			{			
+				uint64_t nCounter = S.Counters[i].load();
+				MicroProfileWSPrintf("%c%lld", i == 0 ? ' ' : ',', nCounter);
+			}
 		}
 		MicroProfileWSPrintf("]}");
 		MicroProfileWSFlush();
@@ -8161,10 +8324,21 @@ void MicroProfileWebSocketSendFrame(MpSocket Connection)
 			while(nCounter >= 0)
 			{
 				MicroProfileCounterInfo& CI = S.CounterInfo[nCounter];
+				bool IsDouble = (CI.nFlags & MICROPROFILE_COUNTER_FLAG_DOUBLE) != 0;
 				uint32_t id = MicroProfileWebSocketIdPack(TYPE_COUNTER, nCounter);
-				uint64_t value = S.Counters[nCounter].load();
-				nCounter = CI.nWSNext;
-				MicroProfileWSPrintf("\"%d\":%lld%c", id, value, nCounter < 0 ? ' ' : ',' );
+				int nCounterNext = CI.nWSNext;
+				if(IsDouble)
+				{
+					double value = S.CountersDouble[nCounter].load();
+					MicroProfileWSPrintf("\"%d\":%f%c", id, value, nCounterNext < 0 ? ' ' : ',' );
+				}
+				else
+				{
+					uint64_t value = S.Counters[nCounter].load();
+					MicroProfileWSPrintf("\"%d\":%lld%c", id, value, nCounterNext < 0 ? ' ' : ',');
+				}
+				nCounter = nCounterNext;
+				
 			}
 			MicroProfileWSPrintf("}, \"g\":{");
 			// uprintf("\n");
@@ -8408,7 +8582,7 @@ void MicroProfileWebSocketSendCounterEntry(uint32_t id, uint32_t parent, const c
 	MicroProfileWSPrintf("{\"k\":\"%d\",\"v\":{\"id\":%d,\"pid\":%d,", MSG_TIMER_TREE, id, parent);
 	MicroProfileWSPrintf("\"name\":\"%s\",", pName);
 	MicroProfileWSPrintf("\"e\":%d,", nEnabled);
-	MicroProfileWSPrintf("\"limit\":%d,", nLimit);
+	MicroProfileWSPrintf("\"limit\":%lld,", nLimit);
 	MicroProfileWSPrintf("\"format\":%d", nFormat);
 	MicroProfileWSPrintf("}}");
 	MicroProfileWSFlush();
@@ -9644,6 +9818,8 @@ void MicroProfileGpuWaitFence(uint32_t nNode, uint64_t nFence)
 		MICROPROFILE_SCOPEI("Microprofile", "gpu-wait", MP_GREEN4);
 		Sleep(20); // todo: use event.
 		nCompletedFrame = GetFence();
+		if((uint64_t)-1 == nCompletedFrame) // likely device removed.
+			return;
 	}
 }
 
@@ -9745,7 +9921,7 @@ uint32_t MicroProfileGpuFlip(void* pContext)
 		{
 			pCommandList->ResolveQueryData(S.pGPU->NodeState[nNode].pHeap, D3D12_QUERY_TYPE_TIMESTAMP, 0, nEnd + nStart - MICROPROFILE_D3D_MAX_QUERIES, S.pGPU->pBuffer, 0);
 		}
-	pCommandList->Close();
+		pCommandList->Close();
 	}
 
 	{
@@ -9772,8 +9948,8 @@ uint32_t MicroProfileGpuFlip(void* pContext)
 	
 	if(pCommandList)
 	{
-	ID3D12CommandList* pList = pCommandList;
-	S.pGPU->NodeState[nNode].pCommandQueue->ExecuteCommandLists(1, &pList);
+		ID3D12CommandList* pList = pCommandList;
+		S.pGPU->NodeState[nNode].pCommandQueue->ExecuteCommandLists(1, &pList);
 	}
 	if(pCommandListCopy)
 	{

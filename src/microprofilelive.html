@@ -162,7 +162,8 @@ var ReadOnlyPresetsCache = {};
 Settings.SubGraphSettings = {};
 Settings.SubGraphSettingsPercentile = {};
 Settings.ReferenceTime = 100.0;
-const ReferencePresets = [5.0, 10.0, 15.0, 20, 30, 33.33, 50, 66.66,100.0,250.0,500,1000.0];
+
+const ReferencePresets = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 15.0, 20, 30, 33.33, 50, 66.66,100.0,250.0,500,1000.0];
 const PercentilePresets = [0.0, 1.0, 5.0, 10.0, 50.0, 75.0, 99.0];
 let ReferenceTimeTweak = -1;
 const CounterByteNames = ["bytes", "kilobytes", "megabytes", "gigabytes"];
@@ -170,6 +171,11 @@ let PercentileTweak = -1;
 
 Settings.TargetTime = 15;
 var TargetTimeTweak = -1;
+
+Settings.GraphSoftFrames = 5;
+Settings.GraphSoftMode = 0;
+const GraphSoftFramePresets = [2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30];
+const GraphSoftFrameModeNames = ["off", "avg", "min", "max"];
 
 
 var AggregateFrames = 60;
@@ -793,9 +799,21 @@ function ResizeCanvas()
 	ActivateView(Settings.ViewActive);
 }
 
-function FormatTime(Time)
+function FormatTime(Time, Ref)
 {
-	return Time.toFixed(2);
+	if(!Ref)
+	{
+		return Time.toFixed(3);
+	}
+	else
+	{
+		let r = 3;
+		if(Ref < 1.0)
+		{
+			r = Math.floor(r + -Math.log(Ref)/ Math.log(10))
+		}
+		return Time.toFixed(r);
+	}
 }
 function FormatName(T)
 {
@@ -809,7 +827,7 @@ function FormatName(T)
 	}
 }
 
-function FormatTimeText(V, T)
+function FormatTimeText(V, T, Ref)
 {
 	if(T.idtype == TYPE_COUNTER)
 	{
@@ -817,7 +835,19 @@ function FormatTimeText(V, T)
 	}
 	else
 	{
-		return V.toFixed(2) + "ms";
+		if(!Ref)
+		{
+			if(T && T.id)
+			{
+				let TimerState = FrameData.TimerMap[T.id];
+				if(TimerState)
+				{
+					let SubGraphSettings = GetSubGraphSettings(GetFullName(T));
+					Ref = GetSubGraphReferenceTime(T, SubGraphSettings, TimerState);
+				}
+			}
+		}
+		return FormatTime(V, Ref) + "ms";
 	}
 }
 
@@ -1318,7 +1348,7 @@ function DrawTableView(View, LocalMouseX, LocalMouseY, SubIndex)
                 context.fillRect(X+1, Y+1, Prc * nBarsWidth, InnerBoxHeight);
                 X += nWidthBars;
                 context.fillStyle = 'white';
-                let TimerText = Value.toFixed(2);
+                let TimerText = FormatTime(Value);
                 let W = context.measureText(TimerText).width + FontWidth;
                 ColumnsWidth[R] = Math.max(W, ColumnsWidth[R]);
                 X += ColumnsWidth[R];
@@ -1864,24 +1894,13 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 
 	let h = View.h;
 	let w = View.w;
-	let NumGraphs = 0;
+	let Keys = SortGraphs();
+	let NumGraphs = Keys.length;
 	let ToolTips = Array();
-	for(let key in TimerMap)
-	{
-		if(!IsGroup(key))
-		{
-			let idx = GetTimer(key);
-			if(TimerArray[idx].e)
-			{
-				NumGraphs++;
-			}
-		}
-	}
 	if(NumGraphs)
 	{
 		let hstart = 0;
 		let gh = h / NumGraphs;
-		let Keys = [];
 		let cidx = 1;
 
 		if(LocalMouseX >= 0 && LocalMouseY >= 0 && LocalMouseX < w && LocalMouseY < h && SubMenuActive == -1)
@@ -1936,9 +1955,9 @@ function DrawGraphPercentile(View, LocalMouseX, LocalMouseY, SubIndex)
 			}
 		}
 
-
-		for(let key in TimerMap)
+		for(let index in Keys)
 		{
+			let key = Keys[index];
 			let idx = GetTimer(key);
 			let T = TimerArray[idx];
 			let TimerState = TimerMap[key];
@@ -2131,6 +2150,13 @@ function SortGraphs()
 	return Keys;
 }
 
+function GetGraphTimeSource(TimerState)
+{
+	if(Settings.GraphSoftMode)
+		return TimerState.TimeSoft;
+	else
+		return TimerState.Time;
+}
 
 
 function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
@@ -2140,6 +2166,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 		return;
 
 	ProfileEnter("DrawGraph");
+
 	let Canvas = View.Canvas[View.BackBuffer];
 	let context = Canvas.getContext('2d');
 	context.clearRect(0, 0, View.w, View.h);
@@ -2167,7 +2194,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 			var idx = GetTimer(key);
 			var T = TimerArray[idx];
 			var TimerState = TimerMap[key];
-			var Time = TimerState.Time;
+			var Time = GetGraphTimeSource(TimerState);
 			if(Time[index] >= MouseTime && (GraphBest == 0 || Time[index] <= GraphBest))
 			{
 				GraphKey = key;
@@ -2189,7 +2216,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 					if(T.e)
 					{
 						let TimerState = TimerMap[key];
-						let Time = TimerState.Time;
+						let Time = GetGraphTimeSource(TimerState);
 						if(TimerState.tooltipysoft)
 						{
 							let RATE = 0.05;
@@ -2228,7 +2255,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 						var idx = GetTimer(key);
 						var T = TimerArray[idx];
 						var TimerState = TimerMap[key];
-						var Time = TimerState.Time;
+						var Time = GetGraphTimeSource(TimerState);
 						ColorArray.push(TimerArray[idx].color);
 						StringArray.push('' + T.name);
 						ColorArray.push('white');
@@ -2263,7 +2290,7 @@ function DrawGraph(View, LocalMouseX, LocalMouseY, SubIndex, Split)
 					let Reference = GetSubGraphReferenceTime(T, SubGraphSettings, TimerState);
 					let fHeightScale2 = gh / Reference;
 
-					let Time = TimerState.Time;
+					let Time = GetGraphTimeSource(TimerState);
 					let color = TimerArray[idx].color;
 					let X = w - Time.length*fWidth;
 					let Y = hstart + gh;
@@ -3654,51 +3681,67 @@ function ActivateView(idx)
 	Settings.ViewActive = idx;
 	X7BarColumnMask = -1;
 	ViewBarMaxMsTextLength  = 0;
-	var hest = 3;
 }
 function DrawMenuViews()
 {
-	var ViewClick = function(idx, name)
+	let ViewClick = function(idx, name)
 	{
 		ActivateView(idx);
 	};
-	var x = MenuItems[SubMenuViews].x;
-	var y = MenuItems[SubMenuViews].y;
+	let x = MenuItems[SubMenuViews].x;
+	let y = MenuItems[SubMenuViews].y;
 	return DrawMenuGeneric(ViewNames, Settings.ViewActive, ViewClick, x, y, ViewNames2);
 }
 
 function TweakValue(Value, Tweak, amount, Min, Max)
 {
-	var V = 0.98;
-	if(Tweak<0)
+	let V = 0.98;
+	const FloatStepLimitBase10 = 1;
+	if(Value <= Math.pow(10, FloatStepLimitBase10) + 0.001)
 	{
-		for(var x = 0; x < Math.abs(Tweak); ++x)
+		let StepBase10 = FloatStepLimitBase10;
+		let ScaleToInt = 10;
+		while(Value < Math.pow(10, StepBase10))
 		{
-			var newValue = Math.floor(Value*V);
-			if(newValue == Value)
-			{
-				Value--;
-			}
-			else
-			{
-				Value = newValue;
-			}
+			StepBase10 -= 1;
+			ScaleToInt *= 10;
 		}
+		let Step = Math.pow(10, StepBase10) / 10.0;
+		Value += Tweak * Step;
+		Value = Math.floor(Value*ScaleToInt) / ScaleToInt;
 	}
 	else
 	{
-		var RcpV = 1.0 / V;
-
-		for(var x = 0; x < Tweak; ++x)
+		if(Tweak<0)
 		{
-			var newValue = Math.ceil(Value*RcpV);
-			if(newValue == Value)
+			for(var x = 0; x < Math.abs(Tweak); ++x)
 			{
-				Value++;
+				var newValue = Math.floor(Value*V);
+				if(newValue == Value)
+				{
+					Value--;
+				}
+				else
+				{
+					Value = newValue;
+				}
 			}
-			else
+		}
+		else
+		{
+			var RcpV = 1.0 / V;
+
+			for(var x = 0; x < Tweak; ++x)
 			{
-				Value = newValue;
+				var newValue = Math.ceil(Value*RcpV);
+				if(newValue == Value)
+				{
+					Value++;
+				}
+				else
+				{
+					Value = newValue;
+				}
 			}
 		}
 	}
@@ -4119,8 +4162,8 @@ function DrawMenuGraphSettings()
 	wRight = MeasureArray(wRight, EnabledArray, function(a){return TimerArray[a].name; } );
 	let Width = wLeft + 35 + wRight;
 	SizeInfo.w = Width;
-	SizeInfo.x = CaptureButtonX;
-	SizeInfo.y = CaptureButtonY;
+	SizeInfo.x = Math.floor(CaptureButtonX);
+	SizeInfo.y = Math.floor(CaptureButtonY);
 
 	let M = CreateMenuState(SizeInfo);
 	let context = CanvasDetailedView.getContext('2d');
@@ -4130,7 +4173,11 @@ function DrawMenuGraphSettings()
 	let T = TimerArray[idx];
 	const IsByteCounter = T.idtype == TYPE_COUNTER && T.format == FormatCounterBytes;
 	
-	ReferenceTimeTweak = DrawMenuRoll(M, "Reference Value", SubGraphSettings.ReferenceTime, '', ReferenceRollSubGraph, ReferenceTimeTweak, 'int');
+	let RefTime = SubGraphSettings.ReferenceTime;
+	ReferenceTimeTweak = DrawMenuRoll(M, "Reference Value", SubGraphSettings.ReferenceTime, '', ReferenceRollSubGraph, ReferenceTimeTweak, 'float');
+	if(RefTime != SubGraphSettings.ReferenceTime)
+		SubGraphSettings.AutomaticReference = 0;
+
 	if(IsByteCounter)
 	{
 		DrawMenuRoll(M, "", CounterByteNames[SubGraphSettings.Bytes], '', ReferenceRollBytes, -1);
@@ -4139,12 +4186,14 @@ function DrawMenuGraphSettings()
 	{
 		SubGraphSettings.AutomaticReference = 1-SubGraphSettings.AutomaticReference;
 	}
-	function ClearPercentile(key)
+	function ClearPercentile(SettingsKey)
 	{
+		let idx = GetTimerFromFullName(SettingsKey);
+		let T = TimerArray[idx];
 		let TimerMap = FrameData.TimerMap;
 		if(TimerMap)
 		{
-			let TimerState = TimerMap[key];
+			let TimerState = TimerMap[T.id];
 			TimerState.PercentileMax = -1e38;
 			TimerState.PercentileMin = 1e38;
 			TimerState.Percentile = new Float32Array(PERCENTILE_SAMPLES);
@@ -4154,60 +4203,48 @@ function DrawMenuGraphSettings()
 	}
 	if(Percentile)
 	{
-		if(DrawMenuElement(M, 0, "Clear Aggregate", "", 'white'))
+		if(DrawMenuElement(M, 0, "Clear Percentile", "", 'white'))
 		{
 			ClearPercentile(SubMenuGraphSettingsKey);
 		}
 	}
 
+	DrawMenuElement(M, 0, "---------- ", "", 'white');
+	let Apply = function(Callback){
+			let AllSettings = Percentile ? Settings.SubGraphSettingsPercentile : Settings.SubGraphSettings;
+			for(let key in AllSettings)
+			{
+				let idx = GetTimerFromFullName(key);
+				if(idx)
+				{
+ 				let T0 = TimerArray[idx];
+ 				if(T0.idtype == T.idtype && T.format == T0.format)
+ 				{
+ 					Callback(AllSettings[key], key);
+ 				}
+ 			}
+			}		
+	}
 	{
 		let str = T.idtype == TYPE_TIMER ? "TIMERS" : (T.format == FormatCounterBytes ? "BYTE COUNTERS" : "COUNTERS");
-		DrawMenuElement(M, 0, "--- ALL " + str + "  -- ", "", 'white');
-		let Apply = function(Callback){
- 			let AllSettings = Percentile ? Settings.SubGraphSettingsPercentile : Settings.SubGraphSettings;
- 			for(let key in AllSettings)
- 			{
- 				let idx = GetTimerFromFullName(key);
- 				if(idx)
- 				{
-	 				let T0 = TimerArray[idx];
-	 				if(T0.idtype == T.idtype && T.format == T0.format)
-	 				{
-	 					Callback(AllSettings[key], key);
-	 				}
-	 			}
- 			}		
-		}
-		let Old = SubGraphSettings.ReferenceTime;
-		DrawMenuRoll(M, "Reference Value", SubGraphSettings.ReferenceTime, '', ReferenceRollSubGraph, ReferenceTimeTweak, 'int')
-		if(Old != SubGraphSettings.ReferenceTime)
+		if(DrawMenuElement(M, 0, "Copy to All " + str + " Graphs ", "", 'white'))
 		{
 			Apply(function(T){
-				T.ReferenceTime = SubGraphSettings.ReferenceTime;
-			});
-		}
-		if(IsByteCounter)
-		{
-			let OldBytes = SubGraphSettings.Bytes;
-			DrawMenuRoll(M, "", CounterByteNames[SubGraphSettings.Bytes], '', ReferenceRollBytes, -1);
-			if(OldBytes != SubGraphSettings.Bytes)
+		 		T.ReferenceTime = SubGraphSettings.ReferenceTime;
+		 	});
+			if(IsByteCounter)
 			{
 				Apply(function(T){
 					T.Bytes = SubGraphSettings.Bytes;
 				});
 			}
-		}
-
-		if(DrawMenuElement(M, SubGraphSettings.AutomaticReference, "Automatic Reference Value", SubGraphSettings.AutomaticReference, 'white'))
-		{
-			SubGraphSettings.AutomaticReference = 1-SubGraphSettings.AutomaticReference;
 			Apply(function(T){
-				T.AutomaticReference = SubGraphSettings.AutomaticReference;
-			});			
+		 		T.AutomaticReference = SubGraphSettings.AutomaticReference;
+		 	});	
 		}
 		if(Percentile)
 		{
-			if(DrawMenuElement(M, 0, "Clear Aggregate", "", 'white'))
+			if(DrawMenuElement(M, 0, "Clear All Percentile", "", 'white'))
 			{
 				ClearPercentile(SubMenuGraphSettingsKey);
 				Apply(function(T, k){
@@ -4216,6 +4253,10 @@ function DrawMenuGraphSettings()
 			}
 		}
 	}
+	DrawMenuElement(M, 0, "--- SHARED --- ", "", 'white');
+	DrawMenuRoll(M, "Soft Mode", GraphSoftFrameModeNames[Settings.GraphSoftMode], '', RollSoftFrameNames, -1);
+	DrawMenuRoll(M, "Soft Frames", Settings.GraphSoftFrames, '', RollSoftFrames, -1);
+
 
 	SizeInfo.h = M.y - SizeInfo.y;
 	return SizeInfo;
@@ -4341,7 +4382,7 @@ function ReferenceRoll(Direction, Tweak, SetDirect)
 	}
 	else if(Tweak)
 	{
-		Settings.ReferenceTime = TweakValue(Settings.ReferenceTime, Tweak, 0.98, 5, 1000);
+		Settings.ReferenceTime = TweakValue(Settings.ReferenceTime, Tweak, 0.98, 0.01, 1000);
 
 	}
 	else if(Direction)
@@ -4359,7 +4400,7 @@ function ReferenceRollSubGraph(Direction, Tweak, SetDirect)
 	}
 	else if(Tweak)
 	{
-		SubGraphSettings.ReferenceTime = TweakValue(SubGraphSettings.ReferenceTime, Tweak, 0.98, 5, 1000);
+		SubGraphSettings.ReferenceTime = TweakValue(SubGraphSettings.ReferenceTime, Tweak, 0.98, 0.001, 1000);
 
 	}
 	else if(Direction)
@@ -4368,6 +4409,22 @@ function ReferenceRollSubGraph(Direction, Tweak, SetDirect)
 	}
 }
 
+function RollSoftFrames(Direction, Tweak, SetDirect)
+{
+	if(SetDirect)
+	{
+		Settings.GraphSoftFrames = SetDirect;
+	}
+	else if(Tweak)
+	{
+		Settings.GraphSoftFrames = TweakValue(Settings.GraphSoftFrames, Tweak, 0.98, 2, 30);
+
+	}
+	else if(Direction)
+	{
+		Settings.GraphSoftFrames = NextValue(GraphSoftFramePresets, Settings.GraphSoftFrames , Direction);
+	}
+}
 
 function ReferenceRollBytes(Direction, Tweak, SetDirect)
 {
@@ -4388,6 +4445,19 @@ function ReferenceRollBytes(Direction, Tweak, SetDirect)
 	}
 }
 
+
+function RollSoftFrameNames(Direction, Tweak, SetDirect)
+{
+	if(Direction)
+	{
+		Settings.GraphSoftMode = (Settings.GraphSoftMode + Direction);
+		if(Settings.GraphSoftMode < 0)
+			Settings.GraphSoftMode = GraphSoftFrameModeNames.length-1;
+		if(Settings.GraphSoftMode >= GraphSoftFrameModeNames.length)
+			Settings.GraphSoftMode = 0
+	}
+
+}
 
 function PercentileRollSubGraph(Direction, Tweak, SetDirect)
 {
@@ -4415,7 +4485,7 @@ function TargetRoll(Direction, Tweak, SetDirect)
 	}
 	else if(Tweak)
 	{
-		Settings.TargetTime = TweakValue(Settings.TargetTime, Tweak, 0.98, 5, 1000);
+		Settings.TargetTime = TweakValue(Settings.TargetTime, Tweak, 0.98, 0.01, 1000);
 
 	}
 	else if(Direction)
@@ -4461,8 +4531,8 @@ function DrawMenuSettings()
 	var M = CreateMenuState(SizeInfo);
 
 	AggregateTweak = DrawMenuRoll(M, "Aggregate Frames", GetAggregateString(), '', AggregateRoll, AggregateTweak, 'int');
-	ReferenceTimeTweak = DrawMenuRoll(M, "Reference Time", Settings.ReferenceTime, '', ReferenceRoll, ReferenceTimeTweak, 'int');
-	TargetTimeTweak = DrawMenuRoll(M, "Target Time", Settings.TargetTime, '', TargetRoll, TargetTimeTweak, 'int');
+	ReferenceTimeTweak = DrawMenuRoll(M, "Reference Time", Settings.ReferenceTime, '', ReferenceRoll, ReferenceTimeTweak, 'float');
+	TargetTimeTweak = DrawMenuRoll(M, "Target Time", Settings.TargetTime, '', TargetRoll, TargetTimeTweak, 'float');
 	if(DrawMenuElement(M, Settings.AutomaticReference, "Automatic Reference Time", Settings.AutomaticReference, 'white'))
 	{
 		Settings.AutomaticReference = 1-Settings.AutomaticReference;
@@ -6132,6 +6202,7 @@ function ResetFrameData()
 	FrameData = {};
 	FrameData.TimerMap = {};
 	FrameData.Time = AllocClearedArray(FRAME_COUNT);
+	FrameData.TimeSoft = AllocClearedArray(FRAME_COUNT);
 	FrameData.Ids = AllocClearedArray(FRAME_COUNT);
 	FrameData.Frozen = AllocClearedArray(FRAME_COUNT);
 	FrameData.ThreadTime = {};
@@ -6147,6 +6218,7 @@ function GetFrameData(id)
 		var FD = {};
 		FD.Count = AllocClearedArray(FRAME_COUNT);
 		FD.Time = AllocClearedArray(FRAME_COUNT);
+		FD.TimeSoft = AllocClearedArray(FRAME_COUNT);
 		FD.TimeExcl = AllocClearedArray(FRAME_COUNT);
 		FD.TimeMax = AllocClearedArray(AggregateHistorySize);
 		FD.TimeMin = AllocClearedArray(AggregateHistorySize);
@@ -6381,6 +6453,29 @@ function ProcessFrame(F, Inactive)
 				ProfileLeave();
 			}
 			PushIntoArray(FD.Time, Time);
+			let beg = Math.max(0, FD.Time.length - Settings.GraphSoftFrames);
+			let end = FD.Time.length-1;
+			let mod = Settings.GraphSoftMode;
+			let soft = 0.0;
+			if(mod == 1)
+			{
+				for(let i = beg; i < end; ++i)
+					soft += FD.Time[i];
+				if(beg != end)
+					soft /= (end-beg);
+			}
+			else if(mod == 2)
+			{
+				soft = 1e38;
+				for(let i = beg; i < end; ++i)
+					soft = Math.min(FD.Time[i], soft);
+			}
+			else if(mod == 3)
+			{
+				for(let i = beg; i < end; ++i)
+					soft = Math.max(FD.Time[i], soft);
+			}
+			PushIntoArray(FD.TimeSoft, soft);
 			PushIntoArray(FD.TimeExcl, TimeExcl);
 			PushIntoArray(FD.Count, Count);
 			FD.historymax = FindMaxTime(FD.Time, bIsGroup);

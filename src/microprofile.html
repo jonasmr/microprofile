@@ -46,7 +46,7 @@ li li a{ display:block;float:none;text-align:left;word-break: keep-all;white-spa
 .filterinputsearchdivmenu{position:absolute; background-color: #313131;display:none;}
 .filterinputsearch{width:100px;}
 .filtersearchdiv{position:fixed;top:71px;right:75px; display:block;}
-.filterinputsearch2{width:100px;}
+.filterinputsearch2{width:100px; display:none}
 </style>
 </head>
 <body style="">	
@@ -333,9 +333,6 @@ S.TimelineColorArray = [];
 ____embed____
 //EEND
 
-var G_DEBUG = 0;
-
-
 const MP_LOG_LEAVE=0x0;
 const MP_LOG_ENTER=0x1;
 const MP_LOG_EXTENDED=0x2;
@@ -368,8 +365,9 @@ var FilterInputMenuDiv = document.getElementById('FilterInputMenuDiv');
 var FilterInputMenuDivPos = {"x":-1,"y":-1,"w":-1,"h":-1};
 var FilterInputMenuValueLast = '';
 
-var FilterInputSearch2 = document.getElementById('FilterInputSearch2');
-var FilterInputSearchValue = '';
+let FilterInputSearch2 = document.getElementById('FilterInputSearch2');
+FilterInputSearch2.value = '';
+let FilterInputSearchValue = '';
 let FilterInputSearchActive2 = 0;
 
 const FLAGS_SECTION = 1;
@@ -507,7 +505,7 @@ function RangeInit()
 }
 function RangeValid(Range)
 {
-	return Range.Begin < Range.End;
+	return Range && Range.Begin < Range.End;
 }
 function RangeCopy(Dst, Src)
 {
@@ -1208,7 +1206,7 @@ function SetMode(NewMode, WantRedraw)
 	{
 		ShowFilterInput(0);
 	}
-	ShowDetailedSearch(Mode == ModeDetailed);
+	ShowDetailedSearch(false);
 
 	WriteCookie();
 	if(WantRedraw)
@@ -2071,16 +2069,23 @@ function DrawToolTip(StringArray, Canvas, x, y, bSecondary)
 	return {"x":x, "y":y};
 }
 
-function BuildToolTipDetailed(S, nHoverToken, HoverTokenOwner, bSecond)
+function BuildToolTipDetailed(So, nHoverToken, HoverTokenOwner, bSecond, SelectedRangeCpu, SelectedRangeGpu)
 {
-	var StringArray = [];
-	var groupid = S.TimerInfo[nHoverToken].group;
+	let StringArray = [];
+	let groupid = So.TimerInfo[nHoverToken].group;
+	
+	if(S2 && S2.AA)
+	{
+		StringArray.push("Capture");
+		StringArray.push(So == S ? "Main" : "Other");
+	}
+
 	if(nHoverToken > -1)
 	{
 		StringArray.push("Timer");
-		StringArray.push(S.TimerInfo[nHoverToken].name);
+		StringArray.push(So.TimerInfo[nHoverToken].name);
 		StringArray.push("Group");
-		StringArray.push(S.GroupInfo[groupid].name);
+		StringArray.push(So.GroupInfo[groupid].name);
 	}
 	else
 	{
@@ -2092,30 +2097,19 @@ function BuildToolTipDetailed(S, nHoverToken, HoverTokenOwner, bSecond)
 	StringArray.push("");
 	StringArray.push("");
 
-	if(S == HoverTokenOwner)
+	if(RangeValid(SelectedRangeGpu))
 	{
-		if(RangeValid(RangeGpu))
-		{
-			StringArray.push("GPU Time");
-			StringArray.push((RangeGpu.End-RangeGpu.Begin).toFixed(3));
-			StringArray.push("CPU Time");
-			StringArray.push((RangeCpu.End-RangeCpu.Begin).toFixed(3));
-		}
-		else
-		{
-			StringArray.push("CPU Time");
-			StringArray.push((RangeCpu.End-RangeCpu.Begin).toFixed(3));
-		}
-
-
+		StringArray.push("GPU Time");
+		StringArray.push((SelectedRangeGpu.End-SelectedRangeGpu.Begin).toFixed(3));
 	}
-	else
+	if(RangeValid(SelectedRangeCpu))
 	{
-		StringArray.push("");
-		StringArray.push("");
+
+		StringArray.push("CPU Time");
+		StringArray.push((SelectedRangeCpu.End-SelectedRangeCpu.Begin).toFixed(3));
 	}
 
-	if(RangeValid(RangeGpu))
+	if(RangeValid(SelectedRangeGpu))
 	{
 		StringArray.push("");
 		StringArray.push("");
@@ -2126,40 +2120,40 @@ function BuildToolTipDetailed(S, nHoverToken, HoverTokenOwner, bSecond)
 	StringArray.push("");
 	StringArray.push("");
 	StringArray.push("Total");
-	StringArray.push("" + S.TimerInfo[nHoverToken].Sum);
+	StringArray.push("" + So.TimerInfo[nHoverToken].Sum);
 	StringArray.push("Max");
-	StringArray.push("" + S.TimerInfo[nHoverToken].Max);
+	StringArray.push("" + So.TimerInfo[nHoverToken].Max);
 	StringArray.push("Average");
-	StringArray.push("" + S.TimerInfo[nHoverToken].Average);
+	StringArray.push("" + So.TimerInfo[nHoverToken].Average);
 	StringArray.push("Count");
-	StringArray.push("" + S.TimerInfo[nHoverToken].CallCount);
+	StringArray.push("" + So.TimerInfo[nHoverToken].CallCount);
 
 	StringArray.push("");
 	StringArray.push("");
 	StringArray.push("Excl Total");
-	StringArray.push("" + S.TimerInfo[nHoverToken].SumExcl);
+	StringArray.push("" + So.TimerInfo[nHoverToken].SumExcl);
 	StringArray.push("Excl Max");
-	StringArray.push("" + S.TimerInfo[nHoverToken].MaxExcl);
+	StringArray.push("" + So.TimerInfo[nHoverToken].MaxExcl);
 	StringArray.push("Excl Average");
-	StringArray.push("" + S.TimerInfo[nHoverToken].AverageExcl);
+	StringArray.push("" + So.TimerInfo[nHoverToken].AverageExcl);
 	StringArray.push("Excl Count");
-	StringArray.push("" + S.TimerInfo[nHoverToken].CallCountExcl);
+	StringArray.push("" + So.TimerInfo[nHoverToken].CallCountExcl);
 
 	StringArray.push("");
 	StringArray.push("");
 	StringArray.push("Max/Frame");
-	StringArray.push("" + S.TimerInfo[nHoverToken].FrameMax);
+	StringArray.push("" + So.TimerInfo[nHoverToken].FrameMax);
 	StringArray.push("Average Time/Frame");
-	StringArray.push("" + S.TimerInfo[nHoverToken].FrameAverage);
+	StringArray.push("" + So.TimerInfo[nHoverToken].FrameAverage);
 	StringArray.push("Average Count/Frame");
-	StringArray.push("" + S.TimerInfo[nHoverToken].FrameCallAverage);
+	StringArray.push("" + So.TimerInfo[nHoverToken].FrameCallAverage);
 
 	StringArray.push("");
 	StringArray.push("");
 	StringArray.push("Excl Max/Frame");
-	StringArray.push("" + S.TimerInfo[nHoverToken].FrameMaxExcl);
+	StringArray.push("" + So.TimerInfo[nHoverToken].FrameMaxExcl);
 	StringArray.push("Excl Average Time/Frame");
-	StringArray.push("" + S.TimerInfo[nHoverToken].FrameAverageExcl);
+	StringArray.push("" + So.TimerInfo[nHoverToken].FrameAverageExcl);
 
 
 	let Time = fDetailedOffset + fDetailedRange * (DetailedViewMouseX / nWidth);
@@ -2167,27 +2161,6 @@ function BuildToolTipDetailed(S, nHoverToken, HoverTokenOwner, bSecond)
 		Time += fDetailedOffsetSecond;
 	let FrameTime = new Object();
 	let Frame = CalculateTimers2(FrameTime, nHoverToken, Time, S);
-	// This is inconsistent with the rest of the code. Needs a rework. Disabled for now.
-	// StringArray.push("");
-	// StringArray.push("");
-	// if(Frame>-1)
-	// {
-	// 	StringArray.push("Frame " + Frame);
-	// 	StringArray.push("");
-	// 	StringArray.push("Total");
-	// 	StringArray.push("" + FrameTime.Sum);
-	// 	StringArray.push("Count");
-	// 	StringArray.push("" + FrameTime.CallCount);
-	// 	StringArray.push("Average");
-	// 	StringArray.push("" + FrameTime.Average);
-	// 	StringArray.push("Max");
-	// 	StringArray.push("" + FrameTime.Max);
-	// }
-	// else
-	// {
-	// 	for(var i = 0; i < 10; ++i)
-	// 		StringArray.push("");
-	// }
 
 	StringArray.push("");
 	StringArray.push("");
@@ -2195,13 +2168,10 @@ function BuildToolTipDetailed(S, nHoverToken, HoverTokenOwner, bSecond)
 	StringArray.push("Detailed Capture");
 	StringArray.push("");
 	StringArray.push("Frames");
-	StringArray.push(S.Frames.length);
+	StringArray.push(So.Frames.length);
 	StringArray.push("Time");
-	StringArray.push(DetailedTotal(S).toFixed(2) + "ms");
+	StringArray.push(DetailedTotal(So).toFixed(2) + "ms");
 	return StringArray;
-
-
-
 }
 
 
@@ -2210,6 +2180,22 @@ function DrawHoverToolTip()
 	ProfileEnter("DrawHoverToolTip");
 	let StringArray = [];
 	let StringArray2;
+
+
+	if(Mode == ModeDetailed)
+	{
+		if(RangeValid(RangeSelect) && RangeSelect.Index >= 0)
+		{
+			let Source = RangeSelect.Second ? S2 : S;
+			let ti = Source.TimerInfo[RangeSelect.Index];
+			let isGpu = Source.GroupInfo[ti.group].isgpu;
+			let cpuRange = isGpu ? null : RangeSelect;
+			let gpuRange = isGpu ? RangeSelect : null;
+			let StringArrayWorst = BuildToolTipDetailed(Source, RangeSelect.Index, null, 0, cpuRange, gpuRange);
+			DrawToolTip(StringArrayWorst, CanvasDetailedView, 0, nHeight);
+		}
+	}
+
 	if(ToolTipImmediate != null)
 	{
 		DrawToolTip(ToolTipImmediate, CanvasDetailedView, DetailedViewMouseX, DetailedViewMouseY+20);
@@ -2220,11 +2206,6 @@ function DrawHoverToolTip()
 	{
 
 		let bShowTimers = Mode == ModeTimers || Mode == ModeTimers_Threads || Mode == ModeTimers_Groups;
-		// this confused alot of people.
-		// if(ToolTipFlip == 1)
-		// {
-		// 	bShowTimers = !bShowTimers;
-		// }
 		if(bShowTimers)
 		{
 			// var StringArray = [];
@@ -2275,11 +2256,15 @@ function DrawHoverToolTip()
 		}
 		else
 		{
-			StringArray = BuildToolTipDetailed(S, nHoverToken, HoverTokenOwner, 0);
+			let cpu = S == HoverTokenOwner ? RangeCpu : null;
+			let gpu = S == HoverTokenOwner ? RangeGpu : null;
+			StringArray = BuildToolTipDetailed(S, nHoverToken, HoverTokenOwner, 0, cpu, gpu);
 			let nCompareHoverToken = TimerRemapReverse[nHoverToken];
 			if(nCompareHoverToken > -1)
 			{
-				StringArray2 = BuildToolTipDetailed(S2, nCompareHoverToken, HoverTokenOwner, 1);
+				let cpu = S2 == HoverTokenOwner ? RangeCpu : null;
+				let gpu = S2 == HoverTokenOwner ? RangeGpu : null;
+				StringArray2 = BuildToolTipDetailed(S2, nCompareHoverToken, HoverTokenOwner, 1, cpu, gpu);
 			}
 		}
 		if(ToolTipCorner)
@@ -3694,10 +3679,6 @@ function DrawDetailedView(S, S0, context, MinWidth, bDrawEnabled)
 			}
 			let D = fOffsetY + BoxHeight - DetailedViewMouseY;
 
-			if(bDrawEnabled && G_DEBUG && 0)
-			{
-				debugger;
-			}
 			if(!bSecond)
 			{
 				if(D > 0 && D < BoxHeight)
@@ -4335,15 +4316,17 @@ function DrawRange(context, Range, ColorBack, ColorFront, Name, Offset)
 {
 	if(!Offset)
 		Offset = 0;
-	var fBegin = Range.Begin;
-	var fEnd = Range.End;
-	var OffsetTop = Range.YBegin;
-	var OffsetBottom = Range.YEnd;
-	var Off = Range.Off + fDetailedOffset;
+
+	let XOffset = Range.Second ? fDetailedOffsetSecond : 0;
+	let fBegin = Range.Begin - XOffset;
+	let fEnd = Range.End - XOffset;
+	let OffsetTop = Range.YBegin;
+	let OffsetBottom = Range.YEnd;
+	let Off = Range.Off + fDetailedOffset;
 	if(fBegin < fEnd)
 	{
-		var MarginTop = (1.0+Offset) * (FontHeight+1);
-		var MarginBottom = nHeight - (Offset+1.5) * (FontHeight+1);
+		let MarginTop = (1.0+Offset) * (FontHeight+1);
+		let MarginBottom = nHeight - (Offset+1.5) * (FontHeight+1);
 		if(OffsetTop < MarginTop)
 		{
 			Offset += 1;
@@ -4353,13 +4336,13 @@ function DrawRange(context, Range, ColorBack, ColorFront, Name, Offset)
 		{
 			OffsetBottom = MarginBottom;
 		}
-		var fRulerOffset = FontHeight * 0.5;
-		var fScaleX = nWidth / fDetailedRange;
-		var X = (fBegin - Off) * fScaleX;
-		var YSpace = (FontHeight+2);
-		var Y = OffsetTop;
-		var YBottom = OffsetBottom;
-		var W = (fEnd - fBegin) * fScaleX;
+		let fRulerOffset = FontHeight * 0.5;
+		let fScaleX = nWidth / fDetailedRange;
+		let X = (fBegin - Off) * fScaleX;
+		let YSpace = (FontHeight+2);
+		let Y = OffsetTop;
+		let YBottom = OffsetBottom;
+		let W = (fEnd - fBegin) * fScaleX;
 		context.globalAlpha = 0.1;
 		context.fillStyle = ColorBack;
 		context.fillRect(X, OffsetTop + fRulerOffset, W, OffsetBottom - OffsetTop);
@@ -4371,27 +4354,27 @@ function DrawRange(context, Range, ColorBack, ColorFront, Name, Offset)
 		context.moveTo(X+W, 0);
 		context.lineTo(X+W, nHeight);
 		context.stroke();
-		var Duration = (fEnd - fBegin).toFixed(2) + "ms";
-		var Center = ((fBegin + fEnd) / 2.0) - Off;
-		var DurationWidth = context.measureText(Duration+ "   ").width;
+		let Duration = (fEnd - fBegin).toFixed(2) + "ms";
+		let Center = ((fBegin + fEnd) / 2.0) - Off;
+		let DurationWidth = context.measureText(Duration+ "   ").width;
 
 		context.fillStyle = 'white';
 		context.textAlign = 'right';
-		var TextPosY = Y + YSpace;
+		let TextPosY = Y + YSpace;
 		DrawTextBox(context, (fBegin-Range.Off).toFixed(2), X-3, TextPosY, 'right');
-		var YS = [Y, YBottom];
-		for(var i = 0; i < YS.length; ++i)
+		let YS = [Y, YBottom];
+		for(let i = 0; i < YS.length; ++i)
 		{
-			var Y = YS[i];
-			var Y0 = Y + fRulerOffset;
-			var W0 = W - DurationWidth + FontWidth*1.5;
+			let Y = YS[i];
+			let Y0 = Y + fRulerOffset;
+			let W0 = W - DurationWidth + FontWidth*1.5;
 			if(W0 > 6)
 			{
 				context.textAlign = 'center';
 				DrawTextBox(context, Duration,Center * fScaleX, Y + YSpace, 'center');
 				W0 = W0 / 2.0;
-				var X0 = X + W0;
-				var X1 = X + W - W0;
+				let X0 = X + W0;
+				let X1 = X + W - W0;
 				context.strokeStyle = ColorFront;
 				context.beginPath();
 				context.moveTo(X, Y0);
@@ -4803,21 +4786,27 @@ function ZoomToHighlight(NoGpu)
 
 function MoveToNext(Direction) //1 forward, -1 backwards
 {
-	var fTimeBegin, fTimeEnd, nLog;
-	var Index = nHoverToken;
-
-	if(nHoverToken != -1 && nHoverTokenLogIndex != -1)
-	{
-		fTimeBegin = RangeCpu.Begin;
-		fTimeEnd = RangeCpu.End;
-		nLog = nHoverTokenLogIndex;
-	}
-	else if(RangeValid(RangeSelect))
+	let fTimeBegin, fTimeEnd, nLog;
+	let Index = nHoverToken;
+	let Source = S;
+	let Offset = 0;
+ 	if(RangeValid(RangeSelect))
 	{
 		fTimeBegin = RangeSelect.Begin;
 		fTimeEnd = RangeSelect.End;
 		nLog = RangeSelect.Thread;
 		Index = RangeSelect.Index;
+		if(RangeSelect.Second)
+		{
+			Source = S2;
+			Offset = -fDetailedOffsetSecond;
+		}
+	}
+	else if(nHoverToken != -1 && nHoverTokenLogIndex != -1)
+	{
+		fTimeBegin = RangeCpu.Begin;
+		fTimeEnd = RangeCpu.End;
+		nLog = nHoverTokenLogIndex;
 	}
 	else
 	{
@@ -4827,27 +4816,27 @@ function MoveToNext(Direction) //1 forward, -1 backwards
 	{
 		return;
 	}
-	var Forward = Direction && Direction < 0 ? 0 : 1;
-	var bFound = false;
-	var nStackPos = 0;
-	var fResultTimeBegin, fResultTimeEnd;
-	var TypeBegin = Forward ? 1 : 0;
-	var TypeEnd = Forward ? 0 : 1;
-	var SearchTimeBegin = Forward ? fTimeBegin : fTimeEnd;
+	let Forward = Direction && Direction < 0 ? 0 : 1;
+	let bFound = false;
+	let nStackPos = 0;
+	let fResultTimeBegin, fResultTimeEnd;
+	let TypeBegin = Forward ? 1 : 0;
+	let TypeEnd = Forward ? 0 : 1;
+	let SearchTimeBegin = Forward ? fTimeBegin : fTimeEnd;
 
-	var istart = Forward ? 0 : S.Frames.length-1;
-	var iend = Forward ? S.Frames.length : -1;
-	var idelta = Forward ? 1 : -1;
-	for(var i = istart; i != iend; i += idelta)
+	let istart = Forward ? 0 : Source.Frames.length-1;
+	let iend = Forward ? Source.Frames.length : -1;
+	let idelta = Forward ? 1 : -1;
+	for(let i = istart; i != iend; i += idelta)
 	{
-		var fr = S.Frames[i];
-		var ts = fr.ts[nLog];
-		var ti = fr.ti[nLog];
-		var tt = fr.tt[nLog];
-		var jstart = Forward ? 0 : ts.length-1;
-		var jend = Forward ? ts.length : -1;
-		var jdelta = Forward ? 1 : -1;
-		for(var j = jstart; j != jend; j += jdelta)
+		let fr = Source.Frames[i];
+		let ts = fr.ts[nLog];
+		let ti = fr.ti[nLog];
+		let tt = fr.tt[nLog];
+		let jstart = Forward ? 0 : ts.length-1;
+		let jend = Forward ? ts.length : -1;
+		let jdelta = Forward ? 1 : -1;
+		for(let j = jstart; j != jend; j += jdelta)
 		{
 			if(!bFound)
 			{
@@ -4863,7 +4852,7 @@ function MoveToNext(Direction) //1 forward, -1 backwards
 			{
 				if(Index == ti[j])
 				{
-					var type = tt[j];
+					let type = tt[j];
 					if(type == TypeBegin)
 					{
 						if(0 == nStackPos)
@@ -4880,7 +4869,7 @@ function MoveToNext(Direction) //1 forward, -1 backwards
 							fResultTimeEnd = ts[j];
 							if(0 == Forward)
 							{
-								var Tmp = fResultTimeBegin;
+								let Tmp = fResultTimeBegin;
 								fResultTimeBegin = fResultTimeEnd;
 								fResultTimeEnd = Tmp;
 							}
@@ -4888,7 +4877,7 @@ function MoveToNext(Direction) //1 forward, -1 backwards
 							RangeSelect.End = fResultTimeEnd;
 							RangeSelect.Thread = nLog;
 							RangeSelect.Index = Index;
-							MoveTo(fResultTimeBegin,fResultTimeEnd);
+							MoveTo(fResultTimeBegin + Offset,fResultTimeEnd + Offset);
 							return;
 						}
 					}
@@ -4897,6 +4886,7 @@ function MoveToNext(Direction) //1 forward, -1 backwards
 		}
 	}
 }
+
 
 function MoveTo(fMoveBegin, fMoveEnd, YTop, YBottom)
 {
@@ -5938,6 +5928,7 @@ function ResizeCanvas()
 
 	if(DPR)
 	{
+		nHeight = window.innerHeight - (CanvasHistory.height / DPR)-2;
 		CanvasDetailedView.style.width = nWidth + 'px';
 		CanvasDetailedView.style.height = nHeight + 'px';
 		CanvasDetailedView.width = nWidth * DPR;
@@ -6256,10 +6247,6 @@ function MouseDrag(Source, Event)
 		MouseDragReset();
 		return;
 	}
-	if(G_DEBUG)
-	{
-		debugger;
-	}
 	var LocalRect = Event.target.getBoundingClientRect();
 	MouseDragX = Event.clientX - LocalRect.left;
 	MouseDragY = Event.clientY - LocalRect.top;
@@ -6327,15 +6314,17 @@ function MouseDrag(Source, Event)
 function MouseMove(evt)
 {
 	evt.preventDefault();
-
+	KeyCtrlDown = evt.ctrlKey;
+	KeyShiftDown = evt.shiftKey;
+	KeyAltDown = evt.altKey;
 	ZoomActive = 0;
 	MouseDrag(MouseDragMove, evt);
  	MouseHistory = 0;
 	MouseDetailed = 0;
 	HistoryViewMouseX = HistoryViewMouseY = -1;
-	var rect = evt.target.getBoundingClientRect();
-	var x = evt.clientX - rect.left;
-	var y = evt.clientY - rect.top;
+	let rect = evt.target.getBoundingClientRect();
+	let x = evt.clientX - rect.left;
+	let y = evt.clientY - rect.top;
 	GlobalMouseX = evt.pageX;
 	GlobalMouseY = evt.pageY;
 	if(evt.target == CanvasDetailedView)
@@ -6349,7 +6338,6 @@ function MouseMove(evt)
 	}
 	else if(evt.target = CanvasHistory)
 	{
-		var Rect = CanvasHistory.getBoundingClientRect();
 		HistoryViewMouseX = x;
 		HistoryViewMouseY = y;
 
@@ -6455,6 +6443,9 @@ function ShowDetailedSearch(bShow)
 	if(bShow)
 	{
 		FilterInputSearch2.style['display'] = 'block';
+		FilterInputSearch2.focus();
+		FilterInputSearch2.select();
+
 	}
 	else
 	{
@@ -6528,10 +6519,6 @@ function ToggleFilterInput(escape)
 function KeyUp(evt)
 {
 	//console.log("keyup ", evt.keyCode);
-	if(evt.keyCode== 84)
-	{
-		G_DEBUG = 1;
-	}
 	if(evt.keyCode == 18)
 	{
 		ToolTipFlip = 0;
@@ -6577,7 +6564,7 @@ function KeyUp(evt)
 		{
 			if(Mode == ModeDetailed)
 			{
-				FilterInputSearch2.focus();
+				ShowDetailedSearch(true);
 			}
 			else if(Mode == ModeTimers || Mode == ModeTimers_Threads || Mode == ModeTimers_Groups)
 			{
@@ -6590,26 +6577,28 @@ function KeyUp(evt)
 			evt.preventDefault();
 			if(Mode == ModeDetailed)
 			{
-				var Token = nHoverToken;
+				let Token = nHoverToken;
 				if(Token == -1 && RangeValid(RangeSelect) && RangeSelect.Index >= 0)
 				{
 					Token = RangeSelect.Index;
 				}
-				if(Token != -1 && Token < S.TimerInfo.length)
+				if(Token != -1)
 				{
-					var start = S.TimerInfo[Token].worststart;
-					var end = S.TimerInfo[Token].worstend;
-					RangeSelect.Begin = start;
-					RangeSelect.End = end;
-					RangeSelect.Thread = S.TimerInfo[Token].worstthread;
-					RangeSelect.Index = Token;
-					ShowFlashMessage('Worst: ' + (end-start).toFixed(2) + 'ms', 100);
-					MoveTo(RangeSelect.Begin, RangeSelect.End, ThreadYBegin[RangeSelect.Thread] + nOffsetY, ThreadYEnd[RangeSelect.Thread+1] + nOffsetY);
-					MouseHandleDragEnd();
-				}
-				else
-				{
-					FilterInputSearch2.focus();
+					let Source = HoverTokenOwner ? HoverTokenOwner : S;
+					if(Token < Source.TimerInfo.length)
+					{
+						let start = Source.TimerInfo[Token].worststart;
+						let end = Source.TimerInfo[Token].worstend;
+						RangeSelect.Begin = start;
+						RangeSelect.End = end;
+						RangeSelect.Thread = Source.TimerInfo[Token].worstthread;
+						RangeSelect.Index = Token;
+						RangeSelect.Second = Source == S2 ? 1 : 0;
+						ShowFlashMessage('Worst: ' + (end-start).toFixed(2) + 'ms', 100);
+						let Offset = Source == S2 ? -fDetailedOffsetSecond : 0;
+						MoveTo(RangeSelect.Begin + Offset, RangeSelect.End + Offset, ThreadYBegin[RangeSelect.Thread] + nOffsetY, ThreadYEnd[RangeSelect.Thread+1] + nOffsetY);
+						MouseHandleDragEnd();
+					}
 				}
 
 			}
@@ -6663,26 +6652,26 @@ function KeyUp(evt)
 		if(Mode == ModeDetailed)
 		{
 			let SearchString = FilterInputSearch2.value;
-			if(SearchString.length > 0)
+			if(document.activeElement == FilterInputSearch2)
+			{
+				document.activeElement.blur();
+				if(!SearchString.length)
+					ShowDetailedSearch(false);
+			}
+			else if(SearchString.length > 0)
 			{
 				//when search is active, esc clears in the following order:
 				//focus from search
 				//clears active range
 				//clears search
-				if(document.activeElement == FilterInputSearch2)
+				if(RangeValid(RangeSelect))
 				{
-					document.activeElement.blur();
+					RangeSelect = RangeInit();
 				}
 				else
 				{
-					if(RangeValid(RangeSelect))
-					{
-						RangeSelect = RangeInit();
-					}
-					else
-					{
-						FilterInputSearch2.value = "";
-					}
+					FilterInputSearch2.value = "";
+					ShowDetailedSearch(false);
 				}
 			}
 			else
@@ -6758,9 +6747,9 @@ function FilterInputUpdate()
 }
 function FilterInputShow()
 {
-	FilterSearchActive = 1;
-	FilterInputUpdate();
-	RequestRedraw();
+	// FilterSearchActive = 1;
+	// FilterInputUpdate();
+	// RequestRedraw();
 }
 function FilterInputHide()
 {
@@ -6836,12 +6825,19 @@ function KeyDown(evt)
 	{
 		evt.preventDefault();
 	}
-	if(evt.keyCode == 91) // z/tab to toggle tooltip
+	else if(evt.keyCode == 91) // z/tab to toggle tooltip
 	{
 		ToolTipFlip = 1;
 	}
-
-	if(evt.keyCode == 72)
+	else if(evt.keyCode == 70)
+	{
+		if(evt.ctrlKey)
+		{
+			evt.preventDefault();
+			if(Mode == ModeDetailed)
+				ShowDetailedSearch(true);
+		}
+	}else if(evt.keyCode == 72)
 	{
 		KeyHDown = 1;
 		RequestRedraw();
@@ -8775,7 +8771,11 @@ window.addEventListener('keyup', KeyUp);
 window.addEventListener('resize', ResizeCanvas, false);
 window.addEventListener("dragenter", WindowDragEnter);
 window.addEventListener("dragleave", WindowDragLeave);
-
+document.addEventListener('mouseout', (e) => {
+	if (!e.relatedTarget && !e.toElement) {
+		MouseOut();
+	}
+});
 
 InitGroups();
 ReadCookie();
