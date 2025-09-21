@@ -4,7 +4,6 @@
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="..\..\microprofile.h" />
     <ClInclude Include="..\..\microprofile_html.h" />
-    <ClInclude Include="..\..\microprofileui.h" />
     <ClInclude Include="imgui\imconfig.h">
       <Filter>imgui</Filter>
     </ClInclude>

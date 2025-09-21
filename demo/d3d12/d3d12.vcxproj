@@ -163,7 +163,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\..\microprofile.h" />
-    <ClInclude Include="..\..\microprofileui.h" />
     <ClInclude Include="..\..\microprofile_html.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="imgui\backends\imgui_impl_dx12.h" />

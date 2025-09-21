@@ -1762,6 +1762,7 @@ void MicroProfileInit()
 		S.nTokenNegativeGpu = MicroProfileGetToken("__NEGATIVE_GPU", "NEGATIVE_GPU", MP_PURPLE, MicroProfileTokenTypeGpu, 0);
 		S.nTimerNegativeCpuIndex = MicroProfileGetTimerIndex(S.nTokenNegativeCpu);
 		S.nTimerNegativeGpuIndex = MicroProfileGetTimerIndex(S.nTokenNegativeGpu);
+		memset(&S.AccumMinTimers[0], 0xFF, sizeof(S.AccumMinTimers));
 	}
 	MicroProfileUpdateSettingsPath();
 
@@ -14825,7 +14826,6 @@ void MicroProfileImguiTable(const MicroProfileImguiWindowDesc& Window, const Mic
 		GroupWidth = MicroProfileMax(GroupWidth, CalcTextSize(GI.pName).x);
 		NameWidth = MicroProfileMax(NameWidth, CalcTextSize(TI.pName).x);
 	}
-	
 
 	float TableWidth = GroupWidth + NameWidth + BaseWidth * 4 + NumColumns * Padding + (NumColumns-1) * GetStyle().ItemSpacing.x;
 	float TableHeight = Height * (NumEntries+1);

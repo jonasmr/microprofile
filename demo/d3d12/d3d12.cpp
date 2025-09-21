@@ -135,6 +135,7 @@ void ImGuiRender(ID3D12GraphicsCommandList* pCommandList, uint32_t Width, uint32
 		static uint32_t GraphPos[] = { MICROPROFILE_IMGUI_ALIGN_BOTTOM_LEFT, MICROPROFILE_IMGUI_ALIGN_BOTTOM_RIGHT, MICROPROFILE_IMGUI_ALIGN_TOP_RIGHT};
 		auto PosButtons = [](uint32_t id, uint32_t& TablePos)
 		{
+			PushID(id);
 			SameLine();
 			if(RadioButton("Top Left", TablePos == MICROPROFILE_IMGUI_ALIGN_TOP_LEFT))
 				TablePos = MICROPROFILE_IMGUI_ALIGN_TOP_LEFT;
@@ -145,12 +146,13 @@ void ImGuiRender(ID3D12GraphicsCommandList* pCommandList, uint32_t Width, uint32
 			if(RadioButton("Bottom Left", TablePos == MICROPROFILE_IMGUI_ALIGN_BOTTOM_LEFT))
 				TablePos = MICROPROFILE_IMGUI_ALIGN_BOTTOM_LEFT;
 			SameLine();
-			if(RadioButton("Bottom Right", TablePos == MICROPROFILE_IMGUI_ALIGN_TOP_RIGHT))
-				TablePos = MICROPROFILE_IMGUI_ALIGN_TOP_RIGHT;
+			if(RadioButton("Bottom Right", TablePos == MICROPROFILE_IMGUI_ALIGN_BOTTOM_RIGHT))
+				TablePos = MICROPROFILE_IMGUI_ALIGN_BOTTOM_RIGHT;
+			PopID();
 		};
 
 
-		Begin("MicroProfile Control Window");
+		Begin("MicroProfile Imgui Demo Window");
 		int id = 112;
 		Checkbox("Show Table", &ShowTable);
 		PosButtons(id++, TablePos);
@@ -161,8 +163,11 @@ void ImGuiRender(ID3D12GraphicsCommandList* pCommandList, uint32_t Width, uint32
 		Checkbox("Show Graph 2", &ShowGraphs[2]);
 		PosButtons(id++, GraphPos[2]);
 		SliderFloat("SleepTime", &SleepTime, 0.f, 30.f);
+		End();
 
-		Separator();
+
+		Begin("MicroProfile Imgui Controls");
+		Text("MicroProfileImguiControls() gives basic control over enabling/disabling microprofile");
 		// Draw simple default controls for enabling groups/categories
 		// this is intended to be in a menu, but for this demo its in a window.
 		MicroProfileImguiControls();
@@ -230,12 +235,9 @@ void ImGuiRender(ID3D12GraphicsCommandList* pCommandList, uint32_t Width, uint32
 				}, Entries, sizeof(Entries)/sizeof(Entries[0]));
 			End();
 		}
-		ShowDemoWindow(nullptr);
-
 	}
 	
 	Render();
-
 	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pCommandList);
 }
 #endif

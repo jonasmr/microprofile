@@ -1053,7 +1053,7 @@ extern "C"
 	MICROPROFILE_API void MicroProfileUpdateSettingsPath();
 
 #if MICROPROFILE_IMGUI
-
+	// Basic support for controlling MicroProfile from ImGui, and for rendering graphs & tables
 	enum MicroProfileImguiAlign;
 	struct MicroProfileImguiWindowDesc;
 	struct MicroProfileImguiEntryDesc;
