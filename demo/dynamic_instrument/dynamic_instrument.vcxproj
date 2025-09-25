@@ -109,15 +109,17 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>MICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE;MICROPROFILE_ENABLED=1;MICROPROFILE_GPU_TIMERS=0;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>../..;..\..\distorm\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../..;..\..\distorm\include;..\..\rawpdb\raw_pdb\src\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
-      <AdditionalDependencies>DbgHelp.lib;Shlwapi.lib;../../distorm/distorm.lib;Advapi32.lib;ws2_32.lib;winmm.lib;Shell32.lib</AdditionalDependencies>
+      <AdditionalDependencies>DbgHelp.lib;Shlwapi.lib;../../distorm/distorm.lib;Advapi32.lib;ws2_32.lib;winmm.lib;Shell32.lib;../../rawpdb/rawpdb.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>copy ..\..\bin\microprofile-win32-cswitch_$(PlatformTarget).exe $(ProjectDir)</Command>
+      <Command>copy ..\..\bin\microprofile-win32-cswitch_$(PlatformTarget).exe $(ProjectDir)
+copy /Y "$(WindowsSdkDir)Debuggers\x64\symsrv.dll" "$(OutDir)"
+copy /Y "$(WindowsSdkDir)Debuggers\x64\dbghelp.dll" "$(OutDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -153,17 +155,19 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>MICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE;MICROPROFILE_ENABLED=1;MICROPROFILE_GPU_TIMERS=0;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>../..;..\..\distorm\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../..;..\..\distorm\include;..\..\rawpdb\raw_pdb\src\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>DbgHelp.lib;Shlwapi.lib;../../distorm/distorm.lib;Advapi32.lib;ws2_32.lib;winmm.lib;Shell32.lib</AdditionalDependencies>
+      <AdditionalDependencies>DbgHelp.lib;Shlwapi.lib;../../distorm/distorm.lib;Advapi32.lib;ws2_32.lib;winmm.lib;Shell32.lib;../../rawpdb/rawpdb.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>copy ..\..\bin\microprofile-win32-cswitch_$(PlatformTarget).exe $(ProjectDir)</Command>
+      <Command>copy ..\..\bin\microprofile-win32-cswitch_$(PlatformTarget).exe $(ProjectDir)
+copy /Y "$(WindowsSdkDir)Debuggers\x64\symsrv.dll" "$(OutDir)"
+copy /Y "$(WindowsSdkDir)Debuggers\x64\dbghelp.dll" "$(OutDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

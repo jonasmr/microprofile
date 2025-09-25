@@ -181,31 +181,6 @@ typedef uint32_t MicroProfileTimelineToken;
 	{                                                                                                                                                                                                  \
 	} while(0)
 
-#define MICROPROFILE_ENTER_NEGATIVE()                                                                                                                                                                  \
-	do                                                                                                                                                                                                 \
-	{                                                                                                                                                                                                  \
-	} while(0)
-#define MICROPROFILE_LEAVE_NEGATIVE()                                                                                                                                                                  \
-	do                                                                                                                                                                                                 \
-	{                                                                                                                                                                                                  \
-	} while(0)
-#define MICROPROFILE_ENTER_NEGATIVEGPU()                                                                                                                                                               \
-	do                                                                                                                                                                                                 \
-	{                                                                                                                                                                                                  \
-	} while(0)
-#define MICROPROFILE_LEAVE_NEGATIVEGPU()                                                                                                                                                               \
-	do                                                                                                                                                                                                 \
-	{                                                                                                                                                                                                  \
-	} while(0)
-#define MICROPROFILE_ENTER_NEGATIVEGPU_C(c)                                                                                                                                                            \
-	do                                                                                                                                                                                                 \
-	{                                                                                                                                                                                                  \
-	} while(0)
-#define MICROPROFILE_LEAVE_NEGATIVEGPU_C(c)                                                                                                                                                            \
-	do                                                                                                                                                                                                 \
-	{                                                                                                                                                                                                  \
-	} while(0)
-
 #define MICROPROFILE_GPU_ENTER(var)                                                                                                                                                                    \
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
@@ -593,12 +568,6 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 	}                                                                                                                                                                                                  \
 	MicroProfileEnter(MICROPROFILE_TOKEN_PASTE(g_mp, __LINE__))
 #define MICROPROFILE_LEAVE() MicroProfileLeave()
-#define MICROPROFILE_ENTER_NEGATIVE() MicroProfileEnterNegative()
-#define MICROPROFILE_LEAVE_NEGATIVE() MicroProfileLeave()
-#define MICROPROFILE_ENTER_NEGATIVEGPU() MicroProfileEnterNegativeGpu(MicroProfileGetGlobalGpuThreadLog())
-#define MICROPROFILE_LEAVE_NEGATIVEGPU() MicroProfileLeaveGpu(MicroProfileGetGlobalGpuThreadLog())
-#define MICROPROFILE_ENTER_NEGATIVEGPU_C(c) MicroProfileEnterNegativeGpu(c)
-#define MICROPROFILE_LEAVE_NEGATIVEGPU_C(c) MicroProfileLeaveGpu(c)
 
 #define MICROPROFILE_GPU_ENTER(var) MicroProfileEnterGpu(g_mpGPU_##var, MicroProfileGetGlobalGpuThreadLog())
 #define MICROPROFILE_GPU_ENTER_TOKEN(token) MicroProfileEnterGpu(token, MicroProfileGetGlobalGpuThreadLog())
@@ -981,8 +950,6 @@ extern "C"
 
 	MICROPROFILE_API void MicroProfileEnterGpu(MicroProfileToken nToken, struct MicroProfileThreadLogGpu* pLog);
 	MICROPROFILE_API void MicroProfileLeaveGpu(struct MicroProfileThreadLogGpu* pLog);
-	MICROPROFILE_API void MicroProfileEnterNegative();
-	MICROPROFILE_API void MicroProfileEnterNegativeGpu(struct MicroProfileThreadLogGpu* pLog);
 	MICROPROFILE_API MicroProfileTimelineToken MicroProfileTimelineEnterInternal(uint32_t nColor, const char* pStr, uint32_t nStrLen, int bIsStaticString);
 	MICROPROFILE_API MicroProfileTimelineToken MicroProfileTimelineEnter(uint32_t nColor, const char* pStr);
 	MICROPROFILE_API MicroProfileTimelineToken MicroProfileTimelineEnterf(uint32_t nColor, const char* pStr, ...);

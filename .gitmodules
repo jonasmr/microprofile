@@ -7,3 +7,6 @@
 [submodule "demo/d3d12/imgui"]
 	path = demo/d3d12/imgui
 	url = https://github.com/ocornut/imgui.git
+[submodule "rawpdb/raw_pdb"]
+	path = rawpdb/raw_pdb
+	url = https://github.com/MolecularMatters/raw_pdb.git

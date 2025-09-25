@@ -91,28 +91,12 @@ void ExclusiveTest()
 		{
 			MICROPROFILE_SCOPEI("exclusive-test", "inner", MP_GREEN);
 			spinsleep(2500);
-			if(NEG)
-			{
-				MICROPROFILE_ENTER_NEGATIVE();
-			}
 			spinsleep(2500);
-			if(NEG)
-			{
-				MICROPROFILE_LEAVE_NEGATIVE();
-			}
 			{
 				MICROPROFILE_SCOPEI("exclusive-test-2", "inner-2", MP_CYAN);
 				spinsleep(2500);
 			}
-			if(NEG)
-			{
-				MICROPROFILE_ENTER_NEGATIVE();
-			}
 			spinsleep(2500);
-			if(NEG)
-			{
-				MICROPROFILE_LEAVE_NEGATIVE();
-			}
 		}
 	}
 }

@@ -69,6 +69,42 @@ void LongTest()
 	}
 }
 
+void InstrumentTestInner1_0()
+{
+	spinsleep(1000);
+}
+void InstrumentTestInner2_0()
+{
+	spinsleep(1000);
+}
+
+void InstrumentTestInner1()
+{
+	spinsleep(1000);
+	InstrumentTestInner1_0();
+}
+void InstrumentTestInner2()
+{
+	spinsleep(1000);
+	InstrumentTestInner2_0();
+}
+void InstrumentTestInner3()
+{
+	spinsleep(1000);
+}
+
+void InstrumentTest()
+{
+	while (!g_nQuit)
+	{
+		spinsleep(5000);
+		InstrumentTestInner1();
+		InstrumentTestInner2();
+		InstrumentTestInner3();
+	}
+
+}
+
 void ExclusiveTest()
 {
 	static int hest = 0;
@@ -85,28 +121,12 @@ void ExclusiveTest()
 		{
 			MICROPROFILE_SCOPEI("exclusive-test", "inner", MP_GREEN);
 			spinsleep(2500);
-			if(NEG)
-			{
-				MICROPROFILE_ENTER_NEGATIVE();
-			}
 			spinsleep(2500);
-			if(NEG)
-			{
-				MICROPROFILE_LEAVE_NEGATIVE();
-			}
 			{
 				MICROPROFILE_SCOPEI("exclusive-test-2", "inner-2", MP_CYAN);
 				spinsleep(2500);
 			}
-			if(NEG)
-			{
-				MICROPROFILE_ENTER_NEGATIVE();
-			}
 			spinsleep(2500);
-			if(NEG)
-			{
-				MICROPROFILE_LEAVE_NEGATIVE();
-			}
 		}
 	}
 }
@@ -120,7 +140,9 @@ int main(int argc, char* argv[])
 	MicroProfileSetEnableAllGroups(true);
 	MicroProfileSetForceMetaCounters(true);
 
-	std::thread T(0?LongTest:ExclusiveTest);
+	std::thread T(ExclusiveTest);
+
+	std::thread T0(InstrumentTest);
 
 
 	// std::thread T(ExclusiveTest);

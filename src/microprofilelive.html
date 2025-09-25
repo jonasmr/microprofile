@@ -2,6 +2,23 @@
 <html>
 <head>
 <title>MicroProfile Live</title>
+<link rel="manifest" href='data:application/manifest+json,{
+    "name":"MicroProfile",
+    "short_name":"MicroProfile",
+    "start_url":"http://localhost:1338/",
+    "scope":"http://localhost:1338/",
+    "display":"standalone",
+    "background_color":"black",
+    "theme_color":"white",
+    "icons":[
+      {
+        "src":"http://localhost:1338/favicon.png",
+        "sizes":"512x512",
+        "type":"image/png"
+      }
+    ]
+}'>
+
 <style>
 /* about css: http://bit.ly/1eMQ42U */
 body {margin: 0px;padding: 0px; font: 12px Courier New;background-color:#343434; color:white;overflow:hidden;}
@@ -3072,6 +3089,29 @@ function CaptureUpdate()
 	}
 
 }
+let OpenWindowIndex = 1;
+
+function OpenWindow(url)
+{
+	if (window.matchMedia('(display-mode: browser)').matches)
+	{
+		return window.open(url);
+	}
+	else
+	{
+
+		const width = window.outerWidth;
+		const height = window.outerHeight;
+
+		let left = window.screenX + 20 * (OpenWindowIndex%16+1);
+		let top = window.screenY + 20 * (OpenWindowIndex%16+1);
+
+		const features = `width=${width},height=${height},left=${left},top=${top}`;
+		const name = "new-window-"+OpenWindowIndex;
+		OpenWindowIndex += 1;
+		return window.open(url, name, features);
+	}
+}
 function Capture()
 {
 	AutoCaptureCooldown = Settings.CaptureFrames + 5;
@@ -3086,8 +3126,8 @@ function Capture()
 		var id1 = FrameData.Ids[idx1];
 		ext = 'r/'+id0+'/'+id1;
 	}
-	var url = 'http://' + WSHost + ':' + WSPort + '/' + ext;
-	window.open(url);
+	let url = '/' + ext;
+	OpenWindow(url);
 }
 function InitMenu()
 {
@@ -4159,7 +4199,6 @@ function DrawMenuGraphSettings()
 	let wLeft = MeasureArray(0, Strings);
 	let wRight = 50;
 	wRight = MeasureArray(wRight, ["Frame Time"]);
-	wRight = MeasureArray(wRight, EnabledArray, function(a){return TimerArray[a].name; } );
 	let Width = wLeft + 35 + wRight;
 	SizeInfo.w = Width;
 	SizeInfo.x = Math.floor(CaptureButtonX);
@@ -5033,16 +5072,16 @@ function DrawMenuModules()
 		nOffsetMenuModules = 0;
 	}
 	FilterInputValueLast = FilterInput.value;
-	var M = ModuleState;
-	var FilterArray = CreateFilter(FilterInput.value);
-	var context = CanvasDetailedView.getContext('2d');
-	var nColorIndex = 0;
-	var SizeInfo = TimerMenuSize(); //broken, fix!
+	let M = ModuleState;
+	let FilterArray = CreateFilter(FilterInput.value);
+	let context = CanvasDetailedView.getContext('2d');
+	let nColorIndex = 0;
+	let SizeInfo = TimerMenuSize(); //broken, fix!
 
 	SizeInfo.x = MenuItems[SubMenuModules].x;
 	SizeInfo.y = MenuItems[SubMenuModules].y;
-	var Y = SizeInfo.y;
-	var Width = SizeInfo.w;
+	let Y = SizeInfo.y;
+	let Width = SizeInfo.w;
 	Width = Math.max(300, Width);
 	Width = 10+ MeasureArray(Width, M, function(s){return s.n + " " + s.s;} );
 
@@ -5053,10 +5092,10 @@ function DrawMenuModules()
 	SizeInfo.w = Width;
 
 
-	var MaxStringLength = Math.floor(Width/(FontWidth));
+	let MaxStringLength = Math.floor(Width/(FontWidth));
 
 
-	var X = SizeInfo.x;
+	let X = SizeInfo.x;
 	DrawSymbolHeaderMenu(context, X, Y, Width);
 
 	Y += BoxHeight;
@@ -5064,36 +5103,38 @@ function DrawMenuModules()
 	Y += 45;
 
 	let bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
-	var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-	var TextY = Y+BoxHeight-FontAscent;
-	var YClear = Y;
-	var TextYClear = TextY;
-	var bgcolorClear = bgcolor;
-	var YStart = Y-BoxHeight*2;
+	let bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+	let TextY = Y+BoxHeight-FontAscent;
+	let YClear = Y;
+	let TextYClear = TextY;
+	let bgcolorClear = bgcolor;
+	let YStart = Y-BoxHeight*2;
 
 	nColorIndex = 1-nColorIndex;
 
 	Y -= nOffsetMenuModules + 10;
-	var Selection = -1;
+	let Selection = -1;
 
-	var StringColor = function(Name)
+	let StringColor = function(Name)
 	{
-		var h = StringHash(Name);
-		var cidx = h % 360;
+		let h = StringHash(Name);
+		let cidx = h % 360;
 		return cidx;
 	};
 
-	for(var i = 0; i < M.length; ++i)
+	for(let i = 0; i < M.length; ++i)
 	{
-		var Name = M[i].n;
-		var Count = M[i].s;
-		var Prc = M[i].p;
+		let Name = M[i].n;
+		let Count = M[i].s;
+		let Prc = M[i].p;
 		if(Prc<0||Prc>1)
 			Prc = 0;
 		let cidx = StringColor(Name);
 		let Color = "hsl(" + cidx + ",50%, 70%)";
 		let C1 = "hsl(" + cidx + ",30%, 40%)";
-		var N = Name;
+		let N = Name;
+		if(M[i].d)
+			N = N + "[downloading]";
 		if(N.length > MaxStringLength)
 		{
 			N = N.substring(N.length - MaxStringLength);
@@ -8043,7 +8084,11 @@ function DragOverHandler(ev)
   ev.preventDefault();
 }
 
-
+if ("serviceWorker" in navigator) {
+	navigator.serviceWorker.register("service-worker.js")
+	.then(() => console.log("Service Worker registered"))
+	.catch(err => console.error("SW registration failed", err));
+}
 
 ReadCookie();
 ParseUrl();

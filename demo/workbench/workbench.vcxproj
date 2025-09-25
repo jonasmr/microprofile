@@ -109,12 +109,12 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>MICROPROFILE_FRAME_EXTRA_DATA=1;MICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE;MICROPROFILE_ENABLED=1;MICROPROFILE_GPU_TIMERS=0;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>../..;..\..\distorm\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../..;..\..\distorm\include;;..\..\rawpdb\raw_pdb\src\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>DbgHelp.lib;Shlwapi.lib;../../distorm/distorm.lib;Advapi32.lib;ws2_32.lib;winmm.lib;Shell32.lib</AdditionalDependencies>
+      <AdditionalDependencies>DbgHelp.lib;Shlwapi.lib;../../distorm/distorm.lib;Advapi32.lib;ws2_32.lib;winmm.lib;Shell32.lib;../../rawpdb/rawpdb.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy ..\..\bin\microprofile-win32-cswitch_$(PlatformTarget).exe $(ProjectDir)</Command>
@@ -153,14 +153,14 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>MICROPROFILE_FRAME_EXTRA_DATA=1;MICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE;MICROPROFILE_ENABLED=1;MICROPROFILE_GPU_TIMERS=0;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>../..;..\..\distorm\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../..;..\..\distorm\include;;..\..\rawpdb\raw_pdb\src\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>DbgHelp.lib;Shlwapi.lib;../../distorm/distorm.lib;Advapi32.lib;ws2_32.lib;winmm.lib;Shell32.lib</AdditionalDependencies>
+      <AdditionalDependencies>DbgHelp.lib;Shlwapi.lib;../../distorm/distorm.lib;Advapi32.lib;ws2_32.lib;winmm.lib;Shell32.lib;../../rawpdb/rawpdb.lib</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy ..\..\bin\microprofile-win32-cswitch_$(PlatformTarget).exe $(ProjectDir)</Command>

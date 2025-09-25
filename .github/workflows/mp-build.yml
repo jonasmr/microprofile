@@ -2,7 +2,7 @@ name: MicroProfile Build
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "master", "symbols" ]
   pull_request:
     branches: [ "master" ]
 
@@ -104,6 +104,11 @@ jobs:
         run: |
           pushd distorm\\make\\win32\\
           MSBuild.exe cdistorm.vcxproj /property:Configuration='clib'
+          popd
+      - name: Build raw_pdb
+        run: |
+          pushd rawpdb
+          .\mklib.cmd
           popd
       - name: build demo_simple
         run: |
