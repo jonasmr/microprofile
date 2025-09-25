@@ -1611,9 +1611,11 @@ bool MicroProfileHashTableRemoveString(MicroProfileHashTable* pTable, const char
 enum
 {
 	ESTRINGINTERN_LOWERCASE = 1,
+	ESTRINGINTERN_FORCEFORWARDSLASH = 0x2,
 };
 const char* MicroProfileStringIntern(const char* pStr);
 const char* MicroProfileStringInternLower(const char* pStr);
+const char* MicroProfileStringInternSlash(const char* pStr);
 const char* MicroProfileStringIntern(const char* pStr, uint32_t nLen, uint32_t nInternalFlags = 0);
 
 void MicroProfileStringsInit(MicroProfileStrings* pStrings);
@@ -11834,7 +11836,7 @@ void MicroProfileSymbolMergeExecutableRegions()
 
 uint32_t MicroProfileSymbolInitModule(const char* pString_, intptr_t nAddrBegin, intptr_t nAddrEnd)
 {
-	const char* pString = MicroProfileStringIntern(pString_);
+	const char* pString = MicroProfileStringInternSlash(pString_);
 	for(int i = 0; i < S.SymbolNumModules; ++i)
 	{
 		auto& M = S.SymbolModules[i];
@@ -13069,9 +13071,19 @@ bool MicroProfileSymInit()
 		SymCleanup(h);
 		// SymSetOptions( SYMOPT_DEBUG | SYMOPT_DEFERRED_LOADS);
 		SymSetOptions(SYMOPT_UNDNAME);
-		if(SymInitialize(h, 0, TRUE))
+		if(SymInitialize(h, 0, FALSE))
 		{
 			MicroProfileWin32SymInitSuccess = 1;
+			char Path[MAX_PATH];
+			bool PathValid = SymGetSearchPath(h, Path, MAX_PATH) > 0;
+			if(PathValid)
+			{
+				PathValid = strlen(Path) > 3;
+			}
+			if(!PathValid)
+			{
+				SymSetSearchPath(h, "srv*C:\\symbols*https://msdl.microsoft.com/download/symbols");
+			}
 		}
 		else
 		{
@@ -13176,6 +13188,29 @@ void MicroProfileInstrumentWithoutSymbols(const char** pModules, const char** pS
 	}
 }
 
+void MicroProfileSymbolEnumModules()
+{
+	HMODULE modules[1024];
+	DWORD needed;
+	HANDLE h = GetCurrentProcess();
+
+	if (EnumProcessModules(h, modules, sizeof(modules), &needed)) {
+		int count = needed / sizeof(HMODULE);
+		for (int i = 0; i < count; i++) {
+			char moduleName[MAX_PATH];
+			if (GetModuleFileNameEx(h, modules[i], moduleName, MAX_PATH)) {
+				MODULEINFO mi = {};
+				if (GetModuleInformation(h, modules[i], &mi, sizeof(mi))) {
+					uprintf("Module: %s\n", moduleName);
+					uprintf("  Base:  0x%p\n", mi.lpBaseOfDll);
+					uprintf("  Size:  %lu bytes\n\n", mi.SizeOfImage);
+					MicroProfileEnumModules(moduleName, (DWORD64)mi.lpBaseOfDll, 0);
+				}
+			}
+		}
+	}
+}
+
 void MicroProfileSymbolUpdateModuleList()
 {
 	MICROPROFILE_SCOPEI("MicroProfile", "MicroProfileSymbolUpdateModuleList", MP_PINK3);
@@ -13187,10 +13222,11 @@ void MicroProfileSymbolUpdateModuleList()
 		uprintf("VERSION %d.%d.%d\n", pv->MajorVersion, pv->MinorVersion, pv->Revision);
 
 		nLastModuleBaseWin32 = -1;
-		if(SymEnumerateModules64(GetCurrentProcess(), (PSYM_ENUMMODULES_CALLBACK64)MicroProfileEnumModules, NULL))
-		{
-			uprintf("SymEnumerateModules64 Succeeds!\n");
-		}
+		MicroProfileSymbolEnumModules();
+		// if(SymEnumerateModules64(GetCurrentProcess(), (PSYM_ENUMMODULES_CALLBACK64)MicroProfileEnumModules, NULL))
+		// {
+		// 	uprintf("SymEnumerateModules64 Succeeds!\n");
+		// }
 		MicroProfileSymCleanup();
 	}
 }
@@ -14485,17 +14521,31 @@ const char* MicroProfileStringInternLower(const char* pStr)
 {
 	return MicroProfileStringIntern(pStr, (uint32_t)strlen(pStr), ESTRINGINTERN_LOWERCASE);
 }
+const char* MicroProfileStringInternSlash(const char* pStr)
+{
+	return MicroProfileStringIntern(pStr, (uint32_t)strlen(pStr), ESTRINGINTERN_FORCEFORWARDSLASH);
+}
 
 const char* MicroProfileStringIntern(const char* pStr_, uint32_t nLen, uint32_t nFlags)
 {
 	MicroProfileStrings* pStrings = &S.Strings;
 	const char* pStr = pStr_;
 	char* pLowerCaseStr = (char*)alloca(nLen + 1);
-	if(0 != (nFlags & ESTRINGINTERN_LOWERCASE))
+	if(0 != (nFlags & (ESTRINGINTERN_FORCEFORWARDSLASH |ESTRINGINTERN_LOWERCASE)))
 	{
 		for(uint32_t i = 0; i < nLen; ++i)
 		{
-			pLowerCaseStr[i] = tolower(pStr[i]);
+			char c = pStr[i];
+			if(nFlags & ESTRINGINTERN_LOWERCASE)
+			{
+				 c = tolower(c);
+			}
+			if(nFlags & ESTRINGINTERN_FORCEFORWARDSLASH)
+			{
+				if(c == '\\')
+					c = '/';
+			}
+			pLowerCaseStr[i] = c;
 		}
 		pLowerCaseStr[nLen] = '\0';
 		pStr = pLowerCaseStr;
