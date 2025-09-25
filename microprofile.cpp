@@ -911,12 +911,14 @@ struct MicroProfileSymbolModuleRegion
 };
 struct MicroProfileSymbolModule
 {
+	uint64_t nModuleBase;
 	uint32_t nMatchOffset;
 	uint32_t nStringOffset;
 	const char* pBaseString;
 	const char* pTrimmedString;
 	MicroProfileSymbolModuleRegion Regions[MICROPROFILE_MAX_MODULE_EXEC_REGIONS];
 	int nNumExecutableRegions;
+	
 	intptr_t nProgress;
 	intptr_t nProgressTarget;
 	struct MicroProfileSymbolBlock* pSymbolBlock;
@@ -11895,6 +11897,7 @@ uint32_t MicroProfileSymbolInitModule(const char* pString_, intptr_t nAddrBegin,
 	memcpy(S.SymbolModuleNameOffset + &S.SymbolModuleNameBuffer[0], pTrimmedString, nLen);
 
 	MP_ASSERT(S.SymbolNumModules < MICROPROFILE_INSTRUMENT_MAX_MODULES);
+	S.SymbolModules[S.SymbolNumModules].nModuleBase = nAddrBegin;
 	S.SymbolModules[S.SymbolNumModules].nMatchOffset = 0;
 	S.SymbolModules[S.SymbolNumModules].nStringOffset = S.SymbolModuleNameOffset;
 	S.SymbolModules[S.SymbolNumModules].pBaseString = (const char*)pString;
@@ -12982,6 +12985,160 @@ BOOL MicroProfileQueryContextEnumSymbols(_In_ PSYMBOL_INFO pSymInfo, _In_ ULONG 
 	return TRUE;
 };
 
+
+
+//
+//HANDLE process = GetCurrentProcess();
+//SymSetOptions(SYMOPT_DEBUG);
+//HANDLE myproc = OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetCurrentProcessId());
+//
+//// Init symbol handler with symbol server
+//if (!SymInitializeW(myproc,
+//	L""
+//	//L"srv*C:\\symbols*https://msdl.microsoft.com/download/symbols"
+//
+//	, FALSE)) {
+//	std::cerr << "SymInitialize failed: " << GetLastError() << "\n";
+//	return 1;
+//}
+//SymRegisterCallbackW64(myproc,
+//	[](HANDLE, ULONG action, ULONG64 data, ULONG64) -> BOOL {
+//		switch (action) {
+//		case CBA_DEBUG_INFO:
+//			printf("[dbghelp] %s\n", (char*)data);
+//			break;
+//		case CBA_EVENT: {
+//			auto* evt = (IMAGEHLP_CBA_EVENT*)data;
+//			if (evt->desc) {
+//				printf("[event] %s\n", evt->desc);
+//				// Example: "SYMSRV:  BYTES: 32768/131072"
+//				// You can parse evt->desc to extract cur/total
+//			}
+//			break;
+//		}
+//		case CBA_DEFERRED_SYMBOL_LOAD_START:
+//			printf("[event] Start loading symbols...\n");
+//			break;
+//		case CBA_DEFERRED_SYMBOL_LOAD_COMPLETE:
+//			printf("[event] Finished loading symbols.\n");
+//			break;
+//		case CBA_DEFERRED_SYMBOL_LOAD_FAILURE:
+//			printf("[event] Failed to load symbols.\n");
+//			break;
+//		}
+//		return TRUE;
+//		//if (action == CBA_DEBUG_INFO) {
+//		//    printf("dbghelp: %s\n", (const char*)data);
+//		//}
+//		//return TRUE;
+//	}, 0);
+//
+//
+//WCHAR path[MAX_PATH];
+//if (SymGetSearchPathW(myproc, path, MAX_PATH)) {
+//	wprintf(L"Current symbol path: %s\n", path);
+//	if (wcslen(path) <= 1)
+//	{
+//		SymSetSearchPathW(myproc, L"srv*C:\\symbols2*https://msdl.microsoft.com/download/symbols");
+//
+//		if (SymGetSearchPathW(myproc, path, MAX_PATH))
+//		{
+//			wprintf(L"Current symbol path: %s\n", path);
+//		}
+//		else
+//		{
+//			__debugbreak();
+//		}
+//
+//
+//
+//	}
+//
+//
+//}
+//else {
+//	printf("SymGetSearchPathW failed: %lu\n", GetLastError());
+//}
+
+bool MicroProfileExtractPdbInfo(HMODULE hMod, GUID& guid, DWORD& age, char pdbName[MAX_PATH])
+{
+	struct CV_INFO_PDB70 {
+		DWORD CvSignature;     // "RSDS"
+		GUID Signature;        // GUID
+		DWORD Age;             // Age
+		char  PdbFileName[1];  // Null-terminated string
+	};
+	
+
+	BYTE* base = (BYTE*)hMod;
+	IMAGE_DOS_HEADER* dos = (IMAGE_DOS_HEADER*)base;
+	if (dos->e_magic != IMAGE_DOS_SIGNATURE) 
+		return false;
+	IMAGE_NT_HEADERS* nt = (IMAGE_NT_HEADERS*)(base + dos->e_lfanew);
+	if (nt->Signature != IMAGE_NT_SIGNATURE) 
+		return false;
+	auto& dd = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG];
+	if (!dd.VirtualAddress || !dd.Size) 
+		return false;
+	IMAGE_DEBUG_DIRECTORY* debugDir = (IMAGE_DEBUG_DIRECTORY*)(base + dd.VirtualAddress);
+	int count = dd.Size / sizeof(IMAGE_DEBUG_DIRECTORY);
+	for (int i = 0; i < count; i++)
+	{
+		if (debugDir[i].Type == IMAGE_DEBUG_TYPE_CODEVIEW)
+		{
+			auto cv = (CV_INFO_PDB70*)(base + debugDir[i].AddressOfRawData);
+			if (cv->CvSignature != 'SDSR') 
+				continue; // "RSDS"
+			guid = cv->Signature;
+			age = cv->Age;
+			strcpy_s(pdbName, MAX_PATH, cv->PdbFileName);
+			return true;
+		}
+	}
+	return false;
+}
+
+
+bool MicroProfileDownloadPDB(HMODULE Module, HANDLE Process, char outPath[MAX_PATH])
+{
+	GUID guid;
+	DWORD age;
+	char pdbName[MAX_PATH];
+	if (!MicroProfileExtractPdbInfo(Module, guid, age, pdbName)) {
+		uprintf("Failed to download pdb\n");
+		MP_BREAK();
+		return false;
+	}
+	uprintf("pdb name %s age %d\n", pdbName, age);
+
+	FILE* f = fopen(pdbName, "r");
+	if(f)
+	{
+		fclose(f);
+		strcpy_s(outPath, MAX_PATH, pdbName);
+		return true;
+	}
+	char localPath[MAX_PATH] = {};
+	BOOL ok = SymFindFileInPath(
+		Process,
+		NULL,
+		pdbName,
+		(PVOID)&guid,             // GUID
+		age,                      // Age
+		0,                        // FileSize (not used for PDBs)
+		SSRVOPT_GUIDPTR,          // we're passing GUID pointer
+		outPath,
+		NULL,
+		NULL);
+	return ok != 0;
+}
+
+
+
+
+
+
+
 template <typename Callback>
 void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumModules)
 {
@@ -13032,6 +13189,20 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 					}
 				}
 				S.SymbolModules[nModule].nProgressTarget = nBytes;
+
+				char pdbPath[MAX_PATH];
+
+				HMODULE Module  = (HMODULE)S.SymbolModules[nModule].nModuleBase;
+				if(MicroProfileDownloadPDB(Module, hProcess, pdbPath))
+				{
+					uprintf("GOT PDB %s\n", outPath);
+				}
+				else
+				{
+					MP_BREAK();
+				}
+
+
 				//				uprintf("ITERATE MODULES %p :: %s\n", S.SymbolModules[nModule].nAddrBegin, (const char*)S.SymbolModules[nModule].pBaseString);
 				for(int j = 0; j < S.SymbolModules[nModule].nNumExecutableRegions; ++j)
 				{
@@ -13201,9 +13372,6 @@ void MicroProfileSymbolEnumModules()
 			if (GetModuleFileNameEx(h, modules[i], moduleName, MAX_PATH)) {
 				MODULEINFO mi = {};
 				if (GetModuleInformation(h, modules[i], &mi, sizeof(mi))) {
-					uprintf("Module: %s\n", moduleName);
-					uprintf("  Base:  0x%p\n", mi.lpBaseOfDll);
-					uprintf("  Size:  %lu bytes\n\n", mi.SizeOfImage);
 					MicroProfileEnumModules(moduleName, (DWORD64)mi.lpBaseOfDll, 0);
 				}
 			}
