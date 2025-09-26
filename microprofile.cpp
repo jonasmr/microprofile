@@ -11933,6 +11933,7 @@ void MicroProfileSymbolInitializeInternal()
 	};
 
 	auto SymbolCallback = [&](const char* pName, const char* pShortName, intptr_t nAddress, intptr_t nAddressEnd, uint32_t nModuleId) {
+		MICROPROFILE_SCOPEI("microprofile", "SymbolCallback", MP_AUTO);
 		uint32_t nModule = nModuleId;
 		intptr_t delta = nAddressEnd - nAddress;
 		S.SymbolModules[nModule].nProgress += delta;
@@ -12036,7 +12037,7 @@ void MicroProfileSymbolInitializeInternal()
 		{
 			MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Ignored", 1);
 		}
-		MicroProfileSleep(1);
+//		MicroProfileSleep(1);
 #if SYMDBG
 		MicroProfileSleep(10);
 #endif
@@ -12987,78 +12988,6 @@ BOOL MicroProfileQueryContextEnumSymbols(_In_ PSYMBOL_INFO pSymInfo, _In_ ULONG 
 
 
 
-//
-//HANDLE process = GetCurrentProcess();
-//SymSetOptions(SYMOPT_DEBUG);
-//HANDLE myproc = OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetCurrentProcessId());
-//
-//// Init symbol handler with symbol server
-//if (!SymInitializeW(myproc,
-//	L""
-//	//L"srv*C:\\symbols*https://msdl.microsoft.com/download/symbols"
-//
-//	, FALSE)) {
-//	std::cerr << "SymInitialize failed: " << GetLastError() << "\n";
-//	return 1;
-//}
-//SymRegisterCallbackW64(myproc,
-//	[](HANDLE, ULONG action, ULONG64 data, ULONG64) -> BOOL {
-//		switch (action) {
-//		case CBA_DEBUG_INFO:
-//			printf("[dbghelp] %s\n", (char*)data);
-//			break;
-//		case CBA_EVENT: {
-//			auto* evt = (IMAGEHLP_CBA_EVENT*)data;
-//			if (evt->desc) {
-//				printf("[event] %s\n", evt->desc);
-//				// Example: "SYMSRV:  BYTES: 32768/131072"
-//				// You can parse evt->desc to extract cur/total
-//			}
-//			break;
-//		}
-//		case CBA_DEFERRED_SYMBOL_LOAD_START:
-//			printf("[event] Start loading symbols...\n");
-//			break;
-//		case CBA_DEFERRED_SYMBOL_LOAD_COMPLETE:
-//			printf("[event] Finished loading symbols.\n");
-//			break;
-//		case CBA_DEFERRED_SYMBOL_LOAD_FAILURE:
-//			printf("[event] Failed to load symbols.\n");
-//			break;
-//		}
-//		return TRUE;
-//		//if (action == CBA_DEBUG_INFO) {
-//		//    printf("dbghelp: %s\n", (const char*)data);
-//		//}
-//		//return TRUE;
-//	}, 0);
-//
-//
-//WCHAR path[MAX_PATH];
-//if (SymGetSearchPathW(myproc, path, MAX_PATH)) {
-//	wprintf(L"Current symbol path: %s\n", path);
-//	if (wcslen(path) <= 1)
-//	{
-//		SymSetSearchPathW(myproc, L"srv*C:\\symbols2*https://msdl.microsoft.com/download/symbols");
-//
-//		if (SymGetSearchPathW(myproc, path, MAX_PATH))
-//		{
-//			wprintf(L"Current symbol path: %s\n", path);
-//		}
-//		else
-//		{
-//			__debugbreak();
-//		}
-//
-//
-//
-//	}
-//
-//
-//}
-//else {
-//	printf("SymGetSearchPathW failed: %lu\n", GetLastError());
-//}
 
 bool MicroProfileExtractPdbInfo(HMODULE hMod, GUID& guid, DWORD& age, char pdbName[MAX_PATH])
 {
@@ -13144,8 +13073,20 @@ bool MicroProfileDownloadPDB(HMODULE Module, HANDLE Process, char outPath[MAX_PA
 #include "PDB_NamesStream.h"
 
 
-void MicroProfileLoadRawPDB(const char* Filename)
+template <typename Callback>
+void MicroProfileLoadRawPDB(Callback CB, const char* Filename, uint64_t Base, uint32_t nModuleId)
 {
+	auto OnSymbol = [CB, Base, nModuleId](const char* Sym, uint32_t Offset, uint32_t Size)
+	{
+		char FunctionName[1024];
+		int ret = 0;
+		int l = MicroProfileTrimFunctionName(Sym, &FunctionName[0], &FunctionName[1024]);
+		const char* fname = l ? &FunctionName[0] : nullptr;
+		CB(Sym, fname, (intptr_t)Offset + Base,(intptr_t)Offset + Base + Size, nModuleId);
+
+	};
+
+
 	void* File = CreateFileA(Filename, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, nullptr);
 
 	if(File == INVALID_HANDLE_VALUE)
@@ -13242,7 +13183,7 @@ void MicroProfileLoadRawPDB(const char* Filename)
 
 
 		const PDB::ModuleSymbolStream moduleSymbolStream = module.CreateSymbolStream(RawPdbFile);
-		moduleSymbolStream.ForEachSymbol([&ImageSectionStream](const PDB::CodeView::DBI::Record* record)
+		moduleSymbolStream.ForEachSymbol([&ImageSectionStream, &OnSymbol](const PDB::CodeView::DBI::Record* record)
 		{
 			// only grab function symbols from the module streams
 			const char* name = nullptr;
@@ -13300,7 +13241,8 @@ void MicroProfileLoadRawPDB(const char* Filename)
 			{
 				return;
 			}
-			uprintf("func %p / %d .. %s \n", rva, size, name);
+			//uprintf("func %p / %d .. %s \n", rva, size, name);
+			OnSymbol(name, rva, size);
 		});
 	}
 	const PDB::PublicSymbolStream PublicSymbolStream = DbiStream.CreatePublicSymbolStream(RawPdbFile);
@@ -13338,7 +13280,9 @@ void MicroProfileLoadRawPDB(const char* Filename)
 			//	// we know this symbol already, ignore it
 			//	continue;
 			//}
-			uprintf("func-pub %p, %d, %s", rva, 0, Record->data.S_PUB32.name);
+			OnSymbol(Record->data.S_PUB32.name, rva, rva + 1);
+
+			//uprintf("func-pub %p, %d, %s", rva, 0, Record->data.S_PUB32.name);
 		}
 	}
 }
@@ -13401,7 +13345,7 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 				if(MicroProfileDownloadPDB(Module, hProcess, pdbPath))
 				{
 					uprintf("GOT PDB %s\n", pdbPath);
-					MicroProfileLoadRawPDB(pdbPath);
+					MicroProfileLoadRawPDB<Callback>(CB, pdbPath, S.SymbolModules[nModule].nModuleBase, nModule);
 				}
 				else
 				{
