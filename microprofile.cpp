@@ -13134,9 +13134,214 @@ bool MicroProfileDownloadPDB(HMODULE Module, HANDLE Process, char outPath[MAX_PA
 }
 
 
+#include "PDB.h"
+#include "PDB_RawFile.h"
+#include "PDB_DBIStream.h"
+#include "PDB_InfoStream.h"
+#include "PDB_DBIStream.h"
+#include "PDB_TPIStream.h"
+#include "PDB_IPIStream.h"
+#include "PDB_NamesStream.h"
 
 
+void MicroProfileLoadRawPDB(const char* Filename)
+{
+	void* File = CreateFileA(Filename, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_READONLY, nullptr);
 
+	if(File == INVALID_HANDLE_VALUE)
+	{
+		MP_BREAK();
+	}
+
+	void* FileMapping = CreateFileMappingA(File, nullptr, PAGE_READONLY, 0, 0, nullptr);
+
+	if (FileMapping == nullptr)
+	{
+		CloseHandle(File);
+		MP_BREAK();
+	}
+
+	void* BaseAddress = MapViewOfFile(FileMapping, FILE_MAP_READ, 0, 0, 0);
+
+	if (BaseAddress == nullptr)
+	{
+		CloseHandle(FileMapping);
+		CloseHandle(File);
+	}
+
+	BY_HANDLE_FILE_INFORMATION FileInformation;
+	const bool GetInformationResult = GetFileInformationByHandle(File, &FileInformation);
+	if (!GetInformationResult)
+	{
+		UnmapViewOfFile(BaseAddress);
+		CloseHandle(FileMapping);
+		CloseHandle(File);
+
+		MP_BREAK();
+	}
+
+	const size_t FileSizeHighBytes = static_cast<size_t>(FileInformation.nFileSizeHigh) << 32;
+	const size_t FileSizeLowBytes = FileInformation.nFileSizeLow;
+	const size_t FileSize = FileSizeHighBytes | FileSizeLowBytes;
+
+	const PDB::RawFile RawPdbFile = PDB::CreateRawFile(BaseAddress);
+	if(PDB::HasValidDBIStream(RawPdbFile) != PDB::ErrorCode::Success)
+	{
+		MP_BREAK();
+	}
+	const PDB::InfoStream InfoStream(RawPdbFile);
+	if(InfoStream.UsesDebugFastLink())
+	{
+		MP_BREAK();
+	}
+
+	const PDB::Header* h = InfoStream.GetHeader();
+	uprintf("Version %u, signature %u, age %u, GUID %08x-%04x-%04x-%02x%02x%02x%02x%02x%02x%02x%02x\n",
+		static_cast<uint32_t>(h->version), h->signature, h->age,
+		h->guid.Data1, h->guid.Data2, h->guid.Data3,
+		h->guid.Data4[0], h->guid.Data4[1], h->guid.Data4[2], h->guid.Data4[3], h->guid.Data4[4], h->guid.Data4[5], h->guid.Data4[6], h->guid.Data4[7]);
+
+	const PDB::DBIStream DbiStream = PDB::CreateDBIStream(RawPdbFile);
+	if (PDB::ErrorCode::Success != DbiStream.HasValidSymbolRecordStream(RawPdbFile))
+	{
+		MP_BREAK();
+	}
+
+	if (PDB::ErrorCode::Success != DbiStream.HasValidPublicSymbolStream(RawPdbFile))
+	{
+		MP_BREAK();
+	}
+
+	if (PDB::ErrorCode::Success != DbiStream.HasValidGlobalSymbolStream(RawPdbFile))
+	{
+		MP_BREAK();
+	}
+
+	if (PDB::ErrorCode::Success != DbiStream.HasValidSectionContributionStream(RawPdbFile))
+	{
+		MP_BREAK();
+	}
+
+	if (PDB::ErrorCode::Success != DbiStream.HasValidImageSectionStream(RawPdbFile))
+	{
+		MP_BREAK();
+	}
+
+	const PDB::ImageSectionStream ImageSectionStream = DbiStream.CreateImageSectionStream(RawPdbFile);
+	const PDB::ModuleInfoStream ModuleInfoStream = DbiStream.CreateModuleInfoStream(RawPdbFile);
+	const PDB::CoalescedMSFStream SymbolRecordStream = DbiStream.CreateSymbolRecordStream(RawPdbFile);
+
+	const PDB::ArrayView<PDB::ModuleInfoStream::Module> modules = ModuleInfoStream.GetModules();
+
+	for (const PDB::ModuleInfoStream::Module& module : modules)
+	{
+		if (!module.HasSymbolStream())
+		{
+			continue;
+		}
+
+
+		const PDB::ModuleSymbolStream moduleSymbolStream = module.CreateSymbolStream(RawPdbFile);
+		moduleSymbolStream.ForEachSymbol([&ImageSectionStream](const PDB::CodeView::DBI::Record* record)
+		{
+			// only grab function symbols from the module streams
+			const char* name = nullptr;
+			uint32_t rva = 0u;
+			uint32_t size = 0u;
+			if (record->header.kind == PDB::CodeView::DBI::SymbolRecordKind::S_FRAMEPROC)
+			{
+				uprintf("record %p\n", record);
+				//functionSymbols[functionSymbols.size() - 1].frameProc = record;
+				return;
+			}
+			else if (record->header.kind == PDB::CodeView::DBI::SymbolRecordKind::S_THUNK32)
+			{
+				if (record->data.S_THUNK32.thunk == PDB::CodeView::DBI::ThunkOrdinal::TrampolineIncremental)
+				{
+					// we have never seen incremental linking thunks stored inside a S_THUNK32 symbol, but better safe than sorry
+					name = "ILT";
+					rva = ImageSectionStream.ConvertSectionOffsetToRVA(record->data.S_THUNK32.section, record->data.S_THUNK32.offset);
+					size = 5u;
+				}
+			}
+			else if (record->header.kind == PDB::CodeView::DBI::SymbolRecordKind::S_TRAMPOLINE)
+			{
+				// incremental linking thunks are stored in the linker module
+				name = "ILT";
+				rva = ImageSectionStream.ConvertSectionOffsetToRVA(record->data.S_TRAMPOLINE.thunkSection, record->data.S_TRAMPOLINE.thunkOffset);
+				size = 5u;
+			}
+			else if (record->header.kind == PDB::CodeView::DBI::SymbolRecordKind::S_LPROC32)
+			{
+				name = record->data.S_LPROC32.name;
+				rva = ImageSectionStream.ConvertSectionOffsetToRVA(record->data.S_LPROC32.section, record->data.S_LPROC32.offset);
+				size = record->data.S_LPROC32.codeSize;
+			}
+			else if (record->header.kind == PDB::CodeView::DBI::SymbolRecordKind::S_GPROC32)
+			{
+				name = record->data.S_GPROC32.name;
+				rva = ImageSectionStream.ConvertSectionOffsetToRVA(record->data.S_GPROC32.section, record->data.S_GPROC32.offset);
+				size = record->data.S_GPROC32.codeSize;
+			}
+			else if (record->header.kind == PDB::CodeView::DBI::SymbolRecordKind::S_LPROC32_ID)
+			{
+				name = record->data.S_LPROC32_ID.name;
+				rva = ImageSectionStream.ConvertSectionOffsetToRVA(record->data.S_LPROC32_ID.section, record->data.S_LPROC32_ID.offset);
+				size = record->data.S_LPROC32_ID.codeSize;
+			}
+			else if (record->header.kind == PDB::CodeView::DBI::SymbolRecordKind::S_GPROC32_ID)
+			{
+				name = record->data.S_GPROC32_ID.name;
+				rva = ImageSectionStream.ConvertSectionOffsetToRVA(record->data.S_GPROC32_ID.section, record->data.S_GPROC32_ID.offset);
+				size = record->data.S_GPROC32_ID.codeSize;
+			}
+
+			if (rva == 0u)
+			{
+				return;
+			}
+			uprintf("func %p / %d .. %s \n", rva, size, name);
+		});
+	}
+	const PDB::PublicSymbolStream PublicSymbolStream = DbiStream.CreatePublicSymbolStream(RawPdbFile);
+	{
+		const PDB::ArrayView<PDB::HashRecord> HashRecords = PublicSymbolStream.GetRecords();
+		const size_t Count = HashRecords.GetLength();
+
+		for(const PDB::HashRecord& HashRecord : HashRecords)
+		{
+			const PDB::CodeView::DBI::Record* Record = PublicSymbolStream.GetRecord(SymbolRecordStream, HashRecord);
+			if(Record->header.kind != PDB::CodeView::DBI::SymbolRecordKind::S_PUB32)
+			{
+				// normally, a PDB only contains S_PUB32 symbols in the public symbol stream, but we have seen PDBs that also store S_CONSTANT as public symbols.
+				// ignore these.
+				continue;
+			}
+
+			if ((PDB_AS_UNDERLYING(Record->data.S_PUB32.flags) & PDB_AS_UNDERLYING(PDB::CodeView::DBI::PublicSymbolFlags::Function)) == 0u)
+			{
+				// ignore everything that is not a function
+				continue;
+			}
+
+			const uint32_t rva = ImageSectionStream.ConvertSectionOffsetToRVA(Record->data.S_PUB32.section, Record->data.S_PUB32.offset);
+			if (rva == 0u)
+			{
+				// certain symbols (e.g. control-flow guard symbols) don't have a valid RVA, ignore those
+				continue;
+			}
+
+			//// check whether we already know this symbol from one of the module streams
+			//const auto it = seenFunctionRVAs.find(rva);
+			//if (it != seenFunctionRVAs.end())
+			//{
+			//	// we know this symbol already, ignore it
+			//	continue;
+			//}
+			uprintf("func-pub %p, %d, %s", rva, 0, Record->data.S_PUB32.name);
+		}
+	}
+}
 
 
 template <typename Callback>
@@ -13195,7 +13400,8 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 				HMODULE Module  = (HMODULE)S.SymbolModules[nModule].nModuleBase;
 				if(MicroProfileDownloadPDB(Module, hProcess, pdbPath))
 				{
-					uprintf("GOT PDB %s\n", outPath);
+					uprintf("GOT PDB %s\n", pdbPath);
+					MicroProfileLoadRawPDB(pdbPath);
 				}
 				else
 				{
