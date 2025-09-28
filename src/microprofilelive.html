@@ -5033,16 +5033,16 @@ function DrawMenuModules()
 		nOffsetMenuModules = 0;
 	}
 	FilterInputValueLast = FilterInput.value;
-	var M = ModuleState;
-	var FilterArray = CreateFilter(FilterInput.value);
-	var context = CanvasDetailedView.getContext('2d');
-	var nColorIndex = 0;
-	var SizeInfo = TimerMenuSize(); //broken, fix!
+	let M = ModuleState;
+	let FilterArray = CreateFilter(FilterInput.value);
+	let context = CanvasDetailedView.getContext('2d');
+	let nColorIndex = 0;
+	let SizeInfo = TimerMenuSize(); //broken, fix!
 
 	SizeInfo.x = MenuItems[SubMenuModules].x;
 	SizeInfo.y = MenuItems[SubMenuModules].y;
-	var Y = SizeInfo.y;
-	var Width = SizeInfo.w;
+	let Y = SizeInfo.y;
+	let Width = SizeInfo.w;
 	Width = Math.max(300, Width);
 	Width = 10+ MeasureArray(Width, M, function(s){return s.n + " " + s.s;} );
 
@@ -5053,10 +5053,10 @@ function DrawMenuModules()
 	SizeInfo.w = Width;
 
 
-	var MaxStringLength = Math.floor(Width/(FontWidth));
+	let MaxStringLength = Math.floor(Width/(FontWidth));
 
 
-	var X = SizeInfo.x;
+	let X = SizeInfo.x;
 	DrawSymbolHeaderMenu(context, X, Y, Width);
 
 	Y += BoxHeight;
@@ -5064,36 +5064,38 @@ function DrawMenuModules()
 	Y += 45;
 
 	let bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;
-	var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
-	var TextY = Y+BoxHeight-FontAscent;
-	var YClear = Y;
-	var TextYClear = TextY;
-	var bgcolorClear = bgcolor;
-	var YStart = Y-BoxHeight*2;
+	let bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];
+	let TextY = Y+BoxHeight-FontAscent;
+	let YClear = Y;
+	let TextYClear = TextY;
+	let bgcolorClear = bgcolor;
+	let YStart = Y-BoxHeight*2;
 
 	nColorIndex = 1-nColorIndex;
 
 	Y -= nOffsetMenuModules + 10;
-	var Selection = -1;
+	let Selection = -1;
 
-	var StringColor = function(Name)
+	let StringColor = function(Name)
 	{
-		var h = StringHash(Name);
-		var cidx = h % 360;
+		let h = StringHash(Name);
+		let cidx = h % 360;
 		return cidx;
 	};
 
-	for(var i = 0; i < M.length; ++i)
+	for(let i = 0; i < M.length; ++i)
 	{
-		var Name = M[i].n;
-		var Count = M[i].s;
-		var Prc = M[i].p;
+		let Name = M[i].n;
+		let Count = M[i].s;
+		let Prc = M[i].p;
 		if(Prc<0||Prc>1)
 			Prc = 0;
 		let cidx = StringColor(Name);
 		let Color = "hsl(" + cidx + ",50%, 70%)";
 		let C1 = "hsl(" + cidx + ",30%, 40%)";
-		var N = Name;
+		let N = Name;
+		if(M[i].d)
+			N = N + "[downloading]";
 		if(N.length > MaxStringLength)
 		{
 			N = N.substring(N.length - MaxStringLength);

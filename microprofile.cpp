@@ -475,6 +475,8 @@ typedef bool (*MicroProfileHashCompareFunction)(uint64_t l, uint64_t r);
 typedef uint64_t (*MicroProfileHashFunction)(uint64_t p);
 uint64_t MicroProfileHashTableHashString(uint64_t pString);
 bool MicroProfileHashTableCompareString(uint64_t L, uint64_t R);
+uint64_t MicroProfileHashTableHashPtr(uint64_t pString);
+bool MicroProfileHashTableComparePtr(uint64_t L, uint64_t R);
 void MicroProfileHashTableInit(MicroProfileHashTable* pTable, uint32_t nInitialSize, uint32_t nSearchLimit, MicroProfileHashCompareFunction CompareFunc, MicroProfileHashFunction HashFunc);
 void MicroProfileHashTableDestroy(MicroProfileHashTable* pTable);
 uint64_t MicroProfileHashTableHash(MicroProfileHashTable* pTable, uint64_t K);
@@ -919,6 +921,7 @@ struct MicroProfileSymbolModule
 	MicroProfileSymbolModuleRegion Regions[MICROPROFILE_MAX_MODULE_EXEC_REGIONS];
 	int nNumExecutableRegions;
 	
+	bool bDownloading;
 	intptr_t nProgress;
 	intptr_t nProgressTarget;
 	struct MicroProfileSymbolBlock* pSymbolBlock;
@@ -1157,7 +1160,7 @@ struct MicroProfile
 	void* FunctionsInstrumented[MICROPROFILE_MAX_DYNAMIC_TOKENS];
 	const char* FunctionsInstrumentedName[MICROPROFILE_MAX_DYNAMIC_TOKENS];
 	const char* FunctionsInstrumentedModuleNames[MICROPROFILE_MAX_DYNAMIC_TOKENS];
-	const char* FunctionsInstrumentedUnmangled[MICROPROFILE_MAX_DYNAMIC_TOKENS];
+	//const char* FunctionsInstrumentedUnmangled[MICROPROFILE_MAX_DYNAMIC_TOKENS];
 	uint32_t WSFunctionsInstrumentedSent;
 	MicroProfileSymbolState SymbolState;
 
@@ -1781,7 +1784,6 @@ void MicroProfileInit()
 		S.dCounterMax = (double*)S.nCounterMax;
 		S.dCounterMin = (double*)S.nCounterMin;
 #endif
-
 	}
 	MicroProfileUpdateSettingsPath();
 
@@ -8203,8 +8205,8 @@ void MicroProfileSymbolSendModuleState()
 			// nProgress = MicroProfileMin(nProgressTarget, M.nProgress);
 			float fLoadPrc = M.nProgress / float(nProgressTarget);
 			uint64_t nNumSymbols = M.nSymbolsLoaded;
-#define FMT "{\"n\":\"%s\",\"a\":\"%llx\",\"s\":\"%lld\", \"p\":%f}"
-			MicroProfileWSPrintf(bFirst ? FMT : ("," FMT), pModuleName, nAddrBegin, nNumSymbols, fLoadPrc);
+#define FMT "{\"n\":\"%s\",\"a\":\"%llx\",\"s\":\"%lld\", \"p\":%f, \"d\":%d}"
+			MicroProfileWSPrintf(bFirst ? FMT : ("," FMT), pModuleName, nAddrBegin, nNumSymbols, fLoadPrc, M.bDownloading ? 1 : 0);
 #undef FMT
 			bFirst = false;
 		}
@@ -11310,6 +11312,91 @@ void MicroProfileInstrumentFromAddressOnly(void* pFunction)
 	}
 }
 
+
+template<typename CB>
+void MicroProfileInstrumentScanForFunctionCalls(CB Callback, void* pFunction, size_t nFunctionSize)
+{
+	pFunction = MicroProfileX64FollowJump(pFunction);
+	const intptr_t nCodeLen = nFunctionSize;
+	const uint32_t nMaxInstructions = 15;
+	intptr_t nOffset = 0;
+	_DecodeType dt = Decode64Bits;
+	_DInst Instructions[15];
+	_CodeInfo ci;
+	do
+	{
+		ci.code = nOffset + (uint8_t*)pFunction;
+		ci.codeLen = nCodeLen - nOffset;
+		ci.codeOffset = 0;
+		ci.dt = dt;
+		ci.features = DF_RETURN_FC_ONLY;
+		uint32_t nCount = 0;
+		uint32_t nOffsetNext = 0;
+
+		int r = distorm_decompose(&ci, Instructions, nMaxInstructions, &nCount);
+		// uprintf("decomposed %d\n", nCount);
+		if (r != DECRES_SUCCESS && r != DECRES_MEMORYERR)
+		{
+			BREAK_ON_PATCH_FAIL();
+			return;
+		}
+		if (nCount == 0)
+		{
+			// no instructions left
+			break;
+		}
+		// uprintf("instructions decoded %d      %p ::\n", nCount, pFunction);
+		for (int i = 0; i < (int)nCount; ++i)
+		{
+			// rip[i] = 0;
+			auto& I = Instructions[i];
+			// bool bHasRipReference = false;
+			if (I.addr < nOffsetNext)
+			{
+				MP_BREAK();
+			}
+			nOffsetNext = I.addr + I.size;
+			if (I.opcode == I_CALL)
+			{
+				auto& O = I.ops[0];
+				if (O.type != O_PC || O.size != 0x20)
+				{
+					uprintf("non immediate call encountered. cannot follow\n");
+					BREAK_ON_PATCH_FAIL();
+					continue;
+				}
+				intptr_t pDst = nOffset + (intptr_t)pFunction;
+				pDst += I.addr;
+				pDst += I.size;
+				pDst += I.imm.sdword;
+
+				void* fFun1 = MicroProfileX64FollowJump((void*)pDst);
+				Callback(fFun1);
+			}
+		}
+		nOffset += nOffsetNext;
+	} while (nOffset < nCodeLen);
+
+}
+
+
+
+void MicroProfileInstrumentBanFunctionsCalled(void* pFunction)
+{
+	auto Callback = [](void* pFunc)
+	{
+		uprintf("Banning %p from instrumentation\n", pFunc);
+	};
+	MicroProfileSymbolDesc* pDesc = MicroProfileSymbolFindFuction(pFunction);
+	if(!pDesc)
+		return;
+	const intptr_t nCodeLen = (intptr_t)pDesc->nAddressEnd - (intptr_t)pDesc->nAddress;
+
+	MicroProfileInstrumentScanForFunctionCalls(Callback, pFunction, nCodeLen);
+
+}
+
+
 void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pModuleName, const char* pFunctionName)
 {
 	pFunction = MicroProfileX64FollowJump(pFunction);
@@ -11328,92 +11415,100 @@ void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pModuleN
 	}
 
 	const intptr_t nCodeLen = (intptr_t)pDesc->nAddressEnd - (intptr_t)pDesc->nAddress;
-	const uint32_t nMaxInstructions = 15;
-	intptr_t nOffset = 0;
-	_DecodeType dt = Decode64Bits;
-	_DInst Instructions[15];
-	int cc = 0;
 
-	_CodeInfo ci;
-	do
+	auto Callback = [](void* pFunc)
 	{
-		if(cc++ > 100)
-		{
-			int a = 0;
-			(void)a;
-		}
-		ci.code = nOffset + (uint8_t*)pFunction;
-		ci.codeLen = nCodeLen - nOffset;
-		ci.codeOffset = 0;
-		ci.dt = dt;
-		ci.features = DF_RETURN_FC_ONLY;
-		uint32_t nCount = 0;
-		uint32_t nOffsetNext = 0;
+		MicroProfileInstrumentFromAddressOnly(pFunc);
+	};
+	MicroProfileInstrumentScanForFunctionCalls(Callback, pFunction, nCodeLen);
 
-		int r = distorm_decompose(&ci, Instructions, nMaxInstructions, &nCount);
-		// uprintf("decomposed %d\n", nCount);
-		if(r != DECRES_SUCCESS && r != DECRES_MEMORYERR)
-		{
-			BREAK_ON_PATCH_FAIL();
-			return;
-		}
-		if(nCount == 0)
-		{
-			// no instructions left
-			break;
-		}
-		// uprintf("instructions decoded %d      %p ::\n", nCount, pFunction);
-		for(int i = 0; i < (int)nCount; ++i)
-		{
-			// rip[i] = 0;
-			auto& I = Instructions[i];
-			// bool bHasRipReference = false;
-			if(I.addr < nOffsetNext)
-				MP_BREAK();
-			nOffsetNext = I.addr + I.size;
-			if(I.opcode == I_CALL)
-			{
-				auto& O = I.ops[0];
-				if(O.type != O_PC || O.size != 0x20)
-				{
-					uprintf("non immediate call encountered. cannot follow\n");
-					BREAK_ON_PATCH_FAIL();
-					continue;
-				}
-				intptr_t pDst = nOffset + (intptr_t)pFunction;
-				pDst += I.addr;
-				pDst += I.size;
-				pDst += I.imm.sdword;
 
-				void* fFun1 = MicroProfileX64FollowJump((void*)pDst);
-				MicroProfileInstrumentFromAddressOnly(fFun1);
-			}
-			else if(I.opcode == I_JMP)
-			{
+	//const uint32_t nMaxInstructions = 15;
+	//intptr_t nOffset = 0;
+	//_DecodeType dt = Decode64Bits;
+	//_DInst Instructions[15];
+	//int cc = 0;
 
-				// uprintf("%d JMP          %p\n", i, (void*)I.addr);
-				// I_JMP
-			}
-			else if(I.opcode == I_JNZ)
-			{
+	//_CodeInfo ci;
+	//do
+	//{
+	//	if(cc++ > 100)
+	//	{
+	//		int a = 0;
+	//		(void)a;
+	//	}
+	//	ci.code = nOffset + (uint8_t*)pFunction;
+	//	ci.codeLen = nCodeLen - nOffset;
+	//	ci.codeOffset = 0;
+	//	ci.dt = dt;
+	//	ci.features = DF_RETURN_FC_ONLY;
+	//	uint32_t nCount = 0;
+	//	uint32_t nOffsetNext = 0;
 
-				// uprintf("%d JNZ          %p\n", i, (void*)I.addr);
-				// I_JMP
-			}
-			else if(I.opcode == I_JZ)
-			{
+	//	int r = distorm_decompose(&ci, Instructions, nMaxInstructions, &nCount);
+	//	// uprintf("decomposed %d\n", nCount);
+	//	if(r != DECRES_SUCCESS && r != DECRES_MEMORYERR)
+	//	{
+	//		BREAK_ON_PATCH_FAIL();
+	//		return;
+	//	}
+	//	if(nCount == 0)
+	//	{
+	//		// no instructions left
+	//		break;
+	//	}
+	//	// uprintf("instructions decoded %d      %p ::\n", nCount, pFunction);
+	//	for(int i = 0; i < (int)nCount; ++i)
+	//	{
+	//		// rip[i] = 0;
+	//		auto& I = Instructions[i];
+	//		// bool bHasRipReference = false;
+	//		if(I.addr < nOffsetNext)
+	//			MP_BREAK();
+	//		nOffsetNext = I.addr + I.size;
+	//		if(I.opcode == I_CALL)
+	//		{
+	//			auto& O = I.ops[0];
+	//			if(O.type != O_PC || O.size != 0x20)
+	//			{
+	//				uprintf("non immediate call encountered. cannot follow\n");
+	//				BREAK_ON_PATCH_FAIL();
+	//				continue;
+	//			}
+	//			intptr_t pDst = nOffset + (intptr_t)pFunction;
+	//			pDst += I.addr;
+	//			pDst += I.size;
+	//			pDst += I.imm.sdword;
 
-				// uprintf("%d JZ          %p\n", i, (void*)I.addr);
-				// I_JMP
-			}
-			else
-			{
-				// uprintf("%d ?? %d           %p\n", i, I.opcode, (void*)I.addr);
-			}
-		}
-		nOffset += nOffsetNext;
-	} while(nOffset < nCodeLen);
-	// uprintf("total bytes processed %ld\n", nOffset);
+	//			void* fFun1 = MicroProfileX64FollowJump((void*)pDst);
+	//			MicroProfileInstrumentFromAddressOnly(fFun1);
+	//		}
+	//		else if(I.opcode == I_JMP)
+	//		{
+
+	//			// uprintf("%d JMP          %p\n", i, (void*)I.addr);
+	//			// I_JMP
+	//		}
+	//		else if(I.opcode == I_JNZ)
+	//		{
+
+	//			// uprintf("%d JNZ          %p\n", i, (void*)I.addr);
+	//			// I_JMP
+	//		}
+	//		else if(I.opcode == I_JZ)
+	//		{
+
+	//			// uprintf("%d JZ          %p\n", i, (void*)I.addr);
+	//			// I_JMP
+	//		}
+	//		else
+	//		{
+	//			// uprintf("%d ?? %d           %p\n", i, I.opcode, (void*)I.addr);
+	//		}
+	//	}
+	//	nOffset += nOffsetNext;
+	//} while(nOffset < nCodeLen);
+	//// uprintf("total bytes processed %ld\n", nOffset);
 }
 
 void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, const char* pFunctionName, uint32_t nColor)
@@ -11439,7 +11534,7 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, co
 		S.FunctionsInstrumented[S.DynamicTokenIndex] = pFunction;
 		S.FunctionsInstrumentedName[S.DynamicTokenIndex] = MicroProfileStringIntern(pFunctionName);
 		S.FunctionsInstrumentedModuleNames[S.DynamicTokenIndex] = MicroProfileStringIntern(pModuleName);
-		S.FunctionsInstrumentedUnmangled[S.DynamicTokenIndex] = MicroProfileGetUnmangledSymbolName(pFunction);
+		//S.FunctionsInstrumentedUnmangled[S.DynamicTokenIndex] = MicroProfileGetUnmangledSymbolName(pFunction);
 		S.DynamicTokenIndex++;
 
 		uint16_t nGroup = MicroProfileGetGroupIndex(Tok);
@@ -11482,6 +11577,7 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, co
 	}
 }
 
+void MicroProfileInstrumentPreInit();
 void MicroProfileSymbolInitializeInternal();
 void MicroProfileSymbolFreeDataInternal();
 void MicroProfileSymbolKickThread();
@@ -11905,6 +12001,7 @@ uint32_t MicroProfileSymbolInitModule(const char* pString_, intptr_t nAddrBegin,
 	S.SymbolModules[S.SymbolNumModules].Regions[0].nBegin = nAddrBegin;
 	S.SymbolModules[S.SymbolNumModules].Regions[0].nEnd = nAddrEnd;
 	S.SymbolModules[S.SymbolNumModules].nNumExecutableRegions = 1;
+	S.SymbolModules[S.SymbolNumModules].bDownloading = false;
 	S.SymbolModules[S.SymbolNumModules].nProgress = 0;
 	S.SymbolModules[S.SymbolNumModules].nProgressTarget = 0;
 
@@ -11917,6 +12014,36 @@ const char* MicroProfileSymbolModuleGetString(uint32_t nIndex)
 	MP_ASSERT(S.SymbolNumModules > (int)nIndex);
 	return S.SymbolModules[nIndex].nStringOffset + &S.SymbolModuleNameBuffer[0];
 }
+
+
+bool MicroProfileDemangleName(const char* pName, char* OutName, uint32_t Size);
+
+
+bool MicroProfileSymbolIgnoreSymbol(const char* pName)
+{
+	if (strstr(pName, "MicroProfile"))
+	{
+#if MICROPROFILE_INSTRUMENT_MICROPROFILE == 0
+		return true;
+#else
+		if (strstr(pName, "Log") || strstr(pName, "Scope") || strstr(pName, "Tick") || strstr(pName, "Enter") || strstr(pName, "Leave") || strstr(pName, "Thread") || strstr(pName, "Thread") ||
+			strstr(pName, "Mutex")) // just for debugging: skip these so we can play around with the sample projects
+		{
+			return true;
+		}
+#endif
+	}
+#ifdef _WIN32
+	if(pName[0] == '_' && pName[1] == '_')
+		return true;
+	if (strstr(pName, "__security_check_cookie") || strstr(pName, "_RTC_CheckStackVars") || strstr(pName, "__chkstk") || strstr(pName, "std::_Atomic"))
+	{
+		return true;
+	}
+#endif
+	return false;
+}
+
 
 void MicroProfileSymbolInitializeInternal()
 {
@@ -11934,29 +12061,21 @@ void MicroProfileSymbolInitializeInternal()
 
 	auto SymbolCallback = [&](const char* pName, const char* pShortName, intptr_t nAddress, intptr_t nAddressEnd, uint32_t nModuleId) {
 		MICROPROFILE_SCOPEI("microprofile", "SymbolCallback", MP_AUTO);
+		//const char* pDemangledName = pName;
+		char Demangled[1024];
+		if(MicroProfileDemangleName(pName, Demangled, sizeof(Demangled)))
+		{
+			pName = &Demangled[0];
+			pShortName = &Demangled[0];
+		}
+
 		uint32_t nModule = nModuleId;
 		intptr_t delta = nAddressEnd - nAddress;
-		S.SymbolModules[nModule].nProgress += delta;
+		S.SymbolModules[nModule].nProgress = MicroProfileMax(delta, S.SymbolModules[nModule].nProgress);
+		S.nSymbolsDirty++;
 
-		int nIgnoreSymbol = 0;
-		if(strstr(pName, "MicroProfile"))
-		{
-#if MICROPROFILE_INSTRUMENT_MICROPROFILE == 0
-			nIgnoreSymbol = 1;
-#else
-			if(strstr(pName, "Log") || strstr(pName, "Scope") || strstr(pName, "Tick") || strstr(pName, "Enter") || strstr(pName, "Leave") || strstr(pName, "Thread") || strstr(pName, "Thread") ||
-			   strstr(pName, "Mutex")) // just for debugging: skip these so we can play around with the sample projects
-			{
-				nIgnoreSymbol = 1;
-			}
-#endif
-		}
-#ifdef _WIN32
-		if(strstr(pName, "__security_check_cookie") || strstr(pName, "_RTC_CheckStackVars") || strstr(pName, "__chkstk") || strstr(pName, "std::_Atomic"))
-		{
-			nIgnoreSymbol = 1;
-		}
-#endif
+		int nIgnoreSymbol = MicroProfileSymbolIgnoreSymbol(pName)? 1 : 0;
+
 		MicroProfileSymbolBlock* pActiveBlock = S.SymbolModules[nModule].pSymbolBlock;
 		if(!pActiveBlock)
 		{
@@ -12037,7 +12156,7 @@ void MicroProfileSymbolInitializeInternal()
 		{
 			MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Ignored", 1);
 		}
-//		MicroProfileSleep(1);
+		//MicroProfileSleep(1);
 #if SYMDBG
 		MicroProfileSleep(10);
 #endif
@@ -12289,8 +12408,8 @@ void MicroProfileSymbolSendFunctionNames(MpSocket Connection)
 		{
 			const char* pString = S.FunctionsInstrumentedName[i];
 			const char* pModuleString = S.FunctionsInstrumentedModuleNames[i];
-			const char* pUnmangled = S.FunctionsInstrumentedUnmangled[i];
-			MicroProfileWSPrintf(bFirst ? "[\"%s\",\"%s\",\"%s\"]" : ",[\"%s\",\"%s\",\"%s\"]", pString, pModuleString, pUnmangled);
+			//const char* pUnmangled = S.FunctionsInstrumentedUnmangled[i];
+			MicroProfileWSPrintf(bFirst ? "[\"%s\",\"%s\",\"%s\"]" : ",[\"%s\",\"%s\",\"%s\"]", pString, pModuleString, "HEST");
 			bFirst = false;
 		}
 		MicroProfileWSPrintf("]}");
@@ -12986,6 +13105,17 @@ BOOL MicroProfileQueryContextEnumSymbols(_In_ PSYMBOL_INFO pSymInfo, _In_ ULONG 
 	return TRUE;
 };
 
+bool MicroProfileDemangleName(const char* pName, char* OutName, uint32_t Size)
+{
+	MICROPROFILE_SCOPEI("microprofile", "SymbolDemangle", MP_AUTO);
+	if (UnDecorateSymbolName(pName, OutName, Size, UNDNAME_NAME_ONLY))
+	{
+		uprintf("Mangled:   %s\n", pName);
+		uprintf("Demangled: %s\n", OutName);
+		return true;
+	}
+	return false;
+}
 
 
 
@@ -13241,7 +13371,11 @@ void MicroProfileLoadRawPDB(Callback CB, const char* Filename, uint64_t Base, ui
 			{
 				return;
 			}
-			//uprintf("func %p / %d .. %s \n", rva, size, name);
+			if(strstr(name, "InstrumentTest"))
+			{
+				uprintf("NAME %s\n", name);
+			}
+			uprintf("func %p / %d .. %s \n", rva, size, name);
 			OnSymbol(name, rva, size);
 		});
 	}
@@ -13280,9 +13414,15 @@ void MicroProfileLoadRawPDB(Callback CB, const char* Filename, uint64_t Base, ui
 			//	// we know this symbol already, ignore it
 			//	continue;
 			//}
-			OnSymbol(Record->data.S_PUB32.name, rva, rva + 1);
+			if (strstr(Record->data.S_PUB32.name, "InstrumentTest"))
+			{
+				uprintf("NAME %s\n", Record->data.S_PUB32.name);
+			}
 
-			//uprintf("func-pub %p, %d, %s", rva, 0, Record->data.S_PUB32.name);
+
+			OnSymbol(Record->data.S_PUB32.name, rva, 1);
+
+			uprintf("func-pub %p, %d, %s", rva, 0, Record->data.S_PUB32.name);
 		}
 	}
 }
@@ -13342,25 +13482,21 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 				char pdbPath[MAX_PATH];
 
 				HMODULE Module  = (HMODULE)S.SymbolModules[nModule].nModuleBase;
+				S.nSymbolsDirty++;
+				S.SymbolModules[nModule].bDownloading = true;
 				if(MicroProfileDownloadPDB(Module, hProcess, pdbPath))
 				{
+					S.SymbolModules[nModule].bDownloading = false;
+					S.nSymbolsDirty++;
 					uprintf("GOT PDB %s\n", pdbPath);
 					MicroProfileLoadRawPDB<Callback>(CB, pdbPath, S.SymbolModules[nModule].nModuleBase, nModule);
 				}
-				else
-				{
-					MP_BREAK();
-				}
-
-
-				//				uprintf("ITERATE MODULES %p :: %s\n", S.SymbolModules[nModule].nAddrBegin, (const char*)S.SymbolModules[nModule].pBaseString);
-				for(int j = 0; j < S.SymbolModules[nModule].nNumExecutableRegions; ++j)
-				{
-					if(SymEnumSymbols(GetCurrentProcess(), S.SymbolModules[nModule].Regions[j].nBegin, "*", MicroProfileQueryContextEnumSymbols, pBase))
-					{
-						uprintf("SymEnumSymbols Succeeds!\n");
-					}
-				}
+				//else
+				//{
+				//	MP_BREAK();
+				//}
+				S.SymbolModules[nModule].bDownloading = false;
+				S.nSymbolsDirty++;
 				S.SymbolModules[nModule].nProgress = S.SymbolModules[nModule].nProgressTarget;
 				S.SymbolModules[nModule].nModuleLoadFinished.exchange(1);
 			}
@@ -13384,17 +13520,52 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 static int MicroProfileWin32SymInitCount = 0;
 static int MicroProfileWin32SymInitSuccess = 0;
 
+
+BOOL CALLBACK MicroProfileSymCallback(HANDLE hProcess, ULONG action, ULONG64 data, ULONG64 userContext) {
+	//uprintf("SYMCALLBACK %llx .. %08x\n", (uint64_t)hProcess, action);
+	//switch (action) {
+	//case CBA_DEBUG_INFO:
+	//	uprintf("[dbghelp] %s\n", (char*)data);
+	//	break;
+
+	//case CBA_EVENT: {
+	//	auto* evt = (IMAGEHLP_CBA_EVENT*)data;
+	//	if (evt->desc) {
+	//		uprintf("[event] %s\n", evt->desc);
+	//		// Example: "SYMSRV:  BYTES: 32768/131072"
+	//		// You can parse evt->desc to extract cur/total
+	//	}
+	//	break;
+	//}
+
+	//case CBA_DEFERRED_SYMBOL_LOAD_START:
+	//	uprintf("[event] Start loading symbols...\n");
+	//	break;
+	//case CBA_DEFERRED_SYMBOL_LOAD_COMPLETE:
+	//	uprintf("[event] Finished loading symbols.\n");
+	//	break;
+	//case CBA_DEFERRED_SYMBOL_LOAD_FAILURE:
+	//	printf("[event] Failed to load symbols.\n");
+	//	break;
+	//}
+
+	return TRUE;
+}
+
 bool MicroProfileSymInit()
 {
 	if(0 == MicroProfileWin32SymInitCount++)
 	{
+		//HANDLE h = OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetCurrentProcessId());
 		auto h = GetCurrentProcess();
 		SymCleanup(h);
 		// SymSetOptions( SYMOPT_DEBUG | SYMOPT_DEFERRED_LOADS);
-		SymSetOptions(SYMOPT_UNDNAME);
+		SymSetOptions(SYMOPT_DEFERRED_LOADS);
 		if(SymInitialize(h, 0, FALSE))
 		{
+
 			MicroProfileWin32SymInitSuccess = 1;
+			//SymRegisterCallbackW64(h, MicroProfileSymCallback, 0);
 			char Path[MAX_PATH];
 			bool PathValid = SymGetSearchPath(h, Path, MAX_PATH) > 0;
 			if(PathValid)
@@ -13445,7 +13616,7 @@ const char* MicroProfileGetUnmangledSymbolName(void* pFunction)
 			DWORD error = GetLastError();
 			uprintf("SymFromAddr returned error : %d\n", error);
 		}
-		MicroProfileSymCleanup();
+		//MicroProfileSymCleanup();
 	}
 	if(!pStr)
 	{
@@ -13545,7 +13716,7 @@ void MicroProfileSymbolUpdateModuleList()
 		// {
 		// 	uprintf("SymEnumerateModules64 Succeeds!\n");
 		// }
-		MicroProfileSymCleanup();
+		//MicroProfileSymCleanup();
 	}
 }
 
@@ -14771,6 +14942,19 @@ uint64_t MicroProfileHashTableHashString(uint64_t pString)
 bool MicroProfileHashTableCompareString(uint64_t L, uint64_t R)
 {
 	return 0 == strcmp((const char*)L, (const char*)R);
+}
+uint64_t MicroProfileHashTableHashPtr(uint64_t x)
+{
+	x ^= x >> 33;
+	x *= 0xff51afd7ed558ccdULL;
+	x ^= x >> 33;
+	x *= 0xc4ceb9fe1a85ec53ULL;
+	x ^= x >> 33;
+	return x;
+}
+bool MicroProfileHashTableComparePtr(uint64_t L, uint64_t R)
+{
+	return L == R;
 }
 
 bool MicroProfileHashTableSetString(MicroProfileHashTable* pTable, const char* pKey, const char* pValue)
