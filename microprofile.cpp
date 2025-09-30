@@ -925,6 +925,7 @@ struct MicroProfileSymbolModule
 	intptr_t nProgress;
 	intptr_t nProgressTarget;
 	struct MicroProfileSymbolBlock* pSymbolBlock;
+	MicroProfileHashTable AddressToSymbol;
 
 	int64_t nSymbols;
 	std::atomic<int64_t> nSymbolsLoaded;
@@ -1601,7 +1602,7 @@ MICROPROFILE_DEFINE(g_MicroProfileGpuSubmit, "MicroProfile", "MicroProfileGpuSub
 MICROPROFILE_DEFINE(g_MicroProfileSendLoop, "MicroProfile", "MicroProfileSocketSendLoop", MP_GREEN4);
 MICROPROFILE_DEFINE_LOCAL_ATOMIC_COUNTER(g_MicroProfileBytesPerFlip, "microprofile/bytesperflip");
 
-void MicroProfileHashTableInit(MicroProfileHashTable* pTable, uint32_t nInitialSize, MicroProfileHashCompareFunction CompareFunc, MicroProfileHashFunction HashFunc);
+//void MicroProfileHashTableInit(MicroProfileHashTable* pTable, uint32_t nInitialSize, MicroProfileHashCompareFunction CompareFunc, MicroProfileHashFunction HashFunc);
 void MicroProfileHashTableDestroy(MicroProfileHashTable* pTable);
 uint64_t MicroProfileHashTableHash(MicroProfileHashTable* pTable, uint64_t K);
 void MicroProfileHashTableGrow(MicroProfileHashTable* pTable);
@@ -1613,6 +1614,13 @@ bool MicroProfileHashTableRemove(MicroProfileHashTable* pTable, uint64_t Key);
 bool MicroProfileHashTableSetString(MicroProfileHashTable* pTable, const char* pKey, const char* pValue);
 bool MicroProfileHashTableGetString(MicroProfileHashTable* pTable, const char* pKey, const char** pValue);
 bool MicroProfileHashTableRemoveString(MicroProfileHashTable* pTable, const char* pKey);
+
+bool MicroProfileHashTableSetPtr(MicroProfileHashTable* pTable, const void* pKey, void* pValue);
+template<typename T = void>
+bool MicroProfileHashTableGetPtr(MicroProfileHashTable* pTable, const void* pKey, T** pValue = nullptr);
+bool MicroProfileHashTableRemovePtr(MicroProfileHashTable* pTable, const void* pKey);
+
+
 enum
 {
 	ESTRINGINTERN_LOWERCASE = 1,
@@ -12061,15 +12069,18 @@ void MicroProfileSymbolInitializeInternal()
 
 	auto SymbolCallback = [&](const char* pName, const char* pShortName, intptr_t nAddress, intptr_t nAddressEnd, uint32_t nModuleId) {
 		MICROPROFILE_SCOPEI("microprofile", "SymbolCallback", MP_AUTO);
-		//const char* pDemangledName = pName;
+		uint32_t nModule = nModuleId;
+		if(MicroProfileHashTableGetPtr(&S.SymbolModules[nModule].AddressToSymbol, (void*)nAddress))
+		{
+			uprintf("SKIPPING DUPLICATE ADDRESS %p\n", nAddress);
+			return;
+		}
 		char Demangled[1024];
 		if(MicroProfileDemangleName(pName, Demangled, sizeof(Demangled)))
 		{
 			pName = &Demangled[0];
 			pShortName = &Demangled[0];
 		}
-
-		uint32_t nModule = nModuleId;
 		intptr_t delta = nAddressEnd - nAddress;
 		S.SymbolModules[nModule].nProgress = MicroProfileMax(delta, S.SymbolModules[nModule].nProgress);
 		S.nSymbolsDirty++;
@@ -12115,6 +12126,8 @@ void MicroProfileSymbolInitializeInternal()
 		memcpy(pStr, pName, nLen);
 		pStr[nLen - 1] = '\0';
 		MicroProfileSymbolDesc& E = pActiveBlock->Symbols[pActiveBlock->nNumSymbols++];
+		MicroProfileHashTableSetPtr(&S.SymbolModules[nModule].AddressToSymbol, (void*)nAddress, &E);
+		
 		E.pName = pStr;
 		E.nAddress = nAddress;
 		E.nAddressEnd = nAddressEnd;
@@ -12177,6 +12190,7 @@ void MicroProfileSymbolInitializeInternal()
 			{
 				nModuleLoad[nNumModulesRequested] = i;
 				S.SymbolModules[i].nProgress = 0;
+				MicroProfileHashTableInit(&S.SymbolModules[i].AddressToSymbol, 256, 64, MicroProfileHashTableComparePtr, MicroProfileHashTableHashPtr);
 				nNumModulesRequested++;
 			}
 		}
@@ -12201,19 +12215,27 @@ MicroProfileSymbolDesc* MicroProfileSymbolFindFuction(void* pAddress)
 {
 	for(int i = 0; i < S.SymbolNumModules; ++i)
 	{
-		MicroProfileSymbolBlock* pSymbols = S.SymbolModules[i].pSymbolBlock;
-		while(pSymbols)
+		MicroProfileSymbolDesc* pDesc = nullptr;
+		if(MicroProfileHashTableGetPtr(&S.SymbolModules[i].AddressToSymbol, pAddress, &pDesc))
 		{
-			for(uint32_t i = 0; i < pSymbols->nNumSymbols; ++i)
-			{
-				MicroProfileSymbolDesc& E = pSymbols->Symbols[i];
-				if(E.nAddress == (intptr_t)pAddress && 0 == E.nIgnoreSymbol)
-				{
-					return &E;
-				}
-			}
-			pSymbols = pSymbols->pNext;
+			if(0 == pDesc->nIgnoreSymbol)
+				return pDesc;
+			else
+				return nullptr;
 		}
+		//MicroProfileSymbolBlock* pSymbols = S.SymbolModules[i].pSymbolBlock;
+		//while(pSymbols)
+		//{
+		//	for(uint32_t i = 0; i < pSymbols->nNumSymbols; ++i)
+		//	{
+		//		MicroProfileSymbolDesc& E = pSymbols->Symbols[i];
+		//		if(E.nAddress == (intptr_t)pAddress && 0 == E.nIgnoreSymbol)
+		//		{
+		//			return &E;
+		//		}
+		//	}
+		//	pSymbols = pSymbols->pNext;
+		//}
 	}
 	return nullptr;
 }
@@ -13213,7 +13235,6 @@ void MicroProfileLoadRawPDB(Callback CB, const char* Filename, uint64_t Base, ui
 		int l = MicroProfileTrimFunctionName(Sym, &FunctionName[0], &FunctionName[1024]);
 		const char* fname = l ? &FunctionName[0] : nullptr;
 		CB(Sym, fname, (intptr_t)Offset + Base,(intptr_t)Offset + Base + Size, nModuleId);
-
 	};
 
 
@@ -13389,14 +13410,11 @@ void MicroProfileLoadRawPDB(Callback CB, const char* Filename, uint64_t Base, ui
 			const PDB::CodeView::DBI::Record* Record = PublicSymbolStream.GetRecord(SymbolRecordStream, HashRecord);
 			if(Record->header.kind != PDB::CodeView::DBI::SymbolRecordKind::S_PUB32)
 			{
-				// normally, a PDB only contains S_PUB32 symbols in the public symbol stream, but we have seen PDBs that also store S_CONSTANT as public symbols.
-				// ignore these.
 				continue;
 			}
 
 			if ((PDB_AS_UNDERLYING(Record->data.S_PUB32.flags) & PDB_AS_UNDERLYING(PDB::CodeView::DBI::PublicSymbolFlags::Function)) == 0u)
 			{
-				// ignore everything that is not a function
 				continue;
 			}
 
@@ -13406,21 +13424,13 @@ void MicroProfileLoadRawPDB(Callback CB, const char* Filename, uint64_t Base, ui
 				// certain symbols (e.g. control-flow guard symbols) don't have a valid RVA, ignore those
 				continue;
 			}
-
-			//// check whether we already know this symbol from one of the module streams
-			//const auto it = seenFunctionRVAs.find(rva);
-			//if (it != seenFunctionRVAs.end())
-			//{
-			//	// we know this symbol already, ignore it
-			//	continue;
-			//}
 			if (strstr(Record->data.S_PUB32.name, "InstrumentTest"))
 			{
 				uprintf("NAME %s\n", Record->data.S_PUB32.name);
 			}
 
 
-			OnSymbol(Record->data.S_PUB32.name, rva, 1);
+			OnSymbol(Record->data.S_PUB32.name, rva, 0);
 
 			uprintf("func-pub %p, %d, %s", rva, 0, Record->data.S_PUB32.name);
 		}
@@ -13480,7 +13490,6 @@ void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumMo
 				S.SymbolModules[nModule].nProgressTarget = nBytes;
 
 				char pdbPath[MAX_PATH];
-
 				HMODULE Module  = (HMODULE)S.SymbolModules[nModule].nModuleBase;
 				S.nSymbolsDirty++;
 				S.SymbolModules[nModule].bDownloading = true;
@@ -14971,6 +14980,25 @@ bool MicroProfileHashTableRemoveString(MicroProfileHashTable* pTable, const char
 {
 	return MicroProfileHashTableRemove(pTable, (uint64_t)pKey);
 }
+
+bool MicroProfileHashTableSetPtr(MicroProfileHashTable* pTable, const void* pKey, void* pValue)
+{
+	return MicroProfileHashTableSet(pTable, (uint64_t)pKey, (uintptr_t)pValue);
+}
+
+template<typename T>
+bool MicroProfileHashTableGetPtr(MicroProfileHashTable* pTable, const void* pKey, T** pValue)
+{
+	uintptr_t Dummy;
+	uintptr_t* Arg = pValue ? (uintptr_t*)pValue : &Dummy;
+	return MicroProfileHashTableGet(pTable, (uint64_t)pKey, Arg);
+}
+
+bool MicroProfileHashTableRemovePtr(MicroProfileHashTable* pTable, const char* pKey)
+{
+	return MicroProfileHashTableRemove(pTable, (uint64_t)pKey);
+}
+
 
 void MicroProfileStringBlockFree(MicroProfileStringBlock* pBlock)
 {
