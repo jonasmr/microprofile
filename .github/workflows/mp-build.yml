@@ -2,7 +2,7 @@ name: MicroProfile Build
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "master", "symbols" ]
   pull_request:
     branches: [ "master" ]
 
