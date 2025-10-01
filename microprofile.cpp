@@ -11,7 +11,6 @@
 // APP
 // live connect
 //
-//
 
 #define BREAK_SKIP() __builtin_trap()
 
@@ -13463,18 +13462,11 @@ void MicroProfileLoadRawPDB(Callback CB, const char* Filename, uint64_t Base, ui
 			const uint32_t rva = ImageSectionStream.ConvertSectionOffsetToRVA(Record->data.S_PUB32.section, Record->data.S_PUB32.offset);
 			if (rva == 0u)
 			{
-				// certain symbols (e.g. control-flow guard symbols) don't have a valid RVA, ignore those
 				continue;
-			}
-			if (strstr(Record->data.S_PUB32.name, "InstrumentTest"))
-			{
-				uprintf("NAME %s\n", Record->data.S_PUB32.name);
 			}
 
 
 			OnSymbol(Record->data.S_PUB32.name, rva, 0);
-
-			uprintf("func-pub %p, %d, %s", rva, 0, Record->data.S_PUB32.name);
 		}
 	}
 }
