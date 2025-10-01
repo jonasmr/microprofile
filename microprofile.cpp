@@ -2,6 +2,17 @@
 #include "microprofile.h"
 #if MICROPROFILE_ENABLED
 
+//SUSPENDTODO:
+// OSX/LINUX
+// SymInit 
+// cleanup
+// 
+//
+// APP
+// live connect
+//
+//
+
 #define BREAK_SKIP() __builtin_trap()
 
 #if MICROPROFILE_GPU_TIMERS && MICROPROFILE_GPU_TIMER_CALLBACKS
@@ -453,6 +464,18 @@ typedef std::thread* MicroProfileThread;
 
 #if MICROPROFILE_DYNAMIC_INSTRUMENT
 struct MicroProfileSymbolDesc;
+
+#define MICROPROFILE_SUSPEND_MAX (4<<10)
+struct MicroProfileSuspendState
+{
+	uint32_t SuspendCounter = 0;
+	uint32_t NumSuspended = 0;
+#ifdef _WIN32
+	HANDLE Suspended[MICROPROFILE_SUSPEND_MAX];
+	intptr_t SuspendedIP[MICROPROFILE_SUSPEND_MAX];
+#endif
+};
+
 void MicroProfileSymbolQueryFunctions(MpSocket Connection, const char* pFilter);
 void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, const char* pFunctionName, uint32_t nColor);
 bool MicroProfileSymbolInitialize(bool bStartLoad, const char* pModuleName = 0);
@@ -1186,6 +1209,7 @@ struct MicroProfile
 	MicroProfilePatchError PatchErrors[MICROPROFILE_MAX_PATCH_ERRORS];
 	int nNumPatchErrorFunctions;
 	const char* PatchErrorFunctionNames[MICROPROFILE_MAX_PATCH_ERRORS];
+	MicroProfileSuspendState SuspendState;
 #endif
 
 	int GpuQueue;
@@ -10622,6 +10646,11 @@ template <typename Callback>
 void MicroProfileIterateSymbols(Callback CB, uint32_t* nModules, uint32_t nNumModules);
 const char* MicroProfileGetUnmangledSymbolName(void* pFunction);
 
+bool MicroProfileBeginSuspendForPatching();
+void MicroProfileEndSuspendForPatching();
+bool MicroProfilePatchHasSuspendedThread(intptr_t Begin, intptr_t End);
+
+
 #if 1
 #define STRING_MATCH_SIZE 64
 typedef uint64_t uint_string_match;
@@ -11312,7 +11341,10 @@ void MicroProfileInstrumentFromAddressOnly(void* pFunction)
 		uprintf("Found function %p :: %s %s\n", (void*)pDesc->nAddress, pDesc->pName, pDesc->pShortName);
 		uint32_t nColor = MicroProfileColorFromString(pDesc->pName);
 
+
+
 		MicroProfileInstrumentFunction(pFunction, MicroProfileSymbolModuleGetString(pDesc->nModule), pDesc->pName, nColor);
+
 	}
 	else
 	{
@@ -11424,11 +11456,15 @@ void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pModuleN
 
 	const intptr_t nCodeLen = (intptr_t)pDesc->nAddressEnd - (intptr_t)pDesc->nAddress;
 
+	MicroProfileBeginSuspendForPatching(); 
+
 	auto Callback = [](void* pFunc)
 	{
 		MicroProfileInstrumentFromAddressOnly(pFunc);
 	};
 	MicroProfileInstrumentScanForFunctionCalls(Callback, pFunction, nCodeLen);
+
+	MicroProfileEndSuspendForPatching(); 
 
 
 	//const uint32_t nMaxInstructions = 15;
@@ -11521,7 +11557,7 @@ void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pModuleN
 
 void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, const char* pFunctionName, uint32_t nColor)
 {
-	MicroProfileScopeLock L(MicroProfileMutex());
+	MicroProfileBeginSuspendForPatching(); 
 	MicroProfilePatchError Err;
 	if(S.DynamicTokenIndex == MICROPROFILE_MAX_DYNAMIC_TOKENS)
 	{
@@ -11583,6 +11619,8 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, co
 		}
 		uprintf("interception fail!!\n");
 	}
+	MicroProfileEndSuspendForPatching();
+
 }
 
 void MicroProfileInstrumentPreInit();
@@ -12664,7 +12702,11 @@ bool MicroProfilePatchFunction(void* f, int Argument, MicroProfileHookFunc enter
 	char* pOriginal = (char*)f;
 
 	f = MicroProfileX64FollowJump(f);
-
+	if(MicroProfilePatchHasSuspendedThread((intptr_t)f, (intptr_t)f + 32))
+	{
+		uprintf("failed to patch, thread running in patch position");
+		return false;
+	}
 	intptr_t t_enter = (intptr_t)microprofile_tramp_enter;
 	intptr_t t_enter_patch_offset = (intptr_t)microprofile_tramp_enter_patch - t_enter;
 	intptr_t t_code_begin_offset = (intptr_t)microprofile_tramp_code_begin - t_enter;
@@ -13300,7 +13342,7 @@ void MicroProfileLoadRawPDB(Callback CB, const char* Filename, uint64_t Base, ui
 	}
 
 	if (PDB::ErrorCode::Success != DbiStream.HasValidPublicSymbolStream(RawPdbFile))
-	{
+	{				
 		MP_BREAK();
 	}
 
@@ -13436,6 +13478,97 @@ void MicroProfileLoadRawPDB(Callback CB, const char* Filename, uint64_t Base, ui
 		}
 	}
 }
+
+bool MicroProfilePatchHasSuspendedThread(intptr_t Begin, intptr_t End)
+{
+	MicroProfileSuspendState& State = S.SuspendState;
+	for(uint32_t i = 0; i < State.NumSuspended; ++i)
+	{
+		intptr_t ip = State.SuspendedIP[i];
+		if(Begin <= ip && ip <= End)
+			return true;
+	}
+	return false;
+}
+
+bool MicroProfileBeginSuspendForPatching()
+{
+	MicroProfileSuspendState& State = S.SuspendState;
+
+	if(State.SuspendCounter++ > 0)
+		return true;
+	MicroProfileMutex().lock();
+	MP_ASSERT(State.NumSuspended == 0);
+
+	DWORD ProcessId = GetCurrentProcessId();
+	DWORD ThreadId = GetCurrentThreadId();
+
+	HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+	if (hSnap == INVALID_HANDLE_VALUE) {
+        uprintf("CreateToolhelp32Snapshot failed: %08x\n", GetLastError());
+        return false;
+	}
+	THREADENTRY32 te{};
+	te.dwSize = sizeof(te);
+	State.NumSuspended = 0;
+
+   if (Thread32First(hSnap, &te)) {
+        do {
+            if (te.th32OwnerProcessID != ProcessId) 
+            	continue;
+            if (te.th32ThreadID == ThreadId) 
+            	continue;
+			HANDLE hThread = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE, te.th32ThreadID);
+			if(!hThread)
+			{
+				uprintf("failed to suspend thread %08x\n", te.th32ThreadID);
+				continue;
+			}
+            DWORD PrevCount = SuspendThread(hThread);
+            if(PrevCount == (DWORD)-1) {
+				uprintf("failed to suspend thread %08x\n", te.th32ThreadID);
+				CloseHandle(hThread);
+				continue;
+			}
+
+			CONTEXT ctx{};
+			ctx.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER; // Rip + registers
+			if(GetThreadContext(hThread, &ctx))
+			{
+				State.SuspendedIP[State.NumSuspended] = (intptr_t)ctx.Rip;
+			}
+			if(State.NumSuspended < MICROPROFILE_SUSPEND_MAX)
+			{
+				State.Suspended[State.NumSuspended++] = hThread;
+			}
+		} while (Thread32Next(hSnap, &te));
+	}
+	else
+	{
+		uprintf("Thread32First failed %08x\n", GetLastError());
+		CloseHandle(hSnap);
+		return false;
+	}
+	CloseHandle(hSnap);
+	return State.NumSuspended > 0;
+}
+
+void MicroProfileEndSuspendForPatching()
+{
+	MicroProfileSuspendState& State = S.SuspendState;
+	if(0 == --State.SuspendCounter)
+	{
+
+		for(uint32_t i = 0; i < State.NumSuspended; ++i)
+		{
+			ResumeThread(State.Suspended[i]);
+			CloseHandle(State.Suspended[i]);
+		}
+		State.NumSuspended = 0;
+		MicroProfileMutex().unlock();
+	}
+}
+
 
 
 template <typename Callback>
