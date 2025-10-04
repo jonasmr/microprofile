@@ -66,7 +66,7 @@
 #define MICROPROFILE_LEGACY_CSV 0
 #endif
 
-#ifndef MICROPROFILE_FRAME_EXTRA_DATA // Set this to always allocate frame extra data. This is useful if you're doing profiling on platform where there is plenty of memory. 
+#ifndef MICROPROFILE_FRAME_EXTRA_DATA // Set this to always allocate frame extra data. This is useful if you're doing profiling on platform where there is plenty of memory.
 #define MICROPROFILE_FRAME_EXTRA_DATA 0
 #endif
 
@@ -297,7 +297,7 @@ typedef uint32_t MicroProfileTimelineToken;
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
-#define MICROPROFILE_COUNTER_SET_DOUBLE(name, count)                                                                                                                                                          \
+#define MICROPROFILE_COUNTER_SET_DOUBLE(name, count)                                                                                                                                                   \
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
@@ -320,23 +320,62 @@ typedef uint32_t MicroProfileTimelineToken;
 #define MICROPROFILE_CONDITIONAL(expr)
 #define MICROPROFILE_COUNTER_CONFIG(name, type, limit, flags)
 #define MICROPROFILE_COUNTER_CONFIG_ONCE(name, type, limit, flags)
-#define MICROPROFILE_DECLARE_LOCAL_COUNTER(var) 
-#define MICROPROFILE_DEFINE_LOCAL_COUNTER(var, name) 
-#define MICROPROFILE_DECLARE_LOCAL_ATOMIC_COUNTER(var) 
-#define MICROPROFILE_DEFINE_LOCAL_ATOMIC_COUNTER(var, name) 
-#define MICROPROFILE_COUNTER_LOCAL_ADD(var, count) do{}while(0)
-#define MICROPROFILE_COUNTER_LOCAL_SUB(var, count) do{}while(0)
-#define MICROPROFILE_COUNTER_LOCAL_SET(var, count) do{}while(0)
-#define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD(var) do{}while(0)
-#define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET(var) do{}while(0)
-#define MICROPROFILE_COUNTER_LOCAL_ADD_ATOMIC(var, count) do{}while(0)
-#define MICROPROFILE_COUNTER_LOCAL_SUB_ATOMIC(var, count) do{}while(0)
-#define MICROPROFILE_COUNTER_LOCAL_SET_ATOMIC(var, count) do{}while(0)
-#define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD_ATOMIC(var) do{}while(0)
-#define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET_ATOMIC(var) do{}while(0)
-#define MicroProfileStartAutoFlip(nHz) do{}while(0)
-#define MicroProfileStopAutoFlip() do{}while(0)
-#define MicroProfileEnableFrameExtraCounterData() do{}while(0)
+#define MICROPROFILE_DECLARE_LOCAL_COUNTER(var)
+#define MICROPROFILE_DEFINE_LOCAL_COUNTER(var, name)
+#define MICROPROFILE_DECLARE_LOCAL_ATOMIC_COUNTER(var)
+#define MICROPROFILE_DEFINE_LOCAL_ATOMIC_COUNTER(var, name)
+#define MICROPROFILE_COUNTER_LOCAL_ADD(var, count)                                                                                                                                                     \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
+#define MICROPROFILE_COUNTER_LOCAL_SUB(var, count)                                                                                                                                                     \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
+#define MICROPROFILE_COUNTER_LOCAL_SET(var, count)                                                                                                                                                     \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD(var)                                                                                                                                                     \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET(var)                                                                                                                                                     \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
+#define MICROPROFILE_COUNTER_LOCAL_ADD_ATOMIC(var, count)                                                                                                                                              \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
+#define MICROPROFILE_COUNTER_LOCAL_SUB_ATOMIC(var, count)                                                                                                                                              \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
+#define MICROPROFILE_COUNTER_LOCAL_SET_ATOMIC(var, count)                                                                                                                                              \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD_ATOMIC(var)                                                                                                                                              \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
+#define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET_ATOMIC(var)                                                                                                                                              \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
+#define MicroProfileStartAutoFlip(nHz)                                                                                                                                                                 \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
+#define MicroProfileStopAutoFlip()                                                                                                                                                                     \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
+#define MicroProfileEnableFrameExtraCounterData()                                                                                                                                                      \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
 #define MicroProfileGetTime(group, name) 0.f
 #define MicroProfileOnThreadCreate(foo)                                                                                                                                                                \
 	do                                                                                                                                                                                                 \
@@ -346,7 +385,7 @@ typedef uint32_t MicroProfileTimelineToken;
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
-#define MicroProfileFlip(...)	    		                                                                                                                                                           \
+#define MicroProfileFlip(...)                                                                                                                                                                          \
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
@@ -420,7 +459,7 @@ typedef uint32_t MicroProfileTimelineToken;
 #define MicroProfileGpuGetTimeStamp(a) 0
 #define MicroProfileTicksPerSecondGpu() 1
 #define MicroProfileGetGpuTickReference(a, b) 0
-#define MicroProfileGpuInitD3D12(pDevice, nNodeCount, pCommandQueue, pCopyQueue)                                                                                                                                   \
+#define MicroProfileGpuInitD3D12(pDevice, nNodeCount, pCommandQueue, pCopyQueue)                                                                                                                       \
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
@@ -462,10 +501,18 @@ typedef uint32_t MicroProfileTimelineToken;
 #define MicroProfileCsvConfigAddCounter(...)
 #define MicroProfileUpdateSettingsPath(...)
 
-#define MicroProfileImguiGraphs(...) do {} while(0)
-#define MicroProfileImguiTable(...) do {} while(0)
-#define MicroProfileImguiControls(...) do {} while(0)
-
+#define MicroProfileImguiGraphs(...)                                                                                                                                                                   \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
+#define MicroProfileImguiTable(...)                                                                                                                                                                    \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
+#define MicroProfileImguiControls(...)                                                                                                                                                                 \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
 
 #else
 
@@ -611,8 +658,8 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #define MICROPROFILE_TIMELINE_ENTER_STATIC(color, name) MicroProfileTimelineEnterStatic(color, name)
 // use only with static string literals
 #define MICROPROFILE_TIMELINE_LEAVE_STATIC(name) MicroProfileTimelineLeaveStatic(name)
-#define MICROPROFILE_TIMELINE_SCOPE(color, fmt, ...) \
-	MicroProfileTimelineToken MICROPROFILE_TOKEN_PASTE(__timeline__, __LINE__) = MicroProfileTimelineEnterf(color, fmt, ##__VA_ARGS__);\
+#define MICROPROFILE_TIMELINE_SCOPE(color, fmt, ...)                                                                                                                                                   \
+	MicroProfileTimelineToken MICROPROFILE_TOKEN_PASTE(__timeline__, __LINE__) = MicroProfileTimelineEnterf(color, fmt, ##__VA_ARGS__);                                                                \
 	MicroProfileScopeTimelineExitHandler MICROPROFILE_TOKEN_PASTE(__timeline__0, __LINE__)(MICROPROFILE_TOKEN_PASTE(__timeline__, __LINE__))
 
 #define MICROPROFILE_THREADLOGGPURESET(a) MicroProfileThreadLogGpuReset(a)
@@ -622,22 +669,22 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 	} while(0) // static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__) = MicroProfileGetMetaToken(name); MicroProfileMetaUpdate(MICROPROFILE_TOKEN_PASTE(g_mp_meta,__LINE__), count,
 			   // MicroProfileTokenTypeCpu)
 #define MICROPROFILE_COUNTER_ADD(name, count)                                                                                                                                                          \
-	static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter, __LINE__) = MicroProfileGetCounterToken(name, 0);                                                                                     \
+	static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter, __LINE__) = MicroProfileGetCounterToken(name, 0);                                                                                  \
 	MicroProfileCounterAdd(MICROPROFILE_TOKEN_PASTE(g_mp_counter, __LINE__), count)
 #define MICROPROFILE_COUNTER_SUB(name, count)                                                                                                                                                          \
-	static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter, __LINE__) = MicroProfileGetCounterToken(name, 0);                                                                                     \
+	static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter, __LINE__) = MicroProfileGetCounterToken(name, 0);                                                                                  \
 	MicroProfileCounterAdd(MICROPROFILE_TOKEN_PASTE(g_mp_counter, __LINE__), -(int64_t)count)
 #define MICROPROFILE_COUNTER_SET(name, count)                                                                                                                                                          \
-	static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter_set, __LINE__) = MicroProfileGetCounterToken(name, 0);                                                                                 \
+	static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter_set, __LINE__) = MicroProfileGetCounterToken(name, 0);                                                                              \
 	MicroProfileCounterSet(MICROPROFILE_TOKEN_PASTE(g_mp_counter_set, __LINE__), count)
-#define MICROPROFILE_COUNTER_SET_DOUBLE(name, count)                                                                                                                                                          \
-	static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter_set, __LINE__) = MicroProfileGetCounterToken(name, MICROPROFILE_COUNTER_FLAG_DOUBLE);                                                                                 \
+#define MICROPROFILE_COUNTER_SET_DOUBLE(name, count)                                                                                                                                                   \
+	static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter_set, __LINE__) = MicroProfileGetCounterToken(name, MICROPROFILE_COUNTER_FLAG_DOUBLE);                                               \
 	MicroProfileCounterSetDouble(MICROPROFILE_TOKEN_PASTE(g_mp_counter_set, __LINE__), count)
 #define MICROPROFILE_COUNTER_SET_INT32_PTR(name, ptr) MicroProfileCounterSetPtr(name, ptr, sizeof(int32_t))
 #define MICROPROFILE_COUNTER_SET_INT64_PTR(name, ptr) MicroProfileCounterSetPtr(name, ptr, sizeof(int64_t))
 #define MICROPROFILE_COUNTER_CLEAR_PTR(name) MicroProfileCounterSetPtr(name, 0, 0)
 #define MICROPROFILE_COUNTER_SET_LIMIT(name, count)                                                                                                                                                    \
-	static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter, __LINE__) = MicroProfileGetCounterToken(name, 0);                                                                                     \
+	static MicroProfileToken MICROPROFILE_TOKEN_PASTE(g_mp_counter, __LINE__) = MicroProfileGetCounterToken(name, 0);                                                                                  \
 	MicroProfileCounterSetLimit(MICROPROFILE_TOKEN_PASTE(g_mp_counter, __LINE__), count)
 #define MICROPROFILE_COUNTER_CONFIG(name, type, limit, flags) MicroProfileCounterConfig(name, type, limit, flags)
 #define MICROPROFILE_COUNTER_CONFIG_ONCE(name, type, limit, flags)                                                                                                                                     \
@@ -732,11 +779,10 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #endif
 
 #ifndef MICROPROFILE_WEBSERVER_AUTO_START
-#define MICROPROFILE_WEBSERVER_AUTO_START 1  // when set to 1, the webserver will start on first call to MicroProfileFlip
+#define MICROPROFILE_WEBSERVER_AUTO_START 1 // when set to 1, the webserver will start on first call to MicroProfileFlip
 #endif
 
-
-#ifndef MICROPROFILE_WEBSERVER_DEFAULT_FRAMES 
+#ifndef MICROPROFILE_WEBSERVER_DEFAULT_FRAMES
 #define MICROPROFILE_WEBSERVER_DEFAULT_FRAMES 30
 #endif
 
@@ -773,15 +819,15 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #endif
 
 #ifndef MICROPROFILE_UNPACK_RED
-#define MICROPROFILE_UNPACK_RED(c) (0xff&((c) >> 16))
+#define MICROPROFILE_UNPACK_RED(c) (0xff & ((c) >> 16))
 #endif
 
 #ifndef MICROPROFILE_UNPACK_GREEN
-#define MICROPROFILE_UNPACK_GREEN(c) (0xff&((c) >> 8))
+#define MICROPROFILE_UNPACK_GREEN(c) (0xff & ((c) >> 8))
 #endif
 
 #ifndef MICROPROFILE_UNPACK_BLUE
-#define MICROPROFILE_UNPACK_BLUE(c) (0xff&((c)))
+#define MICROPROFILE_UNPACK_BLUE(c) (0xff & ((c)))
 #endif
 
 #ifndef MICROPROFILE_DEFAULT_PRESET
@@ -873,17 +919,12 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #endif
 
 #ifndef MICROPROFILE_GET_SETTINGS_FILE_PATH
-#define MICROPROFILE_GET_SETTINGS_FILE_PATH "" 
+#define MICROPROFILE_GET_SETTINGS_FILE_PATH ""
 #endif
-
 
 #ifndef MICROPROFILE_MAX_CPU_CORES
 #define MICROPROFILE_MAX_CPU_CORES 256
 #endif
-
-
-
-
 
 typedef enum MicroProfileTokenType_t
 {
@@ -895,21 +936,18 @@ struct MicroProfile;
 struct MicroProfileThreadLogGpu;
 struct MicroProfileScopeStateC;
 
-
 #ifdef __cplusplus
 #define IF_CPP(exp) exp
 #else
 #define IF_CPP(exp)
 #endif
 
-
-
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-#define MICROPROFILE_INVALID_TOKEN ((uint64_t)-1)
+#define MICROPROFILE_INVALID_TOKEN ((uint64_t) - 1)
 #define MICROPROFILE_TIMER_FLAG_SECTION 0x1
 #define MICROPROFILE_TIMER_FLAG_PLACEHOLDER 0x1000
 #define MICROPROFILE_CSV_FLAG_FRAME_NUMBERS 0x0
@@ -1020,7 +1058,6 @@ extern "C"
 	MICROPROFILE_API void MicroProfileLocalCounterAddAtomic(MicroProfileToken Token, int64_t nCount);
 	MICROPROFILE_API int64_t MicroProfileLocalCounterSetAtomic(MicroProfileToken, int64_t nCount);
 
-
 	MICROPROFILE_API const char* MicroProfileCounterString(const char* String);
 	MICROPROFILE_API MicroProfileToken MicroProfileCounterTokenTree(MicroProfileToken* LastToken, MicroProfileToken CurrentParent, const char* pString);
 	MICROPROFILE_API MicroProfileToken MicroProfileCounterTokenTreeDynamic(MicroProfileToken* LastToken, MicroProfileToken Parent, const char* pString);
@@ -1042,8 +1079,6 @@ extern "C"
 	MICROPROFILE_API void MicroProfileImguiTable(const MicroProfileImguiWindowDesc& Window, const MicroProfileImguiEntryDesc* Entries, uint32_t NumEntries);
 	MICROPROFILE_API void MicroProfileImguiControls();
 #endif
-
-
 
 #ifdef __cplusplus
 }
@@ -1109,28 +1144,27 @@ extern "C"
 	MICROPROFILE_API uint32_t MicroProfileWebServerPort();
 	MICROPROFILE_API void MicroProfileSetWebServerPort(uint32_t nPort);
 #else
-#define MicroProfileWebServerPort() ((uint32_t)-1)
+#define MicroProfileWebServerPort() ((uint32_t) - 1)
 #define MicroProfileSetWebServerPort(a)                                                                                                                                                                \
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
 #endif
 
-
 #if MICROPROFILE_GPU_TIMERS
 #if MICROPROFILE_GPU_TIMER_CALLBACKS
-	typedef uint32_t(*MicroProfileGpuInsertTimeStamp_CB)(void* pContext);
-	typedef uint64_t(*MicroProfileGpuGetTimeStamp_CB)(uint32_t nKey);
-	typedef uint64_t(*MicroProfileTicksPerSecondGpu_CB)();
+	typedef uint32_t (*MicroProfileGpuInsertTimeStamp_CB)(void* pContext);
+	typedef uint64_t (*MicroProfileGpuGetTimeStamp_CB)(uint32_t nKey);
+	typedef uint64_t (*MicroProfileTicksPerSecondGpu_CB)();
 	typedef int (*MicroProfileGetGpuTickReference_CB)(int64_t* pOutCPU, int64_t* pOutGpu);
-	typedef uint32_t(*MicroProfileGpuFlip_CB)(void*);
+	typedef uint32_t (*MicroProfileGpuFlip_CB)(void*);
 	typedef void (*MicroProfileGpuShutdown_CB)();
 	MICROPROFILE_API void MicroProfileGpuSetCallbacks(MicroProfileGpuInsertTimeStamp_CB InsertTimeStamp,
-		MicroProfileGpuGetTimeStamp_CB GetTimeStamp,
-		MicroProfileTicksPerSecondGpu_CB TicksPerSecond,
-		MicroProfileGetGpuTickReference_CB GetTickReference,
-		MicroProfileGpuFlip_CB Flip,
-		MicroProfileGpuShutdown_CB Shutdown);
+													  MicroProfileGpuGetTimeStamp_CB GetTimeStamp,
+													  MicroProfileTicksPerSecondGpu_CB TicksPerSecond,
+													  MicroProfileGetGpuTickReference_CB GetTickReference,
+													  MicroProfileGpuFlip_CB Flip,
+													  MicroProfileGpuShutdown_CB Shutdown);
 #else
 	MICROPROFILE_API uint32_t MicroProfileGpuInsertTimeStamp(void* pContext);
 	MICROPROFILE_API uint64_t MicroProfileGpuGetTimeStamp(uint32_t nKey);
@@ -1254,7 +1288,7 @@ struct MicroProfileConditionalScopeHandler
 	}
 	~MicroProfileConditionalScopeHandler()
 	{
-		if (nTick != MICROPROFILE_INVALID_TOKEN)
+		if(nTick != MICROPROFILE_INVALID_TOKEN)
 		{
 			MicroProfileLeaveInternal(nToken, nTick);
 		}
