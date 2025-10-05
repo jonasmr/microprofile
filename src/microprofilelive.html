@@ -296,11 +296,12 @@ const MicroProfileTokenTypeCpu=0;
 const MicroProfileTokenTypeGpu=1;
 
 
-var WSSend = 0;
-var WSReceive = 0;
-var WSSendBytes = 0;
-var WSReceiveBytes = 0;
-var WSOpenTime = 0;
+let WSSend = 0;
+let WSReceive = 0;
+let WSSendBytes = 0;
+let WSReceiveBytes = 0;
+let WSOpenTime = 0;
+let WSReadyState = 9999;
 
 
 var TimerArray = [];
@@ -6852,6 +6853,7 @@ function WSClose(event)
 {
 	console.log('WSClose');
 	WSIsOpen = 0;
+	WS = null;
 	window.document.title = "MicroProfile Live";
 	FilterInputDiv.style['display'] = 'none';
 }
@@ -6876,38 +6878,49 @@ function WSSendMessage(msgid)
 
 function Connect()
 {
+	WSSeconds = 0;
+	if(WSOpenTime)
+		WSSeconds = new Date() - WSOpenTime;
+	let DidTimeout = WSSeconds > 5000;
+
 	if(WS && (WS.readyState == 1 || WS.readyState == 0))
 	{
 		WSConnected = WS.readyState == 1;
 		WSFail = 0;
 		WSSeconds = 0;
+		WSReadyState = WS.readyState;
 	}
 	else
 	{
 		WSConnected = 0;
-		WSSeconds = (new Date() - WSOpenTime);
-		if(!WS || WSSeconds > 2000)
-		{
-			if(WS)
-			{
-				WS.close();
-				WS = null;
-			}
-			WSOpenTime = new Date();
-			WSPath = "ws://" + WSHost + ":" + WSPort + "/ws";
-			SetMessage('Connecting to ' + WSPath,5 * 1000, 1);
-			WS = new WebSocket(WSPath);
-			WS.onopen = WSOpen;
-			WS.onmessage = WSMessage;
-			WS.onerror = WSError;
-			WS.onclose = WSClose;
-			WSFail = 0;
-		}
-		else
+	}
+	if(!WS || (DidTimeout && !WSConnected))
+	{
+		WSReadyState = 999;
+		if(WS)
 		{
 			WSFail++;
+			WS.onopen = null;
+			WS.onclose = null;
+			WS.onmessage = null;
+			WS.onerror = null;
+			WS.close();
+			WS = null;
 		}
+		WSOpenTime = new Date();
+		WSPath = "ws://" + WSHost + ":" + WSPort + "/ws";
+		SetMessage('Connecting to ' + WSPath, 5 * 1000, 1);
+		console.log("Open WebSocket " + WSPath);
+		WS = new WebSocket(WSPath);
+		WS.onopen = WSOpen;
+		WS.onmessage = WSMessage;
+		WS.onerror = WSError;
+		WS.onclose = WSClose;
+		WSFail = 0;
 	}
+
+
+
 	RequestDraw();
 }
 

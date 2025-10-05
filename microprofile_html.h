@@ -9156,11 +9156,12 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "const MicroProfileTokenTypeGpu=1;\n"
 "\n"
 "\n"
-"var WSSend = 0;\n"
-"var WSReceive = 0;\n"
-"var WSSendBytes = 0;\n"
-"var WSReceiveBytes = 0;\n"
-"var WSOpenTime = 0;\n"
+"let WSSend = 0;\n"
+"let WSReceive = 0;\n"
+"let WSSendBytes = 0;\n"
+"let WSReceiveBytes = 0;\n"
+"let WSOpenTime = 0;\n"
+"let WSReadyState = 9999;\n"
 "\n"
 "\n"
 "var TimerArray = [];\n"
@@ -10214,11 +10215,11 @@ const char g_MicroProfileHtmlLive_begin_0[] =
 "                    debugger;\n"
 "                    return;\n"
 "                }\n"
-"                let Prc = Math.max(0, Value) * Rcp";
+"                let Prc =";
 
 const size_t g_MicroProfileHtmlLive_begin_0_size = sizeof(g_MicroProfileHtmlLive_begin_0);
 const char g_MicroProfileHtmlLive_begin_1[] =
-"ReferenceTime;\n"
+" Math.max(0, Value) * RcpReferenceTime;\n"
 "                let YText = Y+Height-FontAscent;\n"
 "                if(Prc > 1)\n"
 "                {\n"
@@ -11551,12 +11552,12 @@ const char g_MicroProfileHtmlLive_begin_1[] =
 "	if(HelpFadeTime < 2000)\n"
 "	{\n"
 "		var Alpha = 1 - (HelpFadeTime/2000);\n"
-"		context.globalAlpha = Alpha;\n"
-"		context.fillTe";
+"		context.globalAlpha ";
 
 const size_t g_MicroProfileHtmlLive_begin_1_size = sizeof(g_MicroProfileHtmlLive_begin_1);
 const char g_MicroProfileHtmlLive_begin_2[] =
-"xt(\"Press \'h\' for help\", X, 200);\n"
+"= Alpha;\n"
+"		context.fillText(\"Press \'h\' for help\", X, 200);\n"
 "		context.globalAlpha = 1;\n"
 "	}\n"
 "\n"
@@ -13045,12 +13046,12 @@ const char g_MicroProfileHtmlLive_begin_2[] =
 "function GetSubGraphSettings(key)\n"
 "{\n"
 "	let Source = Settings.ViewActive == VIEW_GRAPH_PERCENTILE ? Settings.SubGraphSettingsPercentile : Settings.SubGraphSettings;\n"
-"	let SubGraphSettings = Source[key];\n"
-"	if(!SubGraphSet";
+"	let SubGraphSettings = Sour";
 
 const size_t g_MicroProfileHtmlLive_begin_2_size = sizeof(g_MicroProfileHtmlLive_begin_2);
 const char g_MicroProfileHtmlLive_begin_3[] =
-"tings)\n"
+"ce[key];\n"
+"	if(!SubGraphSettings)\n"
 "	{\n"
 "		SubGraphSettings = {\"ReferenceTime\":10.0, \"TargetTime\":-1, \"AutomaticReference\":1, \"Percentile\":0.0, \"Bytes\":0};\n"
 "		Source[key] = SubGraphSettings;\n"
@@ -14320,13 +14321,13 @@ const char g_MicroProfileHtmlLive_begin_3[] =
 "	var Y = y;\n"
 "\n"
 "\n"
-"	for(var i = 0; i < Elements.length; ++i)\n"
-"	{\n"
-"		var";
+"	for(var i = 0; i < Eleme";
 
 const size_t g_MicroProfileHtmlLive_begin_3_size = sizeof(g_MicroProfileHtmlLive_begin_3);
 const char g_MicroProfileHtmlLive_begin_4[] =
-" Selected = Active == i;\n"
+"nts.length; ++i)\n"
+"	{\n"
+"		var Selected = Active == i;\n"
 "		var Name = Elements[i];\n"
 "		var bMouseIn = MouseY >= Y && MouseY < Y + BoxHeight;\n"
 "		var bgcolor = bMouseIn ? nBackColorOffset : nBackColors[nColorIndex];\n"
@@ -15728,6 +15729,7 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "{\n"
 "	console.log(\'WSClose\');\n"
 "	WSIsOpen = 0;\n"
+"	WS = null;\n"
 "	window.document.title = \"MicroProfile Live\";\n"
 "	FilterInputDiv.style[\'display\'] = \'none\';\n"
 "}\n"
@@ -15752,42 +15754,53 @@ const char g_MicroProfileHtmlLive_begin_4[] =
 "\n"
 "function Connect()\n"
 "{\n"
-"	if(WS && (WS.readyState == 1 || WS.readyState == 0))\n"
+"	WSSeconds = 0;\n"
+"	if(WSOpenTime)\n"
+"		WSSeconds = new Date() - WSOpenTime;\n"
+"	let DidTimeout = WSSeconds > 5000;\n"
+"\n"
+"	if(WS && (WS.readyState";
+
+const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
+const char g_MicroProfileHtmlLive_begin_5[] =
+" == 1 || WS.readyState == 0))\n"
 "	{\n"
 "		WSConnected = WS.readyState == 1;\n"
 "		WSFail = 0;\n"
 "		WSSeconds = 0;\n"
+"		WSReadyState = WS.readyState;\n"
 "	}\n"
 "	else\n"
 "	{\n"
 "		WSConnected = 0;\n"
-"		WSSeconds = ";
-
-const size_t g_MicroProfileHtmlLive_begin_4_size = sizeof(g_MicroProfileHtmlLive_begin_4);
-const char g_MicroProfileHtmlLive_begin_5[] =
-"(new Date() - WSOpenTime);\n"
-"		if(!WS || WSSeconds > 2000)\n"
-"		{\n"
-"			if(WS)\n"
-"			{\n"
-"				WS.close();\n"
-"				WS = null;\n"
-"			}\n"
-"			WSOpenTime = new Date();\n"
-"			WSPath = \"ws://\" + WSHost + \":\" + WSPort + \"/ws\";\n"
-"			SetMessage(\'Connecting to \' + WSPath,5 * 1000, 1);\n"
-"			WS = new WebSocket(WSPath);\n"
-"			WS.onopen = WSOpen;\n"
-"			WS.onmessage = WSMessage;\n"
-"			WS.onerror = WSError;\n"
-"			WS.onclose = WSClose;\n"
-"			WSFail = 0;\n"
-"		}\n"
-"		else\n"
+"	}\n"
+"	if(!WS || (DidTimeout && !WSConnected))\n"
+"	{\n"
+"		WSReadyState = 999;\n"
+"		if(WS)\n"
 "		{\n"
 "			WSFail++;\n"
+"			WS.onopen = null;\n"
+"			WS.onclose = null;\n"
+"			WS.onmessage = null;\n"
+"			WS.onerror = null;\n"
+"			WS.close();\n"
+"			WS = null;\n"
 "		}\n"
+"		WSOpenTime = new Date();\n"
+"		WSPath = \"ws://\" + WSHost + \":\" + WSPort + \"/ws\";\n"
+"		SetMessage(\'Connecting to \' + WSPath, 5 * 1000, 1);\n"
+"		console.log(\"Open WebSocket \" + WSPath);\n"
+"		WS = new WebSocket(WSPath);\n"
+"		WS.onopen = WSOpen;\n"
+"		WS.onmessage = WSMessage;\n"
+"		WS.onerror = WSError;\n"
+"		WS.onclose = WSClose;\n"
+"		WSFail = 0;\n"
 "	}\n"
+"\n"
+"\n"
+"\n"
 "	RequestDraw();\n"
 "}\n"
 "\n"
