@@ -158,6 +158,9 @@ Once the debug symbols are loaded - Indicated by the number in the top of the fu
 # Dependencies
 * Microprofile supports generating compressed captures using miniz(http:/code.google.com/miniz). 
 * Distorm is used to disassemble x86-64 when using dynamic instrumentation(https://github.com/gdabah/distorm)
+* stb is used for stb_sprintf (https://github.com/nothings/stb.git)
+* raw_pdb is used to parse pdbs on windows (https://github.com/MolecularMatters/raw_pdb.git)
+* Dear ImGui is used for the ImGui parts (https://github.com/ocornut/imgui.git)
 
 
 # Resource usage
