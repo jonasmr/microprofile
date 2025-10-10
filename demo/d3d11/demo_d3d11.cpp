@@ -498,14 +498,10 @@ void Render()
 					g_pImmediateContext->Draw( 3, 0 );
 				}
 
-				if(flip>50) //flip between subtracting every 50 frames
-					MICROPROFILE_ENTER_NEGATIVEGPU();
 				for(int i = 0; i < 50; ++i)
 				{
 					g_pImmediateContext->Draw( 3, 0 );
 				}
-				if(flip>50)
-					MICROPROFILE_LEAVE_NEGATIVEGPU();
 			}
 
 
