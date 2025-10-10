@@ -3133,13 +3133,24 @@ void MicroProfileCounterSet(MicroProfileToken nToken, int64_t nCount)
 	MP_ASSERT(nToken < S.nNumCounters);
 	S.Counters[nToken].store(nCount);
 }
+int64_t MicroProfileCounterGet(MicroProfileToken nToken)
+{
+	MP_ASSERT(nToken < S.nNumCounters);
+	return S.Counters[nToken].load();
+}
+
 void MicroProfileCounterSetDouble(MicroProfileToken nToken, double nCount)
 {
 	MP_ASSERT(nToken < S.nNumCounters);
 	MP_ASSERT((S.CounterInfo[nToken].nFlags & MICROPROFILE_COUNTER_FLAG_DOUBLE) == MICROPROFILE_COUNTER_FLAG_DOUBLE);
 	S.CountersDouble[nToken].store(nCount);
 }
-
+double MicroProfileCounterGetDouble(MicroProfileToken nToken)
+{
+	MP_ASSERT(nToken < S.nNumCounters);
+	MP_ASSERT((S.CounterInfo[nToken].nFlags & MICROPROFILE_COUNTER_FLAG_DOUBLE) == MICROPROFILE_COUNTER_FLAG_DOUBLE);
+	return S.CountersDouble[nToken].load();
+}
 void MicroProfileCounterSetLimit(MicroProfileToken nToken, int64_t nCount)
 {
 	MP_ASSERT(nToken < S.nNumCounters);
@@ -9786,7 +9797,12 @@ int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu)
 #include <d3d12.h>
 uint32_t MicroProfileGpuInsertTimeStamp(void* pContext)
 {
+	if(!S.pGPU)
+		return 0;
 	ID3D12GraphicsCommandList* pCommandList = (ID3D12GraphicsCommandList*)pContext;
+	if(!pContext)
+		return 0;
+
 	bool IsCopy = D3D12_COMMAND_LIST_TYPE_COPY == pCommandList->GetType();
 	uint32_t nNode = S.pGPU->nCurrentNode;
 	uint32_t nFrame = S.pGPU->nFrame;
@@ -9804,7 +9820,7 @@ uint32_t MicroProfileGpuInsertTimeStamp(void* pContext)
 
 void MicroProfileGpuFetchRange(uint32_t nBegin, int32_t nCount, uint64_t nFrame, int64_t nTimestampOffset)
 {
-	if(nCount <= 0)
+	if(!S.pGPU || nCount <= 0)
 		return;
 	void* pData = 0;
 	// uprintf("fetch [%d-%d]\n", nBegin, nBegin + nCount);
@@ -9820,7 +9836,7 @@ void MicroProfileGpuFetchRange(uint32_t nBegin, int32_t nCount, uint64_t nFrame,
 }
 void MicroProfileGpuFetchRangeCopy(uint32_t nBegin, int32_t nCount, uint64_t nFrame, int64_t nTimestampOffset)
 {
-	if(nCount <= 0)
+	if(!S.pGPU || nCount <= 0)
 		return;
 	void* pData = 0;
 	D3D12_RANGE Range = { sizeof(uint64_t) * nBegin, sizeof(uint64_t) * (nBegin + nCount) };
@@ -9835,6 +9851,9 @@ void MicroProfileGpuFetchRangeCopy(uint32_t nBegin, int32_t nCount, uint64_t nFr
 }
 void MicroProfileGpuWaitFence(uint32_t nNode, uint64_t nFence)
 {
+	if(!S.pGPU)
+		return;
+
 	auto GetFence = [&]() -> uint64_t
 	{
 		uint64_t f0 = S.pGPU->NodeState[nNode].pFence->GetCompletedValue();
@@ -9856,6 +9875,8 @@ void MicroProfileGpuWaitFence(uint32_t nNode, uint64_t nFence)
 
 void MicroProfileGpuFetchResults(uint64_t nFrame)
 {
+	if(!S.pGPU)
+		return;
 	uint64_t nPending = S.pGPU->nPendingFrame;
 	// while(nPending <= nFrame)
 	// while(0 <= nFrame - nPending)
@@ -9902,6 +9923,8 @@ void MicroProfileGpuFetchResults(uint64_t nFrame)
 
 uint64_t MicroProfileGpuGetTimeStamp(uint32_t nIndex)
 {
+	if(!S.pGPU)
+		return 0;
 	uint32_t nFrame = nIndex >> 16;
 	bool IsCopy = (nFrame & 0x8000) != 0;
 	nFrame &= 0x7fff;
@@ -9919,11 +9942,17 @@ uint64_t MicroProfileGpuGetTimeStamp(uint32_t nIndex)
 
 uint64_t MicroProfileTicksPerSecondGpu()
 {
-	return S.pGPU->nFrequency;
+	if(S.pGPU)
+	{
+		return S.pGPU->nFrequency;
+	}
+	return 1;
 }
 
 uint32_t MicroProfileGpuFlip(void* pContext)
 {
+	if(!S.pGPU)
+		return 0;
 	uint32_t nNode = S.pGPU->nCurrentNode;
 	uint32_t nFrameIndex = S.pGPU->nFrame % MICROPROFILE_D3D_INTERNAL_DELAY;
 	uint32_t nCount = 0, nStart = 0;
@@ -9934,7 +9963,6 @@ uint32_t MicroProfileGpuFlip(void* pContext)
 	pCommandAllocator->Reset();
 	pCommandAllocatorCopy->Reset();
 	ID3D12GraphicsCommandList* pCommandList = S.pGPU->Frames[nFrameIndex].pCommandList[nNode];
-	;
 	pCommandList->Reset(pCommandAllocator, nullptr);
 
 	ID3D12GraphicsCommandList* pCommandListCopy = nullptr;
@@ -10097,6 +10125,9 @@ void MicroProfileGpuInitD3D12(void* pDevice_, uint32_t nNodeCount, void** pComma
 
 void MicroProfileGpuShutdown()
 {
+	if(!S.pGPU)
+		return;
+
 	for(uint32_t nNode = 0; nNode < S.pGPU->nNodeCount; ++nNode)
 	{
 		MicroProfileGpuWaitFence(nNode, S.pGPU->nFrame - 1);
@@ -10131,6 +10162,13 @@ void MicroProfileSetCurrentNodeD3D12(uint32_t nNode)
 
 int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu)
 {
+	if(!S.pGPU)
+	{
+		*pOutCPU = 1;
+		*pOutGpu = 1;
+		return 1;
+	}
+
 	HRESULT hr = S.pGPU->NodeState[0].pCommandQueue->GetClockCalibration((uint64_t*)pOutGpu, (uint64_t*)pOutCPU);
 	MP_ASSERT(hr == S_OK);
 	return 1;
@@ -12078,7 +12116,6 @@ void MicroProfileSymbolInitializeInternal()
 		{
 			MICROPROFILE_COUNTER_ADD("/MicroProfile/Symbols/Ignored", 1);
 		}
-		// MicroProfileSleep(1);
 #if SYMDBG
 		MicroProfileSleep(10);
 #endif
