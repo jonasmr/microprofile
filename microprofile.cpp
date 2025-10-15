@@ -138,6 +138,7 @@ enum
 #define MP_REALLOC(p, s) MicroProfileReallocInternal(p, s)
 #define MP_FREE(p) MicroProfileFreeInternal(p)
 #define MP_ALLOC_OBJECT(T) (T*)MP_ALLOC(sizeof(T), alignof(T))
+#define MP_ALLOC_OBJECT_ARRAY(T, Count) (T*)MP_ALLOC(sizeof(T) * Count, alignof(T))
 
 #ifndef MICROPROFILE_DEBUG
 #define MICROPROFILE_DEBUG 0
@@ -473,6 +474,8 @@ void MicroProfileSymbolSendErrors(MpSocket Connection);
 const char* MicroProfileSymbolModuleGetString(uint32_t nIndex);
 void MicroProfileInstrumentWithoutSymbols(const char** pModules, const char** pSymbols, uint32_t nNumSymbols);
 void MicroProfileSymbolUpdateModuleList();
+bool MicroProfileSymInit();
+void MicroProfileSymCleanup();
 #endif
 
 struct MicroProfileFunctionQuery;
@@ -492,6 +495,27 @@ uint64_t MicroProfileHashTableHash(MicroProfileHashTable* pTable, uint64_t K);
 bool MicroProfileHashTableSet(MicroProfileHashTable* pTable, uint64_t Key, uintptr_t Value);
 MicroProfileHashTableIterator MicroProfileGetHashTableIteratorBegin(MicroProfileHashTable* HashTable);
 MicroProfileHashTableIterator MicroProfileGetHashTableIteratorEnd(MicroProfileHashTable* HashTable);
+
+template <typename T>
+struct MicroProfileArray
+{
+	T* Data = nullptr;
+	uint32_t Size = 0;
+	uint32_t Capacity = 0;
+	T& operator[](const uint32_t Index);
+	const T& operator[](const uint32_t Index) const;
+	T* begin();
+	T* end();
+};
+
+template <typename T>
+void MicroProfileArrayInit(MicroProfileArray<T>& Array, uint32_t InitialCapacity);
+template <typename T>
+void MicroProfileArrayDestroy(MicroProfileArray<T>& Array, uint32_t InitialCapacity);
+template <typename T>
+void MicroProfileArrayClear(MicroProfileArray<T>& Array);
+template <typename T>
+void MicroProfileArrayPushBack(MicroProfileArray<T>& Array, const T& v);
 
 struct MicroProfileTimer
 {
@@ -633,6 +657,8 @@ struct MicroProfileCsvConfig
 #pragma warning(disable : 4100) // unreferenced formal parameter
 #pragma warning(disable : 4091)
 #pragma warning(disable : 4189) // local variable is initialized but not referenced. (for defer local variables)
+#pragma warning(disable : 4456)
+#pragma warning(disable : 4702)
 #endif
 
 struct MicroProfileStringBlock
@@ -940,6 +966,13 @@ struct MicroProfileSymbolModule
 	std::atomic<int> nModuleLoadFinished;
 };
 
+struct MicroProfileInstrumentMemoryRegion
+{
+	intptr_t Start;
+	intptr_t Size;
+	uint32_t Protect;
+};
+
 struct MicroProfile
 {
 	uint32_t nTotalTimers;
@@ -1189,6 +1222,7 @@ struct MicroProfile
 	int nNumPatchErrorFunctions;
 	const char* PatchErrorFunctionNames[MICROPROFILE_MAX_PATCH_ERRORS];
 	MicroProfileSuspendState SuspendState;
+	MicroProfileArray<MicroProfileInstrumentMemoryRegion> MemoryRegions;
 #endif
 
 	int GpuQueue;
@@ -7962,9 +7996,9 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 		char* pGet = (char*)&Bytes[1];
 		uint32_t nNumArguments = 0;
 #ifdef _WIN32
-		int r = sscanf_s(pGet, "%d", &nNumArguments);
+		r = sscanf_s(pGet, "%d", &nNumArguments);
 #else
-		int r = sscanf(pGet, "%d", &nNumArguments);
+		r = sscanf(pGet, "%d", &nNumArguments);
 #endif
 		if(r != 1)
 		{
@@ -8023,9 +8057,9 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 		void* p = 0;
 		uint32_t nColor = 0x0;
 #ifdef _WIN32
-		int r = sscanf_s((const char*)&Bytes[1], "%p %x", &p, &nColor);
+		r = sscanf_s((const char*)&Bytes[1], "%p %x", &p, &nColor);
 #else
-		int r = sscanf((const char*)&Bytes[1], "%p %x", &p, &nColor);
+		r = sscanf((const char*)&Bytes[1], "%p %x", &p, &nColor);
 #endif
 		if(r == 2)
 		{
@@ -12774,73 +12808,112 @@ static void MicroProfileRestore(void* p_, size_t s, DWORD* oldFlags)
 	}
 }
 
-void* MicroProfileAllocExecutableMemoryUp(intptr_t nBase, size_t s)
+void* MicroProfileAllocExecutableMemoryUp(intptr_t nBase, size_t s, uint32_t RegionIndex)
 {
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+	size_t Granularity = si.dwAllocationGranularity << 1;
+	nBase = (nBase / Granularity) * Granularity;
 	intptr_t nEnd = nBase + 0x80000000;
-	MEMORY_BASIC_INFORMATION mbi;
-	while(nBase < nEnd)
+
+	for(uint32_t i = RegionIndex; i < S.MemoryRegions.Size; i++)
 	{
-		if(!VirtualQuery((void*)nBase, &mbi, sizeof(mbi)))
+		// try and allocate 2x before
+		nBase = S.MemoryRegions[i].Start + S.MemoryRegions[i].Size + Granularity;
+		nBase = (nBase / Granularity) * Granularity;
+
+		if(nBase >= nEnd)
+			break;
+		void* pMemory = VirtualAlloc((void*)nBase, s, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+		if(pMemory)
 		{
-			return 0;
+			return pMemory;
 		}
-		if(mbi.State == MEM_FREE && mbi.RegionSize >= s)
-		{
-			void* pMemory = VirtualAlloc((void*)nBase, s, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-			if(pMemory)
-			{
-				return pMemory;
-			}
-		}
-		nBase = (intptr_t)mbi.BaseAddress + mbi.RegionSize;
-		nBase = (nBase + s - 1) & ~(s - 1);
 	}
-	return 0;
+	return nullptr;
 }
 
-void* MicroProfileAllocExecutableMemoryDown(intptr_t nBase, size_t s)
+static void MicroProfileUpdateMemoryRegions()
 {
-	intptr_t nEnd = nBase - 0x80000000;
-	MEMORY_BASIC_INFORMATION mbi;
-	while(nBase > nEnd)
+	MicroProfileArrayClear(S.MemoryRegions);
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+
+	BYTE* Addr = (BYTE*)si.lpMinimumApplicationAddress;
+	BYTE* MaxAddr = (BYTE*)si.lpMaximumApplicationAddress;
+	// uprintf("updating memory regions\n");
+	uint32_t idx = 0;
+	(void)idx;
+	while(Addr < MaxAddr)
 	{
-		nBase &= ~(s - 1);
-		if(!VirtualQuery((void*)nBase, &mbi, sizeof(mbi)))
-		{
-			return 0;
-		}
-		if(mbi.State == MEM_FREE && mbi.RegionSize >= s)
-		{
-			void* pMemory = VirtualAlloc((void*)nBase, s, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-			if(pMemory)
-			{
-				return pMemory;
-			}
-		}
-		nBase = (intptr_t)mbi.BaseAddress - s;
+		MEMORY_BASIC_INFORMATION mbi;
+		SIZE_T Result = VirtualQuery(Addr, &mbi, sizeof(mbi));
+		if(Result == 0)
+			break;
+		MicroProfileInstrumentMemoryRegion region;
+		region.Start = (intptr_t)mbi.BaseAddress;
+		region.Size = (intptr_t)mbi.RegionSize;
+		MicroProfileArrayPushBack(S.MemoryRegions, region);
+		// uprintf("Memory Region %d: %p(%p) %p .. State=%08x Protect=%08x Type=%08x\n", idx++, mbi.BaseAddress, mbi.AllocationBase, (intptr_t)mbi.BaseAddress + mbi.RegionSize, mbi.State, mbi.Protect,
+		// mbi.Type);
+		Addr = (BYTE*)mbi.BaseAddress + mbi.RegionSize;
 	}
-	return 0;
+	uprintf("Iterated %d regions\n", S.MemoryRegions.Size);
+}
+
+static void* MicroProfileAllocExecutableMemoryDown(intptr_t nBase, size_t s, uint32_t RegionIndex)
+{
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+	size_t Granularity = si.dwAllocationGranularity << 1;
+	intptr_t nEnd = nBase - 0x80000000;
+
+	for(int32_t i = RegionIndex; i >= 0; i--)
+	{
+		// try and allocate 2x before
+		nBase = S.MemoryRegions[i].Start - Granularity;
+		nBase = (nBase / Granularity) * Granularity;
+		if(nBase < nEnd)
+			break;
+		void* pMemory = VirtualAlloc((void*)nBase, s, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+		if(pMemory)
+		{
+			return pMemory;
+		}
+	}
+	return nullptr;
 }
 
 static void* MicroProfileAllocExecutableMemory(void* pBase, size_t s)
 {
+	uint32_t RegionIndex = 0;
+	for(uint32_t i = 0; i < S.MemoryRegions.Size; ++i)
+	{
+		auto& R = S.MemoryRegions[i];
+		if(R.Start <= (intptr_t)pBase && (intptr_t)pBase < R.Start + R.Size)
+		{
+			RegionIndex = i;
+			break;
+		}
+	}
+
 	s = (s + 4095) & ~(4095);
 	intptr_t nBase = (intptr_t)pBase;
 	void* pResult = 0;
 	if(0 == pResult && nBase > 0x40000000)
 	{
-		pResult = MicroProfileAllocExecutableMemoryDown(nBase - 0x40000000, s);
+		pResult = MicroProfileAllocExecutableMemoryDown(nBase - 0x40000000, s, RegionIndex);
 		if(0 == pResult)
 		{
-			pResult = MicroProfileAllocExecutableMemoryUp(nBase - 0x40000000, s);
+			pResult = MicroProfileAllocExecutableMemoryUp(nBase - 0x40000000, s, RegionIndex);
 		}
 	}
 	if(0 == pResult && nBase < 0xffffffff40000000)
 	{
-		pResult = MicroProfileAllocExecutableMemoryUp(nBase + 0x40000000, s);
+		pResult = MicroProfileAllocExecutableMemoryUp(nBase + 0x40000000, s, RegionIndex);
 		if(0 == pResult)
 		{
-			pResult = MicroProfileAllocExecutableMemoryUp(nBase + 0x40000000, s);
+			pResult = MicroProfileAllocExecutableMemoryUp(nBase + 0x40000000, s, RegionIndex);
 		}
 	}
 	return pResult;
@@ -13371,6 +13444,8 @@ bool MicroProfilePatchBeginSuspend()
 
 	if(State.SuspendCounter++ > 0)
 		return true;
+	MicroProfileUpdateMemoryRegions();
+
 	MicroProfileMutex().lock();
 	MP_ASSERT(State.NumSuspended == 0);
 
@@ -14927,6 +15002,72 @@ bool MicroProfileHashTableGetPtr(MicroProfileHashTable* pTable, const void* pKey
 bool MicroProfileHashTableRemovePtr(MicroProfileHashTable* pTable, const char* pKey)
 {
 	return MicroProfileHashTableRemove(pTable, (uint64_t)pKey);
+}
+
+template <typename T>
+T& MicroProfileArray<T>::operator[](const uint32_t Index)
+{
+	return Data[Index];
+}
+
+template <typename T>
+const T& MicroProfileArray<T>::operator[](const uint32_t Index) const
+{
+	MP_ASSERT(Index < Size);
+	return Data[Index];
+}
+template <typename T>
+T* MicroProfileArray<T>::begin()
+{
+	return Data;
+}
+template <typename T>
+T* MicroProfileArray<T>::end()
+{
+	return Data + Size;
+}
+
+template <typename T>
+void MicroProfileArrayInit(MicroProfileArray<T>& Array, uint32_t InitialCapacity)
+{
+	MP_ASSERT(Array.Data == nullptr);
+	MP_ASSERT(Array.Size == 0);
+	MP_ASSERT(Array.Capacity == 0);
+	Array.Capacity = InitialCapacity;
+	Array.Data = MP_ALLOC_OBJECT_ARRAY(T, InitialCapacity);
+	Array.Size = 0;
+}
+template <typename T>
+void MicroProfileArrayDestroy(MicroProfileArray<T>& Array, uint32_t InitialCapacity)
+{
+	if(Array.Data)
+		MP_FREE(Array.Data);
+	memset(Array, 0, sizeof(*Array));
+}
+template <typename T>
+void MicroProfileArrayClear(MicroProfileArray<T>& Array)
+{
+	Array.Size = 0;
+}
+
+template <typename T>
+void MicroProfileArrayPushBack(MicroProfileArray<T>& Array, const T& v)
+{
+	uint32_t& Size = Array.Size;
+	uint32_t& Capacity = Array.Capacity;
+	if(Size >= Capacity)
+	{
+		uint32_t NewCapacity = (MicroProfileMax<uint32_t>(1u, Capacity) + 1) * 3 / 2;
+		T* NewData = MP_ALLOC_OBJECT_ARRAY(T, NewCapacity);
+		memcpy(NewData, Array.Data, Size * sizeof(T));
+		if(Array.Data)
+		{
+			MP_FREE(Array.Data);
+		}
+		Array.Data = NewData;
+		Capacity = NewCapacity;
+	}
+	Array.Data[Size++] = v;
 }
 
 void MicroProfileStringBlockFree(MicroProfileStringBlock* pBlock)
