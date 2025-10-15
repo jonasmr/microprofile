@@ -467,7 +467,7 @@ void MicroProfileSymbolQueryFunctions(MpSocket Connection, const char* pFilter);
 void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, const char* pFunctionName, uint32_t nColor);
 bool MicroProfileSymbolInitialize(bool bStartLoad, const char* pModuleName = 0);
 MicroProfileSymbolDesc* MicroProfileSymbolFindFuction(void* pAddress);
-void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pModuleName, const char* pFunctionName);
+void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pModuleName, const char* pFunctionName, int nMinBytes, int nMaxCalls);
 void MicroProfileSymbolQuerySendResult(MpSocket Connection);
 void MicroProfileSymbolSendFunctionNames(MpSocket Connection);
 void MicroProfileSymbolSendErrors(MpSocket Connection);
@@ -7043,7 +7043,8 @@ enum
 	MSG_FUNCTION_RESULTS = 8,
 	MSG_INACTIVE_FRAME = 9,
 	MSG_FUNCTION_NAMES = 10,
-	MSG_INSTRUMENT_ERROR = 11
+	MSG_INSTRUMENT_ERROR = 11,
+	MSG_QUERY_INDEX = 12,
 	// MSG_MODULE_NAME = 12,
 };
 
@@ -8056,17 +8057,19 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 		uprintf("got Message: %s\n", (const char*)&Bytes[0]);
 		void* p = 0;
 		uint32_t nColor = 0x0;
+		int nMinBytes = 0;
+		int nMaxCalls = 0;
+		int nCharsRead = 0;
 #ifdef _WIN32
-		r = sscanf_s((const char*)&Bytes[1], "%p %x", &p, &nColor);
+		r = sscanf_s((const char*)&Bytes[1], "%p %x %d %d%n", &p, &nColor, &nMinBytes, &nMaxCalls, &nCharsRead);
 #else
-		r = sscanf((const char*)&Bytes[1], "%p %x", &p, &nColor);
+		r = sscanf((const char*)&Bytes[1], "%p %x %d %d%n", &p, &nColor, &nMinBytes, &nMaxCalls, &nCharsRead);
 #endif
-		if(r == 2)
+		if(r == 4)
 		{
-			uprintf("success!\n");
 			const char* pModule = (const char*)&Bytes[1];
-			int nNumChars = stbsp_snprintf(0, 0, "%p %x", p, nColor);
-			pModule += nNumChars;
+			// int nNumChars = stbsp_snprintf(0, 0, "%p %x", p, nColor);
+			pModule += nCharsRead;
 			while(*pModule != ' ' && *pModule != '\0')
 				++pModule;
 
@@ -8095,7 +8098,7 @@ bool MicroProfileWebSocketReceive(MpSocket Connection)
 			uprintf("scanning for ptr %p %x mod:'%s' name'%s'\n", p, nColor, pModule, pName);
 			if(Bytes[0] == 'I')
 			{
-				MicroProfileInstrumentFunctionsCalled(p, pModule, pName);
+				MicroProfileInstrumentFunctionsCalled(p, pModule, pName, nMinBytes, nMaxCalls);
 			}
 			else
 			{
@@ -8194,6 +8197,11 @@ void MicroProfileWebSocketHandshake(MpSocket Connection, char* pWebSocketKey)
 	}
 	else
 	{
+		MicroProfileWSPrintStart(Connection);
+		MicroProfileWSPrintf("{\"k\":\"%d\",\"qp\":%d}", MSG_QUERY_INDEX, S.nQueryProcessed);
+		MicroProfileWSFlush();
+		MicroProfileWSPrintEnd();
+
 		if(S.pJsonSettings)
 		{
 			MicroProfileWSPrintStart(Connection);
@@ -11477,7 +11485,7 @@ void MicroProfileInstrumentScanForFunctionCalls(CB Callback, void* pFunction, si
 	} while(nOffset < nCodeLen);
 }
 
-void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pModuleName, const char* pFunctionName)
+void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pModuleName, const char* pFunctionName, int nMinBytes, int nMaxCalls)
 {
 	pFunction = MicroProfileX64FollowJump(pFunction);
 
@@ -11497,8 +11505,31 @@ void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pModuleN
 	const intptr_t nCodeLen = (intptr_t)pDesc->nAddressEnd - (intptr_t)pDesc->nAddress;
 
 	MicroProfilePatchBeginSuspend();
-
-	auto Callback = [](void* pFunc) { MicroProfileInstrumentFromAddressOnly(pFunc); };
+	int NumFunctionsInstrumented = 0;
+	auto Callback = [&NumFunctionsInstrumented, nMinBytes, nMaxCalls](void* pFunc)
+	{
+		MicroProfileSymbolDesc* pDesc = MicroProfileSymbolFindFuction(pFunc);
+		if(!pDesc)
+			return;
+		const char* pName = pDesc ? pDesc->pName : "??";
+		intptr_t Size = pDesc->nAddressEnd - pDesc->nAddress;
+		if(nMinBytes == 0 || Size >= nMinBytes)
+		{
+			if(0 == nMaxCalls || NumFunctionsInstrumented++ < nMaxCalls)
+			{
+				uprintf("** func Instrumented, count %d, size %d %s\n", NumFunctionsInstrumented, Size, pName);
+				MicroProfileInstrumentFromAddressOnly(pFunc);
+			}
+			else
+			{
+				uprintf("** func Skipped, count %d>=%d :: %s\n", NumFunctionsInstrumented, nMaxCalls, pName);
+			}
+		}
+		else
+		{
+			uprintf("** func Skipped, Size %d<%d :: %s\n", Size, nMinBytes, pName);
+		}
+	};
 	MicroProfileInstrumentScanForFunctionCalls(Callback, pFunction, nCodeLen);
 
 	MicroProfilePatchEndSuspend();
@@ -12025,7 +12056,8 @@ bool MicroProfileSymbolIgnoreSymbol(const char* pName)
 #ifdef _WIN32
 	if(pName[0] == '_' && pName[1] == '_')
 		return true;
-	if(strstr(pName, "__security_check_cookie") || strstr(pName, "_RTC_CheckStackVars") || strstr(pName, "__chkstk") || strstr(pName, "std::_Atomic"))
+	if(strstr(pName, "__security_check_cookie") || strstr(pName, "_RTC_CheckStackVars") || strstr(pName, "__chkstk") || strstr(pName, "std::_Atomic") || strstr(pName, "_Init_thread_header") ||
+	   strstr(pName, "_Init_thread_footer"))
 	{
 		return true;
 	}

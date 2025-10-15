@@ -59,6 +59,56 @@ li li a{ display:block;float:none;width:100%;text-align:left;}
 .root {z-index:1;position:absolute;top:0px;left:0px;}
 .filterinputsearchdiv{position:fixed; background-color: #313131;display:none;}
 .filterinputsearch{width:100px;}
+  #popup-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background-color: rgba(0, 0, 0, 0.5);
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+
+  #popup-box {
+    background: #343434;
+    padding: 20px 30px;
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.3);
+    min-width: 320px;
+    text-align: left;
+  }
+
+  #popup-description {
+    margin-bottom: 15px;
+  }
+
+  .popup-field {
+    margin-bottom: 15px;
+  }
+
+  .popup-field label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+
+  .popup-field input {
+    width: 100%;
+    padding: 8px;
+    box-sizing: border-box;
+  }
+
+  .button-row {
+    text-align: right;
+  }
+
+  #popup-box button {
+    padding: 6px 14px;
+    margin-top: 10px;
+    margin-right: 10px;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body style="">
@@ -84,9 +134,69 @@ Enter: Capture selection/Next N Frames
 </tr>
 </table>
 </div>
+<div id="popup-overlay">
+  <div id="popup-box">
+    <div id="popup-description"></div>
+    <div id="popup-fields"></div>
+    <div class="button-row">
+      <button onclick="popupOk()">OK</button>
+      <button onclick="popupCancel()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <canvas id="DetailedView" height="100%" style="background-color:#343434;margin:0px;padding:0px;"></canvas>
 <script>
 "use strict"
+
+
+const popupOverlay = document.getElementById('popup-overlay');
+const popupDescription = document.getElementById('popup-description');
+const popupFields = document.getElementById('popup-fields');
+let popupCallback = null;
+
+function showPopup(description, fields, callback)
+{
+	popupCallback = callback;
+	popupDescription.textContent = description;
+	popupFields.innerHTML = "";
+	fields.forEach((field, index) => {
+  		const div = document.createElement('div');
+  		div.className = 'popup-field';
+
+  		const label = document.createElement('label');
+  		label.textContent = field.label;
+  		label.htmlFor = `popup-input-${index}`;
+
+  		const input = document.createElement('input');
+  		input.id = `popup-input-${index}`;
+  		input.value = field.value || '';
+
+  		div.appendChild(label);
+  		div.appendChild(input);
+  		popupFields.appendChild(div);
+	});
+	popupOverlay.style.display = "flex";
+	popupFields.querySelector("input").focus();
+
+}
+function popupOk()
+{
+	const inputs = popupFields.querySelectorAll("input");
+	const values = [];
+	inputs.forEach((input, index) => {
+  		const label = popupFields.querySelectorAll("label")[index].textContent;
+  		values[index] = input.value;
+	});
+	popupCallback(values);
+	popupCallback = null;
+	popupOverlay.style.display = "none";
+}
+function popupCancel() {
+	popupCallback = null;
+	popupOverlay.style.display = "none";
+}
+
 
 var FRAME_HISTORY_COLOR_CPU = '#ff7f27';
 var FRAME_HISTORY_COLOR_GPU = '#ffffff';
@@ -271,18 +381,18 @@ let CountersEnabled = 0;
 var TimersActiveOnly = 0;
 
 
-var MSG_TIMER_TREE = 1;
-var MSG_ENABLED = 2;
-var MSG_FRAME = 3;
-var MSG_LOADSETTINGS = 4;
-var MSG_PRESETS = 5;
-var MSG_CURRENTSETTINGS = 6;
-var MSG_COUNTERS = 7;
-var MSG_FUNCTION_RESULTS = 8;
-var MSG_INACTIVE_FRAME = 9;
-var MSG_FUNCTION_NAMES = 10;
-var MSG_INSTRUMENT_ERROR = 11;
-// var MSG_MODULE_NAME = 12;
+const MSG_TIMER_TREE = 1;
+const MSG_ENABLED = 2;
+const MSG_FRAME = 3;
+const MSG_LOADSETTINGS = 4;
+const MSG_PRESETS = 5;
+const MSG_CURRENTSETTINGS = 6;
+const MSG_COUNTERS = 7;
+const MSG_FUNCTION_RESULTS = 8;
+const MSG_INACTIVE_FRAME = 9;
+const MSG_FUNCTION_NAMES = 10;
+const MSG_INSTRUMENT_ERROR = 11;
+const MSG_QUERY_INDEX = 12;
 
 
 const TYPE_NONE = 0;
@@ -5408,11 +5518,27 @@ function DrawMenuFunctions()
 	{
 		if(KeyShiftDown || MouseX < X)
 		{
-			WSSendMessage("I" + FF[Selection].a + ' ' + FF[Selection].rgb + ' ' + FF[Selection].m + '!' + FF[Selection].n);
+			let messageStart = "I" + FF[Selection].a + ' ' + FF[Selection].rgb;
+			let messageEnd =  FF[Selection].m + '!' + FF[Selection].n;
+			let cb = function(result)
+			{
+				let size = parseInt(result[0]);
+				if(isNaN(size))
+					size = 0;
+				let MaxFunctions = parseInt(result[1]);
+				if(isNaN(MaxFunctions))
+					MaxFunctions = 0;
+				WSSendMessage(messageStart + ' ' + size + ' ' + MaxFunctions + ' ' + messageEnd);
+			};
+			let text = "Instrument functions called by " + messageEnd
+			showPopup(text, [
+				{label:"Minimum function size(bytes)", value:"128"},
+				{label:"Max functions to instrument", value:"0"},
+			], cb);
 		}
 		else
 		{
-			WSSendMessage("i" + FF[Selection].a + ' ' + FF[Selection].rgb + ' ' + FF[Selection].m + '!' + FF[Selection].n);
+			WSSendMessage("i" + FF[Selection].a + ' ' + FF[Selection].rgb + ' 0 0 ' + FF[Selection].m + '!' + FF[Selection].n);
 		}
 	}
 	SizeInfo.h = Y-SizeInfo.y;
@@ -6831,14 +6957,15 @@ function WSMessage(event)
 			}
 		}
 		console.log("got error "+ JSON.stringify(Obj.v));
+	}else if(k == MSG_QUERY_INDEX)
+	{
+		if(parseInt(Obj.qp))
+		{
+			FunctionQueryLastRequest = parseInt(Obj.qp);
+			FunctionQueryReceived = FunctionQueryLastRequest;
+			console.log("SET QUERY COUNTER " + FunctionQueryLastRequest);
+		}
 	}
-	// else if(k == MSG_MODULE_NAME)
-	// {
-	// 	console.log("MODULENAME..\n");
-	// 	console.log(JSON.stringify(Obj.v));
-	// 	ModuleState = Obj.v;
-
-	// }
 	else
 	{
 		console.log('hest!');
@@ -6852,10 +6979,16 @@ function WSError(event)
 function WSClose(event)
 {
 	console.log('WSClose');
-	WSIsOpen = 0;
+	let WSLocal = WS;
 	WS = null;
-	window.document.title = "MicroProfile Live";
-	FilterInputDiv.style['display'] = 'none';
+	if(WSLocal)
+	{
+		WSIsOpen = 0;
+		WSLocal.close();
+		window.document.title = "MicroProfile Live";
+		FilterInputDiv.style['display'] = 'none';
+	}
+
 }
 function WSSendMessage(msgid)
 {
