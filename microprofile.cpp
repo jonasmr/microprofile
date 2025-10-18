@@ -464,7 +464,7 @@ struct MicroProfileSuspendState
 };
 
 void MicroProfileSymbolQueryFunctions(MpSocket Connection, const char* pFilter);
-void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, const char* pFunctionName, uint32_t nColor);
+bool MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, const char* pFunctionName, uint32_t nColor);
 bool MicroProfileSymbolInitialize(bool bStartLoad, const char* pModuleName = 0);
 MicroProfileSymbolDesc* MicroProfileSymbolFindFuction(void* pAddress);
 void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pModuleName, const char* pFunctionName, int nMinBytes, int nMaxCalls);
@@ -11404,7 +11404,7 @@ extern "C" void MicroProfileInterceptLeave(int a)
 	MicroProfileLeaveInternal(pScopeState->Token, pScopeState->nTick);
 }
 
-void MicroProfileInstrumentFromAddressOnly(void* pFunction)
+bool MicroProfileInstrumentFromAddressOnly(void* pFunction)
 {
 	MicroProfileSymbolDesc* pDesc = MicroProfileSymbolFindFuction(pFunction);
 	if(pDesc)
@@ -11412,11 +11412,12 @@ void MicroProfileInstrumentFromAddressOnly(void* pFunction)
 		uprintf("Found function %p :: %s %s\n", (void*)pDesc->nAddress, pDesc->pName, pDesc->pShortName);
 		uint32_t nColor = MicroProfileColorFromString(pDesc->pName);
 
-		MicroProfileInstrumentFunction(pFunction, MicroProfileSymbolModuleGetString(pDesc->nModule), pDesc->pName, nColor);
+		return MicroProfileInstrumentFunction(pFunction, MicroProfileSymbolModuleGetString(pDesc->nModule), pDesc->pName, nColor);
 	}
 	else
 	{
 		uprintf("No Function Found %p\n", pFunction);
+		return false;
 	}
 }
 
@@ -11515,10 +11516,13 @@ void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pModuleN
 		intptr_t Size = pDesc->nAddressEnd - pDesc->nAddress;
 		if(nMinBytes == 0 || Size >= nMinBytes)
 		{
-			if(0 == nMaxCalls || NumFunctionsInstrumented++ < nMaxCalls)
+			if(0 == nMaxCalls || NumFunctionsInstrumented < nMaxCalls)
 			{
 				uprintf("** func Instrumented, count %d, size %d %s\n", NumFunctionsInstrumented, Size, pName);
-				MicroProfileInstrumentFromAddressOnly(pFunc);
+				if(MicroProfileInstrumentFromAddressOnly(pFunc))
+				{
+					++NumFunctionsInstrumented;
+				}
 			}
 			else
 			{
@@ -11535,21 +11539,29 @@ void MicroProfileInstrumentFunctionsCalled(void* pFunction, const char* pModuleN
 	MicroProfilePatchEndSuspend();
 }
 
-void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, const char* pFunctionName, uint32_t nColor)
+bool MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, const char* pFunctionName, uint32_t nColor)
 {
 	MicroProfilePatchBeginSuspend();
+	struct ScopeExit
+	{
+		~ScopeExit()
+		{
+			MicroProfilePatchEndSuspend();
+		}
+	} dummy;
+
 	MicroProfilePatchError Err;
 	if(S.DynamicTokenIndex == MICROPROFILE_MAX_DYNAMIC_TOKENS)
 	{
 		uprintf("instrument failing, out of dynamic tokens %d\n", S.DynamicTokenIndex);
-		return;
+		return false;
 	}
 	for(uint32_t i = 0; i < S.DynamicTokenIndex; ++i)
 	{
 		if(S.FunctionsInstrumented[i] == pFunction)
 		{
 			uprintf("function %p already instrumented\n", pFunction);
-			return;
+			return false;
 		}
 	}
 	if(MicroProfilePatchFunction(pFunction, S.DynamicTokenIndex, MicroProfileInterceptEnter, MicroProfileInterceptLeave, &Err))
@@ -11568,6 +11580,8 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, co
 #if MICROPROFILE_WEBSERVER
 		MicroProfileWebSocketToggleTimer(MicroProfileGetTimerIndex(Tok));
 #endif
+
+		return false;
 	}
 	else
 	{
@@ -11597,8 +11611,8 @@ void MicroProfileInstrumentFunction(void* pFunction, const char* pModuleName, co
 			S.PatchErrorFunctionNames[S.nNumPatchErrorFunctions++] = pFunctionName;
 		}
 		uprintf("interception fail!!\n");
+		return false;
 	}
-	MicroProfilePatchEndSuspend();
 }
 
 void MicroProfileInstrumentPreInit();
