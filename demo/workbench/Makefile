@@ -5,7 +5,7 @@ ifeq ($(UNAME_S),Linux)
 	LDFLAGS+=-ldl -rdynamic
 endif
 
-FLAGS=-I../..
+FLAGS=-I../.. -I.
 #FLAGS+=-fsanitize=undefined-trap -fsanitize-undefined-trap-on-error
 FLAGS+=-Wall -DMICROPROFILE_UI=0 -DMICROPROFILE_WEBSERVER=1 -DMICROPROFILE_GPU_TIMERS=0
 FLAGS+=-g -O0 -Wall -Werror

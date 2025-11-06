@@ -2,7 +2,7 @@ name: MicroProfile Build
 
 on:
   push:
-    branches: [ "master", "symbols" ]
+    branches: [ "master", "symbols", "gpu-callbacks" ]
   pull_request:
     branches: [ "master" ]
 

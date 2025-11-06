@@ -565,7 +565,7 @@ int DXSample::Run(HINSTANCE hInstance, int nCmdShow)
 	}
 
 	OnDestroy();
-	MicroProfileGpuShutdown();
+	MicroProfileShutdown();
 
 	// Return this part of the WM_QUIT message to Windows.
 	return static_cast<char>(msg.wParam);

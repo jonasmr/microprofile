@@ -1,5 +1,5 @@
 LDFLAGS+=-lpthread
-FLAGS=-I../..
+FLAGS=-I../.. -I.
 #FLAGS+=-fsanitize=undefined-trap -fsanitize-undefined-trap-on-error
 FLAGS+=-Wall -DMICROPROFILE_GPU_TIMERS=0
 FLAGS+=-g -O0 -Wno-invalid-offsetof -Wall -Werror

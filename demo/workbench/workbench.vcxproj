@@ -107,9 +107,9 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>MICROPROFILE_FRAME_EXTRA_DATA=1;MICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE;MICROPROFILE_ENABLED=1;MICROPROFILE_GPU_TIMERS=0;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>../..;..\..\distorm\include;;..\..\rawpdb\raw_pdb\src\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../..;..\..\distorm\include;;..\..\rawpdb\raw_pdb\src\;.</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -151,9 +151,9 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>MICROPROFILE_FRAME_EXTRA_DATA=1;MICROPROFILE_DYNAMIC_INSTRUMENT_ENABLE;MICROPROFILE_ENABLED=1;MICROPROFILE_GPU_TIMERS=0;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>../..;..\..\distorm\include;;..\..\rawpdb\raw_pdb\src\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../..;..\..\distorm\include;;..\..\rawpdb\raw_pdb\src\;.</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -178,6 +178,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\microprofile.h" />
     <ClInclude Include="..\..\microprofile_html.h" />
+    <ClInclude Include="microprofile.config.h" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\..\patch_win32.asm">

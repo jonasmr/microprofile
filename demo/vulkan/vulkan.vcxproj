@@ -100,7 +100,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>MICROPROFILE_GPU_TIMERS_VULKAN;_DEBUG;_WINDOWS;GLM_FORCE_RADIANS;VK_USE_PLATFORM_WIN32_KHR;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_WINDOWS;GLM_FORCE_RADIANS;VK_USE_PLATFORM_WIN32_KHR;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>.;$(VK_SDK_PATH)/include;../..</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -134,7 +134,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>MICROPROFILE_GPU_TIMERS_VULKAN;NDEBUG;_WINDOWS;GLM_FORCE_RADIANS;VK_USE_PLATFORM_WIN32_KHR;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_WINDOWS;GLM_FORCE_RADIANS;VK_USE_PLATFORM_WIN32_KHR;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>.;$(VK_SDK_PATH)/include;../..</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -155,6 +155,7 @@
     <ClInclude Include="Hologram.vert.h" />
     <ClInclude Include="Meshes.h" />
     <ClInclude Include="Meshes.teapot.h" />
+    <ClInclude Include="microprofile.config.h" />
     <ClInclude Include="Shell.h" />
     <ClInclude Include="ShellWin32.h" />
     <ClInclude Include="Simulation.h" />
