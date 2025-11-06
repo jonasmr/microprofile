@@ -787,7 +787,6 @@ static MicroProfileGetGpuTickReference_CB MicroProfileGetGpuTickReference_Callba
 static MicroProfileGpuFlip_CB MicroProfileGpuFlip_Callback = 0;
 static MicroProfileGpuShutdown_CB MicroProfileGpuShutdown_Callback = 0;
 
-
 uint32_t MicroProfileGpuInsertTimeStamp(void* pContext)
 {
 	return MicroProfileGpuInsertTimeStamp_Callback ? MicroProfileGpuInsertTimeStamp_Callback(pContext) : 0;
@@ -795,7 +794,6 @@ uint32_t MicroProfileGpuInsertTimeStamp(void* pContext)
 uint64_t MicroProfileGpuGetTimeStamp(uint32_t nKey)
 {
 	return MicroProfileGpuGetTimeStamp_Callback ? MicroProfileGpuGetTimeStamp_Callback(nKey) : 1;
-
 }
 uint64_t MicroProfileTicksPerSecondGpu()
 {
@@ -803,8 +801,7 @@ uint64_t MicroProfileTicksPerSecondGpu()
 }
 int MicroProfileGetGpuTickReference(int64_t* pOutCPU, int64_t* pOutGpu)
 {
-	return MicroProfileGetGpuTickReference_Callback ? MicroProfileGetGpuTickReference_Callback(pOutCPU, pOutGpu) :  0;
-
+	return MicroProfileGetGpuTickReference_Callback ? MicroProfileGetGpuTickReference_Callback(pOutCPU, pOutGpu) : 0;
 }
 uint32_t MicroProfileGpuFlip(void* p)
 {
@@ -812,10 +809,9 @@ uint32_t MicroProfileGpuFlip(void* p)
 }
 void MicroProfileGpuShutdown()
 {
-	if(MicroProfileGpuShutdown_Callback) 
+	if(MicroProfileGpuShutdown_Callback)
 		MicroProfileGpuShutdown_Callback();
 }
-
 
 #endif
 
@@ -975,7 +971,6 @@ uint32_t MicroProfileGpuFlipGL(void* pContext);
 void MicroProfileGpuShutdownGL();
 #endif
 
-
 #if MICROPROFILE_GPU_TIMERS_VULKAN
 
 //:'######:::'########::'##::::'##::::'##::::'##:'##::::'##:'##:::::::'##:::'##::::'###::::'##::: ##:
@@ -996,8 +991,6 @@ int MicroProfileGetGpuTickReferenceVulkan(int64_t* pOutCpu, int64_t* pOutGpu);
 uint32_t MicroProfileGpuFlipVulkan(void* pContext);
 void MicroProfileGpuShutdownVulkan();
 #endif
-
-
 
 struct MicroProfileSymbolState
 {
@@ -1669,6 +1662,7 @@ void uprintf(const char* fmt, ...)
 #define uprintf(...)                                                                                                                                                                                   \
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
+		sizeof(__VA_ARGS__);                                                                                                                                                                           \
 	} while(0)
 #endif
 
@@ -12536,11 +12530,13 @@ void MicroProfileProcessQuery(MicroProfileFunctionQuery* pQuery)
 {
 	MicroProfileFunctionQuery& Q = *pQuery;
 
-	int nCnt = 0;
-	(void)nCnt;
-
 	int nBlocksTested = 0, nSymbolsTested = 0, nStringsTested = 0, nStringsTested0 = 0;
 	int nBlocks = 0;
+	// (void)nBlocksTested;
+	// (void)nSymbolsTested;
+	// (void)nStringsTested;
+	// (void)nStringsTested0;
+	// (void)nBlocks;
 
 	int64_t t = MP_TICK();
 	int64_t tt = 0;
@@ -12596,8 +12592,6 @@ void MicroProfileProcessQuery(MicroProfileFunctionQuery* pQuery)
 	float ToMS = MicroProfileTickToMsMultiplierCpu();
 	float TIME = (tend - t) * ToMS;
 	float TIME0 = (tt - t) * ToMS;
-	(void)TIME;
-	(void)TIME0;
 	uprintf(" %6.3fms [%6.3f]: %5d/%5d blocks tested. %5d symbols %5d/%5d string compares\n", TIME, TIME0, nBlocksTested, nBlocks, nSymbolsTested, nStringsTested, nStringsTested0);
 }
 
