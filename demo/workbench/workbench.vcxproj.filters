@@ -12,6 +12,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\microprofile.h" />
     <ClInclude Include="..\..\microprofile_html.h" />
+    <ClInclude Include="microprofile.config.h" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\..\patch_win32.asm" />

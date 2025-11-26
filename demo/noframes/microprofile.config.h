@@ -1,0 +1,2 @@
+
+#define MICROPROFILE_ENABLED 1

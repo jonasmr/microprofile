@@ -28,6 +28,7 @@
     <ClInclude Include="imgui\backends\imgui_impl_win32.h">
       <Filter>imgui</Filter>
     </ClInclude>
+    <ClInclude Include="microprofile.config.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\microprofile.cpp" />
