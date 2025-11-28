@@ -7683,12 +7683,16 @@ void MicroProfileParseSettings(const char* pFileName, T CB)
 	long nFileSize = 0;
 	fseek(F, 0, SEEK_END);
 	nFileSize = ftell(F);
+	char* pFile = 0;
+	char* pAlloc = 0;
 	if(nFileSize > (32 << 10))
 	{
-		uprintf("trying to load a >32kb settings file on the stack. this should never happen!\n");
-		MP_BREAK();
+		pFile = pAlloc = (char*)MP_ALLOC(nFileSize + 1, 1);
 	}
-	char* pFile = (char*)alloca(nFileSize + 1);
+	else
+	{
+		pFile = (char*)alloca(nFileSize + 1);
+	}
 	fseek(F, 0, SEEK_SET);
 	if(1 != fread(pFile, nFileSize, 1, F))
 	{
@@ -7799,6 +7803,8 @@ void MicroProfileParseSettings(const char* pFileName, T CB)
 			break;
 		}
 	}
+	if(pAlloc)
+		MP_FREE(pAlloc);
 }
 
 bool MicroProfileSavePresets(const char* pSettingsName, const char* pJsonSettings)
@@ -10168,7 +10174,7 @@ uint64_t MicroProfileGpuGetTimeStampD3D12(uint32_t nIndex)
 	uint32_t nQueryIndex = nIndex & 0xffff;
 	uint32_t lala = IsCopy ? pGPU->nQueryFramesCopy[nQueryIndex] : pGPU->nQueryFrames[nQueryIndex];
 	// uprintf("read TS [%d <- %lld]\n", nQueryIndex, pGPU->nResults[nQueryIndex]);
-	MP_ASSERT((0x7fff & lala) == nFrame);
+	MP_ASSERT(nIndex == 0 || (0x7fff & lala) == nFrame);
 	uint64_t r = IsCopy ? pGPU->nResultsCopy[nQueryIndex] : pGPU->nResults[nQueryIndex];
 	if(r == 0x7fffffffffffffff)
 	{

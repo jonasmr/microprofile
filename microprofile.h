@@ -475,6 +475,10 @@ typedef uint32_t MicroProfileTimelineToken;
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
+#define MicroProfileGpuShutdownPlatform()                                                                                                                                                                      \
+	do                                                                                                                                                                                                 \
+	{                                                                                                                                                                                                  \
+	} while(0)
 #define MicroProfileGpuInitGL()                                                                                                                                                                        \
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
