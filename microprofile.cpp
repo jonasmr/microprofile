@@ -8813,6 +8813,10 @@ bool MicroProfileWebServerUpdate()
 	MicroProfileWebSocketFrame();
 	if(!MP_INVALID_SOCKET(Connection))
 	{
+		fd_set readfds;
+		FD_ZERO(&readfds);
+		FD_SET(Connection, &readfds);
+		select(0, &readfds, NULL, NULL, NULL);
 		std::lock_guard<std::recursive_mutex> Lock(MicroProfileMutex());
 		char Req[8192];
 		int nReceived = recv(Connection, Req, sizeof(Req) - 1, 0);
