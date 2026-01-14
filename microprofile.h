@@ -368,6 +368,13 @@ typedef uint32_t MicroProfileTimelineToken;
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
 	} while(0)
+
+#define MICROPROFILE_COUNTER_GET_TOKEN(name, f) 0
+#define MICROPROFILE_COUNTER_TOKEN_ADD(v, count) do{}while(0)
+#define MICROPROFILE_COUNTER_TOKEN_SUB(v, count) do{}while(0)
+#define MICROPROFILE_COUNTER_TOKEN_SET(v, count) do{}while(0)
+
+
 #define MicroProfileStartAutoFlip(nHz)                                                                                                                                                                 \
 	do                                                                                                                                                                                                 \
 	{                                                                                                                                                                                                  \
@@ -723,6 +730,10 @@ typedef void (*MicroProfileOnFreeze)(int nFrozen);
 #define MICROPROFILE_COUNTER_LOCAL_SET_ATOMIC(var, count) MicroProfileLocalCounterSetAtomic(g_mp_counter_token##var, count)
 #define MICROPROFILE_COUNTER_LOCAL_UPDATE_ADD_ATOMIC(var) MicroProfileCounterAdd(g_mp_counter_token##var, MicroProfileLocalCounterSetAtomic(g_mp_counter_token##var, 0))
 #define MICROPROFILE_COUNTER_LOCAL_UPDATE_SET_ATOMIC(var) MicroProfileCounterSet(g_mp_counter_token##var, MicroProfileLocalCounterSetAtomic(g_mp_counter_token##var, 0))
+#define MICROPROFILE_COUNTER_GET_TOKEN(name, f) MicroProfileGetCounterToken(name, f)
+#define MICROPROFILE_COUNTER_TOKEN_ADD(v, count) MicroProfileCounterAdd(v, count)
+#define MICROPROFILE_COUNTER_TOKEN_SUB(v, count) MicroProfileCounterAdd(v, -(int64_t)count)
+#define MICROPROFILE_COUNTER_TOKEN_SET(v, count) MicroProfileCounterSet(v, count)
 #define MICROPROFILE_FORCEENABLECPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeCpu)
 #define MICROPROFILE_FORCEDISABLECPUGROUP(s) MicroProfileForceDisableGroup(s, MicroProfileTokenTypeCpu)
 #define MICROPROFILE_FORCEENABLEGPUGROUP(s) MicroProfileForceEnableGroup(s, MicroProfileTokenTypeGpu)
@@ -1173,23 +1184,23 @@ extern "C"
 	} MicroProfileGpuTimerState;
 
 #if MICROPROFILE_GPU_TIMERS
-	typedef uint32_t (*MicroProfileGpuInsertTimeStamp_CB)(void* pContext);
-	typedef uint64_t (*MicroProfileGpuGetTimeStamp_CB)(uint32_t nKey);
-	typedef uint64_t (*MicroProfileTicksPerSecondGpu_CB)();
+	typedef uint32_t(*MicroProfileGpuInsertTimeStamp_CB)(void* pContext);
+	typedef uint64_t(*MicroProfileGpuGetTimeStamp_CB)(uint32_t nKey);
+	typedef uint64_t(*MicroProfileTicksPerSecondGpu_CB)();
 	typedef int (*MicroProfileGetGpuTickReference_CB)(int64_t* pOutCPU, int64_t* pOutGpu);
-	typedef uint32_t (*MicroProfileGpuFlip_CB)(void*);
+	typedef uint32_t(*MicroProfileGpuFlip_CB)(void*);
 	typedef void (*MicroProfileGpuShutdown_CB)();
 
 	MICROPROFILE_API void MicroProfileGpuShutdownPlatform();
 
 	MICROPROFILE_API void MicroProfileGpuInitPlatform(MicroProfileGpuTimerStateType eType,
-													  MicroProfileGpuTimerState* pGpuState,
-													  MicroProfileGpuInsertTimeStamp_CB InsertTimeStamp,
-													  MicroProfileGpuGetTimeStamp_CB GetTimeStamp,
-													  MicroProfileTicksPerSecondGpu_CB TicksPerSecond,
-													  MicroProfileGetGpuTickReference_CB GetTickReference,
-													  MicroProfileGpuFlip_CB Flip,
-													  MicroProfileGpuShutdown_CB Shutdown);
+		MicroProfileGpuTimerState* pGpuState,
+		MicroProfileGpuInsertTimeStamp_CB InsertTimeStamp,
+		MicroProfileGpuGetTimeStamp_CB GetTimeStamp,
+		MicroProfileTicksPerSecondGpu_CB TicksPerSecond,
+		MicroProfileGetGpuTickReference_CB GetTickReference,
+		MicroProfileGpuFlip_CB Flip,
+		MicroProfileGpuShutdown_CB Shutdown);
 #else
 #define MicroProfileGpuShutdownPlatform()                                                                                                                                                              \
 	do                                                                                                                                                                                                 \
@@ -1312,7 +1323,7 @@ struct MicroProfileConditionalScopeHandler
 	}
 	~MicroProfileConditionalScopeHandler()
 	{
-		if(nTick != MICROPROFILE_INVALID_TOKEN)
+		if (nTick != MICROPROFILE_INVALID_TOKEN)
 		{
 			MicroProfileLeaveInternal(nToken, nTick);
 		}
