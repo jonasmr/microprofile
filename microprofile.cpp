@@ -744,6 +744,9 @@ struct MicroProfileThreadLog
 
 	uint32_t nStackPut;
 	uint32_t nStackScope;
+#ifdef MICROPROFILE_VERIFY_BALANCED
+	uint64_t VerifyStack[MICROPROFILE_STACK_MAX];
+#endif
 	MicroProfileScopeStateC ScopeState[MICROPROFILE_STACK_MAX];
 
 	uint32_t nActive;
@@ -2870,6 +2873,9 @@ inline uint64_t MicroProfileLogPutEnter(MicroProfileToken nToken_, uint64_t nTic
 		}
 		else
 		{
+#ifdef MICROPROFILE_VERIFY_BALANCED
+			pLog->VerifyStack[nStackPut] = LE;
+#endif
 			pLog->nStackPut = nStackPut + 1;
 			pLog->Log[nPut] = LE;
 			pLog->nPut.store(nNextPos, std::memory_order_release);
@@ -2963,6 +2969,19 @@ inline void MicroProfileLogPutLeave(MicroProfileToken nToken_, uint64_t nTick, M
 		uint32_t nGet = pLog->nGet.load(std::memory_order_acquire);
 		MP_ASSERT(nStackPut < MICROPROFILE_STACK_MAX);
 		MP_ASSERT(nNextPos != nGet); // should never happen
+
+#ifdef MICROPROFILE_VERIFY_BALANCED
+		// verify what we pop is what we push.
+		uint64_t Pushed = pLog->VerifyStack[nStackPut];
+		uint64_t TimerPopped = MicroProfileLogGetTimerIndex(LE);
+		uint64_t TimerOnStack = MicroProfileLogGetTimerIndex(Pushed);
+		if(TimerPopped != TimerOnStack)
+		{
+			uprintf("Push/Pop Mismatch %s vs %s\n", S.TimerInfo[TimerPopped].pName, S.TimerInfo[TimerOnStack].pName);
+			MP_ASSERT(0);
+		}
+#endif
+
 		pLog->Log[nPos] = LE;
 		pLog->nPut.store(nNextPos, std::memory_order_release);
 	}
@@ -4116,7 +4135,9 @@ void MicroProfileFlip_CB(void* pContext, MicroProfileOnFreeze FreezeCB, uint32_t
 									bool bTimerRoot = 0 == TimerStackPos[nTimer] || 0 == --TimerStackPos[nTimer];
 									{
 										nStackPos--;
-										uint64_t nTickStart = MicroProfileLogTickClamp(pStackLog[nStackPos], nTickStartLog, nTickEndLog);
+										MicroProfileLogEntry LEStack = pStackLog[nStackPos];
+										MP_ASSERT(MicroProfileLogGetTimerIndex(LEStack) == nTimer); // unbalanced timers are not supported
+										uint64_t nTickStart = MicroProfileLogTickClamp(LEStack, nTickStartLog, nTickEndLog);
 										uint64_t nClamped = MicroProfileLogTickClamp(LE, nTickStartLog, nTickEndLog);
 										nTicks = MicroProfileLogTickDifference(nTickStart, nClamped);
 										MP_ASSERT(nTicks < 0x8000000000000000);
