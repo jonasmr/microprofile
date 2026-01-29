@@ -3,22 +3,12 @@ project(microprofile)
 
 option(MICROPROFILE_USE_CONFIG_FILE "Use user provided configuration in microprofile.config.h file." OFF)
 
-set(MICROPROFILE_EXPORT_FILENAME microprofile.export.h)
 set(MICROPROFILE_CONFIG_HEADER ${PROJECT_SOURCE_DIR}/microprofile.config.h)
-set(MICROPROFILE_PUBLIC_HEADERS
-	${PROJECT_SOURCE_DIR}/microprofile.h
-	${CMAKE_CURRENT_BINARY_DIR}/${MICROPROFILE_EXPORT_FILENAME}
-)
+set(MICROPROFILE_PUBLIC_HEADERS ${PROJECT_SOURCE_DIR}/microprofile.h)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 
-add_library(${PROJECT_NAME} microprofile.cpp)
-
-include(GenerateExportHeader)
-generate_export_header(${PROJECT_NAME}
-	EXPORT_MACRO_NAME MICROPROFILE_API
-	EXPORT_FILE_NAME ${MICROPROFILE_EXPORT_FILENAME}
-)
+add_library(${PROJECT_NAME} SHARED microprofile.cpp)
 
 target_include_directories(${PROJECT_NAME} PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
@@ -26,7 +16,12 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 	$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
-target_compile_definitions(${PROJECT_NAME} PUBLIC MICROPROFILE_EXPORT)
+target_compile_definitions(${PROJECT_NAME}
+	PUBLIC
+		MICROPROFILE_SHARED
+	PRIVATE
+		MICROPROFILE_EXPORT_SYMBOLS
+)
 
 if (MICROPROFILE_USE_CONFIG_FILE)
 	target_compile_definitions(${PROJECT_NAME} PUBLIC MICROPROFILE_USE_CONFIG)

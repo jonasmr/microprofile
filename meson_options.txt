@@ -1,1 +1,2 @@
 option('microprofile_use_config', type: 'boolean', value: false, description: 'Use custom microprofile.config.h')
+option('install', type: 'boolean', value: false, description: 'Install microprofile?')
