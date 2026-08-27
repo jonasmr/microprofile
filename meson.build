@@ -12,7 +12,8 @@ project(
 		'cpp_std=c++11'
 	],
 	license: 'MIT',
-	meson_version: '>=0.46.0'
+	meson_version: '>=0.46.0',
+	version: '5.0'
 )
 
 # Dependencies
@@ -20,6 +21,12 @@ project(
 deps = [dependency('threads')]
 
 extra_args = []
+private_args = []
+
+if get_option('default_library') == 'shared'
+	private_args += '-DMICROPROFILE_EXPORT_SYMBOLS'
+	extra_args += '-DMICROPROFILE_SHARED'
+endif
 
 compiler = meson.get_compiler('cpp')
 
@@ -79,7 +86,9 @@ include_dir = include_directories('.')
 
 if get_option('microprofile_use_config')
 	extra_args += '-DMICROPROFILE_USE_CONFIG'
-	install_headers('microprofile.config.h')
+	if get_option('install')
+		install_headers('microprofile.config.h')
+	endif
 endif
 
 # Main build target
@@ -87,25 +96,26 @@ endif
 libmicroprofile = library(
 	'microprofile',
 	'microprofile.cpp',
-	cpp_args: extra_args,
+	cpp_args: extra_args + private_args,
 	dependencies: deps,
 	include_directories: include_dir,
-	install: true
+	install: get_option('install')
 )
 
 # Headers and pkg-config installation
+if get_option('install')
+	install_headers(
+		'microprofile.h',
+		'microprofile_html.h'
+	)
 
-install_headers(
-	'microprofile.h',
-	'microprofile_html.h'
-)
-
-import('pkgconfig').generate(
-	libmicroprofile,
-	description: 'microprofile is an embeddable profiler',
-	extra_cflags: extra_args,
-	url: 'https://github.com/jonasmr/microprofile'
-)
+	import('pkgconfig').generate(
+		libmicroprofile,
+		description: 'microprofile is an embeddable profiler',
+		extra_cflags: extra_args,
+		url: 'https://github.com/jonasmr/microprofile'
+	)
+endif
 
 # Declaring the dependency so that microprofile can be used as a subproject
 
